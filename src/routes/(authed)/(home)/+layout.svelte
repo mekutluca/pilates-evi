@@ -50,7 +50,12 @@
 		});
 
 		// Navigation loading logic
-		beforeNavigate(() => {
+		beforeNavigate((navigation) => {
+			// Don't show loading for external links (tel:, mailto:, http:, https:, etc.)
+			if (navigation.to?.url.protocol && navigation.to.url.protocol !== 'http:' && navigation.to.url.protocol !== 'https:') {
+				return;
+			}
+			
 			if (loadingTimer) clearTimeout(loadingTimer);
 			loadingTimer = setTimeout(() => {
 				loading = true;

@@ -1,5 +1,35 @@
-/**
- * This file is necessary to ensure protection of all routes in the `authed`
- * directory. It makes the routes in this directory _dynamic_ routes, which
- * send a server request, and thus trigger `hooks.server.ts`.
- **/
+import { error } from '@sveltejs/kit';
+import type { LayoutServerLoad } from './$types';
+import type { Trainer } from '$lib/types/Trainer';
+
+export const load: LayoutServerLoad = async ({ locals: { supabase, user, userRole } }) => {
+    // Ensure user is authenticated
+    if (!user) {
+        throw error(401, 'Authentication required');
+    }
+
+    try {
+        // Fetch trainers from pe_trainers table - available to all users
+        const { data: trainers, error: trainersError } = await supabase
+            .from('pe_trainers')
+            .select('*');
+
+        if (trainersError) {
+            console.error('Error loading trainers:', trainersError);
+            // Don't throw error, just return empty array to avoid breaking other pages
+            return {
+                trainers: [] as Trainer[]
+            };
+        }
+
+        return {
+            trainers: (trainers as Trainer[]) || []
+        };
+    } catch (err) {
+        console.error('Error in home layout:', err);
+        // Don't throw error, just return empty array to avoid breaking other pages
+        return {
+            trainers: [] as Trainer[]
+        };
+    }
+};

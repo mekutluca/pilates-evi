@@ -38,8 +38,7 @@ export const load: PageServerLoad = async ({ locals: { admin, user, userRole } }
             });
 
         return {
-            users,
-            currentUser: user
+            users
         };
     } catch (err) {
         console.error('Error loading users:', err);
