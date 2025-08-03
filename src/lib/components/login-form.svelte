@@ -30,52 +30,15 @@
 		});
 
 		if (res.error) {
-			toast.error('Giriş hatası: ' + res.error.message);
+			toast.error(
+				'Giriş hatası: ' +
+					(res.error.message === 'Invalid login credentials'
+						? 'Kullanıcı adı veya şifre yanlış'
+						: res.error.message)
+			);
 			inProgress = false;
 		} else {
 			goto('/');
-		}
-	}
-
-	async function forgotPassword() {
-		inProgress = true;
-		const res = await supabase.auth.resetPasswordForEmail(email, {
-			// redirectTo: dev
-			// 	? 'http://localhost:5173/reset-password'
-			// 	: 'https://sunsama.vercel.app/reset-password'
-			redirectTo: '/reset-password'
-		});
-
-		if (res.error) {
-			toast.error('Password reset failed: ' + res.error.message);
-			inProgress = false;
-		} else {
-			goto('/reset-password-sent?email=' + encodeURIComponent(email));
-		}
-	}
-
-	async function resetPassword() {
-		inProgress = true;
-
-		const res = await supabase.auth.updateUser({
-			password
-		});
-
-		if (res.error) {
-			let error = res.error.message;
-			try {
-				const parsedUrl = new URL(page.url);
-				const hashParams = new URLSearchParams(parsedUrl.hash.substring(1));
-				let desc = hashParams.get('error_description');
-				if (desc) {
-					error = desc;
-				}
-			} catch (e) {}
-			toast.error('Password reset failed: ' + error);
-			inProgress = false;
-		} else {
-			toast.success('Password updated successfully!');
-			goto('/login');
 		}
 	}
 
@@ -93,10 +56,6 @@
 	onsubmit={() => {
 		if (formType === 'login') {
 			login();
-		} else if (formType === 'forgot-password') {
-			forgotPassword();
-		} else if (formType === 'reset-password') {
-			resetPassword();
 		}
 	}}
 >
@@ -133,7 +92,7 @@
 					<legend class="fieldset-legend">Şifre</legend>
 					{#if formType === 'login'}
 						<button
-							class="btn btn-sm btn-ghost hover:underline!"
+							class="btn btn-ghost btn-sm hover:underline!"
 							tabindex="-1"
 							onclick={showModal}
 							type="button"
@@ -145,7 +104,7 @@
 				<input class="input" id="password" type="password" required bind:value={password} />
 			</fieldset>
 		{/if}
-		<button type="submit" class="btn btn-primary w-full" disabled={inProgress}>
+		<button type="submit" class="btn w-full btn-primary" disabled={inProgress}>
 			{#if inProgress}
 				<div class="flex items-center">
 					<LoaderCircle size={16} class="animation--rotate opacity-50" />

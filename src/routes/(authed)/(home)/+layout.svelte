@@ -3,19 +3,15 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Logout from '@lucide/svelte/icons/log-out';
-	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
-	import BanknoteArrowUp from '@lucide/svelte/icons/banknote-arrow-up';
-	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
-	import CircleCheckBig from '@lucide/svelte/icons/circle-check-big';
-	import User from '@lucide/svelte/icons/user';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import { onMount } from 'svelte';
 	import { goto, invalidate, beforeNavigate, afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { allRoutes, type Route } from '$lib/types/Route.js';
+	import type { Role } from '$lib/types/Role.js';
 
 	let { children, data } = $props();
-	let { supabase, session } = $derived(data);
-	let user = $derived(data.user || session?.user);
+	let { supabase, session, userRole } = $derived(data);
 	let loading = $state(false);
 	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -71,35 +67,44 @@
 		};
 	});
 
-	const sidebarItems = [
-		{ href: '/', label: 'Panel', icon: LayoutDashboard },
-		{ href: '/balance', label: 'Hesap Hareketleri', icon: BanknoteArrowUp },
-		{ href: '/transactions', label: 'İşlem Geçmişi', icon: ArrowRightLeft },
-		{ href: '/orders', label: 'Talepler', icon: CircleCheckBig }
-	];
+	function getAvailableRoutes(userRole: Role | undefined): Route[] {
+		if (!userRole) return [];
+		return allRoutes.filter((route) => route.availableToRoles.includes(userRole));
+	}
 
-	const adminItems = [
-		{ href: '/admin/users', label: 'Kullanıcılar', icon: User },
-		{ href: '/admin/dataentry', label: 'Veri Gir', icon: ArrowRightLeft }
-	];
+	function groupRoutes(routes: Route[]): Record<string, Route[]> {
+		return routes.reduce(
+			(groups, route) => {
+				if (!groups[route.group]) {
+					groups[route.group] = [];
+				}
+				groups[route.group].push(route);
+				return groups;
+			},
+			{} as Record<string, Route[]>
+		);
+	}
+
+	let availableRoutes = $derived(getAvailableRoutes(userRole));
+	let groupedRoutes = $derived(groupRoutes(availableRoutes));
 </script>
 
 <div class="flex h-screen flex-col">
 	<!-- Loading Overlay -->
 	{#if loading}
-		<div class="bg-base-200/80 fixed inset-0 z-50 flex items-center justify-center">
-			<span class="loading loading-spinner loading-lg text-primary"></span>
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-base-200/80">
+			<span class="loading loading-lg loading-spinner text-primary"></span>
 		</div>
 	{/if}
 	<!-- Fixed navbar at top -->
-	<div class="navbar bg-base-300 flex-none shadow-sm">
+	<div class="navbar flex-none bg-base-300 shadow-sm">
 		<div class="flex-none">
 			<button class="btn btn-square btn-ghost lg:hidden" onclick={toggleDrawer}>
 				<Menu />
 			</button>
 		</div>
 		<div class="flex-1">
-			<a class="btn btn-ghost text-xl" href="/">Invest Track</a>
+			<a class="btn text-xl btn-ghost" href="/">Pilates Evi</a>
 		</div>
 		<div class="flex-none">
 			<div class="dropdown dropdown-end">
@@ -107,7 +112,7 @@
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<ul
 					tabindex="0"
-					class="dropdown-content menu rounded-box bg-base-200 z-1 w-52 p-2 shadow-sm"
+					class="dropdown-content menu z-1 w-52 rounded-box bg-base-200 p-2 shadow-sm"
 				>
 					<li><a onclick={closeDropdown} href="/settings"><Settings size="16" /> Settings</a></li>
 					<li>
@@ -128,38 +133,27 @@
 	<!-- Main content area with sidebar and scrollable content -->
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Fixed sidebar -->
-		<div class="bg-base-200 hidden w-80 p-4 lg:block">
-			<ul class="menu text-base-content w-full">
-				{#each sidebarItems as item}
-					<li class="w-full">
-						<a
-							href={item.href}
-							class="flex w-full items-center {page.url.pathname === item.href
-								? 'menu-active'
-								: ''}"
-						>
-							<item.icon size="16" /><span>{item.label}</span>
-						</a>
-					</li>
-				{/each}
-			</ul>
-			{#if user?.role === 'admin'}
-				<div class="divider my-2"></div>
-				<ul class="menu text-base-content w-full">
-					{#each adminItems as item}
+		<div class="hidden w-80 bg-base-200 p-4 lg:block">
+			{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex}
+				{#if groupIndex > 0}
+					<div class="divider my-2"></div>
+				{/if}
+				<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">{groupName}</div>
+				<ul class="menu w-full text-base-content">
+					{#each routes as route}
 						<li class="w-full">
 							<a
-								href={item.href}
-								class="flex w-full items-center {page.url.pathname === item.href
+								href={route.href}
+								class="flex w-full items-center {page.url.pathname === route.href
 									? 'menu-active'
 									: ''}"
 							>
-								<item.icon size="16" /><span>{item.label}</span>
+								<route.icon size="16" /><span>{route.label}</span>
 							</a>
 						</li>
 					{/each}
 				</ul>
-			{/if}
+			{/each}
 		</div>
 
 		<!-- Mobile drawer -->
@@ -170,49 +164,39 @@
 			</div>
 			<div class="drawer-side">
 				<label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
-				<div class="bg-base-200 text-base-content min-h-full w-80 p-4">
+				<div class="min-h-full w-80 bg-base-200 p-4 text-base-content">
 					<!-- Back arrow for mobile sidebar -->
 					<button
-						class="btn btn-ghost mb-2 lg:hidden"
+						class="btn mb-2 btn-ghost lg:hidden"
 						type="button"
 						onclick={closeDrawer}
 						aria-label="Kapat"
 					>
 						<ArrowLeft size="20" />
 					</button>
-					<ul class="menu w-full">
-						{#each sidebarItems as item}
-							<li class="w-full">
-								<a
-									href={item.href}
-									onclick={closeDrawer}
-									class="flex w-full items-center {page.url.pathname === item.href
-										? 'menu-active'
-										: ''}"
-								>
-									<item.icon size="16" /><span>{item.label}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-					{#if user?.role === 'admin'}
-						<div class="divider my-2"></div>
+					{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex}
+						{#if groupIndex > 0}
+							<div class="divider my-2"></div>
+						{/if}
+						<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">
+							{groupName}
+						</div>
 						<ul class="menu w-full">
-							{#each adminItems as item}
+							{#each routes as route}
 								<li class="w-full">
 									<a
-										href={item.href}
+										href={route.href}
 										onclick={closeDrawer}
-										class="flex w-full items-center {page.url.pathname === item.href
+										class="flex w-full items-center {page.url.pathname === route.href
 											? 'menu-active'
 											: ''}"
 									>
-										<item.icon size="16" /><span>{item.label}</span>
+										<route.icon size="16" /><span>{route.label}</span>
 									</a>
 								</li>
 							{/each}
 						</ul>
-					{/if}
+					{/each}
 				</div>
 			</div>
 		</div>
