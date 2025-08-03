@@ -1,6 +1,7 @@
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Users from '@lucide/svelte/icons/users';
 import type { Role } from './Role';
+import IdCard from '@lucide/svelte/icons/id-card';
 
 export interface Route {
 	href: string;
@@ -23,6 +24,13 @@ export const allRoutes: Route[] = [
 		label: 'Eğitmenler',
 		icon: Users,
 		availableToRoles: ['admin', 'coordinator'],
+		group: 'Yönetim'
+	},
+	{
+		href: '/admin/users',
+		label: 'Yetkili Kullanıcılar',
+		icon: IdCard,
+		availableToRoles: ['admin'],
 		group: 'Yönetim'
 	}
 ];

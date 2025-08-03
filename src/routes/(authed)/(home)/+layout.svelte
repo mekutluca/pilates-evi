@@ -112,7 +112,7 @@
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<ul
 					tabindex="0"
-					class="dropdown-content menu z-1 w-52 rounded-box bg-base-200 p-2 shadow-sm"
+					class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
 				>
 					<li><a onclick={closeDropdown} href="/settings"><Settings size="16" /> Settings</a></li>
 					<li>

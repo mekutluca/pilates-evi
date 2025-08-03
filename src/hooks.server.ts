@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { sequence } from '@sveltejs/kit/hooks'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
 import { PRIVATE_SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import type { Role } from '$lib/types/Role';
 
 
 const supabase: Handle = async ({ event, resolve }) => {
@@ -73,6 +74,8 @@ const supabase: Handle = async ({ event, resolve }) => {
 		return { session, user }
 	}
 
+	event.locals.userRole = event.locals.user?.role?.replace('pe_', '') as Role
+
 	return resolve(event, {
 		filterSerializedResponseHeaders(name) {
 			/**
@@ -89,6 +92,8 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	const { session, user } = await event.locals.safeGetSession()
 	event.locals.session = session
 	event.locals.user = user
+	event.locals.userRole = user?.role?.replace('pe_', '') as Role
+	const userRole = event.locals.userRole;
 
 	if (!session && event.route.id?.startsWith('/(authed)')) {
 		redirect(303, '/login')
@@ -98,7 +103,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		redirect(303, '/')
 	}
 
-	if (session && user && user.role !== 'admin' && event.url.pathname.startsWith('/admin')) {
+	if (session && user && userRole !== 'admin' && event.url.pathname.startsWith('/admin')) {
 		redirect(303, '/')
 	}
 
