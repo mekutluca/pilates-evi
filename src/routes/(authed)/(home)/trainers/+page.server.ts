@@ -61,7 +61,7 @@ export const actions: Actions = {
         }
 
         const formData = await request.formData();
-        const trainerId = formData.get('trainerId') as string;
+        const trainerId = Number(formData.get('trainerId'));
         const name = formData.get('name') as string;
         const phone = formData.get('phone') as string;
 
@@ -112,7 +112,7 @@ export const actions: Actions = {
         }
 
         const formData = await request.formData();
-        const trainerId = formData.get('trainerId') as string;
+        const trainerId = Number(formData.get('trainerId'));
 
         // Validate required fields
         if (!trainerId) {

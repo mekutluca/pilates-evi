@@ -7,19 +7,19 @@
 	import X from '@lucide/svelte/icons/x';
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import { enhance } from '$app/forms';
-	import type { Trainer } from '$lib/types/Trainer';
+    import { enhance } from '$app/forms';
+    import type { Trainer } from '$lib/types/Trainer';
 
 	let { data } = $props();
 	let { trainers: initialTrainers } = $derived(data);
 
-	let trainers = $derived<Trainer[]>(initialTrainers || []);
-	let filteredTrainers = $state<Trainer[]>(trainers);
+    let trainers = $derived<Trainer[]>(initialTrainers || []);
+    let filteredTrainers = $state<Trainer[]>(trainers);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
 	let showDeleteModal = $state(false);
-	let selectedTrainer = $state<Trainer | null>(null);
+    let selectedTrainer = $state<Trainer | null>(null);
 	let formLoading = $state(false);
 
 	// Form data for add/edit trainer
@@ -30,17 +30,18 @@
 		filterTrainers();
 	});
 
-	function filterTrainers() {
-		if (!searchTerm.trim()) {
-			filteredTrainers = trainers;
-		} else {
-			filteredTrainers = trainers.filter(
-				(trainer) =>
-					trainer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-					trainer.phone.toLowerCase().includes(searchTerm.toLowerCase())
-			);
-		}
-	}
+    function filterTrainers() {
+        if (!searchTerm.trim()) {
+            filteredTrainers = trainers;
+        } else {
+            const term = searchTerm.toLowerCase();
+            filteredTrainers = trainers.filter((trainer) => {
+                const name = (trainer.name ?? '').toLowerCase();
+                const phone = trainer.phone.toLowerCase();
+                return name.includes(term) || phone.includes(term);
+            });
+        }
+    }
 
 	function clearSearch() {
 		searchTerm = '';
@@ -51,15 +52,15 @@
 		activeElement?.blur();
 	}
 
-	function openEditModal(trainer: Trainer) {
-		selectedTrainer = trainer;
-		name = trainer.name;
-		phone = trainer.phone;
+    function openEditModal(trainer: Trainer) {
+        selectedTrainer = trainer;
+        name = trainer.name ?? '';
+        phone = trainer.phone;
 		showEditModal = true;
 		closeDropdown();
 	}
 
-	function openDeleteModal(trainer: Trainer) {
+    function openDeleteModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		showDeleteModal = true;
 		closeDropdown();
