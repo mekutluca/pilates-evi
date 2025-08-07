@@ -2,6 +2,9 @@ import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Users from '@lucide/svelte/icons/users';
 import type { Role } from './Role';
 import IdCard from '@lucide/svelte/icons/id-card';
+import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
+
+
 
 export interface Route {
 	href: string;
@@ -23,6 +26,13 @@ export const allRoutes: Route[] = [
 		href: '/trainers',
 		label: 'Eğitmenler',
 		icon: Users,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Yönetim'
+	},
+	{
+		href: '/rooms',
+		label: 'Odalar',
+		icon: TableCellsSplit,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Yönetim'
 	},
