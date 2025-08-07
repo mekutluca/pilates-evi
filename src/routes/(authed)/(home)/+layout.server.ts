@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import type { Trainer } from '$lib/types/Trainer';
 
-export const load: LayoutServerLoad = async ({ locals: { supabase, user, userRole } }) => {
+export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
     // Ensure user is authenticated
     if (!user) {
         throw error(401, 'Authentication required');

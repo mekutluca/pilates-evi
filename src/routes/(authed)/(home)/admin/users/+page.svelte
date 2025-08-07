@@ -8,21 +8,13 @@
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
+    import type { User } from '$lib/types/User';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
 	
 	// Get current user from parent layout data (available from authed layout)
 	let currentUser = $derived(data.user || data.session?.user);
-
-	interface User {
-		id: string;
-		email: string;
-		fullName?: string;
-		role: string;
-		created_at: string;
-		last_sign_in_at?: string;
-	}
 
 	let users = $derived<User[]>(initialUsers || []);
 	let filteredUsers = $state<User[]>(users);

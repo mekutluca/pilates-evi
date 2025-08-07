@@ -4,6 +4,7 @@ import { sequence } from '@sveltejs/kit/hooks'
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
 import { PRIVATE_SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import type { Role } from '$lib/types/Role';
+import { allRoutes } from '$lib/types/Route';
 
 
 const supabase: Handle = async ({ event, resolve }) => {
@@ -103,8 +104,15 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		redirect(303, '/')
 	}
 
-	if (session && user && userRole !== 'admin' && event.url.pathname.startsWith('/admin')) {
-		redirect(303, '/')
+	// Role-based access control using route definitions
+	if (session) {
+		const normalizedPathname = event.url.pathname.replace(/\/+$/, '') || '/'
+		const matchedRoute = allRoutes.find((route) => route.href === normalizedPathname)
+		if (matchedRoute) {
+			if (!userRole || !matchedRoute.availableToRoles.includes(userRole)) {
+				redirect(303, '/')
+			}
+		}
 	}
 
 	return resolve(event)

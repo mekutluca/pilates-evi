@@ -1,16 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 
-export const load: PageServerLoad = async ({ locals: { user, userRole } }) => {
-    // Allow both admins and coordinators to access this page
-    if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-        throw error(403, 'Bu sayfaya erişim yetkiniz yok');
-    }
-
-    // Data is now provided by the layout
-    return {};
-};
-
 export const actions: Actions = {
     createTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
         // Allow both admins and coordinators to create trainers
