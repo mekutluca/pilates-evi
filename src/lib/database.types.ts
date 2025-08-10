@@ -53,6 +53,27 @@ export type Database = {
         }
         Relationships: []
       }
+      pe_trainings: {
+        Row: {
+          id: number
+          max_capacity: number
+          min_capacity: number
+          name: string
+        }
+        Insert: {
+          id?: number
+          max_capacity?: number
+          min_capacity?: number
+          name?: string
+        }
+        Update: {
+          id?: number
+          max_capacity?: number
+          min_capacity?: number
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
