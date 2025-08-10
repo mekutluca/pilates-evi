@@ -1,11 +1,18 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
+// Helper function to validate user permissions
+function validateUserPermission(user: any, userRole: any) {
+    if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+        return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+    }
+    return null;
+}
+
 export const actions: Actions = {
     createTraining: async ({ request, locals: { supabase, user, userRole } }) => {
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const name = formData.get('name') as string;
@@ -58,9 +65,8 @@ export const actions: Actions = {
     },
 
     updateTraining: async ({ request, locals: { supabase, user, userRole } }) => {
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const trainingId = Number(formData.get('trainingId'));
@@ -89,9 +95,8 @@ export const actions: Actions = {
     },
 
     deleteTraining: async ({ request, locals: { supabase, user, userRole } }) => {
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const trainingId = Number(formData.get('trainingId'));

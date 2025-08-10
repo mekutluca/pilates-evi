@@ -1,15 +1,50 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 
+// Helper function to validate user permissions
+function validateUserPermission(user: any, userRole: any) {
+    if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+        return fail(403, {
+            success: false,
+            message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
+        });
+    }
+    return null;
+}
+
+// Helper function to manage training assignments
+async function updateTrainerTrainings(supabase: any, trainerId: number, selectedTrainingIds: number[]) {
+    // Delete existing assignments
+    const { error: deleteError } = await supabase
+        .from('pe_trainer_trainings')
+        .delete()
+        .eq('trainer_id', trainerId);
+
+    if (deleteError) {
+        console.error('Error removing existing training assignments:', deleteError);
+    }
+
+    // Insert new assignments if any
+    if (selectedTrainingIds.length > 0) {
+        const trainingAssignments = selectedTrainingIds.map(trainingId => ({
+            trainer_id: trainerId,
+            training_id: trainingId
+        }));
+
+        const { error: assignError } = await supabase
+            .from('pe_trainer_trainings')
+            .insert(trainingAssignments);
+
+        if (assignError) {
+            console.error('Training assignment error:', assignError);
+        }
+    }
+}
+
 export const actions: Actions = {
     createTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-        // Allow both admins and coordinators to create trainers
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, {
-                success: false,
-                message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-            });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const name = formData.get('name') as string;
@@ -49,21 +84,7 @@ export const actions: Actions = {
         }
 
         // Assign selected trainings to the new trainer
-        if (selectedTrainingIds.length > 0) {
-            const trainingAssignments = selectedTrainingIds.map(trainingId => ({
-                trainer_id: trainerData.id,
-                training_id: trainingId
-            }));
-
-            const { error: assignError } = await supabase
-                .from('pe_trainer_trainings')
-                .insert(trainingAssignments);
-
-            if (assignError) {
-                console.error('Training assignment error:', assignError);
-                // Don't fail the entire operation, just log the error
-            }
-        }
+        await updateTrainerTrainings(supabase, trainerData.id, selectedTrainingIds);
 
         return {
             success: true,
@@ -72,13 +93,8 @@ export const actions: Actions = {
     },
 
     updateTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-        // Allow both admins and coordinators to update trainers
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, {
-                success: false,
-                message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-            });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const trainerId = Number(formData.get('trainerId'));
@@ -117,31 +133,8 @@ export const actions: Actions = {
             });
         }
 
-        // Update training assignments - first delete existing, then insert new ones
-        const { error: deleteError } = await supabase
-            .from('pe_trainer_trainings')
-            .delete()
-            .eq('trainer_id', trainerId);
-
-        if (deleteError) {
-            console.error('Error removing existing training assignments:', deleteError);
-        }
-
-        if (selectedTrainingIds.length > 0) {
-            const trainingAssignments = selectedTrainingIds.map(trainingId => ({
-                trainer_id: trainerId,
-                training_id: trainingId
-            }));
-
-            const { error: assignError } = await supabase
-                .from('pe_trainer_trainings')
-                .insert(trainingAssignments);
-
-            if (assignError) {
-                console.error('Training assignment error:', assignError);
-                // Don't fail the entire operation, just log the error
-            }
-        }
+        // Update training assignments
+        await updateTrainerTrainings(supabase, trainerId, selectedTrainingIds);
 
         return {
             success: true,
@@ -150,13 +143,8 @@ export const actions: Actions = {
     },
 
     deleteTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-        // Allow both admins and coordinators to delete trainers
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, {
-                success: false,
-                message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-            });
-        }
+        const permissionError = validateUserPermission(user, userRole);
+        if (permissionError) return permissionError;
 
         const formData = await request.formData();
         const trainerId = Number(formData.get('trainerId'));
@@ -185,89 +173,6 @@ export const actions: Actions = {
         return {
             success: true,
             message: 'Eğitmen başarıyla silindi'
-        };
-    },
-
-    assignTraining: async ({ request, locals: { supabase, user, userRole } }) => {
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, {
-                success: false,
-                message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-            });
-        }
-
-        const formData = await request.formData();
-        const trainerId = Number(formData.get('trainerId'));
-        const trainingId = Number(formData.get('trainingId'));
-
-        if (!trainerId || !trainingId) {
-            return fail(400, {
-                success: false,
-                message: 'Eğitmen ve egzersiz seçimi gereklidir'
-            });
-        }
-
-        const { error: assignError } = await supabase
-            .from('pe_trainer_trainings')
-            .insert({
-                trainer_id: trainerId,
-                training_id: trainingId
-            });
-
-        if (assignError) {
-            if (assignError.code === '23505') { // Unique constraint violation
-                return fail(400, {
-                    success: false,
-                    message: 'Bu eğitmen zaten bu egzersize atanmış'
-                });
-            }
-            return fail(500, {
-                success: false,
-                message: 'Egzersiz atanırken hata: ' + assignError.message
-            });
-        }
-
-        return {
-            success: true,
-            message: 'Egzersiz başarıyla atandı'
-        };
-    },
-
-    unassignTraining: async ({ request, locals: { supabase, user, userRole } }) => {
-        if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-            return fail(403, {
-                success: false,
-                message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-            });
-        }
-
-        const formData = await request.formData();
-        const trainerId = Number(formData.get('trainerId'));
-        const trainingId = Number(formData.get('trainingId'));
-
-        if (!trainerId || !trainingId) {
-            return fail(400, {
-                success: false,
-                message: 'Eğitmen ve egzersiz seçimi gereklidir'
-            });
-        }
-
-        const { error: unassignError } = await supabase
-            .from('pe_trainer_trainings')
-            .delete()
-            .eq('trainer_id', trainerId)
-            .eq('training_id', trainingId);
-
-        if (unassignError) {
-            return fail(500, {
-                success: false,
-                message: 'Egzersiz ataması kaldırılırken hata: ' + unassignError.message
-            });
-        }
-
-        return {
-            success: true,
-            message: 'Egzersiz ataması başarıyla kaldırıldı'
         };
     }
 };

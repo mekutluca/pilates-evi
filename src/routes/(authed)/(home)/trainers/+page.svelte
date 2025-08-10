@@ -17,7 +17,7 @@
 	let { trainers: initialTrainers, trainings, trainerTrainings } = $derived(data);
 
     let trainers = $derived<Trainer[]>(initialTrainers || []);
-    let filteredTrainers = $state<Trainer[]>(trainers);
+    let filteredTrainers = $state<Trainer[]>(initialTrainers || []);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -78,8 +78,8 @@
 
 	function getTrainerTrainings(trainerId: number): Training[] {
 		const trainerTrainingIds = trainerTrainings
-			.filter(tt => tt.trainer_id === trainerId)
-			.map(tt => tt.training_id);
+			.filter((tt: any) => tt.trainer_id === trainerId)
+			.map((tt: any) => tt.training_id);
 		return trainings.filter(t => trainerTrainingIds.includes(t.id));
 	}
 
@@ -89,10 +89,6 @@
 		} else {
 			selectedTrainingIds = [...selectedTrainingIds, trainingId];
 		}
-	}
-
-	function isTrainingSelected(trainingId: number): boolean {
-		return selectedTrainingIds.includes(trainingId);
 	}
 
 </script>

@@ -7,8 +7,6 @@
     import PageHeader from '$lib/components/page-header.svelte';
     import MoreVertical from '@lucide/svelte/icons/more-vertical';
     import Trash2 from '@lucide/svelte/icons/trash-2';
-    import Dumbbell from '@lucide/svelte/icons/dumbbell';
-    import Users from '@lucide/svelte/icons/users';
     import { enhance } from '$app/forms';
     import type { Training } from '$lib/types/Training';
 
