@@ -4,7 +4,8 @@
 	import Edit from '@lucide/svelte/icons/edit';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-	import X from '@lucide/svelte/icons/x';
+    import SearchInput from '$lib/components/search-input.svelte';
+    import PageHeader from '$lib/components/page-header.svelte';
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
@@ -51,9 +52,7 @@
 		}
 	}
 
-	function clearSearch() {
-		searchTerm = '';
-	}
+    // clear handled inside SearchInput component via bind:value
 
 	function closeDropdown() {
 		const activeElement = document?.activeElement as HTMLElement | null;
@@ -115,31 +114,12 @@
 </script>
 
 <div class="p-6">
-	<div class="mb-6">
-		<h1 class="text-3xl font-bold">Yetkili Kullanıcılar</h1>
-		<p class="text-base-content/70 mt-2">Bu sayfada adminleri ve koordinatörleri yönetin</p>
-	</div>
+    <PageHeader title="Yetkili Kullanıcılar" subtitle="Bu sayfada adminleri ve koordinatörleri yönetin" />
 
 	<!-- Search and Add User Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="form-control w-full max-w-xs">
-			<div class="input-group flex flex-row items-center gap-2">
-				<input
-					type="text"
-					placeholder="Kullanıcı ara..."
-					class="input input-bordered w-full"
-					bind:value={searchTerm}
-				/>
-				{#if searchTerm.trim()}
-					<button
-						class="btn btn-outline btn-accent btn-square btn-sm"
-						onclick={clearSearch}
-						title="Aramayı temizle"
-					>
-						<X size={14} />
-					</button>
-				{/if}
-			</div>
+			<SearchInput bind:value={searchTerm} placeholder="Kullanıcı ara..." />
 		</div>
 
 		<button
