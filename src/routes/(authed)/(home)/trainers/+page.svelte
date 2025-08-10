@@ -103,7 +103,7 @@
 		</div>
 
 		<button
-			class="btn btn-primary"
+			class="btn btn-info"
 			onclick={() => {
 				resetForm();
 				showAddModal = true;
@@ -279,7 +279,7 @@
 				>
 					İptal
 				</button>
-				<button type="submit" class="btn btn-primary" disabled={formLoading}>
+				<button type="submit" class="btn btn-info" disabled={formLoading}>
 					{#if formLoading}
 						<LoaderCircle size={16} class="animate-spin" />
 					{:else}
@@ -380,7 +380,7 @@
 				>
 					İptal
 				</button>
-				<button type="submit" class="btn btn-primary" disabled={formLoading}>
+				<button type="submit" class="btn btn-info" disabled={formLoading}>
 					{#if formLoading}
 						<LoaderCircle size={16} class="animate-spin" />
 					{:else}

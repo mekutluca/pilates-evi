@@ -79,7 +79,7 @@
         </div>
 
         <button
-            class="btn btn-primary"
+            class="btn btn-secondary"
             onclick={() => {
                 resetForm();
                 showAddModal = true;
@@ -204,7 +204,7 @@
 
             <div class="form-control">
                 <label class="cursor-pointer justify-start gap-3">
-                    <input type="checkbox" name="assignToAllTrainers" class="checkbox checkbox-primary" checked />
+                    <input type="checkbox" name="assignToAllTrainers" class="checkbox checkbox-secondary" checked />
                     <span class="label-text pl-3">Tüm eğitmenlere otomatik ata</span>
                 </label>
                 <div class="text-xs text-base-content/60 ml-7 pl-3">
@@ -223,7 +223,7 @@
                 >
                     İptal
                 </button>
-                <button type="submit" class="btn btn-primary" disabled={formLoading}>
+                <button type="submit" class="btn btn-secondary" disabled={formLoading}>
                     {#if formLoading}
                         <LoaderCircle size={16} class="animate-spin" />
                     {:else}
@@ -299,7 +299,7 @@
                 >
                     İptal
                 </button>
-                <button type="submit" class="btn btn-primary" disabled={formLoading}>
+                <button type="submit" class="btn btn-secondary" disabled={formLoading}>
                     {#if formLoading}
                         <LoaderCircle size={16} class="animate-spin" />
                     {:else}
