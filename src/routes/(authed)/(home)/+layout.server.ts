@@ -10,15 +10,17 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
         throw error(401, 'Authentication required');
     }
 
-    // Fetch trainers, rooms, and trainings concurrently
+    // Fetch trainers, rooms, trainings, and trainer-training relationships concurrently
     const [
         { data: trainers, error: trainersError },
         { data: rooms, error: roomsError },
-        { data: trainings, error: trainingsError }
+        { data: trainings, error: trainingsError },
+        { data: trainerTrainings, error: trainerTrainingsError }
     ] = await Promise.all([
         supabase.from('pe_trainers').select('*'),
         supabase.from('pe_rooms').select('*'),
-        supabase.from('pe_trainings').select('*')
+        supabase.from('pe_trainings').select('*'),
+        supabase.from('pe_trainer_trainings').select('*')
     ]);
 
     if (trainersError) {
@@ -33,9 +35,14 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
         console.error('Error loading trainings:', trainingsError);
     }
 
+    if (trainerTrainingsError) {
+        console.error('Error loading trainer trainings:', trainerTrainingsError);
+    }
+
     return {
         trainers: trainersError ? ([] as Trainer[]) : ((trainers as Trainer[]) || []),
         rooms: roomsError ? ([] as Room[]) : ((rooms as Room[]) || []),
-        trainings: trainingsError ? ([] as Training[]) : ((trainings as Training[]) || [])
+        trainings: trainingsError ? ([] as Training[]) : ((trainings as Training[]) || []),
+        trainerTrainings: trainerTrainingsError ? [] : (trainerTrainings || [])
     };
 };

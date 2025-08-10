@@ -108,8 +108,8 @@
                         <thead>
                             <tr>
                                 <th>Ad</th>
-                                <th>Min. Kapasite</th>
-                                <th>Max. Kapasite</th>
+                                <th>Min. Öğrenci</th>
+                                <th>Max. Öğrenci</th>
                                 <th class="text-right">İşlemler</th>
                             </tr>
                         </thead>
@@ -194,14 +194,24 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Min. Kapasite</legend>
+                    <legend class="fieldset-legend">Min. Öğrenci</legend>
                     <input type="number" name="min_capacity" class="input w-full" bind:value={minCapacity} min="0" />
                 </fieldset>
 
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Max. Kapasite</legend>
+                    <legend class="fieldset-legend">Max. Öğrenci</legend>
                     <input type="number" name="max_capacity" class="input w-full" bind:value={maxCapacity} min="0" />
                 </fieldset>
+            </div>
+
+            <div class="form-control">
+                <label class="cursor-pointer justify-start gap-3">
+                    <input type="checkbox" name="assignToAllTrainers" class="checkbox checkbox-primary" checked />
+                    <span class="label-text pl-3">Tüm eğitmenlere otomatik ata</span>
+                </label>
+                <div class="text-xs text-base-content/60 ml-7 pl-3">
+                    Bu egzersizi oluştururken tüm mevcut eğitmenlere otomatik olarak atar
+                </div>
             </div>
 
             <div class="modal-action">
@@ -270,12 +280,12 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Min. Kapasite</legend>
+                    <legend class="fieldset-legend">Min. Öğrenci</legend>
                     <input type="number" name="min_capacity" class="input w-full" bind:value={minCapacity} min="0" />
                 </fieldset>
 
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Max. Kapasite</legend>
+                    <legend class="fieldset-legend">Max. Öğrenci</legend>
                     <input type="number" name="max_capacity" class="input w-full" bind:value={maxCapacity} min="0" />
                 </fieldset>
             </div>

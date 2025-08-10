@@ -53,6 +53,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pe_trainer_trainings: {
+        Row: {
+          created_at: string | null
+          id: number
+          trainer_id: number
+          training_id: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          trainer_id: number
+          training_id: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          trainer_id?: number
+          training_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pe_trainer_trainings_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "pe_trainers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pe_trainer_trainings_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "pe_trainings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       pe_trainings: {
         Row: {
           id: number

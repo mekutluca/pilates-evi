@@ -8,11 +8,13 @@
     import PageHeader from '$lib/components/page-header.svelte';
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Check from '@lucide/svelte/icons/check';
     import { enhance } from '$app/forms';
     import type { Trainer } from '$lib/types/Trainer';
+    import type { Training } from '$lib/types/Training';
 
 	let { data } = $props();
-	let { trainers: initialTrainers } = $derived(data);
+	let { trainers: initialTrainers, trainings, trainerTrainings } = $derived(data);
 
     let trainers = $derived<Trainer[]>(initialTrainers || []);
     let filteredTrainers = $state<Trainer[]>(trainers);
@@ -26,6 +28,7 @@
 	// Form data for add/edit trainer
 	let name = $state('');
 	let phone = $state('');
+	let selectedTrainingIds = $state<number[]>([]);
 
 	$effect(() => {
 		filterTrainers();
@@ -55,6 +58,7 @@
         selectedTrainer = trainer;
         name = trainer.name ?? '';
         phone = trainer.phone;
+        selectedTrainingIds = getTrainerTrainings(trainer.id).map(t => t.id);
 		showEditModal = true;
 		closeDropdown();
 	}
@@ -69,6 +73,26 @@
 		name = '';
 		phone = '';
 		selectedTrainer = null;
+		selectedTrainingIds = trainings.map(t => t.id); // Default: all trainings selected
+	}
+
+	function getTrainerTrainings(trainerId: number): Training[] {
+		const trainerTrainingIds = trainerTrainings
+			.filter(tt => tt.trainer_id === trainerId)
+			.map(tt => tt.training_id);
+		return trainings.filter(t => trainerTrainingIds.includes(t.id));
+	}
+
+	function toggleTraining(trainingId: number) {
+		if (selectedTrainingIds.includes(trainingId)) {
+			selectedTrainingIds = selectedTrainingIds.filter(id => id !== trainingId);
+		} else {
+			selectedTrainingIds = [...selectedTrainingIds, trainingId];
+		}
+	}
+
+	function isTrainingSelected(trainingId: number): boolean {
+		return selectedTrainingIds.includes(trainingId);
 	}
 
 </script>
@@ -112,6 +136,7 @@
 							<tr>
 								<th>Ad</th>
 								<th>Telefon</th>
+								<th>Verebildiği Dersler</th>
 								<th class="text-right">İşlemler</th>
 							</tr>
 						</thead>
@@ -127,6 +152,19 @@
 										<a href="tel:{trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">
 											{trainer.phone}
 										</a>
+									</td>
+									<td>
+										{#each [getTrainerTrainings(trainer.id)] as assignedTrainings}
+											{#if assignedTrainings.length === 0}
+												<span class="text-base-content/50 text-sm">Atanmamış</span>
+											{:else}
+												<div class="flex flex-wrap gap-1">
+													{#each assignedTrainings as training}
+														<span class="badge badge-secondary badge-sm">{training.name}</span>
+													{/each}
+												</div>
+											{/if}
+										{/each}
 									</td>
 									<td class="text-right">
 										<div
@@ -205,6 +243,35 @@
 				<input type="tel" name="phone" class="input w-full" bind:value={phone} placeholder="5xx xxx xx xx" required />
 			</fieldset>
 
+			<fieldset class="fieldset">
+				<legend class="fieldset-legend">Verebildiği Dersler</legend>
+				<div class="text-xs text-base-content/60 mb-2">
+					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#each trainings as training}
+						{@const isSelected = selectedTrainingIds.includes(training.id)}
+						<input type="hidden" name="selectedTrainingIds" value={training.id} disabled={!isSelected} />
+						<button
+							type="button"
+							class="badge {isSelected ? 'badge-secondary' : 'badge-secondary badge-outline'} cursor-pointer hover:scale-105 transition-all duration-200 flex items-center gap-2"
+							onclick={() => toggleTraining(training.id)}
+						>
+							<div class="swap swap-rotate">
+								<input 
+									type="checkbox" 
+									checked={isSelected} 
+									readonly 
+								/>
+								<Check size={14} class="swap-on" />
+								<Plus size={14} class="swap-off" />
+							</div>
+							{training.name}
+						</button>
+					{/each}
+				</div>
+			</fieldset>
+
 			<div class="modal-action">
 				<button
 					type="button"
@@ -275,6 +342,35 @@
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Telefon</legend>
 				<input type="tel" name="phone" class="input w-full" bind:value={phone} placeholder="05xx xxx xx xx" required />
+			</fieldset>
+
+			<fieldset class="fieldset">
+				<legend class="fieldset-legend">Verebildiği Dersler</legend>
+				<div class="text-xs text-base-content/60 mb-2">
+					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
+				</div>
+				<div class="flex flex-wrap gap-2">
+					{#each trainings as training}
+						{@const isSelected = selectedTrainingIds.includes(training.id)}
+						<input type="hidden" name="selectedTrainingIds" value={training.id} disabled={!isSelected} />
+						<button
+							type="button"
+							class="badge {isSelected ? 'badge-secondary' : 'badge-secondary badge-outline'} cursor-pointer hover:scale-105 transition-all duration-200 flex items-center gap-2"
+							onclick={() => toggleTraining(training.id)}
+						>
+							<div class="swap swap-rotate">
+								<input 
+									type="checkbox" 
+									checked={isSelected} 
+									readonly 
+								/>
+								<Check size={14} class="swap-on" />
+								<Plus size={14} class="swap-off" />
+							</div>
+							{training.name}
+						</button>
+					{/each}
+				</div>
 			</fieldset>
 
 			<div class="modal-action">
@@ -373,3 +469,4 @@
 		>
 	</form>
 </dialog>
+
