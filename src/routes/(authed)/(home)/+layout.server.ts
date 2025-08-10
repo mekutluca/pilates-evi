@@ -3,6 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import type { Trainer } from '$lib/types/Trainer';
 import type { Room } from '$lib/types/Room.js';
 import type { Training } from '$lib/types/Training.js';
+import type { Trainee } from '$lib/types/Trainee.js';
 
 export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
     // Ensure user is authenticated
@@ -15,6 +16,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
         { name: 'trainers', query: supabase.from('pe_trainers').select('*') },
         { name: 'rooms', query: supabase.from('pe_rooms').select('*') },
         { name: 'trainings', query: supabase.from('pe_trainings').select('*') },
+        { name: 'trainees', query: supabase.from('pe_trainees').select('*') },
         { name: 'trainerTrainings', query: supabase.from('pe_trainer_trainings').select('*') }
     ];
 
@@ -37,6 +39,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
         trainers: data.trainers as Trainer[],
         rooms: data.rooms as Room[],
         trainings: data.trainings as Training[],
+        trainees: data.trainees as Trainee[],
         trainerTrainings: data.trainerTrainings
     };
 };

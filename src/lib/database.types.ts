@@ -89,6 +89,36 @@ export type Database = {
           }
         ]
       }
+      pe_trainees: {
+        Row: {
+          created_at: string
+          email: string
+          id: number
+          name: string
+          notes: string | null
+          phone: string
+          related_trainee_ids: number[]
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: number
+          name: string
+          notes?: string | null
+          phone: string
+          related_trainee_ids?: number[]
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: number
+          name?: string
+          notes?: string | null
+          phone?: string
+          related_trainee_ids?: number[]
+        }
+        Relationships: []
+      }
       pe_trainings: {
         Row: {
           id: number

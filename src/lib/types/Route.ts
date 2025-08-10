@@ -4,6 +4,7 @@ import type { Role } from './Role';
 import IdCard from '@lucide/svelte/icons/id-card';
 import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
 import Dumbbell from '@lucide/svelte/icons/dumbbell';
+import Medal from '@lucide/svelte/icons/medal';
 
 
 
@@ -41,6 +42,13 @@ export const allRoutes: Route[] = [
 		href: '/trainings',
 		label: 'Egzersizler',
 		icon: Dumbbell,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Yönetim'
+	},
+	{
+		href: '/trainees',
+		label: 'Öğrenciler',
+		icon: Medal,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Yönetim'
 	},
