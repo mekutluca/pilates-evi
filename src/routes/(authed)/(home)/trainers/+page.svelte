@@ -6,18 +6,17 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
     import SearchInput from '$lib/components/search-input.svelte';
     import PageHeader from '$lib/components/page-header.svelte';
-	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Check from '@lucide/svelte/icons/check';
     import { enhance } from '$app/forms';
     import type { Trainer } from '$lib/types/Trainer';
     import type { Training } from '$lib/types/Training';
+    import SortableTable from '$lib/components/sortable-table.svelte';
 
 	let { data } = $props();
 	let { trainers: initialTrainers, trainings, trainerTrainings } = $derived(data);
 
     let trainers = $derived<Trainer[]>(initialTrainers || []);
-    let filteredTrainers = $state<Trainer[]>(initialTrainers || []);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -30,22 +29,67 @@
 	let phone = $state('');
 	let selectedTrainingIds = $state<number[]>([]);
 
-	$effect(() => {
-		filterTrainers();
-	});
+	const tableActions = [
+		{
+			label: 'Düzenle',
+			handler: (id: number | string) => {
+				const trainer = trainers.find(t => t.id === Number(id));
+				if (trainer) openEditModal(trainer);
+			},
+			icon: Edit
+		},
+		{
+			label: 'Sil',
+			handler: (id: number | string) => {
+				const trainer = trainers.find(t => t.id === Number(id));
+				if (trainer) openDeleteModal(trainer);
+			},
+			class: 'text-error',
+			icon: Trash2
+		}
+	];
 
-    function filterTrainers() {
-        if (!searchTerm.trim()) {
-            filteredTrainers = trainers;
-        } else {
-            const term = searchTerm.toLowerCase();
-            filteredTrainers = trainers.filter((trainer) => {
-                const name = (trainer.name ?? '').toLowerCase();
-                const phone = trainer.phone.toLowerCase();
-                return name.includes(term) || phone.includes(term);
-            });
-        }
-    }
+	const tableColumns = [
+		{
+			key: 'name',
+			title: 'Ad'
+		},
+		{
+			key: 'phone',
+			title: 'Telefon',
+			render: (trainer: Trainer) => `<a href="tel:${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
+		},
+		{
+			key: 'trainings',
+			title: 'Verebildiği Dersler',
+			sortable: false,
+			render: (trainer: Trainer) => {
+				try {
+					if (!trainerTrainings || !trainings) {
+						return '<span class="text-base-content/50 text-sm">-</span>';
+					}
+					
+					const trainerTrainingIds = trainerTrainings
+						.filter(tt => tt.trainer_id === trainer.id)
+						.map(tt => tt.training_id) || [];
+					
+					if (trainerTrainingIds.length === 0) {
+						return '<span class="text-base-content/50 text-sm">-</span>';
+					}
+					
+					const trainerTrainingNames = trainings
+						.filter(training => trainerTrainingIds.includes(training.id))
+						.map(training => `<span class="badge badge-secondary badge-sm">${training.name}</span>`)
+						.join(' ') || '';
+					
+					return `<div class="flex flex-wrap gap-1">${trainerTrainingNames}</div>`;
+				} catch (error) {
+					console.error('Error rendering trainings column:', error);
+					return '<span class="text-base-content/50 text-sm">-</span>';
+				}
+			}
+		},
+	];
 
     // clear handled inside SearchInput component via bind:value
 
@@ -73,7 +117,7 @@
 		name = '';
 		phone = '';
 		selectedTrainer = null;
-		selectedTrainingIds = trainings.map(t => t.id); // Default: all trainings selected
+		selectedTrainingIds = []; // Default: no trainings selected
 	}
 
 	function getTrainerTrainings(trainerId: number): Training[] {
@@ -90,6 +134,7 @@
 			selectedTrainingIds = [...selectedTrainingIds, trainingId];
 		}
 	}
+
 
 </script>
 
@@ -114,91 +159,15 @@
 		</button>
 	</div>
 
-	<!-- Trainers Table -->
-	<div class="card bg-base-100 shadow">
-		<div class="card-body">
-			{#if filteredTrainers.length === 0}
-				<div class="py-8 text-center">
-					<p class="text-base-content/70">
-						{searchTerm
-							? 'Arama kriterlerine uygun eğitmen bulunamadı'
-							: 'Henüz eğitmen bulunmuyor'}
-					</p>
-				</div>
-			{:else}
-				<div>
-					<table class="table-zebra table">
-						<thead>
-							<tr>
-								<th>Ad</th>
-								<th>Telefon</th>
-								<th>Verebildiği Dersler</th>
-								<th class="text-right">İşlemler</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each filteredTrainers as trainer, i}
-								<tr>
-									<td>
-										<div class="flex items-center gap-2">
-											<span class="font-medium">{trainer.name}</span>
-										</div>
-									</td>
-									<td>
-										<a href="tel:{trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">
-											{trainer.phone}
-										</a>
-									</td>
-									<td>
-										{#each [getTrainerTrainings(trainer.id)] as assignedTrainings}
-											{#if assignedTrainings.length === 0}
-												<span class="text-base-content/50 text-sm">Atanmamış</span>
-											{:else}
-												<div class="flex flex-wrap gap-1">
-													{#each assignedTrainings as training}
-														<span class="badge badge-secondary badge-sm">{training.name}</span>
-													{/each}
-												</div>
-											{/if}
-										{/each}
-									</td>
-									<td class="text-right">
-										<div
-											class="dropdown dropdown-end {i >= filteredTrainers.length - 1
-												? 'dropdown-top'
-												: ''}"
-										>
-											<div tabindex="0" role="button" class="btn btn-sm btn-ghost">
-												<MoreVertical size={14} />
-											</div>
-											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-											<ul
-												tabindex="0"
-												class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
-											>
-												<li>
-													<button onclick={() => openEditModal(trainer)}>
-														<Edit size={14} />
-														Düzenle
-													</button>
-												</li>
-												<li>
-													<button onclick={() => openDeleteModal(trainer)} class="text-error">
-														<Trash2 size={14} />
-														Sil
-													</button>
-												</li>
-											</ul>
-										</div>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		</div>
-	</div>
+	<SortableTable 
+		data={trainers} 
+		columns={tableColumns} 
+		searchTerm={searchTerm} 
+		emptyMessage="Henüz eğitmen bulunmuyor"
+		defaultSortKey="id"
+		defaultSortOrder="asc"
+		actions={tableActions}
+	/>
 </div>
 
 <!-- Add Trainer Modal -->

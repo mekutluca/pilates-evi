@@ -4,6 +4,9 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Logout from '@lucide/svelte/icons/log-out';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import ActionMenu from '$lib/components/action-menu.svelte';
+	import GlobalActionDrawer from '$lib/components/global-action-drawer.svelte';
+	import { setActionDrawerContext } from '$lib/stores/action-drawer.svelte';
 	import { onMount } from 'svelte';
 	import { goto, invalidate, beforeNavigate, afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -14,6 +17,10 @@
 	let { supabase, session, userRole } = $derived(data);
 	let loading = $state(false);
 	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
+	
+	// Global action drawer state
+	let drawerOpen = $state(false);
+	let drawerActions = $state<any[]>([]);
 
 	function toggleDrawer() {
 		const drawerCheckbox = document.getElementById('my-drawer-2') as HTMLInputElement;
@@ -22,10 +29,33 @@
 		}
 	}
 
-	function closeDropdown() {
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
+	const userMenuActions = [
+		{
+			label: 'Ayarlar',
+			icon: Settings,
+			handler: () => goto('/settings')
+		},
+		{
+			label: 'Çıkış Yap',
+			icon: Logout,
+			handler: logout
+		}
+	];
+
+	function handleOpenDrawer(detail: { actions: any[] }) {
+		drawerActions = detail.actions;
+		drawerOpen = true;
 	}
+
+	function openDrawer(actions: any[]) {
+		drawerActions = actions;
+		drawerOpen = true;
+	}
+
+	// Set context for child components
+	setActionDrawerContext({
+		openDrawer
+	});
 
 	function closeDrawer() {
 		const drawerCheckbox = document.getElementById('my-drawer-2') as HTMLInputElement;
@@ -112,26 +142,12 @@
 			<a class="btn text-xl btn-ghost" href="/">Pilates Evi</a>
 		</div>
 		<div class="flex-none">
-			<div class="dropdown dropdown-end">
-				<div tabindex="0" role="button" class="btn btn-square btn-ghost"><Ellipsis /></div>
-				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-				<ul
-					tabindex="0"
-					class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
-				>
-					<li><a onclick={closeDropdown} href="/settings"><Settings size="16" /> Settings</a></li>
-					<li>
-						<button
-							onclick={() => {
-								closeDropdown();
-								logout();
-							}}
-						>
-							<Logout size="16" /> Logout
-						</button>
-					</li>
-				</ul>
-			</div>
+			<ActionMenu 
+				actions={userMenuActions} 
+				trigger={Ellipsis} 
+				triggerClass="btn btn-square btn-ghost"
+				onOpenDrawer={handleOpenDrawer}
+			/>
 		</div>
 	</div>
 
@@ -212,6 +228,9 @@
 		</div>
 	</div>
 </div>
+
+<!-- Global Action Drawer -->
+<GlobalActionDrawer bind:isOpen={drawerOpen} actions={drawerActions} />
 
 <!-- The first element on the sidebar have :active attribute which makes it colorful-->
 <style>

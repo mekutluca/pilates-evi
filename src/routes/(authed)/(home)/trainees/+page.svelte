@@ -5,19 +5,18 @@
     import LoaderCircle from '@lucide/svelte/icons/loader-circle';
     import SearchInput from '$lib/components/search-input.svelte';
     import PageHeader from '$lib/components/page-header.svelte';
-    import MoreVertical from '@lucide/svelte/icons/more-vertical';
     import Trash2 from '@lucide/svelte/icons/trash-2';
     import GraduationCap from '@lucide/svelte/icons/graduation-cap';
     import X from '@lucide/svelte/icons/x';
     import { enhance } from '$app/forms';
     import type { Trainee } from '$lib/types/Trainee';
     import Combobox from '$lib/components/combobox.svelte';
+    import SortableTable from '$lib/components/sortable-table.svelte';
 
     let { data } = $props();
     let { trainees: initialTrainees } = $derived(data);
 
     let trainees = $derived<Trainee[]>(initialTrainees || []);
-    let filteredTrainees = $state<Trainee[]>([]);
     let searchTerm = $state('');
     let showAddModal = $state(false);
     let showEditModal = $state(false);
@@ -31,23 +30,61 @@
     let notes = $state('');
     let selectedTraineeIds = $state<number[]>([]);
 
-    $effect(() => {
-        filterTrainees();
-    });
-
-    function filterTrainees() {
-        if (!searchTerm.trim()) {
-            filteredTrainees = trainees;
-        } else {
-            const term = searchTerm.toLowerCase();
-            filteredTrainees = trainees.filter((trainee) => {
-                const traineeName = (trainee.name ?? '').toLowerCase();
-                const traineeEmail = (trainee.email ?? '').toLowerCase();
-                const traineePhone = (trainee.phone ?? '').toLowerCase();
-                return traineeName.includes(term) || traineeEmail.includes(term) || traineePhone.includes(term);
-            });
+    const tableActions = [
+        {
+            label: 'Düzenle',
+            handler: (id: number | string) => {
+                const trainee = trainees.find(t => t.id === Number(id));
+                if (trainee) openEditModal(trainee);
+            },
+            icon: Edit
+        },
+        {
+            label: 'Sil',
+            handler: (id: number | string) => {
+                const trainee = trainees.find(t => t.id === Number(id));
+                if (trainee) openDeleteModal(trainee);
+            },
+            class: 'text-error',
+            icon: Trash2
         }
-    }
+    ];
+
+    const tableColumns = [
+        {
+            key: 'name',
+            title: 'Ad'
+        },
+        {
+            key: 'email',
+            title: 'Email',
+            render: (trainee: Trainee) => `<a href="mailto:${trainee.email}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainee.email}</a>`
+        },
+        {
+            key: 'phone',
+            title: 'Telefon',
+            render: (trainee: Trainee) => `<a href="tel:${trainee.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainee.phone}</a>`
+        },
+        {
+            key: 'related_trainee_ids',
+            title: 'Bağlantılı Öğrenciler',
+            sortable: false,
+            render: (trainee: Trainee) => {
+                const relations = getTraineeRelations(trainee.id);
+                if (relations.length === 0) {
+                    return '<span class="text-base-content/50 text-sm">-</span>';
+                }
+                return `<div class="flex flex-wrap gap-1">${relations.map(related => 
+                    `<span class="badge badge-success badge-sm">${related.name}</span>`
+                ).join('')}</div>`;
+            }
+        },
+        {
+            key: 'created_at',
+            title: 'Kayıt Tarihi',
+            render: (trainee: Trainee) => formatDate(trainee.created_at)
+        },
+    ];
 
     function closeDropdown() {
         const activeElement = document?.activeElement as HTMLElement | null;
@@ -128,6 +165,7 @@
             day: 'numeric'
         });
     }
+
 </script>
 
 <div class="p-6">
@@ -150,98 +188,15 @@
         </button>
     </div>
 
-    <div class="card bg-base-100 shadow">
-        <div class="card-body">
-            {#if filteredTrainees.length === 0}
-                <div class="py-8 text-center">
-                    <p class="text-base-content/70">
-                        {searchTerm
-                            ? 'Arama kriterlerine uygun öğrenci bulunamadı'
-                            : 'Henüz öğrenci bulunmuyor'}
-                    </p>
-                </div>
-            {:else}
-                <div>
-                    <table class="table-zebra table">
-                        <thead>
-                            <tr>
-                                <th>Ad</th>
-                                <th>Email</th>
-                                <th>Telefon</th>
-                                <th>Bağlantılı Öğrenciler</th>
-                                <th>Kayıt Tarihi</th>
-                                <th class="text-right">İşlemler</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each filteredTrainees as trainee, i}
-                                <tr>
-                                    <td>
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-medium">{trainee.name}</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <a href="mailto:{trainee.email}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">
-                                            {trainee.email}
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <a href="tel:{trainee.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">
-                                            {trainee.phone}
-                                        </a>
-                                    </td>
-                                    <td>
-                                        {#each [getTraineeRelations(trainee.id)] as relatedTrainees}
-                                            {#if relatedTrainees.length === 0}
-                                                <span class="text-base-content/50 text-sm">-</span>
-                                            {:else}
-                                                <div class="flex flex-wrap gap-1">
-                                                    {#each relatedTrainees as relatedTrainee}
-                                                        <span class="badge badge-success badge-sm">{relatedTrainee.name}</span>
-                                                    {/each}
-                                                </div>
-                                            {/if}
-                                        {/each}
-                                    </td>
-                                    <td>{formatDate(trainee.created_at)}</td>
-                                    <td class="text-right">
-                                        <div
-                                            class="dropdown dropdown-end {i >= filteredTrainees.length - 1
-                                                ? 'dropdown-top'
-                                                : ''}"
-                                        >
-                                            <div tabindex="0" role="button" class="btn btn-sm btn-ghost">
-                                                <MoreVertical size={14} />
-                                            </div>
-                                            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                                            <ul
-                                                tabindex="0"
-                                                class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
-                                            >
-                                                <li>
-                                                    <button onclick={() => openEditModal(trainee)}>
-                                                        <Edit size={14} />
-                                                        Düzenle
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button onclick={() => openDeleteModal(trainee)} class="text-error">
-                                                        <Trash2 size={14} />
-                                                        Sil
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                </div>
-            {/if}
-        </div>
-    </div>
+    <SortableTable 
+        data={trainees} 
+        columns={tableColumns} 
+        searchTerm={searchTerm} 
+        emptyMessage="Henüz öğrenci bulunmuyor"
+        defaultSortKey="id"
+        defaultSortOrder="asc"
+        actions={tableActions}
+    />
 </div>
 
 <dialog class="modal" class:modal-open={showAddModal}>

@@ -5,16 +5,15 @@
     import LoaderCircle from '@lucide/svelte/icons/loader-circle';
     import SearchInput from '$lib/components/search-input.svelte';
     import PageHeader from '$lib/components/page-header.svelte';
-    import MoreVertical from '@lucide/svelte/icons/more-vertical';
     import Trash2 from '@lucide/svelte/icons/trash-2';
     import { enhance } from '$app/forms';
     import type { Room } from '$lib/types/Room';
+    import SortableTable from '$lib/components/sortable-table.svelte';
 
     let { data } = $props();
     let { rooms: initialRooms } = $derived(data);
 
     let rooms = $derived<Room[]>(initialRooms || []);
-    let filteredRooms = $state<Room[]>(initialRooms || []);
     let searchTerm = $state('');
     let showAddModal = $state(false);
     let showEditModal = $state(false);
@@ -25,24 +24,37 @@
     let name = $state('');
     let capacity = $state<number | null>(null);
 
-    $effect(() => {
-        filterRooms();
-    });
-
-    function filterRooms() {
-        if (!searchTerm.trim()) {
-            filteredRooms = rooms;
-        } else {
-            const term = searchTerm.toLowerCase();
-            filteredRooms = rooms.filter((room) => {
-                const name = (room.name ?? '').toLowerCase();
-                const cap = String(room.capacity ?? '').toLowerCase();
-                return name.includes(term) || cap.includes(term);
-            });
+    const tableActions = [
+        {
+            label: 'Düzenle',
+            handler: (id: number | string) => {
+                const room = rooms.find(r => r.id === Number(id));
+                if (room) openEditModal(room);
+            },
+            icon: Edit
+        },
+        {
+            label: 'Sil',
+            handler: (id: number | string) => {
+                const room = rooms.find(r => r.id === Number(id));
+                if (room) openDeleteModal(room);
+            },
+            class: 'text-error',
+            icon: Trash2
         }
-    }
+    ];
 
-    // clear handled inside SearchInput component via bind:value
+    const tableColumns = [
+        {
+            key: 'name',
+            title: 'Ad'
+        },
+        {
+            key: 'capacity',
+            title: 'Kapasite',
+            render: (room: Room) => String(room.capacity ?? '-')
+        },
+    ];
 
     function closeDropdown() {
         const activeElement = document?.activeElement as HTMLElement | null;
@@ -68,6 +80,7 @@
         capacity = null;
         selectedRoom = null;
     }
+
 </script>
 
 <div class="p-6">
@@ -90,72 +103,15 @@
         </button>
     </div>
 
-    <div class="card bg-base-100 shadow">
-        <div class="card-body">
-            {#if filteredRooms.length === 0}
-                <div class="py-8 text-center">
-                    <p class="text-base-content/70">
-                        {searchTerm
-                            ? 'Arama kriterlerine uygun oda bulunamadı'
-                            : 'Henüz oda bulunmuyor'}
-                    </p>
-                </div>
-            {:else}
-                <div>
-                    <table class="table-zebra table">
-                        <thead>
-                            <tr>
-                                <th>Ad</th>
-                                <th>Kapasite</th>
-                                <th class="text-right">İşlemler</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each filteredRooms as room, i}
-                                <tr>
-                                    <td>
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-medium">{room.name}</span>
-                                        </div>
-                                    </td>
-                                    <td>{room.capacity ?? '-'}</td>
-                                    <td class="text-right">
-                                        <div
-                                            class="dropdown dropdown-end {i >= filteredRooms.length - 1
-                                                ? 'dropdown-top'
-                                                : ''}"
-                                        >
-                                            <div tabindex="0" role="button" class="btn btn-sm btn-ghost">
-                                                <MoreVertical size={14} />
-                                            </div>
-                                            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                                            <ul
-                                                tabindex="0"
-                                                class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
-                                            >
-                                                <li>
-                                                    <button onclick={() => openEditModal(room)}>
-                                                        <Edit size={14} />
-                                                        Düzenle
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button onclick={() => openDeleteModal(room)} class="text-error">
-                                                        <Trash2 size={14} />
-                                                        Sil
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                </div>
-            {/if}
-        </div>
-    </div>
+    <SortableTable 
+        data={rooms} 
+        columns={tableColumns} 
+        searchTerm={searchTerm} 
+        emptyMessage="Henüz oda bulunmuyor"
+        defaultSortKey="id"
+        defaultSortOrder="asc"
+        actions={tableActions}
+    />
 </div>
 
 <dialog class="modal" class:modal-open={showAddModal}>
@@ -355,4 +311,5 @@
         >
     </form>
 </dialog>
+
 

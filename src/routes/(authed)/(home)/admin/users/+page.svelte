@@ -6,10 +6,10 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
     import SearchInput from '$lib/components/search-input.svelte';
     import PageHeader from '$lib/components/page-header.svelte';
-	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
     import type { User } from '$lib/types/User';
+    import SortableTable from '$lib/components/sortable-table.svelte';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -18,7 +18,6 @@
 	let currentUser = $derived(data.user || data.session?.user);
 
 	let users = $derived<User[]>(initialUsers || []);
-	let filteredUsers = $state<User[]>(users);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -33,26 +32,59 @@
 	let role = $state('coordinator');
 	let newPassword = $state('');
 
-	$effect(() => {
-		filterUsers();
-	});
-
-
-	function filterUsers() {
-		if (!searchTerm.trim()) {
-			filteredUsers = users;
-		} else {
-			filteredUsers = users.filter(
-				(user) =>
-					user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-					user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-					false ||
-					user.role.toLowerCase().includes(searchTerm.toLowerCase())
-			);
+	const tableActions = [
+		{
+			label: 'Düzenle',
+			handler: (id: number | string) => {
+				const user = users.find(u => u.id === String(id));
+				if (user) openEditModal(user);
+			},
+			icon: Edit
+		},
+		{
+			label: 'Şifre Sıfırla',
+			handler: (id: number | string) => {
+				const user = users.find(u => u.id === String(id));
+				if (user) openResetPasswordModal(user);
+			},
+			icon: Key
 		}
-	}
+	];
 
-    // clear handled inside SearchInput component via bind:value
+	const tableColumns = [
+		{
+			key: 'fullName',
+			title: 'Ad Soyad',
+			render: (user: User) => {
+				const isCurrentUser = user.id === currentUser?.id;
+				const badge = isCurrentUser ? '<div class="badge badge-accent badge-sm ml-2">Siz</div>' : '';
+				return `<span class="font-medium">${user.fullName || '-'}</span>${badge}`;
+			}
+		},
+		{
+			key: 'email',
+			title: 'Email',
+			render: (user: User) => `<div class="text-sm text-base-content/70">${user.email}</div>`
+		},
+		{
+			key: 'role',
+			title: 'Rol',
+			render: (user: User) => {
+				const badgeClass = user.role === 'admin' ? 'badge-error' : 'badge-primary';
+				return `<div class="badge ${badgeClass}">${getRoleDisplayName(user.role)}</div>`;
+			}
+		},
+		{
+			key: 'created_at',
+			title: 'Kayıt Tarihi',
+			render: (user: User) => formatDate(user.created_at)
+		},
+		{
+			key: 'last_sign_in_at',
+			title: 'Son Giriş',
+			render: (user: User) => user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Hiç giriş yapmamış'
+		},
+	];
 
 	function closeDropdown() {
 		const activeElement = document?.activeElement as HTMLElement | null;
@@ -85,6 +117,7 @@
 		newPassword = '';
 		selectedUser = null;
 	}
+
 
 	function formatDate(dateString: string) {
 		return new Date(dateString).toLocaleDateString('tr-TR', {
@@ -134,90 +167,15 @@
 		</button>
 	</div>
 
-	<!-- Users Table -->
-	<div class="card bg-base-100 shadow">
-		<div class="card-body">
-			{#if filteredUsers.length === 0}
-				<div class="py-8 text-center">
-					<p class="text-base-content/70">
-						{searchTerm
-							? 'Arama kriterlerine uygun kullanıcı bulunamadı'
-							: 'Henüz kullanıcı bulunmuyor'}
-					</p>
-				</div>
-			{:else}
-				<div>
-					<table class="table-zebra table">
-						<thead>
-							<tr>
-								<th>Ad Soyad</th>
-								<th>Email</th>
-								<th>Rol</th>
-								<th>Kayıt Tarihi</th>
-								<th>Son Giriş</th>
-								<th class="text-right">İşlemler</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each filteredUsers as user, i}
-								<tr>
-									<td>
-										<div class="flex items-center gap-2">
-											<span class="font-medium">{user.fullName || '-'}</span>
-											{#if user.id === currentUser?.id}
-												<div class="badge badge-accent badge-sm">Siz</div>
-											{/if}
-										</div>
-									</td>
-									<td>
-										<div class="text-sm text-base-content/70">{user.email}</div>
-									</td>
-									<td>
-										<div class="badge badge-{user.role === 'admin' ? 'error' : 'primary'}">
-											{getRoleDisplayName(user.role)}
-										</div>
-									</td>
-									<td>{formatDate(user.created_at)}</td>
-									<td>
-										{user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Hiç giriş yapmamış'}
-									</td>
-									<td class="text-right">
-										<div
-											class="dropdown dropdown-end {i >= filteredUsers.length - 1
-												? 'dropdown-top'
-												: ''}"
-										>
-											<div tabindex="0" role="button" class="btn btn-sm btn-ghost">
-												<MoreVertical size={14} />
-											</div>
-											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-											<ul
-												tabindex="0"
-												class="dropdown-content menu rounded-box bg-base-100 z-[1] w-52 border p-2 shadow-lg"
-											>
-												<li>
-													<button onclick={() => openEditModal(user)}>
-														<Edit size={14} />
-														Düzenle
-													</button>
-												</li>
-												<li>
-													<button onclick={() => openResetPasswordModal(user)}>
-														<Key size={14} />
-														Şifre Sıfırla
-													</button>
-												</li>
-											</ul>
-										</div>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		</div>
-	</div>
+	<SortableTable 
+		data={users} 
+		columns={tableColumns} 
+		searchTerm={searchTerm} 
+		emptyMessage="Henüz kullanıcı bulunmuyor"
+		defaultSortKey="id"
+		defaultSortOrder="asc"
+		actions={tableActions}
+	/>
 </div>
 
 <!-- Add User Modal -->
