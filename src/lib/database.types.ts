@@ -47,6 +47,42 @@ export type Database = {
 				};
 				Relationships: [];
 			};
+			pe_room_trainings: {
+				Row: {
+					created_at: string;
+					id: number;
+					room_id: number;
+					training_id: number;
+				};
+				Insert: {
+					created_at?: string;
+					id?: number;
+					room_id: number;
+					training_id: number;
+				};
+				Update: {
+					created_at?: string;
+					id?: number;
+					room_id?: number;
+					training_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_room_trainings_room_id_fkey';
+						columns: ['room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_room_trainings_training_id_fkey';
+						columns: ['training_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainings';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			pe_trainer_trainings: {
 				Row: {
 					created_at: string | null;

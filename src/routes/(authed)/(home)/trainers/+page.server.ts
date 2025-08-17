@@ -56,7 +56,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
+
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');
 		const selectedTrainingIds = formData.getAll('selectedTrainingIds').map((id) => Number(id));
@@ -92,7 +92,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
+
 		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');

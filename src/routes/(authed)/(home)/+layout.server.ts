@@ -17,7 +17,8 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
 		{ name: 'trainings', query: supabase.from('pe_trainings').select('*') },
 		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
-		{ name: 'trainerTrainings', query: supabase.from('pe_trainer_trainings').select('*') }
+		{ name: 'trainerTrainings', query: supabase.from('pe_trainer_trainings').select('*') },
+		{ name: 'roomTrainings', query: supabase.from('pe_room_trainings').select('*') }
 	] as const;
 
 	try {
@@ -25,7 +26,14 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 
 		const data: Record<
 			string,
-			(Trainer | Room | Training | Trainee | { trainer_id: number; training_id: number })[]
+			(
+				| Trainer
+				| Room
+				| Training
+				| Trainee
+				| { trainer_id: number; training_id: number }
+				| { room_id: number; training_id: number }
+			)[]
 		> = {};
 
 		queries.forEach((query, index) => {
@@ -45,7 +53,8 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 			rooms: data.rooms as Room[],
 			trainings: data.trainings as Training[],
 			trainees: data.trainees as Trainee[],
-			trainerTrainings: data.trainerTrainings as { trainer_id: number; training_id: number }[]
+			trainerTrainings: data.trainerTrainings as { trainer_id: number; training_id: number }[],
+			roomTrainings: data.roomTrainings as { room_id: number; training_id: number }[]
 		};
 	} catch (err) {
 		console.error('Failed to load application data:', err);
@@ -55,7 +64,8 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 			rooms: [],
 			trainings: [],
 			trainees: [],
-			trainerTrainings: []
+			trainerTrainings: [],
+			roomTrainings: []
 		};
 	}
 };

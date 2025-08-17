@@ -52,7 +52,6 @@ export function safeGetRequiredFormDataString(
 	}
 }
 
-
 /**
  * Safely gets an error message from action result data
  * @param result - The action result

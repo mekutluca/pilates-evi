@@ -50,26 +50,11 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		
-		const emailResult = getRequiredFormDataString(formData, 'email');
-		if (!emailResult.success) {
-			return fail(400, { success: false, message: emailResult.error });
-		}
-		
-		const passwordResult = getRequiredFormDataString(formData, 'password');
-		if (!passwordResult.success) {
-			return fail(400, { success: false, message: passwordResult.error });
-		}
-		
-		const fullNameResult = getRequiredFormDataString(formData, 'fullName');
-		if (!fullNameResult.success) {
-			return fail(400, { success: false, message: fullNameResult.error });
-		}
-		
-		const roleResult = getRequiredFormDataString(formData, 'role');
-		if (!roleResult.success) {
-			return fail(400, { success: false, message: roleResult.error });
-		}
+
+		const email = getRequiredFormDataString(formData, 'email');
+		const password = getRequiredFormDataString(formData, 'password');
+		const fullName = getRequiredFormDataString(formData, 'fullName');
+		const role = getRequiredFormDataString(formData, 'role');
 
 		// Validate role
 		if (!['admin', 'coordinator'].includes(role)) {

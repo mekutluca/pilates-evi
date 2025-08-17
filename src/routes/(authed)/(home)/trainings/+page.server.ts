@@ -18,12 +18,9 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
-		const nameResult = getRequiredFormDataString(formData, 'name');
-		if (!nameResult.success) {
-			return fail(400, { success: false, message: nameResult.error });
-		}
-		
+
+		const name = getRequiredFormDataString(formData, 'name');
+
 		const minCapacityStr = getFormDataString(formData, 'min_capacity');
 		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
 		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
@@ -39,7 +36,7 @@ export const actions: Actions = {
 
 		const { data: trainingData, error: createError } = await supabase
 			.from('pe_trainings')
-			.insert({ name: nameResult.value, min_capacity, max_capacity })
+			.insert({ name, min_capacity, max_capacity })
 			.select()
 			.single();
 
@@ -79,21 +76,15 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
-		const trainingIdResult = getRequiredFormDataString(formData, 'trainingId');
-		if (!trainingIdResult.success) {
-			return fail(400, { success: false, message: trainingIdResult.error });
-		}
-		const trainingId = Number(trainingIdResult.value);
+
+		const trainingIdStr = getRequiredFormDataString(formData, 'trainingId');
+		const trainingId = Number(trainingIdStr);
 		if (isNaN(trainingId)) {
 			return fail(400, { success: false, message: 'Geçersiz egzersiz ID' });
 		}
-		
-		const nameResult = getRequiredFormDataString(formData, 'name');
-		if (!nameResult.success) {
-			return fail(400, { success: false, message: nameResult.error });
-		}
-		
+
+		const name = getRequiredFormDataString(formData, 'name');
+
 		const minCapacityStr = getFormDataString(formData, 'min_capacity');
 		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
 		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
@@ -108,7 +99,7 @@ export const actions: Actions = {
 
 		const { error: updateError } = await supabase
 			.from('pe_trainings')
-			.update({ name: nameResult.value, min_capacity, max_capacity })
+			.update({ name, min_capacity, max_capacity })
 			.eq('id', trainingId);
 
 		if (updateError) {

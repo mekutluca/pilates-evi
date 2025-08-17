@@ -74,8 +74,7 @@
 			key: 'role',
 			title: 'Rol',
 			render: (user: User) => {
-				const badgeClass = user.role === 'admin' ? 'badge-error' : 'badge-primary';
-				return `<div class="badge ${badgeClass}">${getRoleDisplayName(user.role)}</div>`;
+				return `<div class="badge badge-neutral">${getRoleDisplayName(user.role)}</div>`;
 			}
 		},
 		{

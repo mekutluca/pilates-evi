@@ -18,7 +18,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
+
 		const name = getRequiredFormDataString(formData, 'name');
 		const email = getRequiredFormDataString(formData, 'email');
 		const phone = getRequiredFormDataString(formData, 'phone');
@@ -90,7 +90,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		
+
 		const traineeId = Number(getRequiredFormDataString(formData, 'traineeId'));
 		const name = getRequiredFormDataString(formData, 'name');
 		const email = getRequiredFormDataString(formData, 'email');
@@ -108,87 +108,87 @@ export const actions: Actions = {
 		}
 
 		// Get current relationships before updating
-			const { data: currentTrainee, error: fetchCurrentError } = await supabase
+		const { data: currentTrainee, error: fetchCurrentError } = await supabase
+			.from('pe_trainees')
+			.select('related_trainee_ids')
+			.eq('id', traineeId)
+			.single();
+
+		if (fetchCurrentError) {
+			return fail(500, {
+				success: false,
+				message: 'Mevcut öğrenci bilgileri alınırken hata: ' + fetchCurrentError.message
+			});
+		}
+
+		const currentRelatedIds = currentTrainee?.related_trainee_ids || [];
+
+		const { error: updateError } = await supabase
+			.from('pe_trainees')
+			.update({
+				name,
+				email,
+				phone,
+				notes: notes || null,
+				related_trainee_ids: selectedTraineeIds
+			})
+			.eq('id', traineeId);
+
+		if (updateError) {
+			return fail(500, {
+				success: false,
+				message: 'Öğrenci güncellenirken hata: ' + updateError.message
+			});
+		}
+
+		// Update bidirectional relationships
+		// Find added and removed relationships
+		const addedIds = selectedTraineeIds.filter((id: number) => !currentRelatedIds.includes(id));
+		const removedIds = currentRelatedIds.filter((id: number) => !selectedTraineeIds.includes(id));
+
+		// Handle added relationships
+		if (addedIds.length > 0) {
+			const { data: addedTrainees, error: fetchAddedError } = await supabase
 				.from('pe_trainees')
-				.select('related_trainee_ids')
-				.eq('id', traineeId)
-				.single();
+				.select('id, related_trainee_ids')
+				.in('id', addedIds);
 
-			if (fetchCurrentError) {
-				return fail(500, {
-					success: false,
-					message: 'Mevcut öğrenci bilgileri alınırken hata: ' + fetchCurrentError.message
+			if (!fetchAddedError && addedTrainees) {
+				const addUpdates = addedTrainees.map(async (trainee) => {
+					const currentIds = trainee.related_trainee_ids || [];
+					const newIds = [...new Set([...currentIds, traineeId])];
+
+					return supabase
+						.from('pe_trainees')
+						.update({ related_trainee_ids: newIds })
+						.eq('id', trainee.id);
 				});
+
+				await Promise.all(addUpdates);
 			}
+		}
 
-			const currentRelatedIds = currentTrainee?.related_trainee_ids || [];
-
-			const { error: updateError } = await supabase
+		// Handle removed relationships
+		if (removedIds.length > 0) {
+			const { data: removedTrainees, error: fetchRemovedError } = await supabase
 				.from('pe_trainees')
-				.update({
-					name,
-					email,
-					phone,
-					notes: notes || null,
-					related_trainee_ids: selectedTraineeIds
-				})
-				.eq('id', traineeId);
+				.select('id, related_trainee_ids')
+				.in('id', removedIds);
 
-			if (updateError) {
-				return fail(500, {
-					success: false,
-					message: 'Öğrenci güncellenirken hata: ' + updateError.message
+			if (!fetchRemovedError && removedTrainees) {
+				const removeUpdates = removedTrainees.map(async (trainee) => {
+					const currentIds = trainee.related_trainee_ids || [];
+					const newIds = currentIds.filter((id: number) => id !== traineeId);
+
+					return supabase
+						.from('pe_trainees')
+						.update({ related_trainee_ids: newIds })
+						.eq('id', trainee.id);
 				});
+
+				await Promise.all(removeUpdates);
 			}
-
-			// Update bidirectional relationships
-			// Find added and removed relationships
-			const addedIds = selectedTraineeIds.filter((id: number) => !currentRelatedIds.includes(id));
-			const removedIds = currentRelatedIds.filter((id: number) => !selectedTraineeIds.includes(id));
-
-			// Handle added relationships
-			if (addedIds.length > 0) {
-				const { data: addedTrainees, error: fetchAddedError } = await supabase
-					.from('pe_trainees')
-					.select('id, related_trainee_ids')
-					.in('id', addedIds);
-
-				if (!fetchAddedError && addedTrainees) {
-					const addUpdates = addedTrainees.map(async (trainee) => {
-						const currentIds = trainee.related_trainee_ids || [];
-						const newIds = [...new Set([...currentIds, traineeId])];
-
-						return supabase
-							.from('pe_trainees')
-							.update({ related_trainee_ids: newIds })
-							.eq('id', trainee.id);
-					});
-
-					await Promise.all(addUpdates);
-				}
-			}
-
-			// Handle removed relationships
-			if (removedIds.length > 0) {
-				const { data: removedTrainees, error: fetchRemovedError } = await supabase
-					.from('pe_trainees')
-					.select('id, related_trainee_ids')
-					.in('id', removedIds);
-
-				if (!fetchRemovedError && removedTrainees) {
-					const removeUpdates = removedTrainees.map(async (trainee) => {
-						const currentIds = trainee.related_trainee_ids || [];
-						const newIds = currentIds.filter((id: number) => id !== traineeId);
-
-						return supabase
-							.from('pe_trainees')
-							.update({ related_trainee_ids: newIds })
-							.eq('id', trainee.id);
-					});
-
-					await Promise.all(removeUpdates);
-				}
-			}
+		}
 
 		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},
