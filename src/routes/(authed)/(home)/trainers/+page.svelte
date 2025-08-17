@@ -151,7 +151,7 @@
 
 	<!-- Search and Add Trainer Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full max-w-xs">
+		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara..." />
 		</div>
 

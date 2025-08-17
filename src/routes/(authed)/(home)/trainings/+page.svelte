@@ -94,7 +94,7 @@
 	<PageHeader title="Egzersizler" subtitle="Bu sayfada egzersiz türlerini yönetin" />
 
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full max-w-xs">
+		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Egzersiz ara..." />
 		</div>
 
