@@ -6,8 +6,6 @@ import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
 import Dumbbell from '@lucide/svelte/icons/dumbbell';
 import Medal from '@lucide/svelte/icons/medal';
 
-
-
 export interface Route {
 	href: string;
 	label: string;

@@ -4,16 +4,17 @@
 	import Edit from '@lucide/svelte/icons/edit';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-    import SearchInput from '$lib/components/search-input.svelte';
-    import PageHeader from '$lib/components/page-header.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
-    import type { User } from '$lib/types/User';
-    import SortableTable from '$lib/components/sortable-table.svelte';
+	import type { User } from '$lib/types/User';
+	import SortableTable from '$lib/components/sortable-table.svelte';
+	import type { ActionItem } from '$lib/types/ActionItem.js';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
-	
+
 	// Get current user from parent layout data (available from authed layout)
 	let currentUser = $derived(data.user || data.session?.user);
 
@@ -32,19 +33,19 @@
 	let role = $state('coordinator');
 	let newPassword = $state('');
 
-	const tableActions = [
+	const tableActions: ActionItem[] = [
 		{
 			label: 'Düzenle',
-			handler: (id: number | string) => {
-				const user = users.find(u => u.id === String(id));
+			handler: (id) => {
+				const user = users.find((u) => u.id === String(id));
 				if (user) openEditModal(user);
 			},
 			icon: Edit
 		},
 		{
 			label: 'Şifre Sıfırla',
-			handler: (id: number | string) => {
-				const user = users.find(u => u.id === String(id));
+			handler: (id) => {
+				const user = users.find((u) => u.id === String(id));
 				if (user) openResetPasswordModal(user);
 			},
 			icon: Key
@@ -57,7 +58,9 @@
 			title: 'Ad Soyad',
 			render: (user: User) => {
 				const isCurrentUser = user.id === currentUser?.id;
-				const badge = isCurrentUser ? '<div class="badge badge-accent badge-sm ml-2">Siz</div>' : '';
+				const badge = isCurrentUser
+					? '<div class="badge badge-accent badge-sm ml-2">Siz</div>'
+					: '';
 				return `<span class="font-medium">${user.fullName || '-'}</span>${badge}`;
 			}
 		},
@@ -82,8 +85,9 @@
 		{
 			key: 'last_sign_in_at',
 			title: 'Son Giriş',
-			render: (user: User) => user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Hiç giriş yapmamış'
-		},
+			render: (user: User) =>
+				user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Hiç giriş yapmamış'
+		}
 	];
 
 	function closeDropdown() {
@@ -118,7 +122,6 @@
 		selectedUser = null;
 	}
 
-
 	function formatDate(dateString: string) {
 		return new Date(dateString).toLocaleDateString('tr-TR', {
 			year: 'numeric',
@@ -147,7 +150,10 @@
 </script>
 
 <div class="p-6">
-    <PageHeader title="Yetkili Kullanıcılar" subtitle="Bu sayfada adminleri ve koordinatörleri yönetin" />
+	<PageHeader
+		title="Yetkili Kullanıcılar"
+		subtitle="Bu sayfada adminleri ve koordinatörleri yönetin"
+	/>
 
 	<!-- Search and Add User Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -167,10 +173,10 @@
 		</button>
 	</div>
 
-	<SortableTable 
-		data={users} 
-		columns={tableColumns} 
-		searchTerm={searchTerm} 
+	<SortableTable
+		data={users}
+		columns={tableColumns}
+		{searchTerm}
 		emptyMessage="Henüz kullanıcı bulunmuyor"
 		defaultSortKey="id"
 		defaultSortOrder="asc"
@@ -190,18 +196,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Kullanıcı başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -215,7 +218,6 @@
 				<legend class="fieldset-legend">Email</legend>
 				<input type="email" name="email" class="input w-full" bind:value={email} required />
 			</fieldset>
-
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Şifre</legend>
@@ -231,7 +233,7 @@
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Rol</legend>
 				<select name="role" class="select w-full" bind:value={role} required>
-					{#each roleOptions as option}
+					{#each roleOptions as option (option.value)}
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>
@@ -281,18 +283,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Kullanıcı başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -316,11 +315,10 @@
 				<input type="hidden" name="email" value={email} />
 			</fieldset>
 
-
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Rol</legend>
 				<select name="role" class="select w-full" bind:value={role}>
-					{#each roleOptions as option}
+					{#each roleOptions as option (option.value)}
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>
@@ -370,18 +368,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Şifre başarıyla sıfırlandı');
 						showResetPasswordModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -390,7 +385,7 @@
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Email</legend>
-				<div class="input bg-base-200 text-base-content/70 w-full">{email}</div>
+				<div class="input w-full bg-base-200 text-base-content/70">{email}</div>
 			</fieldset>
 
 			<fieldset class="fieldset">

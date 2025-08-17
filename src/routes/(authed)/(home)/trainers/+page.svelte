@@ -4,24 +4,28 @@
 	import Edit from '@lucide/svelte/icons/edit';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-    import SearchInput from '$lib/components/search-input.svelte';
-    import PageHeader from '$lib/components/page-header.svelte';
+	import SearchInput from '$lib/components/search-input.svelte';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Check from '@lucide/svelte/icons/check';
-    import { enhance } from '$app/forms';
-    import type { Trainer } from '$lib/types/Trainer';
-    import type { Training } from '$lib/types/Training';
-    import SortableTable from '$lib/components/sortable-table.svelte';
+	import { enhance } from '$app/forms';
+	import type { Trainer } from '$lib/types/Trainer';
+	import type { Training } from '$lib/types/Training';
+	import type { Database } from '$lib/database.types';
+	import SortableTable from '$lib/components/sortable-table.svelte';
+	import type { ActionItem } from '$lib/types/ActionItem';
+
+	type TrainerTraining = Database['public']['Tables']['pe_trainer_trainings']['Row'];
 
 	let { data } = $props();
 	let { trainers: initialTrainers, trainings, trainerTrainings } = $derived(data);
 
-    let trainers = $derived<Trainer[]>(initialTrainers || []);
+	let trainers = $derived<Trainer[]>(initialTrainers || []);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
 	let showDeleteModal = $state(false);
-    let selectedTrainer = $state<Trainer | null>(null);
+	let selectedTrainer = $state<Trainer | null>(null);
 	let formLoading = $state(false);
 
 	// Form data for add/edit trainer
@@ -29,19 +33,19 @@
 	let phone = $state('');
 	let selectedTrainingIds = $state<number[]>([]);
 
-	const tableActions = [
+	const tableActions: ActionItem[] = [
 		{
 			label: 'Düzenle',
-			handler: (id: number | string) => {
-				const trainer = trainers.find(t => t.id === Number(id));
+			handler: (id) => {
+				const trainer = trainers.find((t) => t.id === Number(id));
 				if (trainer) openEditModal(trainer);
 			},
 			icon: Edit
 		},
 		{
 			label: 'Sil',
-			handler: (id: number | string) => {
-				const trainer = trainers.find(t => t.id === Number(id));
+			handler: (id) => {
+				const trainer = trainers.find((t) => t.id === Number(id));
 				if (trainer) openDeleteModal(trainer);
 			},
 			class: 'text-error',
@@ -57,7 +61,8 @@
 		{
 			key: 'phone',
 			title: 'Telefon',
-			render: (trainer: Trainer) => `<a href="tel:${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
+			render: (trainer: Trainer) =>
+				`<a href="tel:${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
 		},
 		{
 			key: 'trainings',
@@ -68,46 +73,50 @@
 					if (!trainerTrainings || !trainings) {
 						return '<span class="text-base-content/50 text-sm">-</span>';
 					}
-					
-					const trainerTrainingIds = trainerTrainings
-						.filter(tt => tt.trainer_id === trainer.id)
-						.map(tt => tt.training_id) || [];
-					
+
+					const trainerTrainingIds =
+						(trainerTrainings as TrainerTraining[])
+							.filter((tt: TrainerTraining) => tt.trainer_id === trainer.id)
+							.map((tt: TrainerTraining) => tt.training_id) || [];
+
 					if (trainerTrainingIds.length === 0) {
 						return '<span class="text-base-content/50 text-sm">-</span>';
 					}
-					
-					const trainerTrainingNames = trainings
-						.filter(training => trainerTrainingIds.includes(training.id))
-						.map(training => `<span class="badge badge-secondary badge-sm">${training.name}</span>`)
-						.join(' ') || '';
-					
+
+					const trainerTrainingNames =
+						trainings
+							.filter((training) => trainerTrainingIds.includes(training.id))
+							.map(
+								(training) => `<span class="badge badge-secondary badge-sm">${training.name}</span>`
+							)
+							.join(' ') || '';
+
 					return `<div class="flex flex-wrap gap-1">${trainerTrainingNames}</div>`;
 				} catch (error) {
 					console.error('Error rendering trainings column:', error);
 					return '<span class="text-base-content/50 text-sm">-</span>';
 				}
 			}
-		},
+		}
 	];
 
-    // clear handled inside SearchInput component via bind:value
+	// clear handled inside SearchInput component via bind:value
 
 	function closeDropdown() {
 		const activeElement = document?.activeElement as HTMLElement | null;
 		activeElement?.blur();
 	}
 
-    function openEditModal(trainer: Trainer) {
-        selectedTrainer = trainer;
-        name = trainer.name ?? '';
-        phone = trainer.phone;
-        selectedTrainingIds = getTrainerTrainings(trainer.id).map(t => t.id);
+	function openEditModal(trainer: Trainer) {
+		selectedTrainer = trainer;
+		name = trainer.name ?? '';
+		phone = trainer.phone;
+		selectedTrainingIds = getTrainerTrainings(trainer.id).map((t) => t.id);
 		showEditModal = true;
 		closeDropdown();
 	}
 
-    function openDeleteModal(trainer: Trainer) {
+	function openDeleteModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		showDeleteModal = true;
 		closeDropdown();
@@ -121,25 +130,23 @@
 	}
 
 	function getTrainerTrainings(trainerId: number): Training[] {
-		const trainerTrainingIds = trainerTrainings
-			.filter((tt: any) => tt.trainer_id === trainerId)
-			.map((tt: any) => tt.training_id);
-		return trainings.filter(t => trainerTrainingIds.includes(t.id));
+		const trainerTrainingIds = (trainerTrainings as TrainerTraining[])
+			.filter((tt) => tt.trainer_id === trainerId)
+			.map((tt) => tt.training_id);
+		return trainings.filter((t) => trainerTrainingIds.includes(t.id));
 	}
 
 	function toggleTraining(trainingId: number) {
 		if (selectedTrainingIds.includes(trainingId)) {
-			selectedTrainingIds = selectedTrainingIds.filter(id => id !== trainingId);
+			selectedTrainingIds = selectedTrainingIds.filter((id) => id !== trainingId);
 		} else {
 			selectedTrainingIds = [...selectedTrainingIds, trainingId];
 		}
 	}
-
-
 </script>
 
 <div class="p-6">
-    <PageHeader title="Eğitmenler" subtitle="Bu sayfada eğitmenleri yönetin" />
+	<PageHeader title="Eğitmenler" subtitle="Bu sayfada eğitmenleri yönetin" />
 
 	<!-- Search and Add Trainer Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -159,10 +166,10 @@
 		</button>
 	</div>
 
-	<SortableTable 
-		data={trainers} 
-		columns={tableColumns} 
-		searchTerm={searchTerm} 
+	<SortableTable
+		data={trainers}
+		columns={tableColumns}
+		{searchTerm}
 		emptyMessage="Henüz eğitmen bulunmuyor"
 		defaultSortKey="id"
 		defaultSortOrder="asc"
@@ -182,18 +189,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Eğitmen başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -205,29 +209,39 @@
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Telefon</legend>
-				<input type="tel" name="phone" class="input w-full" bind:value={phone} placeholder="5xx xxx xx xx" required />
+				<input
+					type="tel"
+					name="phone"
+					class="input w-full"
+					bind:value={phone}
+					placeholder="5xx xxx xx xx"
+					required
+				/>
 			</fieldset>
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Verebildiği Dersler</legend>
-				<div class="text-xs text-base-content/60 mb-2">
+				<div class="mb-2 text-xs text-base-content/60">
 					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
 				</div>
 				<div class="flex flex-wrap gap-2">
-					{#each trainings as training}
+					{#each trainings as training (training.id)}
 						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input type="hidden" name="selectedTrainingIds" value={training.id} disabled={!isSelected} />
+						<input
+							type="hidden"
+							name="selectedTrainingIds"
+							value={training.id}
+							disabled={!isSelected}
+						/>
 						<button
 							type="button"
-							class="badge {isSelected ? 'badge-secondary' : 'badge-secondary badge-outline'} cursor-pointer hover:scale-105 transition-all duration-200 flex items-center gap-2"
+							class="badge {isSelected
+								? 'badge-secondary'
+								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
 							onclick={() => toggleTraining(training.id)}
 						>
 							<div class="swap swap-rotate">
-								<input 
-									type="checkbox" 
-									checked={isSelected} 
-									readonly 
-								/>
+								<input type="checkbox" checked={isSelected} readonly />
 								<Check size={14} class="swap-on" />
 								<Plus size={14} class="swap-off" />
 							</div>
@@ -281,18 +295,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Eğitmen başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -306,29 +317,39 @@
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Telefon</legend>
-				<input type="tel" name="phone" class="input w-full" bind:value={phone} placeholder="05xx xxx xx xx" required />
+				<input
+					type="tel"
+					name="phone"
+					class="input w-full"
+					bind:value={phone}
+					placeholder="05xx xxx xx xx"
+					required
+				/>
 			</fieldset>
 
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Verebildiği Dersler</legend>
-				<div class="text-xs text-base-content/60 mb-2">
+				<div class="mb-2 text-xs text-base-content/60">
 					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
 				</div>
 				<div class="flex flex-wrap gap-2">
-					{#each trainings as training}
+					{#each trainings as training (training.id)}
 						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input type="hidden" name="selectedTrainingIds" value={training.id} disabled={!isSelected} />
+						<input
+							type="hidden"
+							name="selectedTrainingIds"
+							value={training.id}
+							disabled={!isSelected}
+						/>
 						<button
 							type="button"
-							class="badge {isSelected ? 'badge-secondary' : 'badge-secondary badge-outline'} cursor-pointer hover:scale-105 transition-all duration-200 flex items-center gap-2"
+							class="badge {isSelected
+								? 'badge-secondary'
+								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
 							onclick={() => toggleTraining(training.id)}
 						>
 							<div class="swap swap-rotate">
-								<input 
-									type="checkbox" 
-									checked={isSelected} 
-									readonly 
-								/>
+								<input type="checkbox" checked={isSelected} readonly />
 								<Check size={14} class="swap-on" />
 								<Plus size={14} class="swap-off" />
 							</div>
@@ -375,7 +396,8 @@
 	<div class="modal-box">
 		<h3 class="mb-4 text-lg font-bold">Eğitmeni Sil</h3>
 		<p class="mb-4">
-			<strong>{selectedTrainer?.name}</strong> adlı eğitmeni silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+			<strong>{selectedTrainer?.name}</strong> adlı eğitmeni silmek istediğinizden emin misiniz? Bu işlem
+			geri alınamaz.
 		</p>
 		<form
 			method="POST"
@@ -385,18 +407,15 @@
 				formLoading = true;
 				return async ({ result, update }) => {
 					formLoading = false;
-					
+
 					if (result.type === 'success') {
 						toast.success('Eğitmen başarıyla silindi');
 						showDeleteModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data) {
-						const errorData = result.data as any;
-						if (errorData.message) {
-							toast.error(errorData.message);
-						}
+					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
+						toast.error(result.data.message as string);
 					}
-					
+
 					await update();
 				};
 			}}
@@ -434,4 +453,3 @@
 		>
 	</form>
 </dialog>
-

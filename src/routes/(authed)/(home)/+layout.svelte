@@ -12,15 +12,16 @@
 	import { page } from '$app/state';
 	import { allRoutes, type Route } from '$lib/types/Route.js';
 	import type { Role } from '$lib/types/Role.js';
+	import type { ActionItem } from '$lib/types/ActionItem.js';
 
 	let { children, data } = $props();
 	let { supabase, session, userRole } = $derived(data);
 	let loading = $state(false);
 	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
-	
+
 	// Global action drawer state
 	let drawerOpen = $state(false);
-	let drawerActions = $state<any[]>([]);
+	let drawerActions = $state<ActionItem[]>([]);
 
 	function toggleDrawer() {
 		const drawerCheckbox = document.getElementById('my-drawer-2') as HTMLInputElement;
@@ -38,16 +39,16 @@
 		{
 			label: 'Çıkış Yap',
 			icon: Logout,
-			handler: logout
+			handler: () => logout()
 		}
 	];
 
-	function handleOpenDrawer(detail: { actions: any[] }) {
+	function handleOpenDrawer(detail: { actions: ActionItem[] }) {
 		drawerActions = detail.actions;
 		drawerOpen = true;
 	}
 
-	function openDrawer(actions: any[]) {
+	function openDrawer(actions: ActionItem[]) {
 		drawerActions = actions;
 		drawerOpen = true;
 	}
@@ -82,10 +83,14 @@
 		// Navigation loading logic
 		beforeNavigate((navigation) => {
 			// Don't show loading for external links (tel:, mailto:, http:, https:, etc.)
-			if (navigation.to?.url.protocol && navigation.to.url.protocol !== 'http:' && navigation.to.url.protocol !== 'https:') {
+			if (
+				navigation.to?.url.protocol &&
+				navigation.to.url.protocol !== 'http:' &&
+				navigation.to.url.protocol !== 'https:'
+			) {
 				return;
 			}
-			
+
 			if (loadingTimer) clearTimeout(loadingTimer);
 			loadingTimer = setTimeout(() => {
 				loading = true;
@@ -142,9 +147,9 @@
 			<a class="btn text-xl btn-ghost" href="/">Pilates Evi</a>
 		</div>
 		<div class="flex-none">
-			<ActionMenu 
-				actions={userMenuActions} 
-				trigger={Ellipsis} 
+			<ActionMenu
+				actions={userMenuActions}
+				trigger={Ellipsis}
 				triggerClass="btn btn-square btn-ghost"
 				onOpenDrawer={handleOpenDrawer}
 			/>
@@ -155,13 +160,13 @@
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Fixed sidebar -->
 		<div class="hidden w-80 bg-base-200 p-4 lg:block">
-			{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex}
+			{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
 				{#if groupIndex > 0}
 					<div class="divider my-2"></div>
 				{/if}
 				<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">{groupName}</div>
 				<ul class="menu w-full text-base-content">
-					{#each routes as route}
+					{#each routes as route (route.href)}
 						<li class="w-full">
 							<a
 								href={route.href}
@@ -195,7 +200,7 @@
 					>
 						<ArrowLeft size="20" />
 					</button>
-					{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex}
+					{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
 						{#if groupIndex > 0}
 							<div class="divider my-2"></div>
 						{/if}
@@ -203,7 +208,7 @@
 							{groupName}
 						</div>
 						<ul class="menu w-full">
-							{#each routes as route}
+							{#each routes as route (route.href)}
 								<li class="w-full">
 									<a
 										href={route.href}

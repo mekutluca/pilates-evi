@@ -2,20 +2,20 @@
 
 @plugin "daisyui";
 @plugin "daisyui/theme" {
-    name: "cupcake";
-    default: true;
+	name: 'cupcake';
+	default: true;
 }
 
 @font-face {
-    font-family: 'Plus Jakarta Sans';
-    src: url('/fonts/PlusJakartaSans.ttf');
-    font-display: swap;
+	font-family: 'Plus Jakarta Sans';
+	src: url('/fonts/PlusJakartaSans.ttf');
+	font-display: swap;
 }
 
 :root {
-    --theme-font-family-base: 'Plus Jakarta Sans';
-    --theme-font-family-heading: 'Plus Jakarta Sans';
-    font-family: "Plus Jakarta Sans";
+	--theme-font-family-base: 'Plus Jakarta Sans';
+	--theme-font-family-heading: 'Plus Jakarta Sans';
+	font-family: 'Plus Jakarta Sans';
 }
 
 @plugin '@tailwindcss/typography';

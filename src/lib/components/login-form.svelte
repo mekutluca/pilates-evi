@@ -3,7 +3,6 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
 	let {
@@ -14,7 +13,7 @@
 	}: {
 		class?: string;
 		formType: 'login' | 'forgot-password' | 'reset-password';
-		supabase: SupabaseClient<any, 'public', any>;
+		supabase: SupabaseClient;
 	} = $props();
 
 	let inProgress = $state(false);
