@@ -186,7 +186,7 @@
 											{@const Component = column.renderComponent}
 											<Component {item} {index} />
 										{:else if column.render}
-											{getColumnValue(item, column, index)}
+											{@html getColumnValue(item, column, index)}
 										{:else}
 											{getColumnValue(item, column, index)}
 										{/if}
