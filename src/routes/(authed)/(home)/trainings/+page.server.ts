@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
+import { getRequiredFormDataString, getFormDataString } from '$lib/utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -17,14 +18,17 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const name = formData.get('name') as string;
-		const min_capacity = formData.get('min_capacity') ? Number(formData.get('min_capacity')) : 0;
-		const max_capacity = formData.get('max_capacity') ? Number(formData.get('max_capacity')) : 0;
-		const assignToAllTrainers = formData.get('assignToAllTrainers') === 'on';
-
-		if (!name) {
-			return fail(400, { success: false, message: 'Egzersiz adı gereklidir' });
+		
+		const nameResult = getRequiredFormDataString(formData, 'name');
+		if (!nameResult.success) {
+			return fail(400, { success: false, message: nameResult.error });
 		}
+		
+		const minCapacityStr = getFormDataString(formData, 'min_capacity');
+		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
+		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
+		const max_capacity = maxCapacityStr ? Number(maxCapacityStr) : 0;
+		const assignToAllTrainers = formData.get('assignToAllTrainers') === 'on';
 
 		if (max_capacity > 0 && min_capacity > max_capacity) {
 			return fail(400, {
@@ -35,7 +39,7 @@ export const actions: Actions = {
 
 		const { data: trainingData, error: createError } = await supabase
 			.from('pe_trainings')
-			.insert({ name, min_capacity, max_capacity })
+			.insert({ name: nameResult.value, min_capacity, max_capacity })
 			.select()
 			.single();
 
@@ -75,14 +79,25 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const trainingId = Number(formData.get('trainingId'));
-		const name = formData.get('name') as string;
-		const min_capacity = formData.get('min_capacity') ? Number(formData.get('min_capacity')) : 0;
-		const max_capacity = formData.get('max_capacity') ? Number(formData.get('max_capacity')) : 0;
-
-		if (!trainingId || !name) {
-			return fail(400, { success: false, message: 'Egzersiz ID ve adı gereklidir' });
+		
+		const trainingIdResult = getRequiredFormDataString(formData, 'trainingId');
+		if (!trainingIdResult.success) {
+			return fail(400, { success: false, message: trainingIdResult.error });
 		}
+		const trainingId = Number(trainingIdResult.value);
+		if (isNaN(trainingId)) {
+			return fail(400, { success: false, message: 'Geçersiz egzersiz ID' });
+		}
+		
+		const nameResult = getRequiredFormDataString(formData, 'name');
+		if (!nameResult.success) {
+			return fail(400, { success: false, message: nameResult.error });
+		}
+		
+		const minCapacityStr = getFormDataString(formData, 'min_capacity');
+		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
+		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
+		const max_capacity = maxCapacityStr ? Number(maxCapacityStr) : 0;
 
 		if (max_capacity > 0 && min_capacity > max_capacity) {
 			return fail(400, {
@@ -93,7 +108,7 @@ export const actions: Actions = {
 
 		const { error: updateError } = await supabase
 			.from('pe_trainings')
-			.update({ name, min_capacity, max_capacity })
+			.update({ name: nameResult.value, min_capacity, max_capacity })
 			.eq('id', trainingId);
 
 		if (updateError) {

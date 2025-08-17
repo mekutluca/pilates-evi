@@ -11,38 +11,51 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		throw error(401, 'Authentication required');
 	}
 
-	// Fetch all data concurrently
+	// Fetch all data concurrently with proper error handling
 	const queries = [
 		{ name: 'trainers', query: supabase.from('pe_trainers').select('*') },
 		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
 		{ name: 'trainings', query: supabase.from('pe_trainings').select('*') },
 		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
 		{ name: 'trainerTrainings', query: supabase.from('pe_trainer_trainings').select('*') }
-	];
+	] as const;
 
-	const results = await Promise.all(queries.map((q) => q.query));
+	try {
+		const results = await Promise.all(queries.map((q) => q.query));
 
-	const data: Record<
-		string,
-		(Trainer | Room | Training | Trainee | { trainer_id: number; training_id: number })[]
-	> = {};
+		const data: Record<
+			string,
+			(Trainer | Room | Training | Trainee | { trainer_id: number; training_id: number })[]
+		> = {};
 
-	queries.forEach((query, index) => {
-		const { data: queryData, error: queryError } = results[index];
+		queries.forEach((query, index) => {
+			const { data: queryData, error: queryError } = results[index];
 
-		if (queryError) {
-			console.error(`Error loading ${query.name}:`, queryError);
-			data[query.name] = [];
-		} else {
-			data[query.name] = queryData || [];
-		}
-	});
+			if (queryError) {
+				console.error(`Error loading ${query.name}:`, queryError);
+				// For critical errors, you might want to throw instead of returning empty array
+				data[query.name] = [];
+			} else {
+				data[query.name] = queryData || [];
+			}
+		});
 
-	return {
-		trainers: data.trainers as Trainer[],
-		rooms: data.rooms as Room[],
-		trainings: data.trainings as Training[],
-		trainees: data.trainees as Trainee[],
-		trainerTrainings: data.trainerTrainings
-	};
+		return {
+			trainers: data.trainers as Trainer[],
+			rooms: data.rooms as Room[],
+			trainings: data.trainings as Training[],
+			trainees: data.trainees as Trainee[],
+			trainerTrainings: data.trainerTrainings as { trainer_id: number; training_id: number }[]
+		};
+	} catch (err) {
+		console.error('Failed to load application data:', err);
+		// Return empty data instead of throwing to prevent app crash
+		return {
+			trainers: [],
+			rooms: [],
+			trainings: [],
+			trainees: [],
+			trainerTrainings: []
+		};
+	}
 };

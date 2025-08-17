@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
+import { getRequiredFormDataString, getFormDataString } from '$lib/utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -17,23 +18,12 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const name = formData.get('name') as string;
-		const email = formData.get('email') as string;
-		const phone = formData.get('phone') as string;
-		const notes = formData.get('notes') as string;
+		
+		const name = getRequiredFormDataString(formData, 'name');
+		const email = getRequiredFormDataString(formData, 'email');
+		const phone = getRequiredFormDataString(formData, 'phone');
+		const notes = getFormDataString(formData, 'notes');
 		const selectedTraineeIds = formData.getAll('selectedTraineeIds').map((id) => Number(id));
-
-		if (!name) {
-			return fail(400, { success: false, message: 'Öğrenci adı gereklidir' });
-		}
-
-		if (!phone) {
-			return fail(400, { success: false, message: 'Telefon numarası gereklidir' });
-		}
-
-		if (!email) {
-			return fail(400, { success: false, message: 'Email adresi gereklidir' });
-		}
 
 		// Validate email format
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -100,23 +90,16 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const traineeId = Number(formData.get('traineeId'));
-		const name = formData.get('name') as string;
-		const email = formData.get('email') as string;
-		const phone = formData.get('phone') as string;
-		const notes = formData.get('notes') as string;
+		
+		const traineeId = Number(getRequiredFormDataString(formData, 'traineeId'));
+		const name = getRequiredFormDataString(formData, 'name');
+		const email = getRequiredFormDataString(formData, 'email');
+		const phone = getRequiredFormDataString(formData, 'phone');
+		const notes = getFormDataString(formData, 'notes');
 		const selectedTraineeIds = formData.getAll('selectedTraineeIds').map((id) => Number(id));
 
-		if (!traineeId || !name) {
-			return fail(400, { success: false, message: 'Öğrenci ID ve adı gereklidir' });
-		}
-
-		if (!phone) {
-			return fail(400, { success: false, message: 'Telefon numarası gereklidir' });
-		}
-
-		if (!email) {
-			return fail(400, { success: false, message: 'Email adresi gereklidir' });
+		if (isNaN(traineeId)) {
+			return fail(400, { success: false, message: 'Geçersiz öğrenci ID' });
 		}
 
 		// Validate email format
@@ -125,87 +108,87 @@ export const actions: Actions = {
 		}
 
 		// Get current relationships before updating
-		const { data: currentTrainee, error: fetchCurrentError } = await supabase
-			.from('pe_trainees')
-			.select('related_trainee_ids')
-			.eq('id', traineeId)
-			.single();
-
-		if (fetchCurrentError) {
-			return fail(500, {
-				success: false,
-				message: 'Mevcut öğrenci bilgileri alınırken hata: ' + fetchCurrentError.message
-			});
-		}
-
-		const currentRelatedIds = currentTrainee?.related_trainee_ids || [];
-
-		const { error: updateError } = await supabase
-			.from('pe_trainees')
-			.update({
-				name,
-				email,
-				phone,
-				notes: notes || null,
-				related_trainee_ids: selectedTraineeIds
-			})
-			.eq('id', traineeId);
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenci güncellenirken hata: ' + updateError.message
-			});
-		}
-
-		// Update bidirectional relationships
-		// Find added and removed relationships
-		const addedIds = selectedTraineeIds.filter((id: number) => !currentRelatedIds.includes(id));
-		const removedIds = currentRelatedIds.filter((id: number) => !selectedTraineeIds.includes(id));
-
-		// Handle added relationships
-		if (addedIds.length > 0) {
-			const { data: addedTrainees, error: fetchAddedError } = await supabase
+			const { data: currentTrainee, error: fetchCurrentError } = await supabase
 				.from('pe_trainees')
-				.select('id, related_trainee_ids')
-				.in('id', addedIds);
+				.select('related_trainee_ids')
+				.eq('id', traineeId)
+				.single();
 
-			if (!fetchAddedError && addedTrainees) {
-				const addUpdates = addedTrainees.map(async (trainee) => {
-					const currentIds = trainee.related_trainee_ids || [];
-					const newIds = [...new Set([...currentIds, traineeId])];
-
-					return supabase
-						.from('pe_trainees')
-						.update({ related_trainee_ids: newIds })
-						.eq('id', trainee.id);
+			if (fetchCurrentError) {
+				return fail(500, {
+					success: false,
+					message: 'Mevcut öğrenci bilgileri alınırken hata: ' + fetchCurrentError.message
 				});
-
-				await Promise.all(addUpdates);
 			}
-		}
 
-		// Handle removed relationships
-		if (removedIds.length > 0) {
-			const { data: removedTrainees, error: fetchRemovedError } = await supabase
+			const currentRelatedIds = currentTrainee?.related_trainee_ids || [];
+
+			const { error: updateError } = await supabase
 				.from('pe_trainees')
-				.select('id, related_trainee_ids')
-				.in('id', removedIds);
+				.update({
+					name,
+					email,
+					phone,
+					notes: notes || null,
+					related_trainee_ids: selectedTraineeIds
+				})
+				.eq('id', traineeId);
 
-			if (!fetchRemovedError && removedTrainees) {
-				const removeUpdates = removedTrainees.map(async (trainee) => {
-					const currentIds = trainee.related_trainee_ids || [];
-					const newIds = currentIds.filter((id: number) => id !== traineeId);
-
-					return supabase
-						.from('pe_trainees')
-						.update({ related_trainee_ids: newIds })
-						.eq('id', trainee.id);
+			if (updateError) {
+				return fail(500, {
+					success: false,
+					message: 'Öğrenci güncellenirken hata: ' + updateError.message
 				});
-
-				await Promise.all(removeUpdates);
 			}
-		}
+
+			// Update bidirectional relationships
+			// Find added and removed relationships
+			const addedIds = selectedTraineeIds.filter((id: number) => !currentRelatedIds.includes(id));
+			const removedIds = currentRelatedIds.filter((id: number) => !selectedTraineeIds.includes(id));
+
+			// Handle added relationships
+			if (addedIds.length > 0) {
+				const { data: addedTrainees, error: fetchAddedError } = await supabase
+					.from('pe_trainees')
+					.select('id, related_trainee_ids')
+					.in('id', addedIds);
+
+				if (!fetchAddedError && addedTrainees) {
+					const addUpdates = addedTrainees.map(async (trainee) => {
+						const currentIds = trainee.related_trainee_ids || [];
+						const newIds = [...new Set([...currentIds, traineeId])];
+
+						return supabase
+							.from('pe_trainees')
+							.update({ related_trainee_ids: newIds })
+							.eq('id', trainee.id);
+					});
+
+					await Promise.all(addUpdates);
+				}
+			}
+
+			// Handle removed relationships
+			if (removedIds.length > 0) {
+				const { data: removedTrainees, error: fetchRemovedError } = await supabase
+					.from('pe_trainees')
+					.select('id, related_trainee_ids')
+					.in('id', removedIds);
+
+				if (!fetchRemovedError && removedTrainees) {
+					const removeUpdates = removedTrainees.map(async (trainee) => {
+						const currentIds = trainee.related_trainee_ids || [];
+						const newIds = currentIds.filter((id: number) => id !== traineeId);
+
+						return supabase
+							.from('pe_trainees')
+							.update({ related_trainee_ids: newIds })
+							.eq('id', trainee.id);
+					});
+
+					await Promise.all(removeUpdates);
+				}
+			}
 
 		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},

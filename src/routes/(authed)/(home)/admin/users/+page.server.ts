@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
+import { getRequiredFormDataString } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals: { admin, user, userRole } }) => {
 	// Ensure only admin users can access this page
@@ -49,17 +50,25 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const email = formData.get('email') as string;
-		const password = formData.get('password') as string;
-		const fullName = formData.get('fullName') as string;
-		const role = formData.get('role') as string;
-
-		// Validate required fields
-		if (!email || !password || !fullName || !role) {
-			return fail(400, {
-				success: false,
-				message: 'Tüm alanlar gereklidir'
-			});
+		
+		const emailResult = getRequiredFormDataString(formData, 'email');
+		if (!emailResult.success) {
+			return fail(400, { success: false, message: emailResult.error });
+		}
+		
+		const passwordResult = getRequiredFormDataString(formData, 'password');
+		if (!passwordResult.success) {
+			return fail(400, { success: false, message: passwordResult.error });
+		}
+		
+		const fullNameResult = getRequiredFormDataString(formData, 'fullName');
+		if (!fullNameResult.success) {
+			return fail(400, { success: false, message: fullNameResult.error });
+		}
+		
+		const roleResult = getRequiredFormDataString(formData, 'role');
+		if (!roleResult.success) {
+			return fail(400, { success: false, message: roleResult.error });
 		}
 
 		// Validate role

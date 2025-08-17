@@ -14,6 +14,7 @@
 	import type { Database } from '$lib/database.types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
+	import { getActionErrorMessage } from '$lib/utils';
 
 	type TrainerTraining = Database['public']['Tables']['pe_trainer_trainings']['Row'];
 
@@ -194,8 +195,8 @@
 						toast.success('Eğitmen başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();
@@ -300,8 +301,8 @@
 						toast.success('Eğitmen başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();
@@ -412,8 +413,8 @@
 						toast.success('Eğitmen başarıyla silindi');
 						showDeleteModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();

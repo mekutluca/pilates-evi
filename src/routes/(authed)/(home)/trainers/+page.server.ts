@@ -4,6 +4,7 @@ import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
+import { getRequiredFormDataString } from '$lib/utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -55,24 +56,10 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const name = formData.get('name') as string;
-		const phone = formData.get('phone') as string;
+		
+		const name = getRequiredFormDataString(formData, 'name');
+		const phone = getRequiredFormDataString(formData, 'phone');
 		const selectedTrainingIds = formData.getAll('selectedTrainingIds').map((id) => Number(id));
-
-		// Validate required fields
-		if (!name) {
-			return fail(400, {
-				success: false,
-				message: 'Eğitmen adı gereklidir'
-			});
-		}
-
-		if (!phone) {
-			return fail(400, {
-				success: false,
-				message: 'Telefon numarası gereklidir'
-			});
-		}
 
 		// Create trainer in pe_trainers table
 		const { data: trainerData, error: createError } = await supabase
@@ -105,23 +92,16 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const trainerId = Number(formData.get('trainerId'));
-		const name = formData.get('name') as string;
-		const phone = formData.get('phone') as string;
+		
+		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
+		const name = getRequiredFormDataString(formData, 'name');
+		const phone = getRequiredFormDataString(formData, 'phone');
 		const selectedTrainingIds = formData.getAll('selectedTrainingIds').map((id) => Number(id));
 
-		// Validate required fields
-		if (!trainerId || !name) {
+		if (isNaN(trainerId)) {
 			return fail(400, {
 				success: false,
-				message: 'Eğitmen ID ve adı gereklidir'
-			});
-		}
-
-		if (!phone) {
-			return fail(400, {
-				success: false,
-				message: 'Telefon numarası gereklidir'
+				message: 'Geçersiz eğitmen ID'
 			});
 		}
 

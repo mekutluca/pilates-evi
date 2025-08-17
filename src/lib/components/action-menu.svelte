@@ -19,11 +19,16 @@
 
 	const drawerContext = getActionDrawerContext();
 
-	function handleAction(action: ActionItem) {
-		action.handler(0); // Pass dummy ID for menu actions
-		// Close dropdown on desktop by blurring active element
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
+	async function handleAction(action: ActionItem) {
+		try {
+			await action.handler(); // No dummy ID needed with optional parameter
+			// Close dropdown on desktop by blurring active element
+			const activeElement = document?.activeElement as HTMLElement | null;
+			activeElement?.blur();
+		} catch (error) {
+			console.error('Action failed:', error);
+			// Could implement user-facing error handling here
+		}
 	}
 
 	function openMobileDrawer() {
@@ -47,7 +52,7 @@
 		<ul class="dropdown-content menu z-[1] w-52 rounded-box border bg-base-100 p-2 shadow-lg">
 			{#each actions as action (action.label)}
 				<li>
-					<button onclick={() => handleAction(action)} class={action.class || ''}>
+					<button onclick={() => handleAction(action)} class={action.class || ''} type="button">
 						{#if action.icon}
 							{@const IconComponent = action.icon}
 							<IconComponent size={14} />
@@ -62,7 +67,7 @@
 
 <!-- Mobile: Trigger button (sm and below) -->
 <div class="md:hidden">
-	<button class={triggerClass} onclick={openMobileDrawer}>
+	<button class={triggerClass} onclick={openMobileDrawer} type="button">
 		{#if trigger}
 			{@const TriggerComponent = trigger}
 			<TriggerComponent size={14} />

@@ -11,9 +11,14 @@
 
 	let isClosing = $state(false);
 
-	function handleAction(action: ActionItem) {
-		action.handler(0); // Pass dummy ID for menu actions
-		closeDrawer();
+	async function handleAction(action: ActionItem) {
+		try {
+			await action.handler();
+			closeDrawer();
+		} catch (error) {
+			console.error('Action failed:', error);
+			// Could implement user-facing error handling here
+		}
 	}
 
 	function closeDrawer() {
@@ -44,6 +49,7 @@
 			onkeydown={(e) => e.key === 'Enter' && closeDrawer()}
 			role="button"
 			tabindex="-1"
+			aria-label="Close drawer"
 		></div>
 
 		<!-- Bottom Sheet -->
@@ -71,6 +77,7 @@
 					<button
 						class="btn btn-block justify-start text-left btn-ghost {action.class || ''}"
 						onclick={() => handleAction(action)}
+						type="button"
 					>
 						{#if action.icon}
 							{@const IconComponent = action.icon}

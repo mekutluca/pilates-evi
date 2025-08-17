@@ -30,7 +30,7 @@
 		}
 	}
 
-	const userMenuActions = [
+	const userMenuActions: ActionItem[] = [
 		{
 			label: 'Ayarlar',
 			icon: Settings,
@@ -39,7 +39,7 @@
 		{
 			label: 'Çıkış Yap',
 			icon: Logout,
-			handler: () => logout()
+			handler: async () => await logout()
 		}
 	];
 
@@ -66,7 +66,12 @@
 	}
 
 	async function logout() {
-		await supabase.auth.signOut();
+		try {
+			await supabase.auth.signOut();
+			// Navigation will be handled by the auth state change listener
+		} catch (error) {
+			console.error('Logout failed:', error);
+		}
 	}
 
 	onMount(() => {
@@ -82,12 +87,8 @@
 
 		// Navigation loading logic
 		beforeNavigate((navigation) => {
-			// Don't show loading for external links (tel:, mailto:, http:, https:, etc.)
-			if (
-				navigation.to?.url.protocol &&
-				navigation.to.url.protocol !== 'http:' &&
-				navigation.to.url.protocol !== 'https:'
-			) {
+			// Don't show loading for external links or non-http protocols
+			if (navigation.to?.url.protocol && !navigation.to.url.protocol.startsWith('http')) {
 				return;
 			}
 

@@ -11,6 +11,7 @@
 	import type { User } from '$lib/types/User';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
+	import { getActionErrorMessage } from '$lib/utils';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -201,8 +202,8 @@
 						toast.success('Kullanıcı başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();
@@ -288,8 +289,8 @@
 						toast.success('Kullanıcı başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();
@@ -373,8 +374,8 @@
 						toast.success('Şifre başarıyla sıfırlandı');
 						showResetPasswordModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 
 					await update();

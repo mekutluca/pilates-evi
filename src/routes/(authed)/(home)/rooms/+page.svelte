@@ -10,6 +10,7 @@
 	import type { Room } from '$lib/types/Room';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
+	import { getActionErrorMessage } from '$lib/utils';
 
 	let { data } = $props();
 	let { rooms: initialRooms } = $derived(data);
@@ -129,8 +130,8 @@
 						toast.success('Oda başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};
@@ -193,8 +194,8 @@
 						toast.success('Oda başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};
@@ -263,8 +264,8 @@
 						toast.success('Oda başarıyla silindi');
 						showDeleteModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};

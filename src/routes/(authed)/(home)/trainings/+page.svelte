@@ -10,6 +10,7 @@
 	import type { Training } from '$lib/types/Training';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
+	import { getActionErrorMessage } from '$lib/utils';
 
 	let { data } = $props();
 	let { trainings: initialTrainings } = $derived(data);
@@ -135,8 +136,8 @@
 						toast.success('Egzersiz başarıyla oluşturuldu');
 						showAddModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};
@@ -233,8 +234,8 @@
 						toast.success('Egzersiz başarıyla güncellendi');
 						showEditModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};
@@ -322,8 +323,8 @@
 						toast.success('Egzersiz başarıyla silindi');
 						showDeleteModal = false;
 						resetForm();
-					} else if (result.type === 'failure' && result.data && 'message' in result.data) {
-						toast.error(result.data.message as string);
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
 					}
 					await update();
 				};

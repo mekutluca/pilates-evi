@@ -9,6 +9,7 @@
 		title: string;
 		sortable?: boolean;
 		render?: (item: T, index?: number) => string;
+		renderComponent?: import('svelte').Component<{ item: T; index: number }>;
 		class?: string;
 	}
 
@@ -181,9 +182,11 @@
 							<tr>
 								{#each columns as column (column.key)}
 									<td class={column.class || ''}>
-										{#if column.render}
-											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-											{@html getColumnValue(item, column, index)}
+										{#if column.renderComponent}
+											{@const Component = column.renderComponent}
+											<Component {item} {index} />
+										{:else if column.render}
+											{getColumnValue(item, column, index)}
 										{:else}
 											{getColumnValue(item, column, index)}
 										{/if}
@@ -195,12 +198,13 @@
 											actions={actions.map(
 												(action): ActionItem => ({
 													...action,
-													handler: () =>
-														action.handler(
+													handler: async () => {
+														const id =
 															typeof item === 'object' && item && 'id' in item
 																? (item.id as number | string)
-																: 0
-														)
+																: undefined;
+														await action.handler(id);
+													}
 												})
 											)}
 										/>

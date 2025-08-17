@@ -10,6 +10,6 @@ export const load: LayoutServerLoad = async ({ locals: { session, user } }) => {
 	return {
 		session,
 		user,
-		userRole: user?.role?.replace('pe_', '') as Role as Role
+		userRole: user?.role?.replace('pe_', '') as Role
 	};
 };

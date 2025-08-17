@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import { getFormDataString, getRequiredFormDataString } from '$lib/utils';
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -8,14 +9,15 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const name = formData.get('name') as string;
-		const capacity = formData.get('capacity') ? Number(formData.get('capacity')) : null;
+		
+		const name = getRequiredFormDataString(formData, 'name');
+		const capacityStr = getFormDataString(formData, 'capacity');
+		const capacity = capacityStr ? Number(capacityStr) : null;
 
-		if (!name) {
-			return fail(400, { success: false, message: 'Oda adı gereklidir' });
-		}
-
-		const { error: createError } = await supabase.from('pe_rooms').insert({ name, capacity });
+		const { error: createError } = await supabase.from('pe_rooms').insert({ 
+			name, 
+			capacity 
+		});
 
 		if (createError) {
 			return fail(500, {
@@ -33,12 +35,14 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const roomId = Number(formData.get('roomId'));
-		const name = formData.get('name') as string;
-		const capacity = formData.get('capacity') ? Number(formData.get('capacity')) : null;
-
-		if (!roomId || !name) {
-			return fail(400, { success: false, message: 'Oda ID ve adı gereklidir' });
+		
+		const roomId = Number(getRequiredFormDataString(formData, 'roomId'));
+		const name = getRequiredFormDataString(formData, 'name');
+		const capacityStr = getFormDataString(formData, 'capacity');
+		const capacity = capacityStr ? Number(capacityStr) : null;
+		
+		if (isNaN(roomId)) {
+			return fail(400, { success: false, message: 'Geçersiz oda ID' });
 		}
 
 		const { error: updateError } = await supabase
