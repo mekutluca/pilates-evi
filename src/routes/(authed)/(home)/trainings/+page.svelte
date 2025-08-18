@@ -10,7 +10,7 @@
 	import type { Training } from '$lib/types/Training';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
-	import { getActionErrorMessage } from '$lib/utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
 	let { trainings: initialTrainings } = $derived(data);
@@ -26,6 +26,7 @@
 	let name = $state('');
 	let minCapacity = $state<number>(0);
 	let maxCapacity = $state<number>(0);
+	let recurrence = $state<number>(4);
 
 	const tableActions: ActionItem[] = [
 		{
@@ -59,6 +60,10 @@
 		{
 			key: 'max_capacity',
 			title: 'Max. Öğrenci'
+		},
+		{
+			key: 'recurrence',
+			title: 'Ders Sayısı'
 		}
 	];
 
@@ -72,6 +77,7 @@
 		name = training.name ?? '';
 		minCapacity = training.min_capacity;
 		maxCapacity = training.max_capacity;
+		recurrence = training.recurrence ?? 4;
 		showEditModal = true;
 		closeDropdown();
 	}
@@ -86,6 +92,7 @@
 		name = '';
 		minCapacity = 0;
 		maxCapacity = 0;
+		recurrence = 4;
 		selectedTraining = null;
 	}
 </script>
@@ -148,7 +155,7 @@
 				<input type="text" name="name" class="input w-full" bind:value={name} required />
 			</fieldset>
 
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-3 gap-4">
 				<fieldset class="fieldset">
 					<legend class="fieldset-legend">Min. Öğrenci</legend>
 					<input
@@ -170,6 +177,18 @@
 						min="0"
 					/>
 				</fieldset>
+
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Ders Sayısı</legend>
+					<input
+						type="number"
+						name="recurrence"
+						class="input w-full"
+						bind:value={recurrence}
+						min="1"
+						required
+					/>
+				</fieldset>
 			</div>
 
 			<div class="form-control">
@@ -177,13 +196,28 @@
 					<input
 						type="checkbox"
 						name="assignToAllTrainers"
-						class="checkbox checkbox-secondary"
+						class="checkbox checkbox-info"
 						checked
 					/>
 					<span class="label-text pl-3">Tüm eğitmenlere otomatik ata</span>
 				</label>
 				<div class="ml-7 pl-3 text-xs text-base-content/60">
 					Bu egzersizi oluştururken tüm mevcut eğitmenlere otomatik olarak atar
+				</div>
+			</div>
+
+			<div class="form-control">
+				<label class="cursor-pointer justify-start gap-3">
+					<input
+						type="checkbox"
+						name="assignToAllRooms"
+						class="checkbox checkbox-primary"
+						checked
+					/>
+					<span class="label-text pl-3">Tüm odalara otomatik ata</span>
+				</label>
+				<div class="ml-7 pl-3 text-xs text-base-content/60">
+					Bu egzersizi oluştururken tüm mevcut odalara otomatik olarak atar
 				</div>
 			</div>
 
@@ -248,7 +282,7 @@
 				<input type="text" name="name" class="input w-full" bind:value={name} required />
 			</fieldset>
 
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-3 gap-4">
 				<fieldset class="fieldset">
 					<legend class="fieldset-legend">Min. Öğrenci</legend>
 					<input
@@ -268,6 +302,18 @@
 						class="input w-full"
 						bind:value={maxCapacity}
 						min="0"
+					/>
+				</fieldset>
+
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Ders Sayısı</legend>
+					<input
+						type="number"
+						name="recurrence"
+						class="input w-full"
+						bind:value={recurrence}
+						min="1"
+						required
 					/>
 				</fieldset>
 			</div>

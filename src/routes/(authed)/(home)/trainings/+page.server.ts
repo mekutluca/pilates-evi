@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
-import { getRequiredFormDataString, getFormDataString } from '$lib/utils';
+import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -23,9 +23,12 @@ export const actions: Actions = {
 
 		const minCapacityStr = getFormDataString(formData, 'min_capacity');
 		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
+		const recurrenceStr = getFormDataString(formData, 'recurrence');
 		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
 		const max_capacity = maxCapacityStr ? Number(maxCapacityStr) : 0;
+		const recurrence = recurrenceStr ? Number(recurrenceStr) : 4;
 		const assignToAllTrainers = formData.get('assignToAllTrainers') === 'on';
+		const assignToAllRooms = formData.get('assignToAllRooms') === 'on';
 
 		if (max_capacity > 0 && min_capacity > max_capacity) {
 			return fail(400, {
@@ -36,7 +39,7 @@ export const actions: Actions = {
 
 		const { data: trainingData, error: createError } = await supabase
 			.from('pe_trainings')
-			.insert({ name, min_capacity, max_capacity })
+			.insert({ name, min_capacity, max_capacity, recurrence })
 			.select()
 			.single();
 
@@ -68,6 +71,25 @@ export const actions: Actions = {
 			}
 		}
 
+		// If assignToAllRooms is checked, assign this training to all existing rooms
+		if (assignToAllRooms) {
+			const { data: rooms } = await supabase.from('pe_rooms').select('id');
+
+			if (rooms && rooms.length > 0) {
+				const assignments = rooms.map((room) => ({
+					room_id: room.id,
+					training_id: trainingData.id
+				}));
+
+				const { error: assignError } = await supabase.from('pe_room_trainings').insert(assignments);
+
+				if (assignError) {
+					console.error('Room assignment error:', assignError);
+					// Don't fail the entire operation
+				}
+			}
+		}
+
 		return { success: true, message: 'Egzersiz başarıyla oluşturuldu' };
 	},
 
@@ -87,8 +109,10 @@ export const actions: Actions = {
 
 		const minCapacityStr = getFormDataString(formData, 'min_capacity');
 		const maxCapacityStr = getFormDataString(formData, 'max_capacity');
+		const recurrenceStr = getFormDataString(formData, 'recurrence');
 		const min_capacity = minCapacityStr ? Number(minCapacityStr) : 0;
 		const max_capacity = maxCapacityStr ? Number(maxCapacityStr) : 0;
+		const recurrence = recurrenceStr ? Number(recurrenceStr) : 4;
 
 		if (max_capacity > 0 && min_capacity > max_capacity) {
 			return fail(400, {
@@ -99,7 +123,7 @@ export const actions: Actions = {
 
 		const { error: updateError } = await supabase
 			.from('pe_trainings')
-			.update({ name, min_capacity, max_capacity })
+			.update({ name, min_capacity, max_capacity, recurrence })
 			.eq('id', trainingId);
 
 		if (updateError) {

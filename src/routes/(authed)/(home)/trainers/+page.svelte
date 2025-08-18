@@ -14,7 +14,7 @@
 	import type { Database } from '$lib/database.types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
-	import { getActionErrorMessage } from '$lib/utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	type TrainerTraining = Database['public']['Tables']['pe_trainer_trainings']['Row'];
 

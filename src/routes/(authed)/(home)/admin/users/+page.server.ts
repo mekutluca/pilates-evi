@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { getRequiredFormDataString } from '$lib/utils';
+import { getRequiredFormDataString } from '$lib/utils/form-utils';
 
 export const load: PageServerLoad = async ({ locals: { admin, user, userRole } }) => {
 	// Ensure only admin users can access this page

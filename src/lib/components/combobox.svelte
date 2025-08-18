@@ -193,13 +193,46 @@
 	<button
 		bind:this={buttonElement}
 		type="button"
-		class="btn w-full justify-between btn-outline"
-		class:btn-disabled={disabled}
+		class="flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-left transition-colors hover:border-base-content/20 focus:border-primary focus:outline-none"
+		class:opacity-50={disabled}
+		class:cursor-not-allowed={disabled}
 		onclick={openPopover}
 		aria-expanded={isOpen}
 		aria-haspopup="listbox"
+		{disabled}
 	>
-		<span class="flex-1 truncate text-left">{displayText()}</span>
+		<div class="min-w-0 flex-1">
+			{#if multiple && selectedItems.length > 0}
+				<div class="flex flex-wrap gap-1">
+					{#each selectedItems as item}
+						<div class="badge gap-1 badge-sm badge-success">
+							{getDisplayText(item)}
+							<span
+								class="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-xs transition-colors hover:bg-error hover:text-error-content"
+								onclick={(e) => {
+									e.stopPropagation();
+									onRemove?.(item);
+								}}
+								role="button"
+								tabindex="0"
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										e.stopPropagation();
+										onRemove?.(item);
+									}
+								}}
+								aria-label="Remove {getDisplayText(item)}"
+							>
+								✕
+							</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<span class="truncate text-left">{displayText()}</span>
+			{/if}
+		</div>
 		<ChevronDown
 			size={16}
 			class="ml-2 flex-shrink-0 transition-transform duration-200 {isOpen ? 'rotate-180' : ''}"
@@ -221,7 +254,7 @@
 
 		<!-- Popover content -->
 		<div
-			class="fixed z-[10000] max-h-80 min-w-[200px] overflow-hidden rounded-lg border border-base-300 bg-base-100 shadow-lg"
+			class="fixed z-[10000] max-h-80 min-w-[200px] overflow-hidden rounded-lg border border-base-300 bg-base-100 shadow-xl"
 			style="left: {dropdownPosition.left}px; top: {dropdownPosition.top}px; width: {dropdownPosition.width}px;"
 		>
 			<!-- Search input -->
@@ -235,7 +268,7 @@
 						bind:this={searchInput}
 						bind:value={searchTerm}
 						type="text"
-						class="input input-sm w-full pl-4"
+						class="input-bordered input input-sm w-full pl-10"
 						placeholder={searchPlaceholder}
 						autocomplete="off"
 						onkeydown={handleInputKeydown}

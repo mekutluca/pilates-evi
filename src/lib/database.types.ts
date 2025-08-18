@@ -1,13 +1,219 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
-	// Allows to automatically instanciate createClient with right options
+	// Allows to automatically instantiate createClient with right options
 	// instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
 	__InternalSupabase: {
 		PostgrestVersion: '12.2.3 (519615d)';
 	};
 	public: {
 		Tables: {
+			pe_appointment_trainees: {
+				Row: {
+					appointment_id: number;
+					created_at: string;
+					id: number;
+					trainee_id: number;
+				};
+				Insert: {
+					appointment_id: number;
+					created_at?: string;
+					id?: number;
+					trainee_id: number;
+				};
+				Update: {
+					appointment_id?: number;
+					created_at?: string;
+					id?: number;
+					trainee_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_appointment_trainees_appointment_id_fkey';
+						columns: ['appointment_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_appointments';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_appointment_trainees_trainee_id_fkey';
+						columns: ['trainee_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainees';
+						referencedColumns: ['id'];
+					}
+				];
+			};
+			pe_appointments: {
+				Row: {
+					created_at: string;
+					created_by: string | null;
+					day_of_week: Database['public']['Enums']['day_of_week'];
+					hour: number;
+					id: number;
+					notes: string | null;
+					room_id: number;
+					series_id: string | null;
+					session_number: number | null;
+					status: Database['public']['Enums']['appointment_status'] | null;
+					total_sessions: number | null;
+					trainer_id: number;
+					training_id: number | null;
+					updated_at: string;
+				};
+				Insert: {
+					created_at?: string;
+					created_by?: string | null;
+					day_of_week: Database['public']['Enums']['day_of_week'];
+					hour: number;
+					id?: number;
+					notes?: string | null;
+					room_id: number;
+					series_id?: string | null;
+					session_number?: number | null;
+					status?: Database['public']['Enums']['appointment_status'] | null;
+					total_sessions?: number | null;
+					trainer_id: number;
+					training_id?: number | null;
+					updated_at?: string;
+				};
+				Update: {
+					created_at?: string;
+					created_by?: string | null;
+					day_of_week?: Database['public']['Enums']['day_of_week'];
+					hour?: number;
+					id?: number;
+					notes?: string | null;
+					room_id?: number;
+					series_id?: string | null;
+					session_number?: number | null;
+					status?: Database['public']['Enums']['appointment_status'] | null;
+					total_sessions?: number | null;
+					trainer_id?: number;
+					training_id?: number | null;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_appointments_room_id_fkey';
+						columns: ['room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_appointments_trainer_id_fkey';
+						columns: ['trainer_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainers';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_appointments_training_id_fkey';
+						columns: ['training_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainings';
+						referencedColumns: ['id'];
+					}
+				];
+			};
+			pe_reschedule_history: {
+				Row: {
+					appointment_id: number;
+					id: number;
+					new_day_of_week: Database['public']['Enums']['day_of_week'] | null;
+					new_hour: number | null;
+					new_room_id: number | null;
+					old_day_of_week: Database['public']['Enums']['day_of_week'] | null;
+					old_hour: number | null;
+					old_room_id: number | null;
+					reason: string | null;
+					rescheduled_at: string;
+					rescheduled_by: string | null;
+				};
+				Insert: {
+					appointment_id: number;
+					id?: number;
+					new_day_of_week?: Database['public']['Enums']['day_of_week'] | null;
+					new_hour?: number | null;
+					new_room_id?: number | null;
+					old_day_of_week?: Database['public']['Enums']['day_of_week'] | null;
+					old_hour?: number | null;
+					old_room_id?: number | null;
+					reason?: string | null;
+					rescheduled_at?: string;
+					rescheduled_by?: string | null;
+				};
+				Update: {
+					appointment_id?: number;
+					id?: number;
+					new_day_of_week?: Database['public']['Enums']['day_of_week'] | null;
+					new_hour?: number | null;
+					new_room_id?: number | null;
+					old_day_of_week?: Database['public']['Enums']['day_of_week'] | null;
+					old_hour?: number | null;
+					old_room_id?: number | null;
+					reason?: string | null;
+					rescheduled_at?: string;
+					rescheduled_by?: string | null;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_reschedule_history_appointment_id_fkey';
+						columns: ['appointment_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_appointments';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_reschedule_history_new_room_id_fkey';
+						columns: ['new_room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_reschedule_history_old_room_id_fkey';
+						columns: ['old_room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					}
+				];
+			};
+			pe_room_trainings: {
+				Row: {
+					id: number;
+					room_id: number;
+					training_id: number;
+				};
+				Insert: {
+					id?: number;
+					room_id: number;
+					training_id: number;
+				};
+				Update: {
+					id?: number;
+					room_id?: number;
+					training_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_room_trainings_room_id_fkey';
+						columns: ['room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_room_trainings_training_id_fkey';
+						columns: ['training_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainings';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			pe_rooms: {
 				Row: {
 					capacity: number | null;
@@ -25,6 +231,69 @@ export type Database = {
 					name?: string | null;
 				};
 				Relationships: [];
+			};
+			pe_trainees: {
+				Row: {
+					created_at: string | null;
+					email: string | null;
+					id: number;
+					name: string;
+					notes: string | null;
+					phone: string;
+					related_trainee_ids: number[];
+				};
+				Insert: {
+					created_at?: string | null;
+					email?: string | null;
+					id?: number;
+					name: string;
+					notes?: string | null;
+					phone: string;
+					related_trainee_ids?: number[];
+				};
+				Update: {
+					created_at?: string | null;
+					email?: string | null;
+					id?: number;
+					name?: string;
+					notes?: string | null;
+					phone?: string;
+					related_trainee_ids?: number[];
+				};
+				Relationships: [];
+			};
+			pe_trainer_trainings: {
+				Row: {
+					id: number;
+					trainer_id: number;
+					training_id: number;
+				};
+				Insert: {
+					id?: number;
+					trainer_id: number;
+					training_id: number;
+				};
+				Update: {
+					id?: number;
+					trainer_id?: number;
+					training_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_trainer_trainings_trainer_id_fkey';
+						columns: ['trainer_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainers';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_trainer_trainings_training_id_fkey';
+						columns: ['training_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainings';
+						referencedColumns: ['id'];
+					}
+				];
 			};
 			pe_trainers: {
 				Row: {
@@ -47,126 +316,27 @@ export type Database = {
 				};
 				Relationships: [];
 			};
-			pe_room_trainings: {
-				Row: {
-					created_at: string;
-					id: number;
-					room_id: number;
-					training_id: number;
-				};
-				Insert: {
-					created_at?: string;
-					id?: number;
-					room_id: number;
-					training_id: number;
-				};
-				Update: {
-					created_at?: string;
-					id?: number;
-					room_id?: number;
-					training_id?: number;
-				};
-				Relationships: [
-					{
-						foreignKeyName: 'pe_room_trainings_room_id_fkey';
-						columns: ['room_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_rooms';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_room_trainings_training_id_fkey';
-						columns: ['training_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainings';
-						referencedColumns: ['id'];
-					}
-				];
-			};
-			pe_trainer_trainings: {
-				Row: {
-					created_at: string | null;
-					id: number;
-					trainer_id: number;
-					training_id: number;
-				};
-				Insert: {
-					created_at?: string | null;
-					id?: number;
-					trainer_id: number;
-					training_id: number;
-				};
-				Update: {
-					created_at?: string | null;
-					id?: number;
-					trainer_id?: number;
-					training_id?: number;
-				};
-				Relationships: [
-					{
-						foreignKeyName: 'pe_trainer_trainings_trainer_id_fkey';
-						columns: ['trainer_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainers';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_trainer_trainings_training_id_fkey';
-						columns: ['training_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainings';
-						referencedColumns: ['id'];
-					}
-				];
-			};
-			pe_trainees: {
-				Row: {
-					created_at: string;
-					email: string;
-					id: number;
-					name: string;
-					notes: string | null;
-					phone: string;
-					related_trainee_ids: number[];
-				};
-				Insert: {
-					created_at?: string;
-					email: string;
-					id?: number;
-					name: string;
-					notes?: string | null;
-					phone: string;
-					related_trainee_ids?: number[];
-				};
-				Update: {
-					created_at?: string;
-					email?: string;
-					id?: number;
-					name?: string;
-					notes?: string | null;
-					phone?: string;
-					related_trainee_ids?: number[];
-				};
-				Relationships: [];
-			};
 			pe_trainings: {
 				Row: {
 					id: number;
 					max_capacity: number;
 					min_capacity: number;
 					name: string;
+					recurrence: number;
 				};
 				Insert: {
 					id?: number;
 					max_capacity?: number;
 					min_capacity?: number;
 					name?: string;
+					recurrence?: number;
 				};
 				Update: {
 					id?: number;
 					max_capacity?: number;
 					min_capacity?: number;
 					name?: string;
+					recurrence?: number;
 				};
 				Relationships: [];
 			};
@@ -175,10 +345,25 @@ export type Database = {
 			[_ in never]: never;
 		};
 		Functions: {
-			[_ in never]: never;
+			get_coordinator_reschedule_count: {
+				Args: { user_id: string };
+				Returns: number;
+			};
+			populate_default_weekly_schedules: {
+				Args: Record<PropertyKey, never>;
+				Returns: undefined;
+			};
 		};
 		Enums: {
-			[_ in never]: never;
+			appointment_status: 'scheduled' | 'completed' | 'cancelled';
+			day_of_week:
+				| 'monday'
+				| 'tuesday'
+				| 'wednesday'
+				| 'thursday'
+				| 'friday'
+				| 'saturday'
+				| 'sunday';
 		};
 		CompositeTypes: {
 			[_ in never]: never;
@@ -303,6 +488,9 @@ export type CompositeTypes<
 
 export const Constants = {
 	public: {
-		Enums: {}
+		Enums: {
+			appointment_status: ['scheduled', 'completed', 'cancelled'],
+			day_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+		}
 	}
 } as const;

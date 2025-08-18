@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { getFormDataString, getRequiredFormDataString } from '$lib/utils';
+import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {

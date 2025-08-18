@@ -11,7 +11,7 @@
 	import type { User } from '$lib/types/User';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
-	import { getActionErrorMessage } from '$lib/utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);

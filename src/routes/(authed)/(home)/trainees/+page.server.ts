@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
-import { getRequiredFormDataString, getFormDataString } from '$lib/utils';
+import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {

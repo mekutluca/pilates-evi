@@ -4,7 +4,7 @@ import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
-import { getRequiredFormDataString } from '$lib/utils';
+import { getRequiredFormDataString } from '$lib/utils/form-utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {

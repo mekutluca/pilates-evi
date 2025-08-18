@@ -7,13 +7,12 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
-	import X from '@lucide/svelte/icons/x';
 	import { enhance } from '$app/forms';
 	import type { Trainee } from '$lib/types/Trainee';
 	import Combobox from '$lib/components/combobox.svelte';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
-	import { getActionErrorMessage } from '$lib/utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
 	let { trainees: initialTrainees } = $derived(data);
@@ -86,7 +85,7 @@
 		{
 			key: 'created_at',
 			title: 'Kayıt Tarihi',
-			render: (trainee: Trainee) => formatDate(trainee.created_at)
+			render: (trainee: Trainee) => (trainee.created_at ? formatDate(trainee.created_at) : '-')
 		}
 	];
 
@@ -146,10 +145,6 @@
 		return trainees.filter(
 			(t) => t.id !== selectedTrainee!.id && !selectedTraineeIds.includes(t.id)
 		);
-	}
-
-	function getSelectedTrainees(): Trainee[] {
-		return trainees.filter((t) => selectedTraineeIds.includes(t.id));
 	}
 
 	function getSelectedTraineeObjects(): Trainee[] {
@@ -277,28 +272,6 @@
 					<input type="hidden" name="selectedTraineeIds" value={traineeId} />
 				{/each}
 
-				<!-- Selected trainees as removable badges -->
-				{#if getSelectedTrainees().length > 0}
-					<div class="mb-3">
-						<div class="mb-2 text-sm font-medium">Seçili öğrenciler:</div>
-						<div class="flex flex-wrap gap-2">
-							{#each getSelectedTrainees() as selectedTrainee (selectedTrainee.id)}
-								<div class="badge gap-2 badge-success">
-									<span>{selectedTrainee.name}</span>
-									<button
-										type="button"
-										class="cursor-pointer transition-colors hover:text-error"
-										onclick={() => removeTraineeRelation(selectedTrainee.id)}
-										aria-label="Remove {selectedTrainee.name}"
-									>
-										<X size={12} />
-									</button>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
 				<!-- Trainee selection combobox -->
 				<Combobox
 					items={getAvailableTrainees()}
@@ -420,28 +393,6 @@
 				{#each selectedTraineeIds as traineeId (traineeId)}
 					<input type="hidden" name="selectedTraineeIds" value={traineeId} />
 				{/each}
-
-				<!-- Selected trainees as removable badges -->
-				{#if getSelectedTrainees().length > 0}
-					<div class="mb-3">
-						<div class="mb-2 text-sm font-medium">Seçili öğrenciler:</div>
-						<div class="flex flex-wrap gap-2">
-							{#each getSelectedTrainees() as selectedTrainee (selectedTrainee.id)}
-								<div class="badge gap-2 badge-success">
-									<span>{selectedTrainee.name}</span>
-									<button
-										type="button"
-										class="cursor-pointer transition-colors hover:text-error"
-										onclick={() => removeTraineeRelation(selectedTrainee.id)}
-										aria-label="Remove {selectedTrainee.name}"
-									>
-										<X size={12} />
-									</button>
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
 
 				<!-- Trainee selection combobox -->
 				<Combobox

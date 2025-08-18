@@ -5,6 +5,7 @@ import IdCard from '@lucide/svelte/icons/id-card';
 import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
 import Dumbbell from '@lucide/svelte/icons/dumbbell';
 import Medal from '@lucide/svelte/icons/medal';
+import Calendar from '@lucide/svelte/icons/calendar';
 
 export interface Route {
 	href: string;
@@ -20,6 +21,13 @@ export const allRoutes: Route[] = [
 		label: 'Panel',
 		icon: LayoutDashboard,
 		availableToRoles: ['admin', 'coordinator', 'trainer', 'trainee'],
+		group: 'Genel'
+	},
+	{
+		href: '/schedule',
+		label: 'Haftalık Program',
+		icon: Calendar,
+		availableToRoles: ['admin', 'coordinator'],
 		group: 'Genel'
 	},
 	{
