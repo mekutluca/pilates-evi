@@ -47,3 +47,50 @@ export function isSameWeek(date1: Date, date2: Date): boolean {
 	const week2Start = getWeekStart(date2);
 	return week1Start.getTime() === week2Start.getTime();
 }
+
+/**
+ * Formats a date as YYYY-MM-DD for URL parameters
+ * @param date - The date to format
+ * @returns Formatted date string in YYYY-MM-DD format
+ */
+export function formatDateParam(date: Date): string {
+	return (
+		date.getFullYear() +
+		'-' +
+		String(date.getMonth() + 1).padStart(2, '0') +
+		'-' +
+		String(date.getDate()).padStart(2, '0')
+	);
+}
+
+/**
+ * Gets the date for a specific day of the week within a given week
+ * @param weekStart - The start date of the week (Monday)
+ * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)
+ * @returns Date object for the specified day
+ */
+export function getDateForDayOfWeek(weekStart: Date, dayOfWeek: string): Date {
+	const dayMapping = {
+		monday: 0,
+		tuesday: 1,
+		wednesday: 2,
+		thursday: 3,
+		friday: 4,
+		saturday: 5,
+		sunday: 6
+	};
+
+	const targetDate = new Date(weekStart);
+	const daysToAdd = dayMapping[dayOfWeek as keyof typeof dayMapping] || 0;
+	targetDate.setDate(weekStart.getDate() + daysToAdd);
+	return targetDate;
+}
+
+/**
+ * Formats a date to show day and month (e.g., "15/08")
+ * @param date - The date to format
+ * @returns Formatted date string as DD/MM
+ */
+export function formatDayMonth(date: Date): string {
+	return `${date.getDate()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+}

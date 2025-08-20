@@ -11,10 +11,16 @@
 	import { goto } from '$app/navigation';
 	import type { ScheduleGrid, DayOfWeek, AppointmentWithDetails } from '$lib/types/Schedule';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
-	import { getWeekStart, formatWeekRange, formatDateParam } from '$lib/utils/date-utils';
+	import {
+		getWeekStart,
+		formatWeekRange,
+		formatDateParam,
+		getDateForDayOfWeek,
+		formatDayMonth
+	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Combobox from '$lib/components/combobox.svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
@@ -32,6 +38,7 @@
 	let viewMode = $state<'room' | 'trainer'>('room');
 	let selectedRoomId = $state(0);
 	let selectedTrainerId = $state(0);
+	let showDatePicker = $state(false);
 
 	// Initialize selectedRoomId when rooms data is available
 	$effect(() => {
@@ -48,7 +55,7 @@
 	});
 	// Initialize week from URL parameter or current date - make it reactive to URL changes
 	let currentWeekStart = $derived(() => {
-		const urlWeek = $page.url.searchParams.get('week');
+		const urlWeek = page.url.searchParams.get('week');
 		return urlWeek ? getWeekStart(new Date(urlWeek)) : getWeekStart(new Date());
 	});
 
@@ -86,6 +93,36 @@
 	function goToCurrentWeek() {
 		navigateToWeek(getWeekStart(new Date()));
 	}
+
+	function handleDateSelect(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const selectedDate = new Date(target.value);
+		const weekStart = getWeekStart(selectedDate);
+		navigateToWeek(weekStart);
+		showDatePicker = false;
+	}
+
+	function toggleDatePicker() {
+		showDatePicker = !showDatePicker;
+	}
+
+	// Handle click outside to close date picker
+	$effect(() => {
+		function handleClickOutside(event: MouseEvent) {
+			const target = event.target as Element;
+			const datePickerElement = target.closest('.date-picker-container');
+			if (!datePickerElement && showDatePicker) {
+				showDatePicker = false;
+			}
+		}
+
+		if (showDatePicker) {
+			document.addEventListener('click', handleClickOutside);
+			return () => {
+				document.removeEventListener('click', handleClickOutside);
+			};
+		}
+	});
 
 	// Constants for day mapping
 	const DAY_MAPPING: Record<DayOfWeek, number> = {
@@ -402,8 +439,34 @@
 					<ChevronLeft size={16} />
 				</button>
 
-				<div class="w-64 text-center">
-					<div class="text-lg font-semibold">{formatWeekRange(currentWeekStart())}</div>
+				<div class="date-picker-container relative w-64 text-center">
+					<button
+						class="cursor-pointer text-lg font-semibold transition-all hover:underline"
+						onclick={toggleDatePicker}
+					>
+						{formatWeekRange(currentWeekStart())}
+					</button>
+
+					{#if showDatePicker}
+						<div
+							class="absolute top-full left-1/2 z-50 mt-2 min-w-56 -translate-x-1/2 transform rounded-lg border border-base-300 bg-base-100 p-4 shadow-lg"
+						>
+							<div class="mb-2 text-sm text-base-content/70">Tarih seçin:</div>
+							<input
+								type="date"
+								class="input-bordered input w-full"
+								value={formatDateParam(currentWeekStart())}
+								onchange={handleDateSelect}
+							/>
+							<button
+								class="btn mt-2 w-full btn-ghost btn-sm"
+								onclick={() => (showDatePicker = false)}
+							>
+								İptal
+							</button>
+						</div>
+					{/if}
+
 					{#if !isCurrentWeek()}
 						<button class="btn btn-link btn-xs btn-info" onclick={goToCurrentWeek}
 							>Bu Haftaya Dön</button
@@ -444,7 +507,11 @@
 								<tr>
 									<th class="sticky left-0 w-20 bg-base-100">Saat</th>
 									{#each DAYS_OF_WEEK as day (day)}
-										<th class="min-w-28 text-center">{DAY_NAMES[day]}</th>
+										{@const dayDate = getDateForDayOfWeek(currentWeekStart(), day)}
+										<th class="min-w-28 text-center">
+											<div class="text-xs text-base-content/60">{formatDayMonth(dayDate)}</div>
+											<div class="font-semibold">{DAY_NAMES[day]}</div>
+										</th>
 									{/each}
 								</tr>
 							</thead>
