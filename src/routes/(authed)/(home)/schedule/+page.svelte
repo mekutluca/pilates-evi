@@ -361,7 +361,7 @@
 
 <div class="space-y-6">
 	<div class="px-6 pt-6">
-		<div class="flex items-center justify-between">
+		<div class="flex md:items-center justify-between flex-col md:flex-row">
 			<PageHeader title="Haftalık Program" />
 
 			<div class="flex items-start gap-4">
@@ -372,7 +372,7 @@
 					</div>
 					<div class="join">
 						<button
-							class="btn join-item"
+							class="btn btn-sm md:btn-md join-item"
 							class:btn-primary={viewMode === 'room'}
 							class:btn-outline={viewMode !== 'room'}
 							onclick={() => (viewMode = 'room')}
@@ -380,7 +380,7 @@
 							Oda
 						</button>
 						<button
-							class="btn join-item"
+							class="btn btn-sm md:btn-md join-item"
 							class:btn-info={viewMode === 'trainer'}
 							class:btn-outline={viewMode !== 'trainer'}
 							onclick={() => (viewMode = 'trainer')}
@@ -399,7 +399,7 @@
 						<select
 							id="room-select"
 							bind:value={selectedRoomId}
-							class="select-bordered select w-full max-w-xs"
+							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
 							{#each rooms as room (room.id)}
 								<option value={room.id}>{room.name}</option>
@@ -414,7 +414,7 @@
 						<select
 							id="trainer-select"
 							bind:value={selectedTrainerId}
-							class="select-bordered select w-full max-w-xs"
+							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
 							{#each trainers as trainer (trainer.id)}
 								<option value={trainer.id}>{trainer.name}</option>
@@ -523,13 +523,13 @@
 					</div>
 
 					<div class="overflow-x-auto">
-						<table class="table table-xs">
+						<table class="table table-xs md:table-fixed">
 							<thead>
 								<tr>
 									<th class="sticky left-0 w-20 bg-base-100">Saat</th>
 									{#each DAYS_OF_WEEK as day (day)}
 										{@const dayDate = getDateForDayOfWeek(currentWeekStart(), day)}
-										<th class="min-w-28 text-center">
+										<th class="min-w-28 text-center md:w-[calc((100%-5rem)/7)]">
 											<div class="text-xs text-base-content/60">{formatDayMonth(dayDate)}</div>
 											<div class="font-semibold">{DAY_NAMES[day]}</div>
 										</th>
@@ -581,11 +581,11 @@
 																	{slot.appointment.room_name}
 																{/if}
 															</div>
-															<div class="truncate opacity-80">
+															<div class="truncate text-primary-content/80">
 																{slot.appointment.trainee_count} öğrenci
 															</div>
 															{#if slot.appointment.package_name}
-																<div class="truncate text-xs opacity-70">
+																<div class="truncate text-xs text-primary-content/70">
 																	{slot.appointment.package_name}
 																</div>
 															{/if}
