@@ -7,19 +7,15 @@
 	import SearchInput from '$lib/components/search-input.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Check from '@lucide/svelte/icons/check';
 	import { enhance } from '$app/forms';
 	import type { Trainer } from '$lib/types/Trainer';
-	import type { Training } from '$lib/types/Training';
-	import type { Database } from '$lib/database.types';
+	// Training system removed
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
-	type TrainerTraining = Database['public']['Tables']['pe_trainer_trainings']['Row'];
-
 	let { data } = $props();
-	let { trainers: initialTrainers, trainings, trainerTrainings } = $derived(data);
+	let { trainers: initialTrainers } = $derived(data);
 
 	let trainers = $derived<Trainer[]>(initialTrainers || []);
 	let searchTerm = $state('');
@@ -32,7 +28,7 @@
 	// Form data for add/edit trainer
 	let name = $state('');
 	let phone = $state('');
-	let selectedTrainingIds = $state<number[]>([]);
+	// Training system removed
 
 	const tableActions: ActionItem[] = [
 		{
@@ -66,37 +62,13 @@
 				`<a href="tel:${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
 		},
 		{
-			key: 'trainings',
-			title: 'Verebildiği Dersler',
+			key: 'active_appointments',
+			title: 'Durum',
 			sortable: false,
 			render: (trainer: Trainer) => {
-				try {
-					if (!trainerTrainings || !trainings) {
-						return '<span class="text-base-content/50 text-sm">-</span>';
-					}
-
-					const trainerTrainingIds =
-						(trainerTrainings as TrainerTraining[])
-							.filter((tt: TrainerTraining) => tt.trainer_id === trainer.id)
-							.map((tt: TrainerTraining) => tt.training_id) || [];
-
-					if (trainerTrainingIds.length === 0) {
-						return '<span class="text-base-content/50 text-sm">-</span>';
-					}
-
-					const trainerTrainingNames =
-						trainings
-							.filter((training) => trainerTrainingIds.includes(training.id))
-							.map(
-								(training) => `<span class="badge badge-secondary badge-sm">${training.name}</span>`
-							)
-							.join(' ') || '';
-
-					return `<div class="flex flex-wrap gap-1">${trainerTrainingNames}</div>`;
-				} catch (error) {
-					console.error('Error rendering trainings column:', error);
-					return '<span class="text-base-content/50 text-sm">-</span>';
-				}
+				return trainer.is_active
+					? '<span class="badge badge-success badge-sm">Aktif</span>'
+					: '<span class="badge badge-error badge-sm">Pasif</span>';
 			}
 		}
 	];
@@ -112,7 +84,7 @@
 		selectedTrainer = trainer;
 		name = trainer.name ?? '';
 		phone = trainer.phone;
-		selectedTrainingIds = getTrainerTrainings(trainer.id).map((t) => t.id);
+		// Training assignment removed
 		showEditModal = true;
 		closeDropdown();
 	}
@@ -127,23 +99,10 @@
 		name = '';
 		phone = '';
 		selectedTrainer = null;
-		selectedTrainingIds = []; // Default: no trainings selected
+		// No training selection needed
 	}
 
-	function getTrainerTrainings(trainerId: number): Training[] {
-		const trainerTrainingIds = (trainerTrainings as TrainerTraining[])
-			.filter((tt) => tt.trainer_id === trainerId)
-			.map((tt) => tt.training_id);
-		return trainings.filter((t) => trainerTrainingIds.includes(t.id));
-	}
-
-	function toggleTraining(trainingId: number) {
-		if (selectedTrainingIds.includes(trainingId)) {
-			selectedTrainingIds = selectedTrainingIds.filter((id) => id !== trainingId);
-		} else {
-			selectedTrainingIds = [...selectedTrainingIds, trainingId];
-		}
-	}
+	// Training-related functions removed - no longer needed with package-based system
 </script>
 
 <div class="p-6">
@@ -220,37 +179,7 @@
 				/>
 			</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Verebildiği Dersler</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
-				</div>
-				<div class="flex flex-wrap gap-2">
-					{#each trainings as training (training.id)}
-						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input
-							type="hidden"
-							name="selectedTrainingIds"
-							value={training.id}
-							disabled={!isSelected}
-						/>
-						<button
-							type="button"
-							class="badge {isSelected
-								? 'badge-secondary'
-								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
-							onclick={() => toggleTraining(training.id)}
-						>
-							<div class="swap swap-rotate">
-								<input type="checkbox" checked={isSelected} readonly />
-								<Check size={14} class="swap-on" />
-								<Plus size={14} class="swap-off" />
-							</div>
-							{training.name}
-						</button>
-					{/each}
-				</div>
-			</fieldset>
+			<!-- Training assignment section removed - no longer needed in package-based system -->
 
 			<div class="modal-action">
 				<button
@@ -328,37 +257,7 @@
 				/>
 			</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Verebildiği Dersler</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Egzersizlere tıklayarak atamasını değiştirebilirsiniz
-				</div>
-				<div class="flex flex-wrap gap-2">
-					{#each trainings as training (training.id)}
-						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input
-							type="hidden"
-							name="selectedTrainingIds"
-							value={training.id}
-							disabled={!isSelected}
-						/>
-						<button
-							type="button"
-							class="badge {isSelected
-								? 'badge-secondary'
-								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
-							onclick={() => toggleTraining(training.id)}
-						>
-							<div class="swap swap-rotate">
-								<input type="checkbox" checked={isSelected} readonly />
-								<Check size={14} class="swap-on" />
-								<Plus size={14} class="swap-off" />
-							</div>
-							{training.name}
-						</button>
-					{/each}
-				</div>
-			</fieldset>
+			<!-- Training assignment section removed - no longer needed in package-based system -->
 
 			<div class="modal-action">
 				<button

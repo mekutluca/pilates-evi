@@ -204,7 +204,7 @@
 		<div class="min-w-0 flex-1">
 			{#if multiple && selectedItems.length > 0}
 				<div class="flex flex-wrap gap-1">
-					{#each selectedItems as item}
+					{#each selectedItems as item (item.id)}
 						<div class="badge gap-1 badge-sm badge-success">
 							{getDisplayText(item)}
 							<span

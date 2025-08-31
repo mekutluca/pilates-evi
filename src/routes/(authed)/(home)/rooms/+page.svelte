@@ -8,24 +8,15 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { enhance } from '$app/forms';
 	import type { Room } from '$lib/types/Room';
-	import type { Training } from '$lib/types/Training';
+	// Training system removed
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import Check from '@lucide/svelte/icons/check';
 
 	let { data } = $props();
-	let {
-		rooms: initialRooms,
-		trainings: initialTrainings,
-		roomTrainings: initialRoomTrainings
-	} = $derived(data);
+	let { rooms: initialRooms } = $derived(data);
 
 	let rooms = $derived<Room[]>(initialRooms || []);
-	let trainings = $derived<Training[]>(initialTrainings || []);
-	let roomTrainings = $derived<{ room_id: number; training_id: number }[]>(
-		initialRoomTrainings || []
-	);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -35,7 +26,6 @@
 
 	let name = $state('');
 	let capacity = $state<number | null>(null);
-	let selectedTrainingIds = $state<number[]>([]);
 
 	const tableActions: ActionItem[] = [
 		{
@@ -66,20 +56,6 @@
 			key: 'capacity',
 			title: 'Kapasite',
 			render: (room: Room) => String(room.capacity ?? '-')
-		},
-		{
-			key: 'trainings',
-			title: 'Eğitim Türleri',
-			sortable: false,
-			render: (room: Room) => {
-				const roomTrainingTypes = getRoomTrainings(room.id);
-				if (roomTrainingTypes.length === 0) {
-					return '<span class="text-base-content/50 text-sm">-</span>';
-				}
-				return `<div class="flex flex-wrap gap-1">${roomTrainingTypes
-					.map((training) => `<span class="badge badge-secondary badge-sm">${training.name}</span>`)
-					.join('')}</div>`;
-			}
 		}
 	];
 
@@ -92,12 +68,6 @@
 		selectedRoom = room;
 		name = room.name ?? '';
 		capacity = room.capacity;
-		const currentTrainingIds = roomTrainings
-			.filter((rt) => rt.room_id === room.id)
-			.map((rt) => rt.training_id);
-		// If no training types are selected, default to all training types
-		selectedTrainingIds =
-			currentTrainingIds.length > 0 ? currentTrainingIds : trainings.map((t) => t.id);
 		showEditModal = true;
 		closeDropdown();
 	}
@@ -111,23 +81,7 @@
 	function resetForm() {
 		name = '';
 		capacity = null;
-		selectedTrainingIds = trainings.map((t) => t.id); // Pre-select all training types
 		selectedRoom = null;
-	}
-
-	function getRoomTrainings(roomId: number): Training[] {
-		const roomTrainingIds = roomTrainings
-			.filter((rt) => rt.room_id === roomId)
-			.map((rt) => rt.training_id);
-		return trainings.filter((t) => roomTrainingIds.includes(t.id));
-	}
-
-	function toggleTraining(trainingId: number) {
-		if (selectedTrainingIds.includes(trainingId)) {
-			selectedTrainingIds = selectedTrainingIds.filter((id) => id !== trainingId);
-		} else {
-			selectedTrainingIds = [...selectedTrainingIds, trainingId];
-		}
 	}
 </script>
 
@@ -194,38 +148,6 @@
 				<input type="number" name="capacity" class="input w-full" bind:value={capacity} min="0" />
 			</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Eğitim Türleri (İsteğe bağlı)</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Eğitim türlerine tıklayarak atamasını değiştirebilirsiniz
-				</div>
-				<div class="flex flex-wrap gap-2">
-					{#each trainings as training (training.id)}
-						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input
-							type="hidden"
-							name="selectedTrainingIds"
-							value={training.id}
-							disabled={!isSelected}
-						/>
-						<button
-							type="button"
-							class="badge {isSelected
-								? 'badge-secondary'
-								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
-							onclick={() => toggleTraining(training.id)}
-						>
-							<div class="swap swap-rotate">
-								<input type="checkbox" checked={isSelected} readonly />
-								<Check size={14} class="swap-on" />
-								<Plus size={14} class="swap-off" />
-							</div>
-							{training.name}
-						</button>
-					{/each}
-				</div>
-			</fieldset>
-
 			<div class="modal-action">
 				<button
 					type="button"
@@ -290,39 +212,6 @@
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Kapasite</legend>
 				<input type="number" name="capacity" class="input w-full" bind:value={capacity} min="0" />
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Ders Türleri (İsteğe bağlı)</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Eğitim türlerine tıklayarak atamasını değiştirebilirsiniz
-				</div>
-
-				<div class="flex flex-wrap gap-2">
-					{#each trainings as training (training.id)}
-						{@const isSelected = selectedTrainingIds.includes(training.id)}
-						<input
-							type="hidden"
-							name="selectedTrainingIds"
-							value={training.id}
-							disabled={!isSelected}
-						/>
-						<button
-							type="button"
-							class="badge {isSelected
-								? 'badge-secondary'
-								: 'badge-outline badge-secondary'} flex cursor-pointer items-center gap-2 transition-all duration-200 hover:scale-105"
-							onclick={() => toggleTraining(training.id)}
-						>
-							<div class="swap swap-rotate">
-								<input type="checkbox" checked={isSelected} readonly />
-								<Check size={14} class="swap-on" />
-								<Plus size={14} class="swap-off" />
-							</div>
-							{training.name}
-						</button>
-					{/each}
-				</div>
 			</fieldset>
 
 			<div class="modal-action">

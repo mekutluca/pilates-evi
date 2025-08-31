@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
-import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
+import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import type { DayOfWeek, AppointmentStatus } from '$lib/types/Schedule';
 
 // Helper function to validate user permissions
@@ -44,7 +44,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			*,
 			pe_rooms!inner(name),
 			pe_trainers!inner(name),
-			pe_trainings(name),
+			pe_packages(name, reschedulable),
 			pe_appointment_trainees(
 				pe_trainees!inner(name)
 			)
@@ -60,159 +60,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 };
 
 export const actions: Actions = {
-	createAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
-		if (permissionError) return permissionError;
-
-		const formData = await request.formData();
-
-		const roomId = Number(getRequiredFormDataString(formData, 'roomId'));
-		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
-		const dayOfWeek = getRequiredFormDataString(formData, 'dayOfWeek') as DayOfWeek;
-		const hour = Number(getRequiredFormDataString(formData, 'hour'));
-		const trainingId = Number(getRequiredFormDataString(formData, 'trainingId'));
-		const traineeIds = formData.getAll('traineeIds').map((id) => Number(id));
-		const notes = getFormDataString(formData, 'notes');
-		const weekStart = getFormDataString(formData, 'weekStart'); // Get the current week being viewed
-
-		// Validate inputs
-		if (isNaN(roomId) || isNaN(trainerId) || isNaN(hour) || isNaN(trainingId)) {
-			return fail(400, { success: false, message: 'Geçersiz form verisi' });
-		}
-
-		if (traineeIds.length === 0) {
-			return fail(400, { success: false, message: 'En az bir öğrenci seçmelisiniz' });
-		}
-
-		if (!weekStart) {
-			return fail(400, { success: false, message: 'Hafta bilgisi gereklidir' });
-		}
-
-		// Calculate the specific date for this appointment
-		const baseDate = new Date(weekStart);
-		const dayMapping: Record<DayOfWeek, number> = {
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6,
-			sunday: 0
-		};
-
-		// Calculate the appointment date
-		const appointmentDate = new Date(baseDate);
-		const currentDay = baseDate.getDay();
-		const targetDay = dayMapping[dayOfWeek];
-		const daysToAdd = targetDay === 0 ? 7 - currentDay : targetDay - currentDay;
-		appointmentDate.setDate(baseDate.getDate() + daysToAdd);
-
-		// Get training recurrence information
-		const { data: trainingData, error: trainingError } = await supabase
-			.from('pe_trainings')
-			.select('recurrence')
-			.eq('id', trainingId)
-			.single();
-
-		if (trainingError || !trainingData) {
-			return fail(500, {
-				success: false,
-				message: 'Eğitim bilgisi alınırken hata: ' + trainingError?.message
-			});
-		}
-
-		const recurrence = trainingData.recurrence || 1;
-
-		// Generate a series ID for tracking related sessions
-		const seriesId = crypto.randomUUID();
-
-		// Create multiple appointments based on recurrence
-		const appointmentsToCreate = [];
-		const appointmentTraineesToCreate = [];
-
-		for (let sessionNumber = 1; sessionNumber <= recurrence; sessionNumber++) {
-			const currentAppointmentDate = new Date(appointmentDate);
-			currentAppointmentDate.setDate(appointmentDate.getDate() + (sessionNumber - 1) * 7);
-
-			// Check if this time slot is already taken
-			const { data: existingAppointment } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('room_id', roomId)
-				.eq('appointment_date', currentAppointmentDate.toISOString().split('T')[0])
-				.eq('hour', hour)
-				.eq('status', 'scheduled')
-				.maybeSingle();
-
-			if (existingAppointment) {
-				const dateStr = currentAppointmentDate.toLocaleDateString('tr-TR');
-				return fail(400, {
-					success: false,
-					message: `${dateStr} tarihindeki ${hour}:00 zaman dilimi zaten dolu`
-				});
-			}
-
-			appointmentsToCreate.push({
-				room_id: roomId,
-				trainer_id: trainerId,
-				day_of_week: dayOfWeek,
-				hour: hour,
-				training_id: trainingId,
-				notes: notes || null,
-				created_by: user!.id,
-				session_number: sessionNumber,
-				total_sessions: recurrence,
-				series_id: seriesId,
-				appointment_date: currentAppointmentDate.toISOString().split('T')[0]
-			});
-		}
-
-		// Insert all appointments
-		const { data: appointmentData, error: appointmentError } = await supabase
-			.from('pe_appointments')
-			.insert(appointmentsToCreate)
-			.select();
-
-		if (appointmentError || !appointmentData) {
-			return fail(500, {
-				success: false,
-				message: 'Randevular oluşturulurken hata: ' + appointmentError?.message
-			});
-		}
-
-		// Add trainees to all appointments
-		for (const appointment of appointmentData) {
-			const traineeInserts = traineeIds.map((traineeId) => ({
-				appointment_id: appointment.id,
-				trainee_id: traineeId
-			}));
-			appointmentTraineesToCreate.push(...traineeInserts);
-		}
-
-		const { error: traineeError } = await supabase
-			.from('pe_appointment_trainees')
-			.insert(appointmentTraineesToCreate);
-
-		if (traineeError) {
-			// Clean up the appointments if trainee insertion fails
-			await supabase
-				.from('pe_appointments')
-				.delete()
-				.in(
-					'id',
-					appointmentData.map((apt) => apt.id)
-				);
-			return fail(500, {
-				success: false,
-				message: 'Öğrenciler eklenirken hata: ' + traineeError.message
-			});
-		}
-
-		const sessionText =
-			recurrence === 1 ? '1 randevu' : `${recurrence} haftalık kurs (${recurrence} randevu)`;
-		return { success: true, message: `${sessionText} başarıyla oluşturuldu` };
-	},
-
 	rescheduleAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
 		const permissionError = validateUserPermission(user, userRole);
 		if (permissionError) return permissionError;
@@ -223,7 +70,7 @@ export const actions: Actions = {
 		const newRoomId = Number(getRequiredFormDataString(formData, 'newRoomId'));
 		const newDayOfWeek = getRequiredFormDataString(formData, 'newDayOfWeek') as DayOfWeek;
 		const newHour = Number(getRequiredFormDataString(formData, 'newHour'));
-		const reason = getFormDataString(formData, 'reason');
+		// Note: reason field removed since reschedule history is now handled at package level
 
 		// Validate inputs
 		if (isNaN(appointmentId) || isNaN(newRoomId) || isNaN(newHour)) {
@@ -241,57 +88,86 @@ export const actions: Actions = {
 			return fail(404, { success: false, message: 'Randevu bulunamadı' });
 		}
 
-		// Check coordinator permissions if not admin
-		if (userRole === 'coordinator') {
-			// Get reschedule count for current month
-			const { data: rescheduleCount } = await supabase.rpc('get_coordinator_reschedule_count', {
-				user_id: user!.id
-			});
+		// This check will be performed later with role-specific logic
 
-			if (rescheduleCount >= 2) {
+		// First check if the package allows rescheduling
+		if (currentAppointment.package_id) {
+			const { data: packageData } = await supabase
+				.from('pe_packages')
+				.select('reschedulable')
+				.eq('id', currentAppointment.package_id)
+				.single();
+
+			if (packageData && !packageData.reschedulable) {
 				return fail(400, {
 					success: false,
-					message: 'Bu ay en fazla 2 randevu değiştirebilirsiniz'
+					message: 'Bu ders türü için randevu değişikliği yapılamaz'
 				});
 			}
+		}
 
-			// Check 23-hour rule
-			const now = new Date();
-			const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-			const currentHour = now.getHours();
+		// Check role-based time constraints for rescheduling
+		const now = new Date();
+		const appointmentDateTime = new Date(
+			currentAppointment.appointment_date +
+				'T' +
+				String(currentAppointment.hour).padStart(2, '0') +
+				':00:00'
+		);
+		const millisecondsUntil = appointmentDateTime.getTime() - now.getTime();
+		const hoursUntil = millisecondsUntil / (1000 * 60 * 60);
 
-			// Convert DayOfWeek to number (Monday = 1, Sunday = 0)
-			const dayMapping: Record<DayOfWeek, number> = {
-				monday: 1,
-				tuesday: 2,
-				wednesday: 3,
-				thursday: 4,
-				friday: 5,
-				saturday: 6,
-				sunday: 0
-			};
-			const appointmentDayNum = dayMapping[currentAppointment.day_of_week as DayOfWeek];
-
-			// Calculate hours until appointment
-			let daysUntil = appointmentDayNum - currentDay;
-			if (daysUntil < 0) daysUntil += 7; // Next week
-
-			const hoursUntil = daysUntil * 24 + (currentAppointment.hour - currentHour);
-
+		if (userRole === 'coordinator') {
+			// Coordinators need 23 hours advance notice
 			if (hoursUntil < 23) {
 				return fail(400, {
 					success: false,
 					message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
 				});
 			}
+		} else if (userRole === 'admin') {
+			// Admins can reschedule until the appointment starts (but not after)
+			if (hoursUntil < 0) {
+				return fail(400, {
+					success: false,
+					message: 'Başlamış olan randevular ertelenemez'
+				});
+			}
 		}
+
+		// Calculate the new appointment date based on the current appointment's week and new day of week
+		const currentAppointmentDate = new Date(currentAppointment.appointment_date);
+
+		// Calculate week start for the current appointment
+		const weekStart = new Date(currentAppointmentDate);
+		const day = weekStart.getDay();
+		const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+		weekStart.setDate(diff);
+
+		// Calculate the new appointment date based on the new day of week within the same week
+		const dayMapping: Record<DayOfWeek, number> = {
+			monday: 1,
+			tuesday: 2,
+			wednesday: 3,
+			thursday: 4,
+			friday: 5,
+			saturday: 6,
+			sunday: 0
+		};
+
+		const newDayNum = dayMapping[newDayOfWeek];
+		const newAppointmentDate = new Date(weekStart);
+		const daysToAdd = newDayNum === 0 ? 6 : newDayNum - 1; // Sunday is 6 days from Monday
+		newAppointmentDate.setDate(weekStart.getDate() + daysToAdd);
+
+		const newAppointmentDateString = newAppointmentDate.toISOString().split('T')[0];
 
 		// Check if new time slot is available
 		const { data: conflictingAppointment } = await supabase
 			.from('pe_appointments')
 			.select('id')
 			.eq('room_id', newRoomId)
-			.eq('day_of_week', newDayOfWeek)
+			.eq('appointment_date', newAppointmentDateString)
 			.eq('hour', newHour)
 			.eq('status', 'scheduled')
 			.neq('id', appointmentId)
@@ -308,8 +184,8 @@ export const actions: Actions = {
 			.from('pe_appointments')
 			.update({
 				room_id: newRoomId,
-				day_of_week: newDayOfWeek,
-				hour: newHour
+				hour: newHour,
+				appointment_date: newAppointmentDateString
 			})
 			.eq('id', appointmentId);
 
@@ -320,24 +196,9 @@ export const actions: Actions = {
 			});
 		}
 
-		// Log reschedule history
-		const { error: historyError } = await supabase.from('pe_reschedule_history').insert({
-			appointment_id: appointmentId,
-			old_room_id: currentAppointment.room_id,
-			old_day_of_week: currentAppointment.day_of_week,
-			old_hour: currentAppointment.hour,
-			new_room_id: newRoomId,
-			new_day_of_week: newDayOfWeek,
-			new_hour: newHour,
-			rescheduled_by: user!.id,
-			reason: reason || null
-		});
+		// Note: Reschedule history is now handled at package level
 
-		if (historyError) {
-			console.error('Error logging reschedule history:', historyError);
-		}
-
-		return { success: true, message: 'Randevu başarıyla yeniden planlandı' };
+		return { success: true, message: 'Randevu başarıyla ertelendi' };
 	},
 
 	updateAppointmentStatus: async ({ request, locals: { supabase, user, userRole } }) => {

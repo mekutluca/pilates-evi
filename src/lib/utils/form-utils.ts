@@ -50,6 +50,6 @@ export function safeGetRequiredFormDataString(
  * @param result - The action result
  * @returns The error message or a default message
  */
-export function getActionErrorMessage(result: { data?: { message?: unknown } }): string {
-	return typeof result.data?.message === 'string' ? result.data.message : 'Bir hata oluştu';
+export function getActionErrorMessage(result: { data?: { message?: string | null } }): string {
+	return result.data?.message || 'Bir hata oluştu';
 }

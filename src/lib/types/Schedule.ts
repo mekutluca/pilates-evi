@@ -1,4 +1,4 @@
-import type { Database } from '$lib/database.types';
+import type { Tables, TablesInsert, TablesUpdate } from '$lib/database.types';
 
 export type DayOfWeek =
 	| 'monday'
@@ -10,34 +10,50 @@ export type DayOfWeek =
 	| 'sunday';
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 
-// WeeklySchedule types removed - no longer using pe_weekly_schedules table
+export type Appointment = Tables<'pe_appointments'>;
+export type AppointmentInsert = TablesInsert<'pe_appointments'>;
+export type AppointmentUpdate = TablesUpdate<'pe_appointments'>;
 
-export type Appointment = Database['public']['Tables']['pe_appointments']['Row'];
-export type AppointmentInsert = Database['public']['Tables']['pe_appointments']['Insert'];
-export type AppointmentUpdate = Database['public']['Tables']['pe_appointments']['Update'];
+export type AppointmentTrainee = Tables<'pe_appointment_trainees'>;
+export type AppointmentTraineeInsert = TablesInsert<'pe_appointment_trainees'>;
 
-export type AppointmentTrainee = Database['public']['Tables']['pe_appointment_trainees']['Row'];
-export type AppointmentTraineeInsert =
-	Database['public']['Tables']['pe_appointment_trainees']['Insert'];
-
-export type RescheduleHistory = Database['public']['Tables']['pe_reschedule_history']['Row'];
-export type RescheduleHistoryInsert =
-	Database['public']['Tables']['pe_reschedule_history']['Insert'];
+// Types for appointments with relations (matches Supabase query with joins)
+export type AppointmentWithRelations = Appointment & {
+	pe_rooms?: { id?: number; name: string } | null;
+	pe_trainers?: { id?: number; name: string } | null;
+	pe_packages?: { id?: number; name?: string; reschedulable?: boolean } | null;
+	pe_appointment_trainees?: Array<{ pe_trainees: { name: string } }>;
+};
 
 // Extended types with related data
-export interface AppointmentWithDetails extends Omit<Appointment, 'status'> {
+export interface AppointmentWithDetails {
+	// Core database fields (make key ones optional to allow partial data)
+	id?: number;
+	appointment_date?: string | null;
+	created_at?: string;
+	created_by?: string | null;
+	hour: number; // Make hour required
+	notes?: string | null;
+	package_id: number; // Make package_id required (from database type)
+	room_id?: number;
+	series_id?: string | null;
+	session_number?: number | null;
+	total_sessions?: number | null;
+	trainer_id?: number;
+	updated_at?: string;
+	status: string; // Make status required and string (not nullable)
+
+	// Extended fields for UI display
 	room_name?: string;
 	trainer_name?: string;
-	training_name?: string;
 	trainee_names?: string[];
 	trainee_count?: number;
-	status: string; // Make status required and string (not nullable)
+	package_name?: string;
 }
 
 export interface WeeklyScheduleSlot {
 	room_id: number;
 	room_name: string;
-	day_of_week: DayOfWeek;
 	hour: number;
 	is_available: boolean;
 	appointment?: AppointmentWithDetails;
@@ -58,19 +74,11 @@ export interface ScheduleGrid {
 export interface CreateAppointmentForm {
 	room_id: number;
 	trainer_id: number;
-	day_of_week: DayOfWeek;
+	package_id: number;
+	appointment_date: string;
 	hour: number;
-	training_id?: number;
 	trainee_ids: number[];
 	notes?: string;
-}
-
-export interface RescheduleAppointmentForm {
-	appointment_id: number;
-	new_room_id: number;
-	new_day_of_week: DayOfWeek;
-	new_hour: number;
-	reason?: string;
 }
 
 // Constants
@@ -113,45 +121,4 @@ export function getTimeRangeString(hour: number): string {
 
 export function getDayIndex(day: DayOfWeek): number {
 	return DAYS_OF_WEEK.indexOf(day);
-}
-
-export function canCoordinatorReschedule(
-	appointmentDay: DayOfWeek,
-	appointmentHour: number,
-	rescheduleCount: number
-): {
-	canReschedule: boolean;
-	reason?: string;
-} {
-	// Check monthly limit
-	if (rescheduleCount >= 2) {
-		return {
-			canReschedule: false,
-			reason: 'Bu ay en fazla 2 randevu değiştirebilirsiniz'
-		};
-	}
-
-	// Check 23-hour rule
-	const now = new Date();
-	const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-	const currentHour = now.getHours();
-
-	// Convert DayOfWeek to number (Monday = 1, Sunday = 0)
-	const appointmentDayNum =
-		getDayIndex(appointmentDay) + 1 === 7 ? 0 : getDayIndex(appointmentDay) + 1;
-
-	// Calculate hours until appointment
-	let daysUntil = appointmentDayNum - currentDay;
-	if (daysUntil < 0) daysUntil += 7; // Next week
-
-	const hoursUntil = daysUntil * 24 + (appointmentHour - currentHour);
-
-	if (hoursUntil < 23) {
-		return {
-			canReschedule: false,
-			reason: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
-		};
-	}
-
-	return { canReschedule: true };
 }

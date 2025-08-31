@@ -2,8 +2,6 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 
 // Helper function to validate user permissions
@@ -17,38 +15,7 @@ function validateUserPermission(user: User | null, userRole: Role | null) {
 	return null;
 }
 
-// Helper function to manage training assignments
-async function updateTrainerTrainings(
-	supabase: SupabaseClient<Database>,
-	trainerId: number,
-	selectedTrainingIds: number[]
-) {
-	// Delete existing assignments
-	const { error: deleteError } = await supabase
-		.from('pe_trainer_trainings')
-		.delete()
-		.eq('trainer_id', trainerId);
-
-	if (deleteError) {
-		console.error('Error removing existing training assignments:', deleteError);
-	}
-
-	// Insert new assignments if any
-	if (selectedTrainingIds.length > 0) {
-		const trainingAssignments = selectedTrainingIds.map((trainingId) => ({
-			trainer_id: trainerId,
-			training_id: trainingId
-		}));
-
-		const { error: assignError } = await supabase
-			.from('pe_trainer_trainings')
-			.insert(trainingAssignments);
-
-		if (assignError) {
-			console.error('Training assignment error:', assignError);
-		}
-	}
-}
+// Training system removed - no longer needed
 
 export const actions: Actions = {
 	createTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -59,7 +26,7 @@ export const actions: Actions = {
 
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');
-		const selectedTrainingIds = formData.getAll('selectedTrainingIds').map((id) => Number(id));
+		// Training assignments removed in new system
 
 		// Create trainer in pe_trainers table
 		const { data: trainerData, error: createError } = await supabase
@@ -79,7 +46,7 @@ export const actions: Actions = {
 		}
 
 		// Assign selected trainings to the new trainer
-		await updateTrainerTrainings(supabase, trainerData.id, selectedTrainingIds);
+		// Training assignment logic removed
 
 		return {
 			success: true,
@@ -96,7 +63,7 @@ export const actions: Actions = {
 		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');
-		const selectedTrainingIds = formData.getAll('selectedTrainingIds').map((id) => Number(id));
+		// Training assignments removed in new system
 
 		if (isNaN(trainerId)) {
 			return fail(400, {
@@ -122,7 +89,7 @@ export const actions: Actions = {
 		}
 
 		// Update training assignments
-		await updateTrainerTrainings(supabase, trainerId, selectedTrainingIds);
+		// Training assignment logic removed
 
 		return {
 			success: true,

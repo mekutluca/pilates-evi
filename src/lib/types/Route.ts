@@ -3,9 +3,10 @@ import Users from '@lucide/svelte/icons/users';
 import type { Role } from './Role';
 import IdCard from '@lucide/svelte/icons/id-card';
 import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
-import Dumbbell from '@lucide/svelte/icons/dumbbell';
 import Medal from '@lucide/svelte/icons/medal';
 import Calendar from '@lucide/svelte/icons/calendar';
+import Dumbbell from '@lucide/svelte/icons/dumbbell';
+import Plus from '@lucide/svelte/icons/plus';
 
 export interface Route {
 	href: string;
@@ -31,6 +32,13 @@ export const allRoutes: Route[] = [
 		group: 'Genel'
 	},
 	{
+		href: '/new-assignment',
+		label: 'Yeni Randevu',
+		icon: Plus,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Genel'
+	},
+	{
 		href: '/trainers',
 		label: 'Eğitmenler',
 		icon: Users,
@@ -45,16 +53,16 @@ export const allRoutes: Route[] = [
 		group: 'Yönetim'
 	},
 	{
-		href: '/trainings',
-		label: 'Egzersizler',
-		icon: Dumbbell,
+		href: '/trainees',
+		label: 'Öğrenciler',
+		icon: Medal,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Yönetim'
 	},
 	{
-		href: '/trainees',
-		label: 'Öğrenciler',
-		icon: Medal,
+		href: '/packages',
+		label: 'Dersler',
+		icon: Dumbbell,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Yönetim'
 	},

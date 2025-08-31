@@ -2,7 +2,6 @@ import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import type { Trainer } from '$lib/types/Trainer';
 import type { Room } from '$lib/types/Room.js';
-import type { Training } from '$lib/types/Training.js';
 import type { Trainee } from '$lib/types/Trainee.js';
 
 export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
@@ -11,30 +10,17 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		throw error(401, 'Authentication required');
 	}
 
-	// Fetch all data concurrently with proper error handling
+	// Fetch essential data concurrently with proper error handling
 	const queries = [
 		{ name: 'trainers', query: supabase.from('pe_trainers').select('*') },
 		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
-		{ name: 'trainings', query: supabase.from('pe_trainings').select('*') },
-		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
-		{ name: 'trainerTrainings', query: supabase.from('pe_trainer_trainings').select('*') },
-		{ name: 'roomTrainings', query: supabase.from('pe_room_trainings').select('*') }
+		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') }
 	] as const;
 
 	try {
 		const results = await Promise.all(queries.map((q) => q.query));
 
-		const data: Record<
-			string,
-			(
-				| Trainer
-				| Room
-				| Training
-				| Trainee
-				| { trainer_id: number; training_id: number }
-				| { room_id: number; training_id: number }
-			)[]
-		> = {};
+		const data: Record<string, (Trainer | Room | Trainee)[]> = {};
 
 		queries.forEach((query, index) => {
 			const { data: queryData, error: queryError } = results[index];
@@ -51,10 +37,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		return {
 			trainers: data.trainers as Trainer[],
 			rooms: data.rooms as Room[],
-			trainings: data.trainings as Training[],
-			trainees: data.trainees as Trainee[],
-			trainerTrainings: data.trainerTrainings as { trainer_id: number; training_id: number }[],
-			roomTrainings: data.roomTrainings as { room_id: number; training_id: number }[]
+			trainees: data.trainees as Trainee[]
 		};
 	} catch (err) {
 		console.error('Failed to load application data:', err);
@@ -62,10 +45,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		return {
 			trainers: [],
 			rooms: [],
-			trainings: [],
-			trainees: [],
-			trainerTrainings: [],
-			roomTrainings: []
+			trainees: []
 		};
 	}
 };

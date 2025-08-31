@@ -4,22 +4,27 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import Plus from '@lucide/svelte/icons/plus';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import type { ScheduleGrid, DayOfWeek, AppointmentWithDetails } from '$lib/types/Schedule';
+	import { SvelteDate } from 'svelte/reactivity';
+	import type {
+		ScheduleGrid,
+		DayOfWeek,
+		AppointmentWithDetails,
+		AppointmentWithRelations
+	} from '$lib/types/Schedule';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
 	import {
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
 		getDateForDayOfWeek,
-		formatDayMonth
+		formatDayMonth,
+		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import Combobox from '$lib/components/combobox.svelte';
 	import { page } from '$app/state';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
@@ -29,10 +34,6 @@
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
-	let trainings = $derived(data.trainings);
-	let trainees = $derived(data.trainees);
-	let roomTrainings = $derived(data.roomTrainings);
-	let trainerTrainings = $derived(data.trainerTrainings);
 
 	// UI state
 	let viewMode = $state<'room' | 'trainer'>('room');
@@ -59,19 +60,16 @@
 		return urlWeek ? getWeekStart(new Date(urlWeek)) : getWeekStart(new Date());
 	});
 
-	// Appointment modal state
-	let showAddAppointmentModal = $state(false);
+	// Appointment modal state (simplified - add appointment modal removed)
 	let showAppointmentDetailsModal = $state(false);
-	let selectedSlot = $state<{ roomId: number; day: DayOfWeek; hour: number } | null>(null);
+	let rescheduleMode = $state(false);
+	let showRescheduleConfirmation = $state(false);
+	let selectedRescheduleSlot = $state<{ roomId: number; day: DayOfWeek; hour: number } | null>(
+		null
+	);
 
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
-
-	// Form data
-	let selectedTrainerIdForForm = $state<number | null>(null);
-	let selectedTrainingId = $state<number | null>(null);
-	let selectedTrainees = $state<typeof trainees>([]);
-	let appointmentNotes = $state('');
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -79,13 +77,13 @@
 	}
 
 	function goToPreviousWeek() {
-		const newWeekStart = new Date(currentWeekStart());
+		const newWeekStart = new SvelteDate(currentWeekStart().getTime());
 		newWeekStart.setDate(newWeekStart.getDate() - 7);
 		navigateToWeek(newWeekStart);
 	}
 
 	function goToNextWeek() {
-		const newWeekStart = new Date(currentWeekStart());
+		const newWeekStart = new SvelteDate(currentWeekStart().getTime());
 		newWeekStart.setDate(newWeekStart.getDate() + 7);
 		navigateToWeek(newWeekStart);
 	}
@@ -125,37 +123,37 @@
 	});
 
 	// Constants for day mapping
-	const DAY_MAPPING: Record<DayOfWeek, number> = {
-		monday: 1,
-		tuesday: 2,
-		wednesday: 3,
-		thursday: 4,
-		friday: 5,
-		saturday: 6,
-		sunday: 0
-	};
-
 	function calculateDateForDayHour(day: DayOfWeek): string {
-		const targetDate = new Date(currentWeekStart());
-		const currentDay = targetDate.getDay();
-		const targetDay = DAY_MAPPING[day];
-		const daysToAdd = targetDay === 0 ? 7 - currentDay : targetDay - currentDay;
-		targetDate.setDate(currentWeekStart().getDate() + daysToAdd);
-		return targetDate.toISOString().split('T')[0];
+		const weekStart = currentWeekStart();
+		const targetDate = getDateForDayOfWeek(weekStart, day);
+		return formatDateParam(targetDate);
 	}
 
 	function createAppointmentDetails(
-		appointment: any,
+		appointment: AppointmentWithRelations,
 		roomName?: string | null,
 		trainerName?: string | null
 	): AppointmentWithDetails {
 		return {
-			...appointment,
+			// Database fields - use direct values from Appointment
+			id: appointment.id,
+			room_id: appointment.room_id,
+			trainer_id: appointment.trainer_id,
+			package_id: appointment.package_id,
+			hour: appointment.hour,
 			status: appointment.status || 'scheduled',
-			room_name: roomName || rooms.find((r) => r.id === appointment.room_id)?.name || '',
-			trainer_name:
-				trainerName || trainers.find((t) => t.id === appointment.trainer_id)?.name || '',
-			training_name: trainings.find((tr) => tr.id === appointment.training_id)?.name || '',
+			appointment_date: appointment.appointment_date,
+			session_number: appointment.session_number,
+			total_sessions: appointment.total_sessions,
+			notes: appointment.notes,
+			created_at: appointment.created_at,
+			updated_at: appointment.updated_at,
+			created_by: appointment.created_by,
+			series_id: appointment.series_id,
+			// Extended fields using relation data
+			room_name: roomName || appointment.pe_rooms?.name || '',
+			trainer_name: trainerName || appointment.pe_trainers?.name || '',
+			package_name: appointment.pe_packages?.name || '',
 			trainee_names:
 				appointment.pe_appointment_trainees?.map(
 					(at: { pe_trainees: { name: string } }) => at.pe_trainees.name
@@ -164,109 +162,120 @@
 		};
 	}
 
-	function openAppointmentModal(entityId: number, day: DayOfWeek, hour: number) {
-		// In trainer view, we need to use a room ID for the appointment, not trainer ID
-		// We'll need to handle this in the modal by showing room selection
-		const roomId = viewMode === 'room' ? entityId : 0; // Use 0 to indicate room needs to be selected
-		selectedSlot = { roomId, day, hour };
-		resetAppointmentForm();
-		showAddAppointmentModal = true;
-	}
-
 	function openAppointmentDetails(appointment: AppointmentWithDetails) {
 		selectedAppointment = appointment;
 		showAppointmentDetailsModal = true;
 	}
 
-	function resetAppointmentForm() {
-		selectedTrainerIdForForm = viewMode === 'trainer' ? selectedTrainerId : null;
-		selectedTrainingId = null;
-		selectedTrainees = [];
-		appointmentNotes = '';
+	function openRescheduleModal(appointment: AppointmentWithDetails) {
+		selectedAppointment = appointment;
+		rescheduleMode = true;
+		showAppointmentDetailsModal = false;
+		toast.info('Yeni bir zaman dilimi seçin', { duration: 10000 });
 	}
 
-	function handleTraineeSelect(trainee: (typeof trainees)[0]) {
-		selectedTrainees = [...selectedTrainees, trainee];
+	function resetRescheduleForm() {
+		rescheduleMode = false;
+		selectedRescheduleSlot = null;
+		showRescheduleConfirmation = false;
 	}
 
-	function handleTraineeRemove(trainee: (typeof trainees)[0]) {
-		selectedTrainees = selectedTrainees.filter((t) => t.id !== trainee.id);
+	function handleRescheduleSlotClick(roomId: number, day: DayOfWeek, hour: number) {
+		if (!rescheduleMode || !selectedAppointment) return;
+
+		selectedRescheduleSlot = { roomId, day, hour };
+		showRescheduleConfirmation = true;
 	}
 
-	// Get available trainings for selected room and trainer
-	const availableTrainings = $derived(() => {
-		if (!selectedSlot || !selectedTrainerIdForForm) return [];
+	function cancelReschedule() {
+		resetRescheduleForm();
+		selectedAppointment = null;
+		toast.dismiss();
+	}
 
-		// Get trainings available for the selected room
-		const roomTrainingIds = roomTrainings
-			.filter((rt) => rt.room_id === selectedSlot?.roomId)
-			.map((rt) => rt.training_id);
+	// Check if a time slot is in the past
+	function isSlotInPast(day: DayOfWeek, hour: number): boolean {
+		const now = new SvelteDate();
+		const slotDate = getDateForDayOfWeek(currentWeekStart(), day);
+		const slotDateTime = new SvelteDate(slotDate.getTime());
+		slotDateTime.setHours(hour, 0, 0, 0);
 
-		// Get trainings available for the selected trainer
-		const trainerTrainingIds = trainerTrainings
-			.filter((tt) => tt.trainer_id === selectedTrainerIdForForm)
-			.map((tt) => tt.training_id);
+		return slotDateTime < now;
+	}
 
-		// Find trainings that are available for both room and trainer
-		const commonTrainingIds = roomTrainingIds.filter((id) => trainerTrainingIds.includes(id));
+	// Check if a time slot is within 23 hours for coordinator restrictions
+	function isSlotWithin23Hours(day: DayOfWeek, hour: number): boolean {
+		// Only apply 23-hour restriction to coordinators in reschedule mode
+		if (data.userRole !== 'coordinator' || !rescheduleMode) return false;
 
-		const availableTrainingsForBoth = trainings.filter((training) =>
-			commonTrainingIds.includes(training.id)
-		);
+		const now = new SvelteDate();
+		const slotDate = getDateForDayOfWeek(currentWeekStart(), day);
+		const slotDateTime = new SvelteDate(slotDate.getTime());
+		slotDateTime.setHours(hour, 0, 0, 0);
 
-		// Fallback hierarchy:
-		// 1. If both room and trainer have specific trainings, show intersection
-		// 2. If only room has specific trainings, show room trainings
-		// 3. If only trainer has specific trainings, show trainer trainings
-		// 4. If neither has specific trainings, show all trainings
-		if (availableTrainingsForBoth.length > 0) {
-			return availableTrainingsForBoth;
-		} else if (roomTrainingIds.length > 0) {
-			return trainings.filter((training) => roomTrainingIds.includes(training.id));
-		} else if (trainerTrainingIds.length > 0) {
-			return trainings.filter((training) => trainerTrainingIds.includes(training.id));
-		} else {
-			return trainings;
+		const hoursUntil = (slotDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+		return hoursUntil < 23;
+	}
+
+	// Check if an appointment is in the past
+	function isAppointmentInPast(appointment: AppointmentWithDetails): boolean {
+		const now = new SvelteDate();
+		// Use the appointment_date if available, otherwise fallback to current week calculation
+		if (appointment.appointment_date) {
+			const appointmentDateTime = new SvelteDate(appointment.appointment_date);
+			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
+			return appointmentDateTime < now;
 		}
-	});
 
-	// Get selected training details
-	const selectedTraining = $derived(() => {
-		return selectedTrainingId ? trainings.find((t) => t.id === selectedTrainingId) : null;
-	});
+		// Fallback: derive day from appointment_date if needed
+		return false;
+	}
 
-	// Get available trainees (exclude already selected ones)
-	const availableTrainees = $derived(() => {
-		const selectedIds = selectedTrainees.map((t) => t.id);
-		return trainees.filter((trainee) => !selectedIds.includes(trainee.id));
-	});
-
-	// Validate trainee count against training capacity
-	const traineeCountValid = $derived(() => {
-		const training = selectedTraining();
-		if (!training) return selectedTrainees.length > 0;
-		return (
-			selectedTrainees.length >= training.min_capacity &&
-			selectedTrainees.length <= training.max_capacity
-		);
-	});
-
-	// Get capacity message
-	const capacityMessage = $derived(() => {
-		const training = selectedTraining();
-		if (!training) return '';
-		const min = training.min_capacity;
-		const max = training.max_capacity;
-		const current = selectedTrainees.length;
-
-		if (current < min) {
-			return `En az ${min} öğrenci seçmelisiniz (şu anda ${current})`;
-		} else if (current > max) {
-			return `En fazla ${max} öğrenci seçebilirsiniz (şu anda ${current})`;
-		} else {
-			return `${current}/${max} öğrenci seçildi`;
+	// Check if an appointment can be rescheduled based on user role and package settings
+	function canRescheduleAppointment(appointment: AppointmentWithDetails): boolean {
+		// First check if appointment is in the past - no one can reschedule past appointments
+		if (isAppointmentInPast(appointment)) {
+			return false;
 		}
-	});
+
+		// Check if the package allows rescheduling
+		if (!appointment.package_id) {
+			return false; // Legacy appointments without packages cannot be rescheduled
+		}
+
+		// Check if the package is reschedulable (data comes from server)
+		// The pe_packages data is loaded in the appointment query
+		const packageData = (appointment as AppointmentWithRelations).pe_packages;
+		if (packageData && packageData.reschedulable === false) {
+			return false; // Package doesn't allow rescheduling
+		}
+
+		// Calculate time until appointment
+		const now = new SvelteDate();
+		let appointmentDateTime: SvelteDate;
+
+		if (appointment.appointment_date) {
+			appointmentDateTime = new SvelteDate(appointment.appointment_date);
+			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
+		} else {
+			// Fallback: this shouldn't happen with new appointments
+			return false;
+		}
+
+		const hoursUntil = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+		// Admin can reschedule until the appointment starts (but not after)
+		if (data.userRole === 'admin') {
+			return hoursUntil > 0;
+		}
+
+		// Coordinator can only reschedule if there are 23+ hours until the appointment
+		if (data.userRole === 'coordinator') {
+			return hoursUntil >= 23;
+		}
+
+		return false;
+	}
 
 	// Check if we're viewing the current week
 	const isCurrentWeek = $derived(() => {
@@ -303,7 +312,6 @@
 					grid[selectedRoom.id].slots[day][hour] = {
 						room_id: selectedRoom.id,
 						room_name: selectedRoom.name || '',
-						day_of_week: day,
 						hour,
 						is_available: true,
 						appointment: appointment
@@ -337,7 +345,6 @@
 					grid[selectedTrainer.id].slots[day][hour] = {
 						room_id: selectedTrainer.id,
 						room_name: selectedTrainer.name || '',
-						day_of_week: day,
 						hour,
 						is_available: true,
 						appointment: appointment
@@ -492,14 +499,28 @@
 		{#if selectedEntity}
 			<div class="card bg-base-100 shadow-xl">
 				<div class="card-body">
-					<h2 class="mb-4 card-title text-xl">
-						{#if viewMode === 'room'}
-							<span class="mr-2 badge badge-sm badge-primary">Oda</span>
-						{:else}
-							<span class="mr-2 badge badge-sm badge-info">Eğitmen</span>
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="card-title text-xl">
+							{#if viewMode === 'room'}
+								<span class="mr-2 badge badge-sm badge-primary">Oda</span>
+							{:else}
+								<span class="mr-2 badge badge-sm badge-info">Eğitmen</span>
+							{/if}
+							{selectedEntity.name}
+						</h2>
+
+						{#if rescheduleMode && selectedAppointment}
+							<div class="flex items-center gap-3">
+								<div class="alert alert-info px-3 py-2">
+									<div class="text-sm">
+										<strong>Erteleme Modu:</strong>
+										{selectedAppointment.trainer_name} - {selectedAppointment.package_name}
+									</div>
+								</div>
+								<button class="btn btn-sm btn-error" onclick={cancelReschedule}> İptal </button>
+							</div>
 						{/if}
-						{selectedEntity.name}
-					</h2>
+					</div>
 
 					<div class="overflow-x-auto">
 						<table class="table table-xs">
@@ -525,48 +546,93 @@
 											{@const entityId = viewMode === 'room' ? selectedRoomId : selectedTrainerId}
 											{@const slot = scheduleGrid()[entityId]?.slots[day]?.[hour]}
 											<td class="p-1 text-center">
-												{#if slot?.appointment}
-													<button
-														class="min-h-12 w-full cursor-pointer rounded p-2 text-xs transition-colors hover:opacity-80"
-														class:bg-primary={viewMode === 'room'}
-														class:text-primary-content={viewMode === 'room'}
-														class:bg-info={viewMode === 'trainer'}
-														class:text-info-content={viewMode === 'trainer'}
-														onclick={() =>
-															slot.appointment && openAppointmentDetails(slot.appointment)}
-													>
-														<div class="truncate font-semibold">
-															{#if viewMode === 'room'}
-																{slot.appointment.trainer_name}
-															{:else}
-																{slot.appointment.room_name}
+												{#if true}
+													{@const isPast = isSlotInPast(day, hour)}
+													{@const isWithin23Hours = isSlotWithin23Hours(day, hour)}
+													{@const isRescheduleRestricted = rescheduleMode && isWithin23Hours}
+													{@const canSelectForReschedule =
+														rescheduleMode &&
+														!isPast &&
+														!isRescheduleRestricted &&
+														!slot?.appointment}
+
+													{#if slot?.appointment}
+														{@const isBeingRescheduled =
+															rescheduleMode &&
+															selectedAppointment &&
+															slot.appointment.id === selectedAppointment.id}
+														<button
+															class="min-h-12 w-full cursor-pointer rounded p-2 text-xs transition-colors hover:opacity-80 {isBeingRescheduled
+																? 'border-2 border-dashed border-warning bg-warning/20 text-warning-content'
+																: ''}"
+															class:bg-primary={viewMode === 'room' && !isBeingRescheduled}
+															class:text-primary-content={viewMode === 'room' &&
+																!isBeingRescheduled}
+															class:bg-info={viewMode === 'trainer' && !isBeingRescheduled}
+															class:text-info-content={viewMode === 'trainer' &&
+																!isBeingRescheduled}
+															onclick={() =>
+																slot.appointment && openAppointmentDetails(slot.appointment)}
+														>
+															<div class="truncate font-semibold">
+																{#if viewMode === 'room'}
+																	{slot.appointment.trainer_name}
+																{:else}
+																	{slot.appointment.room_name}
+																{/if}
+															</div>
+															<div class="truncate opacity-80">
+																{slot.appointment.trainee_count} öğrenci
+															</div>
+															{#if slot.appointment.package_name}
+																<div class="truncate text-xs opacity-70">
+																	{slot.appointment.package_name}
+																</div>
 															{/if}
+														</button>
+													{:else if isPast}
+														<div
+															class="flex min-h-12 items-center justify-center rounded bg-base-300 p-2 text-base-content/40"
+														>
+															<span class="text-xs">-</span>
 														</div>
-														<div class="truncate opacity-80">
-															{slot.appointment.trainee_count} öğrenci
-														</div>
-														{#if slot.appointment.training_name}
-															<div class="truncate text-xs opacity-70">
-																{slot.appointment.training_name}
+													{:else if slot?.is_available}
+														{#if rescheduleMode}
+															{#if canSelectForReschedule}
+																<button
+																	class="group flex min-h-12 w-full cursor-pointer items-center justify-center rounded bg-success/20 p-2 transition-colors hover:bg-success/30"
+																	onclick={() => handleRescheduleSlotClick(entityId, day, hour)}
+																>
+																	<span class="text-xs text-success group-hover:hidden">Seç</span>
+																	<!-- Plus button removed - use /new-assignment for appointment creation -->
+																</button>
+															{:else if isRescheduleRestricted}
+																<div
+																	class="flex min-h-12 items-center justify-center rounded bg-warning/20 p-2 text-warning"
+																>
+																	<span class="text-xs">23s</span>
+																</div>
+															{:else}
+																<div
+																	class="flex min-h-12 items-center justify-center rounded bg-base-200 p-2 text-base-content/40"
+																>
+																	<span class="text-xs">Müsait</span>
+																</div>
+															{/if}
+														{:else}
+															<div
+																class="flex min-h-12 items-center justify-center rounded bg-base-200 p-2 text-base-content/40"
+															>
+																<span class="text-xs">Müsait</span>
 															</div>
 														{/if}
-													</button>
-												{:else if slot?.is_available}
-													<button
-														class="group flex min-h-12 w-full cursor-pointer items-center justify-center rounded bg-base-200 p-2 transition-colors hover:bg-base-300"
-														onclick={() => openAppointmentModal(entityId, day, hour)}
-													>
-														<span class="text-xs text-base-content/40 group-hover:hidden"
-															>Müsait</span
+													{:else}
+														<div
+															class="flex min-h-12 items-center justify-center rounded bg-error/20 p-2 text-error"
 														>
-														<Plus size={16} class="hidden text-base-content/60 group-hover:block" />
-													</button>
-												{:else}
-													<div
-														class="flex min-h-12 items-center justify-center rounded bg-error/20 p-2 text-error"
-													>
-														<span class="text-xs">Kapalı</span>
-													</div>
+															<span class="text-xs">Kapalı</span>
+														</div>
+													{/if}
 												{/if}
 											</td>
 										{/each}
@@ -580,197 +646,6 @@
 		{/if}
 	{/if}
 </div>
-
-<!-- Add Appointment Modal -->
-<dialog class="modal" class:modal-open={showAddAppointmentModal}>
-	<div class="modal-box max-w-2xl">
-		<h3 class="mb-4 text-lg font-bold">Yeni Randevu Ekle</h3>
-
-		{#if selectedSlot}
-			<div class="mb-4 text-sm text-base-content/70">
-				{#if viewMode === 'room'}
-					<strong>Oda:</strong> {rooms.find((r) => r.id === selectedSlot?.roomId)?.name} |
-				{:else}
-					<strong>Eğitmen:</strong> {trainers.find((t) => t.id === selectedTrainerId)?.name} |
-				{/if}
-				<strong>Gün:</strong>
-				{DAY_NAMES[selectedSlot.day]} |
-				<strong>Saat:</strong>
-				{getTimeRangeString(selectedSlot.hour)}
-			</div>
-		{/if}
-
-		<form
-			method="POST"
-			action="?/createAppointment"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
-					if (result.type === 'success') {
-						toast.success('Randevu başarıyla oluşturuldu');
-						showAddAppointmentModal = false;
-						resetAppointmentForm();
-						// Data will be automatically refreshed by SvelteKit
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
-					await update();
-				};
-			}}
-		>
-			{#if selectedSlot}
-				<input type="hidden" name="dayOfWeek" value={selectedSlot.day} />
-				<input type="hidden" name="hour" value={selectedSlot.hour} />
-				<input type="hidden" name="weekStart" value={formatDateParam(currentWeekStart())} />
-			{/if}
-
-			<!-- Room selection -->
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Oda</legend>
-				{#if viewMode === 'room'}
-					<!-- Hidden input for room ID when in room view -->
-					<input type="hidden" name="roomId" value={selectedSlot?.roomId} />
-					<select class="select-bordered select w-full" disabled>
-						<option>{rooms.find((r) => r.id === selectedSlot?.roomId)?.name}</option>
-					</select>
-				{:else}
-					<!-- Room selection dropdown for trainer view -->
-					<select name="roomId" class="select-bordered select w-full" required>
-						<option value="">Oda seçin</option>
-						{#each rooms as room (room.id)}
-							<option value={room.id}>{room.name}</option>
-						{/each}
-					</select>
-				{/if}
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Eğitmen</legend>
-				<select
-					name="trainerId"
-					class="select-bordered select w-full"
-					bind:value={selectedTrainerIdForForm}
-					disabled={viewMode === 'trainer'}
-					required
-				>
-					<option value="">Eğitmen seçin</option>
-					{#each trainers as trainer (trainer.id)}
-						<option value={trainer.id}>{trainer.name}</option>
-					{/each}
-				</select>
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Eğitim Türü</legend>
-				<select
-					name="trainingId"
-					class="select-bordered select w-full"
-					bind:value={selectedTrainingId}
-					required
-				>
-					<option value="">Eğitim türü seçin</option>
-					{#each availableTrainings() as training (training.id)}
-						<option value={training.id}>
-							{training.name} ({training.min_capacity}-{training.max_capacity} kişi)
-						</option>
-					{/each}
-				</select>
-				{#if availableTrainings().length === 0}
-					<div class="mt-1 text-xs text-warning">
-						{#if !selectedTrainerIdForForm}
-							Önce eğitmen seçin
-						{:else}
-							Bu oda ve eğitmen için uygun eğitim türü yok
-						{/if}
-					</div>
-				{/if}
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Öğrenciler</legend>
-
-				<!-- Capacity message -->
-				{#if selectedTraining()}
-					<div
-						class="mb-2 text-xs"
-						class:text-success={traineeCountValid()}
-						class:text-error={!traineeCountValid()}
-					>
-						{capacityMessage()}
-					</div>
-				{:else}
-					<div class="mb-2 text-xs text-base-content/60">En az bir öğrenci seçmelisiniz</div>
-				{/if}
-
-				<!-- Hidden inputs for form submission -->
-				{#each selectedTrainees as trainee (trainee.id)}
-					<input type="hidden" name="traineeIds" value={trainee.id} />
-				{/each}
-
-				<!-- Trainee combobox -->
-				<Combobox
-					items={availableTrainees()}
-					selectedItems={selectedTrainees}
-					placeholder="Öğrenci seçin..."
-					searchPlaceholder="Öğrenci ara..."
-					emptyMessage="Öğrenci bulunamadı"
-					multiple={true}
-					onSelect={handleTraineeSelect}
-					onRemove={handleTraineeRemove}
-				/>
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
-				<textarea
-					name="notes"
-					class="textarea-bordered textarea w-full"
-					placeholder="Randevu ile ilgili notlar..."
-					bind:value={appointmentNotes}
-					rows="3"
-				></textarea>
-			</fieldset>
-
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showAddAppointmentModal = false;
-						resetAppointmentForm();
-					}}
-				>
-					İptal
-				</button>
-				<button
-					type="submit"
-					class="btn btn-secondary"
-					disabled={formLoading ||
-						!selectedTrainerIdForForm ||
-						!selectedTrainingId ||
-						!traineeCountValid()}
-				>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Plus size={16} />
-					{/if}
-					Randevu Oluştur
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showAddAppointmentModal = false;
-				resetAppointmentForm();
-			}}>kapat</button
-		>
-	</form>
-</dialog>
 
 <!-- Appointment Details Modal -->
 <dialog class="modal" class:modal-open={showAppointmentDetailsModal}>
@@ -786,7 +661,11 @@
 							<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
 							<div>
 								<strong>Gün:</strong>
-								{DAY_NAMES[selectedAppointment.day_of_week as DayOfWeek]}
+								{selectedAppointment.appointment_date
+									? DAY_NAMES[
+											getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
+										]
+									: '-'}
 							</div>
 							<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
 							<div>
@@ -815,13 +694,13 @@
 					<div class="badge badge-info">{selectedAppointment.trainer_name}</div>
 				</div>
 
-				<!-- Training Info -->
-				{#if selectedAppointment.training_name}
-					<div>
-						<h4 class="mb-2 text-base font-semibold">Eğitim Türü</h4>
-						<div class="badge badge-secondary">{selectedAppointment.training_name}</div>
+				<!-- Package Info -->
+				<div>
+					<h4 class="mb-2 text-base font-semibold">Ders</h4>
+					<div class="badge badge-accent">
+						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
 					</div>
-				{/if}
+				</div>
 
 				<!-- Trainees -->
 				<div>
@@ -848,6 +727,15 @@
 		{/if}
 
 		<div class="modal-action">
+			{#if selectedAppointment && selectedAppointment.status === 'scheduled' && canRescheduleAppointment(selectedAppointment)}
+				<button
+					type="button"
+					class="btn btn-warning"
+					onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
+				>
+					Ertele
+				</button>
+			{/if}
 			<button
 				type="button"
 				class="btn"
@@ -858,7 +746,6 @@
 			>
 				Kapat
 			</button>
-			<!-- TODO: Add edit/reschedule/cancel buttons here -->
 		</div>
 	</div>
 	<form method="dialog" class="modal-backdrop">
@@ -866,6 +753,155 @@
 			onclick={() => {
 				showAppointmentDetailsModal = false;
 				selectedAppointment = null;
+			}}>kapat</button
+		>
+	</form>
+</dialog>
+
+<!-- Reschedule Confirmation Modal -->
+<dialog class="modal" class:modal-open={showRescheduleConfirmation}>
+	<div class="modal-box max-w-lg">
+		<h3 class="mb-4 text-lg font-bold">Randevuyu Ertele</h3>
+
+		{#if selectedAppointment && selectedRescheduleSlot}
+			{@const newRoomName = rooms.find((r) => r.id === selectedRescheduleSlot?.roomId)?.name}
+
+			<div class="space-y-4">
+				<!-- Current appointment info -->
+				<div class="rounded bg-base-200 p-4">
+					<h4 class="mb-2 text-sm font-semibold">Mevcut Randevu</h4>
+					<div class="grid grid-cols-2 gap-2 text-sm">
+						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
+						<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
+						<div>
+							<strong>Gün:</strong>
+							{selectedAppointment.appointment_date
+								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek]
+								: '-'}
+						</div>
+						<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
+					</div>
+
+					{#if selectedAppointment.package_name}
+						<div class="mt-2 text-sm">
+							<strong>Ders:</strong>
+							<span class="ml-1 badge badge-sm badge-secondary"
+								>{selectedAppointment.package_name}</span
+							>
+						</div>
+					{/if}
+
+					{#if selectedAppointment.trainee_names && selectedAppointment.trainee_names.length > 0}
+						<div class="mt-2">
+							<div class="mb-1 text-sm font-semibold">
+								Öğrenciler ({selectedAppointment.trainee_count}):
+							</div>
+							<div class="flex flex-wrap gap-1">
+								{#each selectedAppointment.trainee_names as traineeName (traineeName)}
+									<span class="badge badge-xs badge-success">{traineeName}</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- New appointment info -->
+				<div class="rounded bg-success/10 p-4">
+					<h4 class="mb-2 text-sm font-semibold text-success">Yeni Randevu</h4>
+					<div class="grid grid-cols-2 gap-2 text-sm">
+						<div><strong>Oda:</strong> {newRoomName}</div>
+						<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
+						<div><strong>Gün:</strong> {DAY_NAMES[selectedRescheduleSlot.day]}</div>
+						<div><strong>Saat:</strong> {getTimeRangeString(selectedRescheduleSlot.hour)}</div>
+					</div>
+
+					{#if selectedAppointment.package_name}
+						<div class="mt-2 text-sm">
+							<strong>Ders:</strong>
+							<span class="ml-1 badge badge-sm badge-secondary"
+								>{selectedAppointment.package_name}</span
+							>
+						</div>
+					{/if}
+
+					{#if selectedAppointment.trainee_names && selectedAppointment.trainee_names.length > 0}
+						<div class="mt-2">
+							<div class="mb-1 text-sm font-semibold">
+								Öğrenciler ({selectedAppointment.trainee_count}):
+							</div>
+							<div class="flex flex-wrap gap-1">
+								{#each selectedAppointment.trainee_names as traineeName (traineeName)}
+									<span class="badge badge-xs badge-success">{traineeName}</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<form
+					method="POST"
+					action="?/rescheduleAppointment"
+					class="space-y-4"
+					use:enhance={() => {
+						formLoading = true;
+						return async ({ result, update }) => {
+							formLoading = false;
+							if (result.type === 'success') {
+								toast.success('Randevu başarıyla ertelendi');
+								resetRescheduleForm();
+								selectedAppointment = null;
+								showRescheduleConfirmation = false;
+								toast.dismiss();
+							} else if (result.type === 'failure') {
+								toast.error(getActionErrorMessage(result));
+							}
+							await update();
+						};
+					}}
+				>
+					<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
+					<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
+					<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
+					<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
+
+					<fieldset class="fieldset">
+						<legend class="fieldset-legend">Erteleme Sebebi (İsteğe bağlı)</legend>
+						<textarea
+							name="reason"
+							class="textarea-bordered textarea w-full"
+							placeholder="Randevu erteleme sebebini açıklayın..."
+							rows="2"
+						></textarea>
+					</fieldset>
+
+					<div class="modal-action">
+						<button
+							type="button"
+							class="btn"
+							onclick={() => {
+								showRescheduleConfirmation = false;
+								selectedRescheduleSlot = null;
+							}}
+						>
+							İptal
+						</button>
+						<button type="submit" class="btn btn-warning" disabled={formLoading}>
+							{#if formLoading}
+								<LoaderCircle size={16} class="animate-spin" />
+							{:else}
+								Onayla
+							{/if}
+						</button>
+					</div>
+				</form>
+			</div>
+		{/if}
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button
+			onclick={() => {
+				showRescheduleConfirmation = false;
+				selectedRescheduleSlot = null;
 			}}>kapat</button
 		>
 	</form>

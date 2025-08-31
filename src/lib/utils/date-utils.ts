@@ -94,3 +94,16 @@ export function getDateForDayOfWeek(weekStart: Date, dayOfWeek: string): Date {
 export function formatDayMonth(date: Date): string {
 	return `${date.getDate()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
 }
+
+/**
+ * Gets the day of week from an appointment_date string
+ * @param appointmentDate - The appointment date string (YYYY-MM-DD)
+ * @returns Day of week as string (monday, tuesday, etc.)
+ */
+export function getDayOfWeekFromDate(appointmentDate: string): string {
+	// Parse as UTC to avoid timezone issues with date strings
+	const date = new Date(appointmentDate + 'T00:00:00.000Z');
+	const dayIndex = date.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
+	const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+	return days[dayIndex];
+}
