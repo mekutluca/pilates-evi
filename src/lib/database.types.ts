@@ -236,7 +236,6 @@ export type Database = {
 					name: string;
 					notes: string | null;
 					phone: string;
-					related_trainee_ids: number[];
 				};
 				Insert: {
 					created_at?: string | null;
@@ -245,7 +244,6 @@ export type Database = {
 					name: string;
 					notes?: string | null;
 					phone: string;
-					related_trainee_ids?: number[];
 				};
 				Update: {
 					created_at?: string | null;
@@ -254,7 +252,6 @@ export type Database = {
 					name?: string;
 					notes?: string | null;
 					phone?: string;
-					related_trainee_ids?: number[];
 				};
 				Relationships: [];
 			};

@@ -91,7 +91,6 @@ The application uses a consistent color scheme across different pages and featur
 - **Primary actions** (Add/Create buttons): Use the page's designated color
 - **Training-related items**: Always use `secondary` color regardless of context (e.g., training chips in rooms, trainer pages)
 - **User role badges**: All roles use `neutral` (gray) for consistency
-- **Relationship badges**: Use feature-specific colors (e.g., related trainees use `success`)
 - **Delete actions**: Always use `error` (red)
 - **Form actions**: Submit buttons use page color, cancel buttons use default
 

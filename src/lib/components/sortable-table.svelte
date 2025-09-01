@@ -50,12 +50,7 @@
 			filtered = filtered.filter((item) => {
 				try {
 					return columns.some((column) => {
-						if (
-							column.key === 'actions' ||
-							column.key === 'related_trainee_ids' ||
-							column.key === 'trainings'
-						)
-							return false;
+						if (column.key === 'actions' || column.key === 'trainings') return false;
 
 						const value = getPropertyValue(item, column.key);
 						const searchableValue = String(value ?? '');

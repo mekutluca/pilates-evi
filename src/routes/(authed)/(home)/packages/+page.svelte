@@ -106,7 +106,6 @@
 		showEditModal = true;
 	}
 
-
 	function closeEditModal() {
 		showEditModal = false;
 		selectedPackage = null;
@@ -170,7 +169,6 @@
 		// Trigger form submission
 		form.dispatchEvent(new Event('submit', { bubbles: true }));
 	}
-
 
 	function handleCreatePackage(packageForm: CreatePackageForm) {
 		// Submit the form data
@@ -312,7 +310,6 @@
 		</div>
 	</div>
 {/if}
-
 
 <!-- Edit Package Modal -->
 <dialog class="modal" class:modal-open={showEditModal}>

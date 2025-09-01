@@ -9,7 +9,6 @@
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 	import { enhance } from '$app/forms';
 	import type { Trainee } from '$lib/types/Trainee';
-	import Combobox from '$lib/components/combobox.svelte';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
@@ -29,7 +28,6 @@
 	let email = $state('');
 	let phone = $state('');
 	let notes = $state('');
-	let selectedTraineeIds = $state<number[]>([]);
 
 	const tableActions: ActionItem[] = [
 		{
@@ -69,20 +67,6 @@
 				`<a href="tel:${trainee.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainee.phone}</a>`
 		},
 		{
-			key: 'related_trainee_ids',
-			title: 'Bağlantılı Öğrenciler',
-			sortable: false,
-			render: (trainee: Trainee) => {
-				const relations = getTraineeRelations(trainee.id);
-				if (relations.length === 0) {
-					return '<span class="text-base-content/50 text-sm">-</span>';
-				}
-				return `<div class="flex flex-wrap gap-1">${relations
-					.map((related) => `<span class="badge badge-success badge-sm">${related.name}</span>`)
-					.join('')}</div>`;
-			}
-		},
-		{
 			key: 'created_at',
 			title: 'Kayıt Tarihi',
 			render: (trainee: Trainee) => (trainee.created_at ? formatDate(trainee.created_at) : '-')
@@ -100,7 +84,6 @@
 		email = trainee.email ?? '';
 		phone = trainee.phone ?? '';
 		notes = trainee.notes ?? '';
-		selectedTraineeIds = trainee.related_trainee_ids || [];
 		showEditModal = true;
 		closeDropdown();
 	}
@@ -116,47 +99,7 @@
 		email = '';
 		phone = '';
 		notes = '';
-		selectedTraineeIds = [];
 		selectedTrainee = null;
-	}
-
-	function getTraineeRelations(traineeId: number): Trainee[] {
-		const trainee = trainees.find((t) => t.id === traineeId);
-		if (!trainee || !trainee.related_trainee_ids) return [];
-		return trainees.filter((t) => trainee.related_trainee_ids.includes(t.id));
-	}
-
-	function addTraineeRelation(traineeId: number) {
-		if (!selectedTraineeIds.includes(traineeId)) {
-			selectedTraineeIds = [...selectedTraineeIds, traineeId];
-		}
-	}
-
-	function removeTraineeRelation(traineeId: number) {
-		selectedTraineeIds = selectedTraineeIds.filter((id) => id !== traineeId);
-	}
-
-	function getAvailableTrainees() {
-		if (!selectedTrainee) {
-			// For add modal: exclude already selected trainees
-			return trainees.filter((t) => !selectedTraineeIds.includes(t.id));
-		}
-		// For edit modal: exclude current trainee and already selected trainees
-		return trainees.filter(
-			(t) => t.id !== selectedTrainee!.id && !selectedTraineeIds.includes(t.id)
-		);
-	}
-
-	function getSelectedTraineeObjects(): Trainee[] {
-		return trainees.filter((t) => selectedTraineeIds.includes(t.id));
-	}
-
-	function handleTraineeSelect(trainee: Trainee) {
-		addTraineeRelation(trainee.id);
-	}
-
-	function handleTraineeRemove(trainee: Trainee) {
-		removeTraineeRelation(trainee.id);
 	}
 
 	function formatDate(dateString: string) {
@@ -261,32 +204,6 @@
 				></textarea>
 			</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Bağlantılı Öğrenciler (İsteğe bağlı)</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Listeden öğrenci seçerek ilişki ekleyebilirsiniz
-				</div>
-
-				<!-- Hidden inputs for selected trainees -->
-				{#each selectedTraineeIds as traineeId (traineeId)}
-					<input type="hidden" name="selectedTraineeIds" value={traineeId} />
-				{/each}
-
-				<!-- Trainee selection combobox -->
-				<Combobox
-					items={getAvailableTrainees()}
-					selectedItems={getSelectedTraineeObjects()}
-					placeholder="Bağlantılı öğrenci seçin..."
-					searchPlaceholder="Öğrenci ara..."
-					emptyMessage="Öğrenci bulunamadı"
-					multiple={true}
-					getDisplayText={(trainee) => trainee.name}
-					getSearchText={(trainee) => `${trainee.name} ${trainee.email}`}
-					onSelect={handleTraineeSelect}
-					onRemove={handleTraineeRemove}
-				/>
-			</fieldset>
-
 			<div class="modal-action">
 				<button
 					type="button"
@@ -381,32 +298,6 @@
 					placeholder="Öğrenci hakkında notlar..."
 					rows="3"
 				></textarea>
-			</fieldset>
-
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Bağlantılı Öğrenciler (İsteğe bağlı)</legend>
-				<div class="mb-2 text-xs text-base-content/60">
-					Listeden öğrenci seçerek ilişki ekleyebilirsiniz
-				</div>
-
-				<!-- Hidden inputs for selected trainees -->
-				{#each selectedTraineeIds as traineeId (traineeId)}
-					<input type="hidden" name="selectedTraineeIds" value={traineeId} />
-				{/each}
-
-				<!-- Trainee selection combobox -->
-				<Combobox
-					items={getAvailableTrainees()}
-					selectedItems={getSelectedTraineeObjects()}
-					placeholder="Bağlantılı öğrenci seçin..."
-					searchPlaceholder="Öğrenci ara..."
-					emptyMessage="Öğrenci bulunamadı"
-					multiple={true}
-					getDisplayText={(trainee) => trainee.name}
-					getSearchText={(trainee) => `${trainee.name} ${trainee.email}`}
-					onSelect={handleTraineeSelect}
-					onRemove={handleTraineeRemove}
-				/>
 			</fieldset>
 
 			<div class="modal-action">

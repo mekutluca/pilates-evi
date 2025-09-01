@@ -361,7 +361,7 @@
 
 <div class="space-y-6">
 	<div class="px-6 pt-6">
-		<div class="flex md:items-center justify-between flex-col md:flex-row">
+		<div class="flex flex-col justify-between md:flex-row md:items-center">
 			<PageHeader title="Haftalık Program" />
 
 			<div class="flex items-start gap-4">
@@ -372,7 +372,7 @@
 					</div>
 					<div class="join">
 						<button
-							class="btn btn-sm md:btn-md join-item"
+							class="btn join-item btn-sm md:btn-md"
 							class:btn-primary={viewMode === 'room'}
 							class:btn-outline={viewMode !== 'room'}
 							onclick={() => (viewMode = 'room')}
@@ -380,7 +380,7 @@
 							Oda
 						</button>
 						<button
-							class="btn btn-sm md:btn-md join-item"
+							class="btn join-item btn-sm md:btn-md"
 							class:btn-info={viewMode === 'trainer'}
 							class:btn-outline={viewMode !== 'trainer'}
 							onclick={() => (viewMode = 'trainer')}
