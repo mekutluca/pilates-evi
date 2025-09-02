@@ -1,4 +1,5 @@
 import type { Tables, TablesInsert, TablesUpdate } from '$lib/database.types';
+import type { GroupWithMembers } from './Group';
 
 export type DayOfWeek =
 	| 'monday'
@@ -14,15 +15,20 @@ export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
 export type AppointmentUpdate = TablesUpdate<'pe_appointments'>;
 
-export type AppointmentTrainee = Tables<'pe_appointment_trainees'>;
-export type AppointmentTraineeInsert = TablesInsert<'pe_appointment_trainees'>;
-
 // Types for appointments with relations (matches Supabase query with joins)
 export type AppointmentWithRelations = Appointment & {
 	pe_rooms?: { id?: number; name: string } | null;
 	pe_trainers?: { id?: number; name: string } | null;
 	pe_packages?: { id?: number; name?: string; reschedulable?: boolean } | null;
-	pe_appointment_trainees?: Array<{ pe_trainees: { name: string } }>;
+	pe_groups?: {
+		id: number;
+		name: string;
+		type: string;
+		pe_trainee_groups: Array<{
+			pe_trainees: { name: string };
+			left_at: string | null;
+		}>;
+	} | null;
 };
 
 // Extended types with related data
@@ -77,7 +83,7 @@ export interface CreateAppointmentForm {
 	package_id: number;
 	appointment_date: string;
 	hour: number;
-	trainee_ids: number[];
+	group_id: number;
 	notes?: string;
 }
 

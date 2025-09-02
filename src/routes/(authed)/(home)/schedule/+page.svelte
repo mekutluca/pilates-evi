@@ -139,7 +139,7 @@
 			id: appointment.id,
 			room_id: appointment.room_id,
 			trainer_id: appointment.trainer_id,
-			package_id: appointment.package_id,
+			package_id: appointment.package_id!,
 			hour: appointment.hour,
 			status: appointment.status || 'scheduled',
 			appointment_date: appointment.appointment_date,
@@ -155,10 +155,11 @@
 			trainer_name: trainerName || appointment.pe_trainers?.name || '',
 			package_name: appointment.pe_packages?.name || '',
 			trainee_names:
-				appointment.pe_appointment_trainees?.map(
-					(at: { pe_trainees: { name: string } }) => at.pe_trainees.name
-				) || [],
-			trainee_count: appointment.pe_appointment_trainees?.length || 0
+				appointment.pe_groups?.pe_trainee_groups
+					?.filter((tg) => !tg.left_at) // Only active members
+					?.map((tg) => tg.pe_trainees.name) || [],
+			trainee_count:
+				appointment.pe_groups?.pe_trainee_groups?.filter((tg) => !tg.left_at)?.length || 0
 		};
 	}
 

@@ -12,7 +12,8 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import PackageCreationForm from '$lib/components/package-creation-form.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
-	import type { CreatePackageForm, PackageWithTrainees } from '$lib/types/Package';
+	import type { CreatePackageForm, PackageWithGroup } from '$lib/types/Package';
+	import type { TraineeGroupWithTrainee, GroupWithMembers } from '$lib/types/Group';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
@@ -22,7 +23,7 @@
 	let searchTerm = $state('');
 	let showCreateModal = $state(false);
 	let showEditModal = $state(false);
-	let selectedPackage = $state<PackageWithTrainees | null>(null);
+	let selectedPackage = $state<PackageWithGroup | null>(null);
 	let formLoading = $state(false);
 
 	// Edit form data
@@ -55,14 +56,14 @@
 		{
 			key: 'weeks_duration',
 			title: 'Süre',
-			render: (pkg: PackageWithTrainees) => {
+			render: (pkg: PackageWithGroup) => {
 				return `${pkg.weeks_duration} hafta`;
 			}
 		},
 		{
 			key: 'trainee_type',
 			title: 'Öğrenci Türü',
-			render: (pkg: PackageWithTrainees) => {
+			render: (pkg: PackageWithGroup) => {
 				const type = pkg.trainee_type === 'fixed' ? 'Sabit' : 'Dinamik';
 				const color = pkg.trainee_type === 'fixed' ? 'badge-info' : 'badge-warning';
 				return `<div class="badge ${color} badge-sm">${type}</div>`;
@@ -71,28 +72,20 @@
 		{
 			key: 'lessons_per_week',
 			title: 'Haftalık Ders',
-			render: (pkg: PackageWithTrainees) => {
+			render: (pkg: PackageWithGroup) => {
 				return `${pkg.lessons_per_week} ders/hafta`;
 			}
 		},
 		{
 			key: 'max_capacity',
 			title: 'Maksimum Kapasite',
-			render: (pkg: PackageWithTrainees) => {
+			render: (pkg: PackageWithGroup) => {
 				return `${pkg.max_capacity} kişi`;
-			}
-		},
-		{
-			key: 'pe_package_trainees',
-			title: 'Aktif Öğrenci',
-			render: (pkg: PackageWithTrainees) => {
-				const count = pkg.pe_package_trainees?.length || 0;
-				return `${count}`;
 			}
 		}
 	];
 
-	function openEditModal(pkg: PackageWithTrainees) {
+	function openEditModal(pkg: PackageWithGroup) {
 		selectedPackage = pkg;
 		// Populate form with current values
 		editName = pkg.name;
@@ -303,7 +296,20 @@
 				</div>
 				<div class="stat-title">Toplam Öğrenci</div>
 				<div class="stat-value text-info">
-					{packages.reduce((sum, p) => sum + (p.pe_package_trainees?.length || 0), 0)}
+					{packages.reduce((sum, p) => {
+						const totalActiveMembers =
+							p.pe_package_groups?.reduce(
+								(groupSum: number, pg: { pe_groups: GroupWithMembers }) => {
+									const activeMembers =
+										pg.pe_groups?.pe_trainee_groups?.filter(
+											(tg: TraineeGroupWithTrainee) => !tg.left_at
+										) || [];
+									return groupSum + activeMembers.length;
+								},
+								0
+							) || 0;
+						return sum + totalActiveMembers;
+					}, 0)}
 				</div>
 				<div class="stat-desc">Derste</div>
 			</div>

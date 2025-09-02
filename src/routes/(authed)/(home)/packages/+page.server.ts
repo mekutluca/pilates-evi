@@ -14,11 +14,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		.select(
 			`
 			*,
-			pe_package_trainees (
-				pe_trainees (
+			pe_package_groups (
+				pe_groups (
 					id,
-					name,
-					email
+					type,
+					pe_trainee_groups (
+						pe_trainees (
+							id,
+							name,
+							email
+						),
+						left_at
+					)
 				)
 			)
 		`

@@ -4,6 +4,8 @@ import type { PackageAssignmentForm } from '$lib/types/Package';
 import type { AppointmentWithRelations } from '$lib/types/Schedule';
 import { randomUUID } from 'crypto';
 import { getDateForDayOfWeek } from '$lib/utils/date-utils';
+import { findOrCreateGroup } from '$lib/utils/group-utils';
+import type { GroupCreationData } from '$lib/types/Group';
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
 	// Ensure admin and coordinator users can access this page
@@ -204,6 +206,47 @@ export const actions: Actions = {
 				}
 			}
 
+			// Get trainee names for group name generation
+			let traineeNames: string[] = [];
+			if (assignmentForm.trainee_ids.length > 0) {
+				const { data: trainees } = await supabase
+					.from('pe_trainees')
+					.select('name')
+					.in('id', assignmentForm.trainee_ids);
+				traineeNames = trainees?.map((t) => t.name) || [];
+			}
+
+			// Create or find group based on package type
+			const groupCreationData: GroupCreationData = {
+				type: packageData.trainee_type === 'fixed' ? 'fixed' : 'dynamic',
+				trainee_ids: assignmentForm.trainee_ids
+			};
+
+			const groupResult = await findOrCreateGroup(
+				supabase,
+				groupCreationData,
+				packageData.trainee_type
+			);
+			if (groupResult.error) {
+				return fail(500, {
+					success: false,
+					message: 'Grup oluşturulurken hata: ' + groupResult.error
+				});
+			}
+
+			// Create package-group relationship
+			const { error: packageGroupError } = await supabase.from('pe_package_groups').insert({
+				package_id: assignmentForm.package_id,
+				group_id: groupResult.group_id
+			});
+
+			if (packageGroupError) {
+				return fail(500, {
+					success: false,
+					message: 'Paket-grup ilişkisi oluşturulurken hata: ' + packageGroupError.message
+				});
+			}
+
 			// Start transaction - create appointments for each time slot
 			const appointmentPromises = assignmentForm.time_slots.map(async (slot) => {
 				// Generate series_id for grouping appointments
@@ -225,6 +268,7 @@ export const actions: Actions = {
 						package_id: assignmentForm.package_id,
 						room_id: assignmentForm.room_id,
 						trainer_id: assignmentForm.trainer_id,
+						group_id: groupResult.group_id,
 						hour: slot.hour,
 						appointment_date: appointmentDate.toISOString().split('T')[0],
 						series_id: seriesId,
@@ -253,57 +297,13 @@ export const actions: Actions = {
 				});
 			}
 
-			// Create appointment-trainee relationships
-			if (assignmentForm.trainee_ids.length > 0 && createdAppointments) {
-				const traineeAssignments = createdAppointments.flatMap((appointment) =>
-					assignmentForm.trainee_ids.map((traineeId) => ({
-						appointment_id: appointment.id,
-						trainee_id: traineeId
-					}))
-				);
-
-				const { error: traineeAssignmentsError } = await supabase
-					.from('pe_appointment_trainees')
-					.insert(traineeAssignments);
-
-				if (traineeAssignmentsError) {
-					// Rollback: delete appointments
-					await supabase
-						.from('pe_appointments')
-						.delete()
-						.in(
-							'id',
-							createdAppointments.map((a) => a.id)
-						);
-					return fail(500, {
-						success: false,
-						message: 'Öğrenci atamaları oluşturulurken hata: ' + traineeAssignmentsError.message
-					});
-				}
-			}
-
-			// Update package trainees if this is a fixed package
-			if (packageData.trainee_type === 'fixed' && assignmentForm.trainee_ids.length > 0) {
-				const packageTrainees = assignmentForm.trainee_ids.map((traineeId) => ({
-					package_id: assignmentForm.package_id,
-					trainee_id: traineeId,
-					status: 'active',
-					purchase_date: new Date().toISOString().split('T')[0]
-				}));
-
-				const { error: packageTraineesError } = await supabase
-					.from('pe_package_trainees')
-					.insert(packageTrainees);
-
-				if (packageTraineesError) {
-					// Log error but don't fail the entire operation
-					console.error('Package trainees error:', packageTraineesError);
-				}
-			}
+			const message = groupResult.created
+				? `${allAppointments.length} randevu ve yeni grup başarıyla oluşturuldu`
+				: `${allAppointments.length} randevu oluşturuldu ve mevcut grup kullanıldı`;
 
 			return {
 				success: true,
-				message: `${allAppointments.length} randevu başarıyla oluşturuldu`
+				message
 			};
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : 'Bilinmeyen hata';

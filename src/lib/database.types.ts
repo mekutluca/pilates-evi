@@ -8,51 +8,16 @@ export type Database = {
 	};
 	public: {
 		Tables: {
-			pe_appointment_trainees: {
-				Row: {
-					appointment_id: number;
-					created_at: string;
-					id: number;
-					trainee_id: number;
-				};
-				Insert: {
-					appointment_id: number;
-					created_at?: string;
-					id?: number;
-					trainee_id: number;
-				};
-				Update: {
-					appointment_id?: number;
-					created_at?: string;
-					id?: number;
-					trainee_id?: number;
-				};
-				Relationships: [
-					{
-						foreignKeyName: 'pe_appointment_trainees_appointment_id_fkey';
-						columns: ['appointment_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_appointments';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_appointment_trainees_trainee_id_fkey';
-						columns: ['trainee_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainees';
-						referencedColumns: ['id'];
-					}
-				];
-			};
 			pe_appointments: {
 				Row: {
 					appointment_date: string | null;
 					created_at: string;
 					created_by: string | null;
+					group_id: number | null;
 					hour: number;
 					id: number;
 					notes: string | null;
-					package_id: number;
+					package_id: number | null;
 					room_id: number;
 					series_id: string | null;
 					session_number: number | null;
@@ -65,10 +30,11 @@ export type Database = {
 					appointment_date?: string | null;
 					created_at?: string;
 					created_by?: string | null;
+					group_id?: number | null;
 					hour: number;
 					id?: number;
 					notes?: string | null;
-					package_id: number;
+					package_id?: number | null;
 					room_id: number;
 					series_id?: string | null;
 					session_number?: number | null;
@@ -81,10 +47,11 @@ export type Database = {
 					appointment_date?: string | null;
 					created_at?: string;
 					created_by?: string | null;
+					group_id?: number | null;
 					hour?: number;
 					id?: number;
 					notes?: string | null;
-					package_id?: number;
+					package_id?: number | null;
 					room_id?: number;
 					series_id?: string | null;
 					session_number?: number | null;
@@ -94,6 +61,13 @@ export type Database = {
 					updated_at?: string;
 				};
 				Relationships: [
+					{
+						foreignKeyName: 'pe_appointments_group_id_fkey';
+						columns: ['group_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_groups';
+						referencedColumns: ['id'];
+					},
 					{
 						foreignKeyName: 'pe_appointments_package_id_fkey';
 						columns: ['package_id'];
@@ -117,47 +91,56 @@ export type Database = {
 					}
 				];
 			};
-			pe_package_trainees: {
+			pe_groups: {
 				Row: {
-					created_at: string;
+					created_at: string | null;
 					id: number;
-					notes: string | null;
-					package_id: number;
-					purchase_date: string | null;
-					status: string | null;
-					trainee_id: number;
+					type: Database['public']['Enums']['group_type'];
 				};
 				Insert: {
-					created_at?: string;
+					created_at?: string | null;
 					id?: number;
-					notes?: string | null;
-					package_id: number;
-					purchase_date?: string | null;
-					status?: string | null;
-					trainee_id: number;
+					type: Database['public']['Enums']['group_type'];
 				};
 				Update: {
-					created_at?: string;
+					created_at?: string | null;
 					id?: number;
-					notes?: string | null;
+					type?: Database['public']['Enums']['group_type'];
+				};
+				Relationships: [];
+			};
+			pe_package_groups: {
+				Row: {
+					created_at: string | null;
+					group_id: number;
+					id: number;
+					package_id: number;
+				};
+				Insert: {
+					created_at?: string | null;
+					group_id: number;
+					id?: number;
+					package_id: number;
+				};
+				Update: {
+					created_at?: string | null;
+					group_id?: number;
+					id?: number;
 					package_id?: number;
-					purchase_date?: string | null;
-					status?: string | null;
-					trainee_id?: number;
 				};
 				Relationships: [
 					{
-						foreignKeyName: 'pe_package_trainees_package_id_fkey';
-						columns: ['package_id'];
+						foreignKeyName: 'pe_package_groups_group_id_fkey';
+						columns: ['group_id'];
 						isOneToOne: false;
-						referencedRelation: 'pe_packages';
+						referencedRelation: 'pe_groups';
 						referencedColumns: ['id'];
 					},
 					{
-						foreignKeyName: 'pe_package_trainees_trainee_id_fkey';
-						columns: ['trainee_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainees';
+						foreignKeyName: 'pe_package_groups_package_id_fkey';
+						columns: ['package_id'];
+						isOneToOne: true;
+						referencedRelation: 'pe_packages';
 						referencedColumns: ['id'];
 					}
 				];
@@ -228,6 +211,48 @@ export type Database = {
 				};
 				Relationships: [];
 			};
+			pe_trainee_groups: {
+				Row: {
+					created_at: string | null;
+					group_id: number;
+					id: number;
+					joined_at: string | null;
+					left_at: string | null;
+					trainee_id: number;
+				};
+				Insert: {
+					created_at?: string | null;
+					group_id: number;
+					id?: number;
+					joined_at?: string | null;
+					left_at?: string | null;
+					trainee_id: number;
+				};
+				Update: {
+					created_at?: string | null;
+					group_id?: number;
+					id?: number;
+					joined_at?: string | null;
+					left_at?: string | null;
+					trainee_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_trainee_groups_group_id_fkey';
+						columns: ['group_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_groups';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_trainee_groups_trainee_id_fkey';
+						columns: ['trainee_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainees';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			pe_trainees: {
 				Row: {
 					created_at: string | null;
@@ -284,6 +309,230 @@ export type Database = {
 			[_ in never]: never;
 		};
 		Functions: {
+			gbt_bit_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_bool_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_bool_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_bpchar_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_bytea_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_cash_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_cash_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_date_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_date_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_decompress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_enum_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_enum_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_float4_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_float4_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_float8_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_float8_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_inet_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int2_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int2_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int4_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int4_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int8_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_int8_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_intv_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_intv_decompress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_intv_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_macad_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_macad_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_macad8_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_macad8_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_numeric_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_oid_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_oid_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_text_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_time_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_time_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_timetz_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_ts_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_ts_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_tstz_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_uuid_compress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_uuid_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_var_decompress: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbt_var_fetch: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey_var_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey_var_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey16_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey16_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey2_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey2_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey32_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey32_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey4_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey4_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey8_in: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
+			gbtreekey8_out: {
+				Args: { '': unknown };
+				Returns: unknown;
+			};
 			get_coordinator_reschedule_count: {
 				Args: { user_id: string };
 				Returns: number;
@@ -303,6 +552,7 @@ export type Database = {
 				| 'friday'
 				| 'saturday'
 				| 'sunday';
+			group_type: 'individual' | 'fixed' | 'dynamic';
 		};
 		CompositeTypes: {
 			[_ in never]: never;
@@ -429,7 +679,8 @@ export const Constants = {
 	public: {
 		Enums: {
 			appointment_status: ['scheduled', 'completed', 'cancelled'],
-			day_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+			day_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+			group_type: ['individual', 'fixed', 'dynamic']
 		}
 	}
 } as const;

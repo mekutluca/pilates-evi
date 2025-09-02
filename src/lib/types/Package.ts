@@ -1,12 +1,15 @@
 import type { Tables } from '$lib/database.types';
+import type { GroupWithMembers } from './Group';
 
 // Basic database types
 export type Package = Tables<'pe_packages'>;
-export type PackageTrainee = Tables<'pe_package_trainees'>;
+export type PackageGroup = Tables<'pe_package_groups'>;
 
 // Package with relations (matches Supabase query with joins)
-export type PackageWithTrainees = Tables<'pe_packages'> & {
-	pe_package_trainees?: Tables<'pe_package_trainees'>[];
+export type PackageWithGroup = Tables<'pe_packages'> & {
+	pe_package_groups?: Array<{
+		pe_groups: GroupWithMembers;
+	}>;
 };
 
 // Form types for simplified package creation
