@@ -19,7 +19,7 @@ export interface CreatePackageForm {
 	weeks_duration: number;
 	lessons_per_week: number;
 	max_capacity: number;
-	trainee_type: 'fixed' | 'dynamic';
+	package_type: 'private' | 'group';
 	reschedulable: boolean;
 	reschedule_limit?: number;
 }

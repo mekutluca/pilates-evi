@@ -59,6 +59,13 @@
 	// Step 1 state
 	let selectedPackage = $derived(packages.find((p) => p.id === assignmentForm.package_id));
 
+	// Group packages by type (private first, then group)
+	const groupedPackages = $derived(() => {
+		const private_packages = packages.filter(pkg => pkg.package_type === 'private');
+		const group_packages = packages.filter(pkg => pkg.package_type === 'group');
+		return { private: private_packages, group: group_packages };
+	});
+
 	// Function to reload appointments based on current package and date selection
 	async function reloadAppointments() {
 		if (!selectedPackage || !assignmentForm.start_date) return;
@@ -226,8 +233,8 @@
 	async function handleFinalSubmit() {
 		if (!selectedPackage) return;
 
-		// For fixed packages, trainee selection is required
-		if (selectedPackage.trainee_type === 'fixed' && selectedTrainees.length === 0) {
+		// For private packages, trainee selection is required
+		if (selectedPackage.package_type === 'private' && selectedTrainees.length === 0) {
 			toast.error('En az bir öğrenci seçmelisiniz');
 			return;
 		}
@@ -283,9 +290,9 @@
 					selectedTimeSlots.length === selectedPackage.lessons_per_week
 				);
 			case 3:
-				// Trainee selection (or skip for dynamic packages)
+				// Trainee selection (or skip for group packages)
 				if (!selectedPackage) return false;
-				if (selectedPackage.trainee_type === 'dynamic') return true;
+				if (selectedPackage.package_type === 'group') return true;
 				return (
 					selectedTrainees.length > 0 && selectedTrainees.length <= selectedPackage.max_capacity
 				);
@@ -502,45 +509,94 @@
 						</h2>
 
 						<!-- Package Selection -->
-						<div class="space-y-4">
-							<h3 class="text-center font-medium">Hangi dersi atamak istiyorsunuz?</h3>
-							<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-								{#each packages as pkg (pkg.id)}
-									<label class="cursor-pointer">
-										<div
-											class="card border transition-all duration-200 hover:shadow-lg {assignmentForm.package_id ===
-											pkg.id
-												? 'border-accent bg-accent/10 shadow-lg'
-												: 'hover:border-accent/50'}"
-										>
-											<div class="card-body p-4">
-												<div class="flex items-start gap-3">
-													<input
-														type="radio"
-														class="radio mt-1 radio-sm radio-accent"
-														bind:group={assignmentForm.package_id}
-														value={pkg.id}
-													/>
-													<div class="flex-1">
-														<div class="font-medium">{pkg.name}</div>
-														<div class="mt-2 text-xs text-base-content/60">
-															<div>{pkg.lessons_per_week} ders/hafta</div>
-															<div>Max {pkg.max_capacity} kişi</div>
-															<div>
-																{#if pkg.weeks_duration}
-																	{pkg.weeks_duration} hafta
-																{:else}
-																	Süresiz
-																{/if}
+						<div class="space-y-6">
+							<!-- Private Packages -->
+							{#if groupedPackages().private.length > 0}
+								<div class="space-y-3">
+									<h4 class="font-medium text-base-content">Sabit Öğrencili Dersler</h4>
+									<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+										{#each groupedPackages().private as pkg (pkg.id)}
+											<label class="cursor-pointer">
+												<div
+													class="card border transition-all duration-200 hover:shadow-lg {assignmentForm.package_id ===
+													pkg.id
+														? 'border-accent bg-accent/10 shadow-lg'
+														: 'hover:border-accent/50'}"
+												>
+													<div class="card-body p-4">
+														<div class="flex items-start gap-3">
+															<input
+																type="radio"
+																class="radio mt-1 radio-sm radio-accent"
+																bind:group={assignmentForm.package_id}
+																value={pkg.id}
+															/>
+															<div class="flex-1">
+																<div class="font-medium">{pkg.name}</div>
+																<div class="mt-2 text-xs text-base-content/60">
+																	<div>{pkg.lessons_per_week} ders/hafta</div>
+																	<div>Max {pkg.max_capacity} kişi</div>
+																	<div>
+																		{#if pkg.weeks_duration}
+																			{pkg.weeks_duration} hafta
+																		{:else}
+																			Süresiz
+																		{/if}
+																	</div>
+																</div>
 															</div>
 														</div>
 													</div>
 												</div>
-											</div>
-										</div>
-									</label>
-								{/each}
-							</div>
+											</label>
+										{/each}
+									</div>
+								</div>
+							{/if}
+
+							<!-- Group Packages -->
+							{#if groupedPackages().group.length > 0}
+								<div class="space-y-3">
+									<h4 class="font-medium text-base-content">Grup Dersleri</h4>
+									<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+										{#each groupedPackages().group as pkg (pkg.id)}
+											<label class="cursor-pointer">
+												<div
+													class="card border transition-all duration-200 hover:shadow-lg {assignmentForm.package_id ===
+													pkg.id
+														? 'border-accent bg-accent/10 shadow-lg'
+														: 'hover:border-accent/50'}"
+												>
+													<div class="card-body p-4">
+														<div class="flex items-start gap-3">
+															<input
+																type="radio"
+																class="radio mt-1 radio-sm radio-accent"
+																bind:group={assignmentForm.package_id}
+																value={pkg.id}
+															/>
+															<div class="flex-1">
+																<div class="font-medium">{pkg.name}</div>
+																<div class="mt-2 text-xs text-base-content/60">
+																	<div>{pkg.lessons_per_week} ders/hafta</div>
+																	<div>Max {pkg.max_capacity} kişi</div>
+																	<div>
+																		{#if pkg.weeks_duration}
+																			{pkg.weeks_duration} hafta
+																		{:else}
+																			Süresiz
+																		{/if}
+																	</div>
+																</div>
+															</div>
+														</div>
+													</div>
+												</div>
+											</label>
+										{/each}
+									</div>
+								</div>
+							{/if}
 						</div>
 					</div>
 				{:else if currentStep === 2}
@@ -700,11 +756,11 @@
 							<div class="space-y-4">
 								<div class="alert alert-info">
 									<div class="text-sm">
-										{#if selectedPackage.trainee_type === 'dynamic'}
-											<strong>Dinamik Ders:</strong> Öğrenci seçimi isteğe bağlıdır. Daha sonra öğrenci
+										{#if selectedPackage.package_type === 'group'}
+											<strong>Grup Dersi:</strong> Öğrenci seçimi isteğe bağlıdır. Daha sonra öğrenci
 											ekleyip çıkarabilirsiniz.
 										{:else}
-											<strong>Sabit Ders:</strong> Bu ders sadece seçilen öğrenciler için olacaktır.
+											<strong>Özel Ders:</strong> Bu ders sadece seçilen öğrenciler için olacaktır.
 										{/if}
 									</div>
 								</div>

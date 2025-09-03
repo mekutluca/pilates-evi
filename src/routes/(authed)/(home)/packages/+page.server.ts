@@ -101,7 +101,7 @@ export const actions: Actions = {
 				weeks_duration: packageForm.weeks_duration,
 				lessons_per_week: packageForm.lessons_per_week,
 				max_capacity: packageForm.max_capacity,
-				trainee_type: packageForm.trainee_type,
+				package_type: packageForm.package_type,
 				reschedulable: packageForm.reschedulable,
 				reschedule_limit: packageForm.reschedule_limit || null,
 				created_by: user.id

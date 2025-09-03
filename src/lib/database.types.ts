@@ -155,9 +155,9 @@ export type Database = {
 					lessons_per_week: number;
 					max_capacity: number;
 					name: string;
+					package_type: string;
 					reschedulable: boolean | null;
 					reschedule_limit: number | null;
-					trainee_type: string;
 					updated_at: string;
 					weeks_duration: number | null;
 				};
@@ -172,7 +172,7 @@ export type Database = {
 					name: string;
 					reschedulable?: boolean | null;
 					reschedule_limit?: number | null;
-					trainee_type?: string;
+					package_type?: string;
 					updated_at?: string;
 					weeks_duration?: number | null;
 				};
@@ -187,7 +187,7 @@ export type Database = {
 					name?: string;
 					reschedulable?: boolean | null;
 					reschedule_limit?: number | null;
-					trainee_type?: string;
+					package_type?: string;
 					updated_at?: string;
 					weeks_duration?: number | null;
 				};

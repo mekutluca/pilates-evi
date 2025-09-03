@@ -32,7 +32,7 @@
 	let editWeeksDuration = $state(1);
 	let editLessonsPerWeek = $state(1);
 	let editMaxCapacity = $state(1);
-	let editTraineeType = $state<'fixed' | 'dynamic'>('fixed');
+	let editPackageType = $state<'private' | 'group'>('private');
 	let editReschedulable = $state(true);
 	let editRescheduleLimit = $state<number | null>(null);
 
@@ -61,11 +61,11 @@
 			}
 		},
 		{
-			key: 'trainee_type',
-			title: 'Öğrenci Türü',
+			key: 'package_type',
+			title: 'Ders Türü',
 			render: (pkg: PackageWithGroup) => {
-				const type = pkg.trainee_type === 'fixed' ? 'Sabit' : 'Dinamik';
-				const color = pkg.trainee_type === 'fixed' ? 'badge-info' : 'badge-warning';
+				const type = pkg.package_type === 'private' ? 'Özel' : 'Grup';
+				const color = pkg.package_type === 'private' ? 'badge-info' : 'badge-warning';
 				return `<div class="badge ${color} badge-sm">${type}</div>`;
 			}
 		},
@@ -93,7 +93,7 @@
 		editWeeksDuration = pkg.weeks_duration || 1;
 		editLessonsPerWeek = pkg.lessons_per_week || 1;
 		editMaxCapacity = pkg.max_capacity || 1;
-		editTraineeType = (pkg.trainee_type as 'fixed' | 'dynamic') || 'fixed';
+		editPackageType = (pkg.package_type as 'private' | 'group') || 'private';
 		editReschedulable = pkg.reschedulable ?? true;
 		editRescheduleLimit = pkg.reschedule_limit;
 		showEditModal = true;
@@ -108,7 +108,7 @@
 		editWeeksDuration = 1;
 		editLessonsPerWeek = 1;
 		editMaxCapacity = 1;
-		editTraineeType = 'fixed';
+		editPackageType = 'private';
 		editReschedulable = true;
 		editRescheduleLimit = null;
 	}
@@ -122,7 +122,7 @@
 		form.action = '?/editPackage';
 		form.style.display = 'none';
 
-		// Create form data (excluding non-editable fields: weeks_duration, lessons_per_week, trainee_type)
+		// Create form data (excluding non-editable fields: weeks_duration, lessons_per_week, package_type)
 		const formFields = [
 			{ name: 'packageId', value: selectedPackage.id.toString() },
 			{ name: 'name', value: editName },
@@ -436,9 +436,9 @@
 							id="edit-trainee-type"
 							type="text"
 							class="input-bordered input w-full"
-							value={editTraineeType === 'fixed'
-								? 'Sabit - Belirli öğrencilerle'
-								: 'Dinamik - Esnek öğrenci katılımı'}
+							value={editPackageType === 'private'
+								? 'Özel - Belirli öğrencilerle'
+								: 'Grup - Esnek öğrenci katılımı'}
 							disabled
 							readonly
 						/>

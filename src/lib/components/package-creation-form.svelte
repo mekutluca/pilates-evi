@@ -18,7 +18,7 @@
 	let weeks_duration = $state(4);
 	let lessons_per_week = $state(1);
 	let max_capacity = $state(12);
-	let trainee_type = $state<'fixed' | 'dynamic'>('fixed');
+	let package_type = $state<'private' | 'group'>('private');
 	let reschedulable = $state(false);
 	let reschedule_limit = $state<number | undefined>(undefined);
 
@@ -29,7 +29,7 @@
 		weeks_duration = 4;
 		lessons_per_week = 1;
 		max_capacity = 12;
-		trainee_type = 'fixed';
+		package_type = 'private';
 		reschedulable = false;
 		reschedule_limit = undefined;
 	}
@@ -57,7 +57,7 @@
 			weeks_duration,
 			lessons_per_week,
 			max_capacity,
-			trainee_type,
+			package_type,
 			reschedulable,
 			reschedule_limit: reschedulable ? reschedule_limit : undefined
 		});
@@ -71,7 +71,7 @@
 		name.trim().length > 0 &&
 			lessons_per_week > 0 &&
 			max_capacity > 0 &&
-			trainee_type !== undefined &&
+			package_type !== undefined &&
 			weeks_duration &&
 			weeks_duration > 0 &&
 			weeks_duration <= 52
@@ -205,8 +205,8 @@
 												<input
 													type="radio"
 													class="radio radio-sm radio-warning"
-													bind:group={trainee_type}
-													value="fixed"
+													bind:group={package_type}
+													value="private"
 												/>
 												<div class="flex-1">
 													<div class="text-sm font-medium">Sabit Liste</div>
@@ -226,8 +226,8 @@
 												<input
 													type="radio"
 													class="radio radio-sm radio-warning"
-													bind:group={trainee_type}
-													value="dynamic"
+													bind:group={package_type}
+													value="group"
 												/>
 												<div class="flex-1">
 													<div class="text-sm font-medium">Esnek Liste</div>
