@@ -33,7 +33,7 @@ export const allRoutes: Route[] = [
 	},
 	{
 		href: '/new-assignment',
-		label: 'Yeni Randevu',
+		label: 'Yeni Kayıt',
 		icon: Plus,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Genel'

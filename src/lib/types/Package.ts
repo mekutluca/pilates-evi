@@ -32,6 +32,7 @@ export interface PackageAssignmentForm {
 	start_date: string;
 	time_slots: SelectedTimeSlot[];
 	trainee_ids: number[];
+	group_id?: number; // Optional - used when adding to existing group
 }
 
 export interface SelectedTimeSlot {

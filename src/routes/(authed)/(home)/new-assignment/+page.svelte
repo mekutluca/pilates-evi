@@ -19,12 +19,13 @@
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDayOfWeekFromDate
+		getDayOfWeekFromDate,
+		TURKISH_DAYS
 	} from '$lib/utils/date-utils';
 	import WeeklyScheduleGrid from '$lib/components/weekly-schedule-grid.svelte';
 
 	let { data } = $props();
-	let { packages, appointments } = $derived(data);
+	let { packages, appointments, existingAppointmentSeries, existingGroupTrainees } = $derived(data);
 
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
@@ -33,7 +34,6 @@
 
 	// Wizard state
 	let currentStep = $state(1);
-	const totalSteps = 3;
 	let formLoading = $state(false);
 
 	// Get current week's Monday as default start date
@@ -53,16 +53,24 @@
 		trainee_ids: []
 	});
 
-	// Step titles
-	const stepTitles = ['Ders Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
+	// Step titles - dynamic based on package type
+	const stepTitles = $derived(() => {
+		if (selectedPackage?.package_type === 'group') {
+			return ['Ders Seçimi', 'Grup Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
+		}
+		return ['Ders Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
+	});
 
 	// Step 1 state
 	let selectedPackage = $derived(packages.find((p) => p.id === assignmentForm.package_id));
 
+	// Total steps can be 3 (private packages) or 4 (group packages with group selection)
+	const totalSteps = $derived(selectedPackage?.package_type === 'group' ? 4 : 3);
+
 	// Group packages by type (private first, then group)
 	const groupedPackages = $derived(() => {
-		const private_packages = packages.filter(pkg => pkg.package_type === 'private');
-		const group_packages = packages.filter(pkg => pkg.package_type === 'group');
+		const private_packages = packages.filter((pkg) => pkg.package_type === 'private');
+		const group_packages = packages.filter((pkg) => pkg.package_type === 'group');
 		return { private: private_packages, group: group_packages };
 	});
 
@@ -75,14 +83,28 @@
 		url.searchParams.set('start_date', assignmentForm.start_date);
 		url.searchParams.set('weeks_duration', (selectedPackage.weeks_duration || 52).toString());
 
+		// Include selected group ID if an existing group is selected
+		if (selectedGroupId) {
+			url.searchParams.set('selected_group_id', selectedGroupId.toString());
+		} else {
+			url.searchParams.delete('selected_group_id');
+		}
+
 		// Use goto to trigger a server-side reload with new parameters
 		await goto(url.toString(), { replaceState: true });
 	}
 
-	// Step 2 state
+	// Step 2 state (Group selection - only for group packages)
+	let selectedGroupId = $state<number | null>(null);
+	let createNewGroup = $state(false);
+
+	// Navigation flow tracking
+	let navigationPath = $state<number[]>([1]); // Track the actual path taken
+
+	// Step 2/3 state (Resource & Time - step number varies based on package type)
 	let selectedTimeSlots = $state<SelectedTimeSlot[]>([]);
 
-	// Step 3 state
+	// Step 3/4 state (Trainee selection - step number varies based on package type)
 	let selectedTrainees = $state<number[]>([]);
 	let traineeSearchTerm = $state('');
 
@@ -95,13 +117,16 @@
 	// Navigation functions
 	function nextStep() {
 		if (currentStep < totalSteps) {
-			currentStep++;
+			const newStep = currentStep + 1;
+			currentStep = newStep;
+			navigationPath.push(newStep);
 		}
 	}
 
 	function prevStep() {
-		if (currentStep > 1) {
-			currentStep--;
+		if (navigationPath.length > 1) {
+			navigationPath.pop(); // Remove current step
+			currentStep = navigationPath[navigationPath.length - 1]; // Go to previous step in path
 		}
 	}
 
@@ -201,13 +226,44 @@
 			toast.error('Ders seçimi gereklidir');
 			return;
 		}
-		nextStep();
-		// Reload appointments for the selected package
-		await reloadAppointments();
+
+		// If group package selected, go to group selection step
+		// If private package selected, skip group selection and go to resource/time step
+		if (selectedPackage?.package_type === 'group') {
+			// For group packages, reload appointments to get existing appointment series
+			await reloadAppointments();
+			nextStep(); // Go to step 2 (group selection)
+		} else {
+			// For private packages, go directly to step 2 (resource & time)
+			// But we need to adjust the step to skip the group selection
+			currentStep = 2;
+			navigationPath.push(2);
+			// Reload appointments for the selected package
+			await reloadAppointments();
+		}
 	}
 
-	// Step 2: Room, Trainer, and Time Slot Selection
-	function handleStep2Submit() {
+	// Step 2: Group Selection (only for group packages)
+	async function handleStep2Submit() {
+		// This is only called for group packages
+		if (!selectedPackage || selectedPackage.package_type !== 'group') return;
+
+		if (createNewGroup) {
+			// Creating new group - go to resource & time selection (step 3)
+			nextStep();
+			await reloadAppointments();
+		} else if (selectedGroupId) {
+			// Selected existing group - reload to get existing trainees and skip resource/time and go directly to trainee selection (step 4)
+			await reloadAppointments(); // Load existing trainees for the selected group
+			currentStep = 4;
+			navigationPath.push(4);
+		} else {
+			toast.error('Grup seçimi gereklidir');
+		}
+	}
+
+	// Step 2 (private packages) or Step 3 (group packages): Room, Trainer, and Time Slot Selection
+	function handleResourceTimeSubmit() {
 		if (!selectedPackage) return;
 
 		if (!assignmentForm.room_id || !assignmentForm.trainer_id) {
@@ -239,13 +295,19 @@
 			return;
 		}
 
-		// Check capacity
-		if (selectedTrainees.length > selectedPackage.max_capacity) {
-			toast.error(`Maksimum ${selectedPackage.max_capacity} öğrenci seçilebilir`);
+		// Check capacity (account for existing group members)
+		const availableCapacity = getAvailableCapacity();
+		if (selectedTrainees.length > availableCapacity) {
+			toast.error(`Maksimum ${availableCapacity} öğrenci seçilebilir`);
 			return;
 		}
 
 		assignmentForm.trainee_ids = selectedTrainees;
+
+		// Set group_id if an existing group was selected
+		if (selectedGroupId) {
+			assignmentForm.group_id = selectedGroupId;
+		}
 
 		// Submit the assignment via fetch
 		formLoading = true;
@@ -262,13 +324,14 @@
 			const result = await response.json();
 
 			if (result.type === 'success') {
-				toast.success('Randevular başarıyla oluşturuldu');
+				toast.success('Kayıt tamamlandı');
 				goto('/schedule');
 			} else {
 				toast.error(result.data?.message || 'Bir hata oluştu');
 			}
-		} catch {
-			toast.error('Bir hata oluştu');
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
+			toast.error(`Bir hata oluştu: ${errorMessage}`);
 		} finally {
 			formLoading = false;
 		}
@@ -276,26 +339,46 @@
 
 	// Validation for current step
 	const canProceed = $derived(() => {
+		const isGroupPackage = selectedPackage?.package_type === 'group';
+
 		switch (currentStep) {
 			case 1:
 				// Only package selection required in step 1
 				return assignmentForm.package_id > 0;
 			case 2:
-				// Room, trainer, start date, and time slot selection required in step 2
-				return (
-					selectedPackage &&
-					assignmentForm.room_id > 0 &&
-					assignmentForm.trainer_id > 0 &&
-					assignmentForm.start_date !== '' &&
-					selectedTimeSlots.length === selectedPackage.lessons_per_week
-				);
+				if (isGroupPackage) {
+					// Group selection step - either create new or select existing
+					return createNewGroup || selectedGroupId !== null;
+				} else {
+					// Resource & time selection for private packages
+					return (
+						selectedPackage &&
+						assignmentForm.room_id > 0 &&
+						assignmentForm.trainer_id > 0 &&
+						assignmentForm.start_date !== '' &&
+						selectedTimeSlots.length === selectedPackage.lessons_per_week
+					);
+				}
 			case 3:
-				// Trainee selection (or skip for group packages)
-				if (!selectedPackage) return false;
-				if (selectedPackage.package_type === 'group') return true;
-				return (
-					selectedTrainees.length > 0 && selectedTrainees.length <= selectedPackage.max_capacity
-				);
+				if (isGroupPackage) {
+					// Resource & time selection for group packages (when creating new group)
+					return (
+						selectedPackage &&
+						assignmentForm.room_id > 0 &&
+						assignmentForm.trainer_id > 0 &&
+						assignmentForm.start_date !== '' &&
+						selectedTimeSlots.length === selectedPackage.lessons_per_week
+					);
+				} else {
+					// Trainee selection for private packages
+					const availableCapacity = getAvailableCapacity();
+					return selectedTrainees.length > 0 && selectedTrainees.length <= availableCapacity;
+				}
+			case 4:
+				// Trainee selection for group packages
+				if (!isGroupPackage) return false;
+				const availableCapacity = getAvailableCapacity();
+				return selectedTrainees.length > 0 && selectedTrainees.length <= availableCapacity;
 			default:
 				return false;
 		}
@@ -426,16 +509,39 @@
 
 	// Trainee selection for step 3
 	function toggleTrainee(traineeId: number) {
+		// Don't allow toggling existing group trainees
+		if (existingGroupTrainees && existingGroupTrainees.includes(traineeId)) {
+			toast.info('Bu öğrenci zaten grubun üyesi');
+			return;
+		}
+
 		const index = selectedTrainees.indexOf(traineeId);
+		const availableCapacity = getAvailableCapacity();
+
 		if (index === -1) {
-			if (selectedPackage && selectedTrainees.length < selectedPackage.max_capacity) {
+			if (selectedPackage && selectedTrainees.length < availableCapacity) {
 				selectedTrainees.push(traineeId);
 			} else {
-				toast.warning(`Maksimum ${selectedPackage?.max_capacity} öğrenci seçilebilir`);
+				toast.warning(`Maksimum ${availableCapacity} öğrenci seçilebilir`);
 			}
 		} else {
 			selectedTrainees.splice(index, 1);
 		}
+	}
+
+	// Check if a trainee is already in the existing group
+	function isTraineeInExistingGroup(traineeId: number): boolean {
+		return existingGroupTrainees && existingGroupTrainees.includes(traineeId);
+	}
+
+	// Helper to get existing group trainee count
+	function getExistingTraineeCount(): number {
+		return existingGroupTrainees ? existingGroupTrainees.length : 0;
+	}
+
+	// Helper to get available capacity for new trainees
+	function getAvailableCapacity(): number {
+		return selectedPackage ? selectedPackage.max_capacity - getExistingTraineeCount() : 0;
 	}
 </script>
 
@@ -444,8 +550,8 @@
 		<!-- Header -->
 		<div class="mb-6">
 			<h1 class="flex items-center gap-2 text-2xl font-bold">
-				<Plus class="h-6 w-6 text-accent" />
-				Yeni Randevu Atama
+				<Plus class="h-6 w-6 text-base-content" />
+				Yeni Kayıt
 			</h1>
 			<p class="mt-1 text-sm text-base-content/60">
 				Ders seçin, zaman dilimlerini belirleyin ve öğrencileri atayın
@@ -455,12 +561,9 @@
 		<!-- Progress Bar -->
 		<div class="card mb-6 bg-base-100 shadow-sm">
 			<div class="card-body p-4">
-				<div class="mb-4 flex items-center justify-between">
+				<div class="mb-4">
 					<div class="text-sm text-base-content/60">
 						Adım {currentStep} / {totalSteps}
-					</div>
-					<div class="text-sm text-base-content/60">
-						{Math.round(progress)}% tamamlandı
 					</div>
 				</div>
 
@@ -474,7 +577,7 @@
 
 				<!-- Step indicators -->
 				<div class="mt-4 flex flex-wrap justify-center gap-2 sm:justify-between">
-					{#each stepTitles as title, index (index)}
+					{#each stepTitles() as title, index (index)}
 						<div
 							class="badge flex items-center gap-1 px-3 py-2 text-xs"
 							class:badge-accent={currentStep === index + 1}
@@ -513,7 +616,7 @@
 							<!-- Private Packages -->
 							{#if groupedPackages().private.length > 0}
 								<div class="space-y-3">
-									<h4 class="font-medium text-base-content">Sabit Öğrencili Dersler</h4>
+									<h4 class="font-medium text-base-content">Özel Dersler</h4>
 									<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 										{#each groupedPackages().private as pkg (pkg.id)}
 											<label class="cursor-pointer">
@@ -599,7 +702,149 @@
 							{/if}
 						</div>
 					</div>
-				{:else if currentStep === 2}
+				{:else if currentStep === 2 && selectedPackage?.package_type === 'group'}
+					<!-- Step 2: Group Selection (only for group packages) -->
+					<div class="space-y-6">
+						<h2 class="flex items-center gap-2 text-xl font-semibold">
+							<Users class="h-5 w-5 text-accent" />
+							Grup Seçimi
+						</h2>
+
+						<div class="space-y-4">
+							<!-- Create New Group Option -->
+							<label class="cursor-pointer">
+								<div
+									class="card border transition-all duration-200 hover:shadow-lg {createNewGroup
+										? 'border-accent bg-accent/10 shadow-lg'
+										: 'hover:border-accent/50'}"
+								>
+									<div class="card-body p-4">
+										<div class="flex items-start gap-3">
+											<input
+												type="radio"
+												class="radio mt-1 radio-sm radio-accent"
+												checked={createNewGroup}
+												onchange={async () => {
+													createNewGroup = true;
+													selectedGroupId = null;
+													// Clear existing group trainees data
+													await reloadAppointments();
+												}}
+											/>
+											<div class="flex-1">
+												<div class="font-medium">Yeni Grup Oluştur</div>
+												<div class="mt-1 text-xs text-base-content/60">
+													Bu ders için yeni bir grup oluşturun ve öğrencileri seçin
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</label>
+
+							<!-- Existing Appointment Series -->
+							{#if existingAppointmentSeries && existingAppointmentSeries.length > 0 && selectedPackage}
+								{@const packageSeries = existingAppointmentSeries.filter(
+									(series) => series.package_id === selectedPackage.id
+								)}
+								<div class="space-y-3 pt-4">
+									<h4 class="font-medium text-base-content">Mevcut Ders Grupları</h4>
+									{#if packageSeries.length > 0}
+										<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+											{#each packageSeries as group (group.group_id)}
+												<label class="cursor-pointer">
+													<div
+														class="card border-2 transition-all duration-200 hover:shadow-lg {selectedGroupId ===
+														group.group_id
+															? 'border-accent bg-accent/5 shadow-lg ring-2 ring-accent/20'
+															: 'border-base-300 hover:border-accent/50 hover:shadow-md'}"
+													>
+														<div class="card-body p-4">
+															<div class="flex items-start gap-3">
+																<input
+																	type="radio"
+																	class="radio mt-1 radio-accent"
+																	checked={selectedGroupId === group.group_id}
+																	onchange={async () => {
+																		selectedGroupId = group.group_id;
+																		createNewGroup = false;
+																		// Reload to get existing trainees for this group
+																		await reloadAppointments();
+																	}}
+																/>
+																<div class="flex-1 space-y-3">
+																	<!-- Location & Trainer Info -->
+																	<div class="flex flex-wrap gap-4 text-sm">
+																		<div class="flex items-center gap-1.5">
+																			<span class="text-base-content/70">Oda:</span>
+																			<span class="font-medium">{group.room_name}</span>
+																		</div>
+																		<div class="flex items-center gap-1.5">
+																			<span class="text-base-content/70">Eğitmen:</span>
+																			<span class="font-medium">{group.trainer_name}</span>
+																		</div>
+																	</div>
+
+																	<!-- Schedule Information -->
+																	<div class="space-y-2">
+																		<div class="text-sm">
+																			<span class="text-base-content/70">Ders Saatleri:</span>
+																		</div>
+																		<div class="flex flex-wrap gap-2">
+																			{#each group.day_time_combinations || [] as combo}
+																				{@const dayName = TURKISH_DAYS[combo.day]}
+																				{#each combo.hours as hour}
+																					<span class="badge badge-sm px-2 py-1 badge-secondary">
+																						{dayName}
+																						{hour}:00
+																					</span>
+																				{/each}
+																			{/each}
+																		</div>
+																	</div>
+
+																	<!-- Capacity Information -->
+																	<div
+																		class="flex items-center justify-between border-t border-base-200 pt-2"
+																	>
+																		<div class="flex items-center gap-2">
+																			<span class="text-sm text-base-content/70">Kapasite:</span>
+																		</div>
+																		<div class="flex items-center gap-2">
+																			<span class="text-sm font-semibold text-success">
+																				{group.current_capacity}
+																			</span>
+																			<span class="text-xs text-base-content/50">/</span>
+																			<span class="text-sm text-base-content/70">
+																				{group.max_capacity}
+																			</span>
+																			<span class="text-xs text-base-content/50">öğrenci</span>
+																		</div>
+																	</div>
+																</div>
+															</div>
+														</div>
+													</div>
+												</label>
+											{/each}
+										</div>
+									{:else}
+										<div class="text-sm text-base-content/60">
+											Bu ders için henüz mevcut randevu serisi bulunmuyor.
+										</div>
+									{/if}
+								</div>
+							{:else}
+								<div class="space-y-3 pt-4">
+									<h4 class="font-medium text-base-content">Mevcut Ders Grupları</h4>
+									<div class="text-sm text-base-content/60">
+										Bu ders için henüz mevcut randevu serisi bulunmuyor.
+									</div>
+								</div>
+							{/if}
+						</div>
+					</div>
+				{:else if (currentStep === 2 && selectedPackage?.package_type === 'private') || (currentStep === 3 && selectedPackage?.package_type === 'group')}
 					<!-- Step 2: Room/Trainer Selection & Time Slot Planning -->
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
@@ -737,7 +982,7 @@
 							</div>
 						{/if}
 					</div>
-				{:else if currentStep === 3}
+				{:else if (currentStep === 3 && selectedPackage?.package_type === 'private') || (currentStep === 4 && selectedPackage?.package_type === 'group')}
 					<!-- Step 3: Trainee Selection -->
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
@@ -747,24 +992,13 @@
 							</h2>
 							{#if selectedPackage}
 								<div class="text-sm text-base-content/60">
-									{selectedTrainees.length} / {selectedPackage.max_capacity} seçildi
+									{selectedTrainees.length} / {getAvailableCapacity()} seçildi
 								</div>
 							{/if}
 						</div>
 
 						{#if selectedPackage}
 							<div class="space-y-4">
-								<div class="alert alert-info">
-									<div class="text-sm">
-										{#if selectedPackage.package_type === 'group'}
-											<strong>Grup Dersi:</strong> Öğrenci seçimi isteğe bağlıdır. Daha sonra öğrenci
-											ekleyip çıkarabilirsiniz.
-										{:else}
-											<strong>Özel Ders:</strong> Bu ders sadece seçilen öğrenciler için olacaktır.
-										{/if}
-									</div>
-								</div>
-
 								<!-- Search Input -->
 								<div class="form-control max-w-sm">
 									<label class="label" for="trainee-search">
@@ -782,24 +1016,43 @@
 								<!-- Trainee List -->
 								<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
 									{#each filteredTrainees as trainee (trainee.id)}
-										<label class="cursor-pointer">
+										{@const isExisting = isTraineeInExistingGroup(trainee.id)}
+										{@const isSelected = selectedTrainees.includes(trainee.id)}
+										<label class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}">
 											<div
-												class="hover:bg-base-50 card border transition-colors {selectedTrainees.includes(
-													trainee.id
-												)
-													? 'border-success bg-success/5'
-													: ''}"
+												class="card border transition-colors {isExisting
+													? 'border-base-300 bg-base-100 opacity-60'
+													: isSelected
+														? 'border-success bg-success/5 hover:bg-success/10'
+														: 'hover:bg-base-50'}"
 											>
 												<div class="card-body p-4">
 													<div class="flex items-center">
-														<input
-															type="checkbox"
-															class="checkbox checkbox-sm checkbox-success"
-															checked={selectedTrainees.includes(trainee.id)}
-															onchange={() => toggleTrainee(trainee.id)}
-														/>
+														{#if isExisting}
+															<!-- Existing group member - non-interactive -->
+															<div class="flex h-5 w-5 items-center justify-center">
+																<Check class="h-3 w-3 text-base-content/40" />
+															</div>
+														{:else}
+															<!-- Regular checkbox for selectable trainees -->
+															<input
+																type="checkbox"
+																class="checkbox checkbox-sm checkbox-success"
+																checked={isSelected}
+																onchange={() => toggleTrainee(trainee.id)}
+															/>
+														{/if}
 														<div class="ml-3 flex-1">
-															<div class="text-sm font-medium">{trainee.name}</div>
+															<div
+																class="text-sm font-medium {isExisting
+																	? 'text-base-content/60'
+																	: ''}"
+															>
+																{trainee.name}
+																{#if isExisting}
+																	<span class="ml-2 badge badge-xs badge-neutral">Mevcut Üye</span>
+																{/if}
+															</div>
 															{#if trainee.phone}
 																<div class="text-xs text-base-content/60">{trainee.phone}</div>
 															{/if}
@@ -836,7 +1089,18 @@
 							<button
 								class="btn btn-accent"
 								disabled={!canProceed()}
-								onclick={currentStep === 1 ? handleStep1Submit : handleStep2Submit}
+								onclick={() => {
+									if (currentStep === 1) {
+										handleStep1Submit();
+									} else if (currentStep === 2 && selectedPackage?.package_type === 'group') {
+										handleStep2Submit();
+									} else if (
+										(currentStep === 2 && selectedPackage?.package_type === 'private') ||
+										(currentStep === 3 && selectedPackage?.package_type === 'group')
+									) {
+										handleResourceTimeSubmit();
+									}
+								}}
 							>
 								Sonraki
 								<ArrowRight class="h-4 w-4" />
@@ -844,7 +1108,7 @@
 						{:else}
 							<button class="btn btn-accent" disabled={!canProceed()} onclick={handleFinalSubmit}>
 								<Check class="h-4 w-4" />
-								Randevuları Oluştur
+								Kaydı Tamamla
 							</button>
 						{/if}
 					</div>

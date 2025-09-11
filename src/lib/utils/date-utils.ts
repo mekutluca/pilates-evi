@@ -1,3 +1,17 @@
+// Constants
+/**
+ * Turkish day names indexed by JavaScript Date.getDay() (0=Sunday, 1=Monday, etc.)
+ */
+export const TURKISH_DAYS = [
+	'Pazar',
+	'Pazartesi', 
+	'Salı',
+	'Çarşamba',
+	'Perşembe',
+	'Cuma',
+	'Cumartesi'
+] as const;
+
 /**
  * Gets the start of the week (Monday) for a given date
  * @param date - The date to get the week start for

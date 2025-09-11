@@ -87,6 +87,49 @@ export interface CreateAppointmentForm {
 	notes?: string;
 }
 
+// Type for existing appointment series used in group selection
+export interface ExistingAppointmentSeries {
+	package_id: number;
+	group_id: number;
+	room_name: string;
+	trainer_name: string;
+	current_capacity: number;
+	max_capacity: number;
+	day_time_combinations: {
+		day: number;
+		hours: number[];
+	}[];
+}
+
+// Server-side query result types
+export interface TraineeGroupData {
+	pe_trainees: { id: number };
+	left_at: string | null;
+}
+
+export interface AppointmentSeriesData {
+	group_id: number;
+	package_id?: number;
+	appointment_date: string;
+	hour: number;
+	pe_groups?: {
+		pe_trainee_groups?: TraineeGroupData[];
+	} | null;
+	pe_rooms?: { name: string } | null;
+	pe_trainers?: { name: string } | null;
+	pe_packages?: { max_capacity: number } | null;
+}
+
+export interface ProcessedGroupData {
+	package_id: number;
+	group_id: number;
+	room_name?: string;
+	trainer_name?: string;
+	current_capacity: number;
+	max_capacity: number;
+	day_time_slots: Map<number, Set<number>>;
+}
+
 // Constants
 export const DAYS_OF_WEEK: DayOfWeek[] = [
 	'monday',
