@@ -1,1 +1,2 @@
-export type Role = 'admin' | 'coordinator' | 'trainer' | 'trainee';
+// Re-export from consolidated types
+export type { Role } from './index';

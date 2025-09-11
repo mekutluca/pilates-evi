@@ -181,6 +181,7 @@
 											{@const Component = column.renderComponent}
 											<Component {item} {index} />
 										{:else if column.render}
+											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 											{@html getColumnValue(item, column, index)}
 										{:else}
 											{getColumnValue(item, column, index)}

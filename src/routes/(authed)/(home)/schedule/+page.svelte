@@ -13,6 +13,7 @@
 		ScheduleGrid,
 		DayOfWeek,
 		AppointmentWithDetails,
+		TraineeGroupRelation,
 		AppointmentWithRelations
 	} from '$lib/types/Schedule';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
@@ -133,13 +134,13 @@
 		appointment: AppointmentWithRelations,
 		roomName?: string | null,
 		trainerName?: string | null
-	): AppointmentWithDetails {
+	) {
 		return {
 			// Database fields - use direct values from Appointment
 			id: appointment.id,
 			room_id: appointment.room_id,
 			trainer_id: appointment.trainer_id,
-			package_id: appointment.package_id!,
+			package_group_id: appointment.package_group_id!,
 			hour: appointment.hour,
 			status: appointment.status || 'scheduled',
 			appointment_date: appointment.appointment_date,
@@ -153,13 +154,16 @@
 			// Extended fields using relation data
 			room_name: roomName || appointment.pe_rooms?.name || '',
 			trainer_name: trainerName || appointment.pe_trainers?.name || '',
-			package_name: appointment.pe_packages?.name || '',
+			package_name: appointment.pe_package_groups?.pe_packages?.name || '',
 			trainee_names:
-				appointment.pe_groups?.pe_trainee_groups
-					?.filter((tg) => !tg.left_at) // Only active members
-					?.map((tg) => tg.pe_trainees.name) || [],
+				appointment.pe_package_groups?.pe_groups?.pe_trainee_groups
+					?.filter((tg: TraineeGroupRelation) => !tg.left_at) // Only active members
+					?.map((tg: TraineeGroupRelation) => tg.pe_trainees.name) || [],
 			trainee_count:
-				appointment.pe_groups?.pe_trainee_groups?.filter((tg) => !tg.left_at)?.length || 0
+				appointment.pe_package_groups?.pe_groups?.pe_trainee_groups?.filter(
+					(tg: TraineeGroupRelation) => !tg.left_at
+				)?.length || 0,
+			reschedule_left: appointment.pe_package_groups?.reschedule_left ?? 0
 		};
 	}
 
@@ -232,23 +236,16 @@
 		return false;
 	}
 
-	// Check if an appointment can be rescheduled based on user role and package settings
+	// Check if an appointment can be rescheduled based on user role and reschedule limits
 	function canRescheduleAppointment(appointment: AppointmentWithDetails): boolean {
-		// First check if appointment is in the past - no one can reschedule past appointments
+		// Rule 1: Past appointments are never reschedulable
 		if (isAppointmentInPast(appointment)) {
 			return false;
 		}
 
-		// Check if the package allows rescheduling
-		if (!appointment.package_id) {
-			return false; // Legacy appointments without packages cannot be rescheduled
-		}
-
-		// Check if the package is reschedulable (data comes from server)
-		// The pe_packages data is loaded in the appointment query
-		const packageData = (appointment as AppointmentWithRelations).pe_packages;
-		if (packageData && packageData.reschedulable === false) {
-			return false; // Package doesn't allow rescheduling
+		// Check if the package group has reschedules remaining
+		if (!appointment.package_group_id || (appointment.reschedule_left ?? 0) <= 0) {
+			return false; // No reschedules left
 		}
 
 		// Calculate time until appointment
@@ -265,12 +262,12 @@
 
 		const hoursUntil = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-		// Admin can reschedule until the appointment starts (but not after)
+		// Rule 3: Admin can reschedule any future appointment if reschedules are available
 		if (data.userRole === 'admin') {
 			return hoursUntil > 0;
 		}
 
-		// Coordinator can only reschedule if there are 23+ hours until the appointment
+		// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
 		if (data.userRole === 'coordinator') {
 			return hoursUntil >= 23;
 		}
@@ -563,9 +560,11 @@
 															selectedAppointment &&
 															slot.appointment.id === selectedAppointment.id}
 														<button
-															class="min-h-12 w-full cursor-pointer rounded p-2 text-xs transition-colors hover:opacity-80 {isBeingRescheduled
+															class="min-h-12 w-full rounded p-2 text-xs transition-colors {isBeingRescheduled
 																? 'border-2 border-dashed border-warning bg-warning/20 text-warning-content'
-																: ''}"
+																: ''} {rescheduleMode
+																? 'cursor-default'
+																: 'cursor-pointer hover:opacity-80'}"
 															class:bg-primary={viewMode === 'room' && !isBeingRescheduled}
 															class:text-primary-content={viewMode === 'room' &&
 																!isBeingRescheduled}
@@ -573,7 +572,9 @@
 															class:text-info-content={viewMode === 'trainer' &&
 																!isBeingRescheduled}
 															onclick={() =>
-																slot.appointment && openAppointmentDetails(slot.appointment)}
+																slot.appointment &&
+																!rescheduleMode &&
+																openAppointmentDetails(slot.appointment)}
 														>
 															<div class="truncate font-semibold">
 																{#if viewMode === 'room'}
@@ -604,7 +605,7 @@
 																	class="group flex min-h-12 w-full cursor-pointer items-center justify-center rounded bg-success/20 p-2 transition-colors hover:bg-success/30"
 																	onclick={() => handleRescheduleSlotClick(entityId, day, hour)}
 																>
-																	<span class="text-xs text-success group-hover:hidden">Seç</span>
+																	<span class="text-xs text-success">Seç</span>
 																	<!-- Plus button removed - use /new-assignment for appointment creation -->
 																</button>
 															{:else if isRescheduleRestricted}
@@ -734,7 +735,7 @@
 					class="btn btn-warning"
 					onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
 				>
-					Ertele
+					Ertele ({selectedAppointment.reschedule_left} kaldı)
 				</button>
 			{/if}
 			<button
@@ -765,22 +766,13 @@
 		<h3 class="mb-4 text-lg font-bold">Randevuyu Ertele</h3>
 
 		{#if selectedAppointment && selectedRescheduleSlot}
-			{@const newRoomName = rooms.find((r) => r.id === selectedRescheduleSlot?.roomId)?.name}
-
 			<div class="space-y-4">
-				<!-- Current appointment info -->
+				<!-- Appointment details (shared info) -->
 				<div class="rounded bg-base-200 p-4">
-					<h4 class="mb-2 text-sm font-semibold">Mevcut Randevu</h4>
+					<h4 class="mb-3 text-sm font-semibold">Randevu Bilgileri</h4>
 					<div class="grid grid-cols-2 gap-2 text-sm">
 						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
 						<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
-						<div>
-							<strong>Gün:</strong>
-							{selectedAppointment.appointment_date
-								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek]
-								: '-'}
-						</div>
-						<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
 					</div>
 
 					{#if selectedAppointment.package_name}
@@ -806,37 +798,69 @@
 					{/if}
 				</div>
 
-				<!-- New appointment info -->
-				<div class="rounded bg-success/10 p-4">
-					<h4 class="mb-2 text-sm font-semibold text-success">Yeni Randevu</h4>
-					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><strong>Oda:</strong> {newRoomName}</div>
-						<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
-						<div><strong>Gün:</strong> {DAY_NAMES[selectedRescheduleSlot.day]}</div>
-						<div><strong>Saat:</strong> {getTimeRangeString(selectedRescheduleSlot.hour)}</div>
-					</div>
+				<!-- Date and time change -->
+				<div class="rounded bg-warning/10 p-4">
+					<h4 class="mb-3 text-sm font-semibold text-warning">Tarih ve Saat Değişikliği</h4>
+					<div class="flex items-center justify-center gap-3 text-sm">
+						<div class="text-center">
+							<div class="font-medium text-base-content/70">Mevcut</div>
+							<div class="mt-1">
+								{#if selectedAppointment.appointment_date}
+									{@const currentDate = new Date(selectedAppointment.appointment_date)}
+									<div class="text-xs text-base-content/60">
+										{formatDayMonth(currentDate)}
+									</div>
+									<div class="font-semibold">
+										{DAY_NAMES[
+											getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
+										]}
+									</div>
+								{:else}
+									<div class="font-semibold">-</div>
+								{/if}
+								<div class="text-xs text-base-content/70">
+									{getTimeRangeString(selectedAppointment.hour)}
+								</div>
+							</div>
+						</div>
 
-					{#if selectedAppointment.package_name}
-						<div class="mt-2 text-sm">
-							<strong>Ders:</strong>
-							<span class="ml-1 badge badge-sm badge-secondary"
-								>{selectedAppointment.package_name}</span
+						<div class="flex-shrink-0">
+							<svg
+								class="h-6 w-6 text-warning"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
 							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M13 7l5 5-5 5M6 12h12"
+								></path>
+							</svg>
 						</div>
-					{/if}
 
-					{#if selectedAppointment.trainee_names && selectedAppointment.trainee_names.length > 0}
-						<div class="mt-2">
-							<div class="mb-1 text-sm font-semibold">
-								Öğrenciler ({selectedAppointment.trainee_count}):
-							</div>
-							<div class="flex flex-wrap gap-1">
-								{#each selectedAppointment.trainee_names as traineeName (traineeName)}
-									<span class="badge badge-xs badge-success">{traineeName}</span>
-								{/each}
+						<div class="text-center">
+							<div class="font-medium text-base-content/70">Yeni</div>
+							<div class="mt-1">
+								{#if selectedRescheduleSlot}
+									{@const newDate = getDateForDayOfWeek(
+										currentWeekStart(),
+										selectedRescheduleSlot.day
+									)}
+									<div class="text-xs text-base-content/60">
+										{formatDayMonth(newDate)}
+									</div>
+									<div class="font-semibold">
+										{DAY_NAMES[selectedRescheduleSlot.day]}
+									</div>
+									<div class="text-xs text-base-content/70">
+										{getTimeRangeString(selectedRescheduleSlot.hour)}
+									</div>
+								{/if}
 							</div>
 						</div>
-					{/if}
+					</div>
 				</div>
 
 				<form

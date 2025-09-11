@@ -21,24 +21,30 @@ function processAppointmentSeries(
 	const groupMap = new Map<string | number, ProcessedGroupData>();
 
 	seriesData?.forEach((appointment) => {
-		const key = packageId
-			? appointment.group_id
-			: `${appointment.group_id}-${appointment.package_id}`;
+		const packageGroupId = appointment.package_group_id;
+		const groupId = appointment.pe_package_groups?.pe_groups?.id;
+		const packageIdFromData = appointment.pe_package_groups?.pe_packages?.id;
+
+		if (!groupId) return; // Skip if no group ID
+
+		const key = packageId ? groupId : `${groupId}-${packageIdFromData}`;
 
 		if (!groupMap.has(key)) {
 			// Calculate current capacity (active trainees)
 			const activeTrainees =
-				appointment.pe_groups?.pe_trainee_groups?.filter((tg: TraineeGroupData) => !tg.left_at) ||
-				[];
+				appointment.pe_package_groups?.pe_groups?.pe_trainee_groups?.filter(
+					(tg: TraineeGroupData) => !tg.left_at
+				) || [];
 			const currentCapacity = activeTrainees.length;
 
 			groupMap.set(key, {
-				package_id: packageId ? parseInt(packageId) : appointment.package_id!,
-				group_id: appointment.group_id,
+				package_group_id: packageGroupId,
+				package_id: packageId ? parseInt(packageId) : packageIdFromData!,
+				group_id: groupId!,
 				room_name: appointment.pe_rooms?.name,
 				trainer_name: appointment.pe_trainers?.name,
 				current_capacity: currentCapacity,
-				max_capacity: appointment.pe_packages?.max_capacity || 0,
+				max_capacity: appointment.pe_package_groups?.pe_packages?.max_capacity || 0,
 				day_time_slots: new Map<number, Set<number>>()
 			});
 		}
@@ -63,6 +69,7 @@ function processAppointmentSeries(
 			});
 		}
 		return {
+			package_group_id: group.package_group_id,
 			package_id: group.package_id,
 			group_id: group.group_id,
 			room_name: group.room_name || 'Belirtilmemiş',
@@ -78,11 +85,14 @@ function processAppointmentSeries(
 function getAppointmentSeriesQuery(): string {
 	return `
 		series_id,
-		group_id,
-		pe_groups!inner(id, type, pe_trainee_groups(pe_trainees(id), left_at)),
+		package_group_id,
+		pe_package_groups!inner(
+			id,
+			pe_packages!inner(id, name, max_capacity),
+			pe_groups!inner(id, type, pe_trainee_groups(pe_trainees(id), left_at))
+		),
 		pe_rooms!inner(id, name),
 		pe_trainers!inner(id, name),
-		pe_packages!inner(id, name, max_capacity),
 		hour,
 		appointment_date,
 		session_number,
@@ -96,7 +106,10 @@ function getBasicAppointmentQuery(): string {
 		*,
 		pe_rooms!inner(id, name),
 		pe_trainers!inner(id, name),
-		pe_packages!inner(id, name)
+		pe_package_groups!inner(
+			id,
+			pe_packages!inner(id, name)
+		)
 	`;
 }
 
@@ -150,7 +163,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		const { data: seriesData, error: seriesError } = await supabase
 			.from('pe_appointments')
 			.select(getAppointmentSeriesQuery())
-			.eq('package_id', packageId)
+			.eq('pe_package_groups.pe_packages.id', packageId)
 			.eq('status', 'scheduled')
 			.gte('appointment_date', new Date().toISOString().split('T')[0]) // Only future appointments
 			.order('appointment_date');
@@ -192,8 +205,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 			const { data: seriesData, error: seriesError } = await supabase
 				.from('pe_appointments')
-				.select(`package_id, ${getAppointmentSeriesQuery()}`)
-				.in('package_id', groupPackageIds)
+				.select(getAppointmentSeriesQuery())
+				.not('package_group_id', 'is', null)
 				.eq('status', 'scheduled')
 				.gte('appointment_date', new Date().toISOString().split('T')[0]) // Only future appointments
 				.order('appointment_date');
@@ -202,8 +215,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 				throw error(500, 'Mevcut randevu serileri yüklenirken hata: ' + seriesError.message);
 			}
 
-			// Process appointment series for all group packages
-			existingAppointmentSeries = processAppointmentSeries(seriesData);
+			// Filter series data to only include group packages and process
+			const filteredSeriesData =
+				seriesData?.filter((appointment) => {
+					const packageId = appointment.pe_package_groups?.pe_packages?.id;
+					return packageId && groupPackageIds.includes(packageId);
+				}) || [];
+
+			existingAppointmentSeries = processAppointmentSeries(filteredSeriesData);
 		}
 	}
 
@@ -453,12 +472,35 @@ export const actions: Actions = {
 				shouldCreatePackageGroup = true;
 			}
 
-			// Create package-group relationship when needed
+			// Get or create package-group relationship
+			let packageGroupId: number;
+
 			if (shouldCreatePackageGroup && groupResult) {
-				const { error: packageGroupError } = await supabase.from('pe_package_groups').insert({
-					package_id: assignmentForm.package_id,
-					group_id: groupResult.group_id
-				});
+				// Get package details to set initial reschedule_left value
+				const { data: packageData, error: packageError } = await supabase
+					.from('pe_packages')
+					.select('reschedule_limit, reschedulable')
+					.eq('id', assignmentForm.package_id)
+					.single();
+
+				if (packageError) {
+					return fail(500, {
+						success: false,
+						message: 'Paket bilgileri alınırken hata: ' + packageError.message
+					});
+				}
+
+				const rescheduleLeft = packageData?.reschedulable ? packageData?.reschedule_limit || 0 : 0;
+
+				const { data: packageGroupData, error: packageGroupError } = await supabase
+					.from('pe_package_groups')
+					.insert({
+						package_id: assignmentForm.package_id,
+						group_id: groupResult.group_id,
+						reschedule_left: rescheduleLeft
+					})
+					.select('id')
+					.single();
 
 				if (packageGroupError) {
 					return fail(500, {
@@ -466,6 +508,25 @@ export const actions: Actions = {
 						message: 'Paket-grup ilişkisi oluşturulurken hata: ' + packageGroupError.message
 					});
 				}
+
+				packageGroupId = packageGroupData.id;
+			} else {
+				// For existing groups, get the existing package-group relationship
+				const { data: existingPackageGroup, error: fetchError } = await supabase
+					.from('pe_package_groups')
+					.select('id')
+					.eq('package_id', assignmentForm.package_id)
+					.eq('group_id', groupResult!.group_id)
+					.single();
+
+				if (fetchError || !existingPackageGroup) {
+					return fail(500, {
+						success: false,
+						message: 'Paket-grup ilişkisi bulunamadı'
+					});
+				}
+
+				packageGroupId = existingPackageGroup.id;
 			}
 
 			// Create appointments for scenarios 1 & 2
@@ -487,10 +548,9 @@ export const actions: Actions = {
 						const appointmentDate = getDateForDayOfWeek(weekStart, slot.day);
 
 						appointments.push({
-							package_id: assignmentForm.package_id,
+							package_group_id: packageGroupId,
 							room_id: assignmentForm.room_id,
 							trainer_id: assignmentForm.trainer_id,
-							group_id: groupResult.group_id,
 							hour: slot.hour,
 							appointment_date: appointmentDate.toISOString().split('T')[0],
 							series_id: seriesId,

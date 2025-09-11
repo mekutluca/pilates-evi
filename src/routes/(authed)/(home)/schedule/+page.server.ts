@@ -37,20 +37,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	weekEnd.setHours(23, 59, 59, 999);
 
 	// Fetch appointments for the current week
-	const { data: appointments } = await supabase
+	const { data: appointments, error: appointmentsError } = await supabase
 		.from('pe_appointments')
 		.select(
 			`
 			*,
 			pe_rooms!inner(name),
 			pe_trainers!inner(name),
-			pe_packages(name, reschedulable),
-			pe_groups(
+			pe_package_groups!inner(
 				id,
-				type,
-				pe_trainee_groups!inner(
-					pe_trainees!inner(name),
-					left_at
+				reschedule_left,
+				pe_packages(name, reschedulable),
+				pe_groups(
+					id,
+					type,
+					pe_trainee_groups!inner(
+						pe_trainees!inner(name),
+						left_at
+					)
 				)
 			)
 		`
@@ -58,6 +62,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		.gte('appointment_date', weekStart.toISOString().split('T')[0])
 		.lte('appointment_date', weekEnd.toISOString().split('T')[0])
 		.order('appointment_date, hour');
+
+	if (appointmentsError) {
+		console.error('Error fetching appointments:', appointmentsError);
+	}
 
 	return {
 		appointments: appointments || []
@@ -82,10 +90,18 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}
 
-		// Get current appointment details
+		// Get current appointment details with package group info
 		const { data: currentAppointment, error: fetchError } = await supabase
 			.from('pe_appointments')
-			.select('*')
+			.select(
+				`
+				*,
+				pe_package_groups(
+					id,
+					reschedule_left
+				)
+			`
+			)
 			.eq('id', appointmentId)
 			.single();
 
@@ -93,25 +109,7 @@ export const actions: Actions = {
 			return fail(404, { success: false, message: 'Randevu bulunamadı' });
 		}
 
-		// This check will be performed later with role-specific logic
-
-		// First check if the package allows rescheduling
-		if (currentAppointment.package_id) {
-			const { data: packageData } = await supabase
-				.from('pe_packages')
-				.select('reschedulable')
-				.eq('id', currentAppointment.package_id)
-				.single();
-
-			if (packageData && !packageData.reschedulable) {
-				return fail(400, {
-					success: false,
-					message: 'Bu ders türü için randevu değişikliği yapılamaz'
-				});
-			}
-		}
-
-		// Check role-based time constraints for rescheduling
+		// Calculate time until appointment
 		const now = new Date();
 		const appointmentDateTime = new Date(
 			currentAppointment.appointment_date +
@@ -122,20 +120,35 @@ export const actions: Actions = {
 		const millisecondsUntil = appointmentDateTime.getTime() - now.getTime();
 		const hoursUntil = millisecondsUntil / (1000 * 60 * 60);
 
-		if (userRole === 'coordinator') {
-			// Coordinators need 23 hours advance notice
+		// Rule 1: Past appointments are never reschedulable
+		if (hoursUntil < 0) {
+			return fail(400, {
+				success: false,
+				message: 'Başlamış olan randevular ertelenemez'
+			});
+		}
+
+		// Check if the package group has reschedules remaining
+		const packageGroup = currentAppointment.pe_package_groups;
+		const rescheduleLeft = packageGroup?.reschedule_left || 0;
+
+		if (rescheduleLeft <= 0) {
+			return fail(400, {
+				success: false,
+				message: 'Bu grup için erteleme hakkı kalmamış'
+			});
+		}
+
+		// Rule 3: Admin can reschedule any future appointment if reschedules are available
+		if (userRole === 'admin') {
+			// Already checked hoursUntil > 0 and rescheduleLeft > 0 above, so admin can proceed
+		}
+		// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
+		else if (userRole === 'coordinator') {
 			if (hoursUntil < 23) {
 				return fail(400, {
 					success: false,
 					message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
-				});
-			}
-		} else if (userRole === 'admin') {
-			// Admins can reschedule until the appointment starts (but not after)
-			if (hoursUntil < 0) {
-				return fail(400, {
-					success: false,
-					message: 'Başlamış olan randevular ertelenemez'
 				});
 			}
 		}
@@ -201,7 +214,19 @@ export const actions: Actions = {
 			});
 		}
 
-		// Note: Reschedule history is now handled at package level
+		// Decrement reschedule_left count, ensuring it doesn't go below zero
+		const { error: decrementError } = await supabase
+			.from('pe_package_groups')
+			.update({
+				reschedule_left: Math.max(0, rescheduleLeft - 1)
+			})
+			.eq('id', packageGroup.id)
+			.gt('reschedule_left', 0); // Only update if reschedule_left is greater than 0
+
+		if (decrementError) {
+			console.error('Error decrementing reschedule count:', decrementError);
+			// Don't fail the request if decrement fails, just log it
+		}
 
 		return { success: true, message: 'Randevu başarıyla ertelendi' };
 	},

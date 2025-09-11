@@ -4,7 +4,7 @@
  */
 export const TURKISH_DAYS = [
 	'Pazar',
-	'Pazartesi', 
+	'Pazartesi',
 	'Salı',
 	'Çarşamba',
 	'Perşembe',

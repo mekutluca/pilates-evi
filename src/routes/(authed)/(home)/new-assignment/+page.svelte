@@ -306,7 +306,12 @@
 
 		// Set group_id if an existing group was selected
 		if (selectedGroupId) {
-			assignmentForm.group_id = selectedGroupId;
+			const selectedGroup = existingAppointmentSeries?.find(
+				(group) => group.package_group_id === selectedGroupId
+			);
+			if (selectedGroup) {
+				assignmentForm.group_id = selectedGroup.group_id;
+			}
 		}
 
 		// Submit the assignment via fetch
@@ -374,11 +379,12 @@
 					const availableCapacity = getAvailableCapacity();
 					return selectedTrainees.length > 0 && selectedTrainees.length <= availableCapacity;
 				}
-			case 4:
+			case 4: {
 				// Trainee selection for group packages
 				if (!isGroupPackage) return false;
 				const availableCapacity = getAvailableCapacity();
 				return selectedTrainees.length > 0 && selectedTrainees.length <= availableCapacity;
+			}
 			default:
 				return false;
 		}
@@ -601,7 +607,7 @@
 				{#if formLoading}
 					<div class="flex items-center justify-center py-12">
 						<LoaderCircle size={48} class="animate-spin text-accent" />
-						<span class="ml-3 text-lg">Randevular oluşturuluyor...</span>
+						<span class="ml-3 text-lg">Kayıt tamamlanıyor...</span>
 					</div>
 				{:else if currentStep === 1}
 					<!-- Step 1: Package Selection Only -->
@@ -751,11 +757,11 @@
 									<h4 class="font-medium text-base-content">Mevcut Ders Grupları</h4>
 									{#if packageSeries.length > 0}
 										<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-											{#each packageSeries as group (group.group_id)}
+											{#each packageSeries as group (group.package_group_id)}
 												<label class="cursor-pointer">
 													<div
 														class="card border-2 transition-all duration-200 hover:shadow-lg {selectedGroupId ===
-														group.group_id
+														group.package_group_id
 															? 'border-accent bg-accent/5 shadow-lg ring-2 ring-accent/20'
 															: 'border-base-300 hover:border-accent/50 hover:shadow-md'}"
 													>
@@ -764,9 +770,9 @@
 																<input
 																	type="radio"
 																	class="radio mt-1 radio-accent"
-																	checked={selectedGroupId === group.group_id}
+																	checked={selectedGroupId === group.package_group_id}
 																	onchange={async () => {
-																		selectedGroupId = group.group_id;
+																		selectedGroupId = group.package_group_id;
 																		createNewGroup = false;
 																		// Reload to get existing trainees for this group
 																		await reloadAppointments();
@@ -791,9 +797,9 @@
 																			<span class="text-base-content/70">Ders Saatleri:</span>
 																		</div>
 																		<div class="flex flex-wrap gap-2">
-																			{#each group.day_time_combinations || [] as combo}
+																			{#each group.day_time_combinations || [] as combo (combo.day)}
 																				{@const dayName = TURKISH_DAYS[combo.day]}
-																				{#each combo.hours as hour}
+																				{#each combo.hours as hour (hour)}
 																					<span class="badge badge-sm px-2 py-1 badge-secondary">
 																						{dayName}
 																						{hour}:00

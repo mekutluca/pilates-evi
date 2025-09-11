@@ -1,5 +1,4 @@
 import type { Tables, TablesInsert, TablesUpdate } from '$lib/database.types';
-import type { GroupWithMembers } from './Group';
 
 export type DayOfWeek =
 	| 'monday'
@@ -11,43 +10,50 @@ export type DayOfWeek =
 	| 'sunday';
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 
+// Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
 export type AppointmentUpdate = TablesUpdate<'pe_appointments'>;
+
+// Types for trainee group relations to fix 'any' type errors
+export interface TraineeGroupRelation {
+	pe_trainees: { name: string };
+	left_at: string | null;
+}
 
 // Types for appointments with relations (matches Supabase query with joins)
 export type AppointmentWithRelations = Appointment & {
 	pe_rooms?: { id?: number; name: string } | null;
 	pe_trainers?: { id?: number; name: string } | null;
-	pe_packages?: { id?: number; name?: string; reschedulable?: boolean } | null;
-	pe_groups?: {
+	pe_package_groups?: {
 		id: number;
-		name: string;
-		type: string;
-		pe_trainee_groups: Array<{
-			pe_trainees: { name: string };
-			left_at: string | null;
-		}>;
+		reschedule_left: number;
+		pe_packages?: { id?: number; name?: string; reschedulable?: boolean } | null;
+		pe_groups?: {
+			id: number;
+			type: string;
+			pe_trainee_groups?: TraineeGroupRelation[];
+		} | null;
 	} | null;
 };
 
 // Extended types with related data
 export interface AppointmentWithDetails {
-	// Core database fields (make key ones optional to allow partial data)
+	// Core database fields - use the exact same types as the database
 	id?: number;
 	appointment_date?: string | null;
 	created_at?: string;
 	created_by?: string | null;
-	hour: number; // Make hour required
+	hour: number;
 	notes?: string | null;
-	package_id: number; // Make package_id required (from database type)
+	package_group_id?: number | null; // Match database type exactly
 	room_id?: number;
 	series_id?: string | null;
 	session_number?: number | null;
 	total_sessions?: number | null;
 	trainer_id?: number;
 	updated_at?: string;
-	status: string; // Make status required and string (not nullable)
+	status?: string | null; // Match database type
 
 	// Extended fields for UI display
 	room_name?: string;
@@ -55,6 +61,7 @@ export interface AppointmentWithDetails {
 	trainee_names?: string[];
 	trainee_count?: number;
 	package_name?: string;
+	reschedule_left?: number; // Number of reschedules remaining for this group
 }
 
 export interface WeeklyScheduleSlot {
@@ -89,6 +96,7 @@ export interface CreateAppointmentForm {
 
 // Type for existing appointment series used in group selection
 export interface ExistingAppointmentSeries {
+	package_group_id: number;
 	package_id: number;
 	group_id: number;
 	room_name: string;
@@ -108,19 +116,22 @@ export interface TraineeGroupData {
 }
 
 export interface AppointmentSeriesData {
-	group_id: number;
-	package_id?: number;
+	package_group_id: number;
 	appointment_date: string;
 	hour: number;
-	pe_groups?: {
-		pe_trainee_groups?: TraineeGroupData[];
+	pe_package_groups?: {
+		pe_groups?: {
+			id: number;
+			pe_trainee_groups?: TraineeGroupData[];
+		} | null;
+		pe_packages?: { id: number; max_capacity: number } | null;
 	} | null;
 	pe_rooms?: { name: string } | null;
 	pe_trainers?: { name: string } | null;
-	pe_packages?: { max_capacity: number } | null;
 }
 
 export interface ProcessedGroupData {
+	package_group_id: number;
 	package_id: number;
 	group_id: number;
 	room_name?: string;

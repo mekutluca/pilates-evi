@@ -160,7 +160,7 @@
 			created_by: apt.created_by,
 			hour: apt.hour,
 			notes: apt.notes,
-			package_id: apt.package_id!,
+			package_group_id: apt.package_group_id!,
 			room_id: apt.room_id,
 			series_id: apt.series_id,
 			session_number: apt.session_number,
@@ -171,12 +171,15 @@
 			// Extended fields from relations
 			room_name: apt.pe_rooms?.name || '',
 			trainer_name: apt.pe_trainers?.name || '',
-			package_name: apt.pe_packages?.name || '',
+			package_name: apt.pe_package_groups?.pe_packages?.name || '',
 			trainee_names:
-				apt.pe_groups?.pe_trainee_groups
+				apt.pe_package_groups?.pe_groups?.pe_trainee_groups
 					?.filter((tg) => !tg.left_at) // Only active members
 					?.map((tg) => tg.pe_trainees.name) || [],
-			trainee_count: apt.pe_groups?.pe_trainee_groups?.filter((tg) => !tg.left_at)?.length || 0
+			trainee_count:
+				apt.pe_package_groups?.pe_groups?.pe_trainee_groups?.filter((tg) => !tg.left_at)?.length ||
+				0,
+			reschedule_left: apt.pe_package_groups?.reschedule_left ?? 0
 		};
 	}
 

@@ -1,3 +1,2 @@
-import type { Tables } from '$lib/database.types';
-
-export type Trainee = Tables<'pe_trainees'>;
+// Re-export from consolidated types
+export type { Trainee } from './index';

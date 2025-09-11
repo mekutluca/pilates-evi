@@ -13,11 +13,10 @@ export type Database = {
 					appointment_date: string | null;
 					created_at: string;
 					created_by: string | null;
-					group_id: number | null;
 					hour: number;
 					id: number;
 					notes: string | null;
-					package_id: number | null;
+					package_group_id: number | null;
 					room_id: number;
 					series_id: string | null;
 					session_number: number | null;
@@ -30,11 +29,10 @@ export type Database = {
 					appointment_date?: string | null;
 					created_at?: string;
 					created_by?: string | null;
-					group_id?: number | null;
 					hour: number;
 					id?: number;
 					notes?: string | null;
-					package_id?: number | null;
+					package_group_id?: number | null;
 					room_id: number;
 					series_id?: string | null;
 					session_number?: number | null;
@@ -47,11 +45,10 @@ export type Database = {
 					appointment_date?: string | null;
 					created_at?: string;
 					created_by?: string | null;
-					group_id?: number | null;
 					hour?: number;
 					id?: number;
 					notes?: string | null;
-					package_id?: number | null;
+					package_group_id?: number | null;
 					room_id?: number;
 					series_id?: string | null;
 					session_number?: number | null;
@@ -62,17 +59,10 @@ export type Database = {
 				};
 				Relationships: [
 					{
-						foreignKeyName: 'pe_appointments_group_id_fkey';
-						columns: ['group_id'];
+						foreignKeyName: 'pe_appointments_package_group_id_fkey';
+						columns: ['package_group_id'];
 						isOneToOne: false;
-						referencedRelation: 'pe_groups';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_appointments_package_id_fkey';
-						columns: ['package_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_packages';
+						referencedRelation: 'pe_package_groups';
 						referencedColumns: ['id'];
 					},
 					{
@@ -115,18 +105,21 @@ export type Database = {
 					group_id: number;
 					id: number;
 					package_id: number;
+					reschedule_left: number;
 				};
 				Insert: {
 					created_at?: string | null;
 					group_id: number;
 					id?: number;
 					package_id: number;
+					reschedule_left?: number;
 				};
 				Update: {
 					created_at?: string | null;
 					group_id?: number;
 					id?: number;
 					package_id?: number;
+					reschedule_left?: number;
 				};
 				Relationships: [
 					{
@@ -139,7 +132,7 @@ export type Database = {
 					{
 						foreignKeyName: 'pe_package_groups_package_id_fkey';
 						columns: ['package_id'];
-						isOneToOne: true;
+						isOneToOne: false;
 						referencedRelation: 'pe_packages';
 						referencedColumns: ['id'];
 					}
@@ -155,7 +148,7 @@ export type Database = {
 					lessons_per_week: number;
 					max_capacity: number;
 					name: string;
-					package_type: string;
+					package_type: Database['public']['Enums']['package_type_enum'];
 					reschedulable: boolean | null;
 					reschedule_limit: number | null;
 					updated_at: string;
@@ -170,9 +163,9 @@ export type Database = {
 					lessons_per_week?: number;
 					max_capacity?: number;
 					name: string;
+					package_type: Database['public']['Enums']['package_type_enum'];
 					reschedulable?: boolean | null;
 					reschedule_limit?: number | null;
-					package_type?: string;
 					updated_at?: string;
 					weeks_duration?: number | null;
 				};
@@ -185,9 +178,9 @@ export type Database = {
 					lessons_per_week?: number;
 					max_capacity?: number;
 					name?: string;
+					package_type?: Database['public']['Enums']['package_type_enum'];
 					reschedulable?: boolean | null;
 					reschedule_limit?: number | null;
-					package_type?: string;
 					updated_at?: string;
 					weeks_duration?: number | null;
 				};
@@ -553,6 +546,7 @@ export type Database = {
 				| 'saturday'
 				| 'sunday';
 			group_type: 'individual' | 'fixed' | 'dynamic';
+			package_type_enum: 'private' | 'group';
 		};
 		CompositeTypes: {
 			[_ in never]: never;
@@ -680,7 +674,8 @@ export const Constants = {
 		Enums: {
 			appointment_status: ['scheduled', 'completed', 'cancelled'],
 			day_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-			group_type: ['individual', 'fixed', 'dynamic']
+			group_type: ['individual', 'fixed', 'dynamic'],
+			package_type_enum: ['private', 'group']
 		}
 	}
 } as const;
