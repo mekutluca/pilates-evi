@@ -27,6 +27,7 @@
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { page } from '$app/state';
+	import Modal from '$lib/components/modal.svelte';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
@@ -176,6 +177,7 @@
 		selectedAppointment = appointment;
 		rescheduleMode = true;
 		showAppointmentDetailsModal = false;
+		// Don't reset selectedAppointment when closing the details modal for reschedule
 		toast.info('Yeni bir zaman dilimi seçin', { duration: 10000 });
 	}
 
@@ -189,7 +191,10 @@
 		if (!rescheduleMode || !selectedAppointment) return;
 
 		selectedRescheduleSlot = { roomId, day, hour };
-		showRescheduleConfirmation = true;
+		// Add a small delay to ensure state is set before opening modal
+		setTimeout(() => {
+			showRescheduleConfirmation = true;
+		}, 10);
 	}
 
 	function cancelReschedule() {
@@ -650,284 +655,270 @@
 </div>
 
 <!-- Appointment Details Modal -->
-<dialog class="modal" class:modal-open={showAppointmentDetailsModal}>
-	<div class="modal-box max-w-lg">
-		<h3 class="mb-4 text-lg font-bold">Randevu Detayları</h3>
-
-		{#if selectedAppointment}
-			<div class="space-y-4">
-				<!-- Time and Room Info -->
-				<div class="card bg-base-200">
-					<div class="card-body p-4">
-						<div class="grid grid-cols-2 gap-2 text-sm">
-							<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
-							<div>
-								<strong>Gün:</strong>
-								{selectedAppointment.appointment_date
-									? DAY_NAMES[
-											getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
-										]
-									: '-'}
-							</div>
-							<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
-							<div>
-								<strong>Durum:</strong>
-								<span
-									class="badge badge-sm {selectedAppointment.status === 'scheduled'
-										? 'badge-success'
-										: selectedAppointment.status === 'completed'
-											? 'badge-info'
-											: 'badge-error'}"
-								>
-									{selectedAppointment.status === 'scheduled'
-										? 'Planlandı'
-										: selectedAppointment.status === 'completed'
-											? 'Tamamlandı'
-											: 'İptal Edildi'}
-								</span>
-							</div>
+<Modal
+	bind:open={showAppointmentDetailsModal}
+	title="Randevu Detayları"
+	size="lg"
+	onClose={() => {
+		// Only reset selectedAppointment if we're not in reschedule mode
+		if (!rescheduleMode) {
+			selectedAppointment = null;
+		}
+	}}
+>
+	{#if selectedAppointment}
+		<div class="space-y-4">
+			<!-- Time and Room Info -->
+			<div class="card bg-base-200">
+				<div class="card-body p-4">
+					<div class="grid grid-cols-2 gap-2 text-sm">
+						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
+						<div>
+							<strong>Gün:</strong>
+							{selectedAppointment.appointment_date
+								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek]
+								: '-'}
+						</div>
+						<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
+						<div>
+							<strong>Durum:</strong>
+							<span
+								class="badge badge-sm {selectedAppointment.status === 'scheduled'
+									? 'badge-success'
+									: selectedAppointment.status === 'completed'
+										? 'badge-info'
+										: 'badge-error'}"
+							>
+								{selectedAppointment.status === 'scheduled'
+									? 'Planlandı'
+									: selectedAppointment.status === 'completed'
+										? 'Tamamlandı'
+										: 'İptal Edildi'}
+							</span>
 						</div>
 					</div>
 				</div>
+			</div>
 
-				<!-- Trainer Info -->
-				<div>
-					<h4 class="mb-2 text-base font-semibold">Eğitmen</h4>
-					<div class="badge badge-info">{selectedAppointment.trainer_name}</div>
+			<!-- Trainer Info -->
+			<div>
+				<h4 class="mb-2 text-base font-semibold">Eğitmen</h4>
+				<div class="badge badge-info">{selectedAppointment.trainer_name}</div>
+			</div>
+
+			<!-- Package Info -->
+			<div>
+				<h4 class="mb-2 text-base font-semibold">Ders</h4>
+				<div class="badge badge-accent">
+					{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
 				</div>
+			</div>
 
-				<!-- Package Info -->
+			<!-- Trainees -->
+			<div>
+				<h4 class="mb-2 text-base font-semibold">
+					Öğrenciler ({selectedAppointment.trainee_count})
+				</h4>
+				<div class="flex flex-wrap gap-2">
+					{#each selectedAppointment.trainee_names || [] as traineeName, index (traineeName + index)}
+						<div class="badge badge-success">{traineeName}</div>
+					{/each}
+				</div>
+			</div>
+
+			<!-- Notes -->
+			{#if selectedAppointment.notes}
 				<div>
-					<h4 class="mb-2 text-base font-semibold">Ders</h4>
-					<div class="badge badge-accent">
-						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
+					<h4 class="mb-2 text-base font-semibold">Notlar</h4>
+					<div class="rounded bg-base-200 p-3 text-sm text-base-content/70">
+						{selectedAppointment.notes}
 					</div>
 				</div>
+			{/if}
+		</div>
+	{/if}
 
-				<!-- Trainees -->
-				<div>
-					<h4 class="mb-2 text-base font-semibold">
-						Öğrenciler ({selectedAppointment.trainee_count})
-					</h4>
-					<div class="flex flex-wrap gap-2">
-						{#each selectedAppointment.trainee_names || [] as traineeName, index (traineeName + index)}
-							<div class="badge badge-success">{traineeName}</div>
-						{/each}
-					</div>
+	<div class="modal-action">
+		{#if selectedAppointment && selectedAppointment.status === 'scheduled' && canRescheduleAppointment(selectedAppointment)}
+			<button
+				type="button"
+				class="btn btn-warning"
+				onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
+			>
+				Ertele ({selectedAppointment.reschedule_left} kaldı)
+			</button>
+		{/if}
+		<button
+			type="button"
+			class="btn"
+			onclick={() => {
+				showAppointmentDetailsModal = false;
+				// Don't reset selectedAppointment immediately - let the Modal's onClose handle it after animation
+			}}
+		>
+			Kapat
+		</button>
+	</div>
+</Modal>
+
+<!-- Reschedule Confirmation Modal -->
+<Modal
+	bind:open={showRescheduleConfirmation}
+	title="Randevuyu Ertele"
+	size="lg"
+	onClose={() => {
+		selectedRescheduleSlot = null;
+	}}
+>
+	{#if selectedAppointment && selectedRescheduleSlot}
+		<div class="space-y-4">
+			<!-- Appointment details (shared info) -->
+			<div class="rounded bg-base-200 p-4">
+				<h4 class="mb-3 text-sm font-semibold">Randevu Bilgileri</h4>
+				<div class="grid grid-cols-2 gap-2 text-sm">
+					<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
+					<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
 				</div>
 
-				<!-- Notes -->
-				{#if selectedAppointment.notes}
-					<div>
-						<h4 class="mb-2 text-base font-semibold">Notlar</h4>
-						<div class="rounded bg-base-200 p-3 text-sm text-base-content/70">
-							{selectedAppointment.notes}
+				{#if selectedAppointment.package_name}
+					<div class="mt-2 text-sm">
+						<strong>Ders:</strong>
+						<span class="ml-1 badge badge-sm badge-secondary"
+							>{selectedAppointment.package_name}</span
+						>
+					</div>
+				{/if}
+
+				{#if selectedAppointment.trainee_names && selectedAppointment.trainee_names.length > 0}
+					<div class="mt-2">
+						<div class="mb-1 text-sm font-semibold">
+							Öğrenciler ({selectedAppointment.trainee_count}):
+						</div>
+						<div class="flex flex-wrap gap-1">
+							{#each selectedAppointment.trainee_names as traineeName (traineeName)}
+								<span class="badge badge-xs badge-success">{traineeName}</span>
+							{/each}
 						</div>
 					</div>
 				{/if}
 			</div>
-		{/if}
 
-		<div class="modal-action">
-			{#if selectedAppointment && selectedAppointment.status === 'scheduled' && canRescheduleAppointment(selectedAppointment)}
-				<button
-					type="button"
-					class="btn btn-warning"
-					onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
-				>
-					Ertele ({selectedAppointment.reschedule_left} kaldı)
-				</button>
-			{/if}
-			<button
-				type="button"
-				class="btn"
-				onclick={() => {
-					showAppointmentDetailsModal = false;
-					selectedAppointment = null;
+			<!-- Date and time change -->
+			<div class="rounded bg-warning/10 p-4">
+				<h4 class="mb-3 text-sm font-semibold text-warning">Tarih ve Saat Değişikliği</h4>
+				<div class="flex items-center justify-center gap-3 text-sm">
+					<div class="text-center">
+						<div class="font-medium text-base-content/70">Mevcut</div>
+						<div class="mt-1">
+							{#if selectedAppointment.appointment_date}
+								{@const currentDate = new Date(selectedAppointment.appointment_date)}
+								<div class="text-xs text-base-content/60">
+									{formatDayMonth(currentDate)}
+								</div>
+								<div class="font-semibold">
+									{DAY_NAMES[
+										getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
+									]}
+								</div>
+							{:else}
+								<div class="font-semibold">-</div>
+							{/if}
+							<div class="text-xs text-base-content/70">
+								{getTimeRangeString(selectedAppointment.hour)}
+							</div>
+						</div>
+					</div>
+
+					<div class="flex-shrink-0">
+						<svg class="h-6 w-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M13 7l5 5-5 5M6 12h12"
+							></path>
+						</svg>
+					</div>
+
+					<div class="text-center">
+						<div class="font-medium text-base-content/70">Yeni</div>
+						<div class="mt-1">
+							{#if selectedRescheduleSlot}
+								{@const newDate = getDateForDayOfWeek(
+									currentWeekStart(),
+									selectedRescheduleSlot.day
+								)}
+								<div class="text-xs text-base-content/60">
+									{formatDayMonth(newDate)}
+								</div>
+								<div class="font-semibold">
+									{DAY_NAMES[selectedRescheduleSlot.day]}
+								</div>
+								<div class="text-xs text-base-content/70">
+									{getTimeRangeString(selectedRescheduleSlot.hour)}
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<form
+				method="POST"
+				action="?/rescheduleAppointment"
+				class="space-y-4"
+				use:enhance={() => {
+					formLoading = true;
+					return async ({ result, update }) => {
+						formLoading = false;
+						if (result.type === 'success') {
+							toast.success('Randevu başarıyla ertelendi');
+							resetRescheduleForm();
+							selectedAppointment = null;
+							showRescheduleConfirmation = false;
+							toast.dismiss();
+						} else if (result.type === 'failure') {
+							toast.error(getActionErrorMessage(result));
+						}
+						await update();
+					};
 				}}
 			>
-				Kapat
-			</button>
+				<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
+				<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
+				<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
+				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
+
+				<fieldset class="fieldset">
+					<legend class="fieldset-legend">Erteleme Sebebi (İsteğe bağlı)</legend>
+					<textarea
+						name="reason"
+						class="textarea-bordered textarea w-full"
+						placeholder="Randevu erteleme sebebini açıklayın..."
+						rows="2"
+					></textarea>
+				</fieldset>
+
+				<div class="modal-action">
+					<button
+						type="button"
+						class="btn"
+						onclick={() => {
+							showRescheduleConfirmation = false;
+							// Don't reset selectedRescheduleSlot immediately - let the Modal's onClose handle it after animation
+						}}
+					>
+						İptal
+					</button>
+					<button type="submit" class="btn btn-warning" disabled={formLoading}>
+						{#if formLoading}
+							<LoaderCircle size={16} class="animate-spin" />
+						{:else}
+							Onayla
+						{/if}
+					</button>
+				</div>
+			</form>
 		</div>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showAppointmentDetailsModal = false;
-				selectedAppointment = null;
-			}}>kapat</button
-		>
-	</form>
-</dialog>
-
-<!-- Reschedule Confirmation Modal -->
-<dialog class="modal" class:modal-open={showRescheduleConfirmation}>
-	<div class="modal-box max-w-lg">
-		<h3 class="mb-4 text-lg font-bold">Randevuyu Ertele</h3>
-
-		{#if selectedAppointment && selectedRescheduleSlot}
-			<div class="space-y-4">
-				<!-- Appointment details (shared info) -->
-				<div class="rounded bg-base-200 p-4">
-					<h4 class="mb-3 text-sm font-semibold">Randevu Bilgileri</h4>
-					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
-						<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
-					</div>
-
-					{#if selectedAppointment.package_name}
-						<div class="mt-2 text-sm">
-							<strong>Ders:</strong>
-							<span class="ml-1 badge badge-sm badge-secondary"
-								>{selectedAppointment.package_name}</span
-							>
-						</div>
-					{/if}
-
-					{#if selectedAppointment.trainee_names && selectedAppointment.trainee_names.length > 0}
-						<div class="mt-2">
-							<div class="mb-1 text-sm font-semibold">
-								Öğrenciler ({selectedAppointment.trainee_count}):
-							</div>
-							<div class="flex flex-wrap gap-1">
-								{#each selectedAppointment.trainee_names as traineeName (traineeName)}
-									<span class="badge badge-xs badge-success">{traineeName}</span>
-								{/each}
-							</div>
-						</div>
-					{/if}
-				</div>
-
-				<!-- Date and time change -->
-				<div class="rounded bg-warning/10 p-4">
-					<h4 class="mb-3 text-sm font-semibold text-warning">Tarih ve Saat Değişikliği</h4>
-					<div class="flex items-center justify-center gap-3 text-sm">
-						<div class="text-center">
-							<div class="font-medium text-base-content/70">Mevcut</div>
-							<div class="mt-1">
-								{#if selectedAppointment.appointment_date}
-									{@const currentDate = new Date(selectedAppointment.appointment_date)}
-									<div class="text-xs text-base-content/60">
-										{formatDayMonth(currentDate)}
-									</div>
-									<div class="font-semibold">
-										{DAY_NAMES[
-											getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
-										]}
-									</div>
-								{:else}
-									<div class="font-semibold">-</div>
-								{/if}
-								<div class="text-xs text-base-content/70">
-									{getTimeRangeString(selectedAppointment.hour)}
-								</div>
-							</div>
-						</div>
-
-						<div class="flex-shrink-0">
-							<svg
-								class="h-6 w-6 text-warning"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M13 7l5 5-5 5M6 12h12"
-								></path>
-							</svg>
-						</div>
-
-						<div class="text-center">
-							<div class="font-medium text-base-content/70">Yeni</div>
-							<div class="mt-1">
-								{#if selectedRescheduleSlot}
-									{@const newDate = getDateForDayOfWeek(
-										currentWeekStart(),
-										selectedRescheduleSlot.day
-									)}
-									<div class="text-xs text-base-content/60">
-										{formatDayMonth(newDate)}
-									</div>
-									<div class="font-semibold">
-										{DAY_NAMES[selectedRescheduleSlot.day]}
-									</div>
-									<div class="text-xs text-base-content/70">
-										{getTimeRangeString(selectedRescheduleSlot.hour)}
-									</div>
-								{/if}
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<form
-					method="POST"
-					action="?/rescheduleAppointment"
-					class="space-y-4"
-					use:enhance={() => {
-						formLoading = true;
-						return async ({ result, update }) => {
-							formLoading = false;
-							if (result.type === 'success') {
-								toast.success('Randevu başarıyla ertelendi');
-								resetRescheduleForm();
-								selectedAppointment = null;
-								showRescheduleConfirmation = false;
-								toast.dismiss();
-							} else if (result.type === 'failure') {
-								toast.error(getActionErrorMessage(result));
-							}
-							await update();
-						};
-					}}
-				>
-					<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
-					<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
-					<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
-					<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
-
-					<fieldset class="fieldset">
-						<legend class="fieldset-legend">Erteleme Sebebi (İsteğe bağlı)</legend>
-						<textarea
-							name="reason"
-							class="textarea-bordered textarea w-full"
-							placeholder="Randevu erteleme sebebini açıklayın..."
-							rows="2"
-						></textarea>
-					</fieldset>
-
-					<div class="modal-action">
-						<button
-							type="button"
-							class="btn"
-							onclick={() => {
-								showRescheduleConfirmation = false;
-								selectedRescheduleSlot = null;
-							}}
-						>
-							İptal
-						</button>
-						<button type="submit" class="btn btn-warning" disabled={formLoading}>
-							{#if formLoading}
-								<LoaderCircle size={16} class="animate-spin" />
-							{:else}
-								Onayla
-							{/if}
-						</button>
-					</div>
-				</form>
-			</div>
-		{/if}
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showRescheduleConfirmation = false;
-				selectedRescheduleSlot = null;
-			}}>kapat</button
-		>
-	</form>
-</dialog>
+	{/if}
+</Modal>

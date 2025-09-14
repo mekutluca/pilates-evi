@@ -4,6 +4,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import Modal from './modal.svelte';
 
 	let {
 		class: className = '',
@@ -18,6 +19,7 @@
 
 	let inProgress = $state(false);
 	let email = $state('');
+	let showForgotPasswordModal = $state(false);
 	let password = $state('');
 
 	async function login() {
@@ -42,10 +44,7 @@
 	}
 
 	function showModal() {
-		const modal = document.getElementById('my_modal_2') as HTMLDialogElement;
-		if (modal) {
-			modal.showModal();
-		}
+		showForgotPasswordModal = true;
 	}
 </script>
 
@@ -128,13 +127,7 @@
 	</div>
 </form>
 
-<dialog id="my_modal_2" class="modal">
-	<div class="modal-box">
-		<h3 class="text-lg font-bold">Şifremi unuttum</h3>
-		<!-- https://www.reddit.com/r/Supabase/comments/1c257cg/reset_password_and_update_user_without_clientside/ -->
-		<p class="py-4">Eğer şifrenizi unuttuysanız lütfen adminler ile iletişime geçiniz.</p>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>kapat</button>
-	</form>
-</dialog>
+<Modal bind:open={showForgotPasswordModal} title="Şifremi unuttum">
+	<!-- https://www.reddit.com/r/Supabase/comments/1c257cg/reset_password_and_update_user_without_clientside/ -->
+	<p class="py-4">Eğer şifrenizi unuttuysanız lütfen adminler ile iletişime geçiniz.</p>
+</Modal>

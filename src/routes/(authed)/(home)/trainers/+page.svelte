@@ -13,6 +13,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
 	let { trainers: initialTrainers } = $derived(data);
@@ -138,218 +139,185 @@
 </div>
 
 <!-- Add Trainer Modal -->
-<dialog class="modal" class:modal-open={showAddModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Yeni Eğitmen Ekle</h3>
-		<form
-			method="POST"
-			action="?/createTrainer"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showAddModal} title="Yeni Eğitmen Ekle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/createTrainer"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Eğitmen başarıyla oluşturuldu');
-						showAddModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Eğitmen başarıyla oluşturuldu');
+					showAddModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Eğitmen Adı</legend>
-				<input type="text" name="name" class="input w-full" bind:value={name} required />
-			</fieldset>
+				await update();
+			};
+		}}
+	>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Eğitmen Adı</legend>
+			<input type="text" name="name" class="input w-full" bind:value={name} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Telefon</legend>
-				<input
-					type="tel"
-					name="phone"
-					class="input w-full"
-					bind:value={phone}
-					placeholder="5xx xxx xx xx"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Telefon</legend>
+			<input
+				type="tel"
+				name="phone"
+				class="input w-full"
+				bind:value={phone}
+				placeholder="5xx xxx xx xx"
+				required
+			/>
+		</fieldset>
 
-			<!-- Training assignment section removed - no longer needed in package-based system -->
+		<!-- Training assignment section removed - no longer needed in package-based system -->
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showAddModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-info" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Plus size={16} />
-					{/if}
-					Ekle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showAddModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showAddModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-info" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Plus size={16} />
+				{/if}
+				Ekle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
 <!-- Edit Trainer Modal -->
-<dialog class="modal" class:modal-open={showEditModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Eğitmen Düzenle</h3>
-		<form
-			method="POST"
-			action="?/updateTrainer"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showEditModal} title="Eğitmen Düzenle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/updateTrainer"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Eğitmen başarıyla güncellendi');
-						showEditModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Eğitmen başarıyla güncellendi');
+					showEditModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Eğitmen Adı</legend>
-				<input type="text" name="name" class="input w-full" bind:value={name} required />
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Eğitmen Adı</legend>
+			<input type="text" name="name" class="input w-full" bind:value={name} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Telefon</legend>
-				<input
-					type="tel"
-					name="phone"
-					class="input w-full"
-					bind:value={phone}
-					placeholder="05xx xxx xx xx"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Telefon</legend>
+			<input
+				type="tel"
+				name="phone"
+				class="input w-full"
+				bind:value={phone}
+				placeholder="05xx xxx xx xx"
+				required
+			/>
+		</fieldset>
 
-			<!-- Training assignment section removed - no longer needed in package-based system -->
+		<!-- Training assignment section removed - no longer needed in package-based system -->
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showEditModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-info" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Edit size={16} />
-					{/if}
-					Güncelle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showEditModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showEditModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-info" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Edit size={16} />
+				{/if}
+				Güncelle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
 <!-- Delete Trainer Modal -->
-<dialog class="modal" class:modal-open={showDeleteModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Eğitmeni Sil</h3>
-		<p class="mb-4">
-			<strong>{selectedTrainer?.name}</strong> adlı eğitmeni silmek istediğinizden emin misiniz? Bu işlem
-			geri alınamaz.
-		</p>
-		<form
-			method="POST"
-			action="?/deleteTrainer"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showDeleteModal} title="Eğitmeni Sil" onClose={resetForm}>
+	<p class="mb-4">
+		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni silmek istediğinizden emin misiniz? Bu işlem
+		geri alınamaz.
+	</p>
+	<form
+		method="POST"
+		action="?/deleteTrainer"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Eğitmen başarıyla silindi');
-						showDeleteModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Eğitmen başarıyla silindi');
+					showDeleteModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showDeleteModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-error" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Trash2 size={16} />
-					{/if}
-					Sil
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showDeleteModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showDeleteModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-error" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Trash2 size={16} />
+				{/if}
+				Sil
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>

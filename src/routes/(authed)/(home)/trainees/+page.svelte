@@ -12,6 +12,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
 	let { trainees: initialTrainees } = $derived(data);
@@ -142,252 +143,219 @@
 	/>
 </div>
 
-<dialog class="modal" class:modal-open={showAddModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Yeni Öğrenci Ekle</h3>
-		<form
-			method="POST"
-			action="?/createTrainee"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
-					if (result.type === 'success') {
-						toast.success('Öğrenci başarıyla oluşturuldu');
-						showAddModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
-					await update();
-				};
-			}}
-		>
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Öğrenci Adı</legend>
-				<input type="text" name="name" class="input w-full" bind:value={name} required />
-			</fieldset>
+<Modal bind:open={showAddModal} title="Yeni Öğrenci Ekle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/createTrainee"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla oluşturuldu');
+					showAddModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Öğrenci Adı</legend>
+			<input type="text" name="name" class="input w-full" bind:value={name} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<input
-					type="email"
-					name="email"
-					class="input w-full"
-					bind:value={email}
-					placeholder="ornek@email.com"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Email</legend>
+			<input
+				type="email"
+				name="email"
+				class="input w-full"
+				bind:value={email}
+				placeholder="ornek@email.com"
+				required
+			/>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Telefon</legend>
-				<input
-					type="tel"
-					name="phone"
-					class="input w-full"
-					bind:value={phone}
-					placeholder="5xx xxx xx xx"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Telefon</legend>
+			<input
+				type="tel"
+				name="phone"
+				class="input w-full"
+				bind:value={phone}
+				placeholder="5xx xxx xx xx"
+				required
+			/>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
-				<textarea
-					name="notes"
-					class="textarea w-full"
-					bind:value={notes}
-					placeholder="Öğrenci hakkında notlar..."
-					rows="3"
-				></textarea>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
+			<textarea
+				name="notes"
+				class="textarea w-full"
+				bind:value={notes}
+				placeholder="Öğrenci hakkında notlar..."
+				rows="3"
+			></textarea>
+		</fieldset>
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showAddModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-success" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Plus size={16} />
-					{/if}
-					Ekle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showAddModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showAddModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-success" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Plus size={16} />
+				{/if}
+				Ekle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
-<dialog class="modal" class:modal-open={showEditModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Öğrenci Düzenle</h3>
-		<form
-			method="POST"
-			action="?/updateTrainee"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
-					if (result.type === 'success') {
-						toast.success('Öğrenci başarıyla güncellendi');
-						showEditModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
+<Modal bind:open={showEditModal} title="Öğrenci Düzenle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/updateTrainee"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla güncellendi');
+					showEditModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Öğrenci Adı</legend>
-				<input type="text" name="name" class="input w-full" bind:value={name} required />
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Öğrenci Adı</legend>
+			<input type="text" name="name" class="input w-full" bind:value={name} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<input
-					type="email"
-					name="email"
-					class="input w-full"
-					bind:value={email}
-					placeholder="ornek@email.com"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Email</legend>
+			<input
+				type="email"
+				name="email"
+				class="input w-full"
+				bind:value={email}
+				placeholder="ornek@email.com"
+				required
+			/>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Telefon</legend>
-				<input
-					type="tel"
-					name="phone"
-					class="input w-full"
-					bind:value={phone}
-					placeholder="5xx xxx xx xx"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Telefon</legend>
+			<input
+				type="tel"
+				name="phone"
+				class="input w-full"
+				bind:value={phone}
+				placeholder="5xx xxx xx xx"
+				required
+			/>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
-				<textarea
-					name="notes"
-					class="textarea w-full"
-					bind:value={notes}
-					placeholder="Öğrenci hakkında notlar..."
-					rows="3"
-				></textarea>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
+			<textarea
+				name="notes"
+				class="textarea w-full"
+				bind:value={notes}
+				placeholder="Öğrenci hakkında notlar..."
+				rows="3"
+			></textarea>
+		</fieldset>
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showEditModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-success" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Edit size={16} />
-					{/if}
-					Güncelle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showEditModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showEditModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-success" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Edit size={16} />
+				{/if}
+				Güncelle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
-<dialog class="modal" class:modal-open={showDeleteModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Öğrenciyi Sil</h3>
-		<p class="mb-4">
-			<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi silmek istediğinizden emin misiniz? Bu
-			işlem geri alınamaz.
-		</p>
-		<form
-			method="POST"
-			action="?/deleteTrainee"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
-					if (result.type === 'success') {
-						toast.success('Öğrenci başarıyla silindi');
-						showDeleteModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
+<Modal bind:open={showDeleteModal} title="Öğrenciyi Sil" onClose={resetForm}>
+	<p class="mb-4">
+		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi silmek istediğinizden emin misiniz? Bu işlem
+		geri alınamaz.
+	</p>
+	<form
+		method="POST"
+		action="?/deleteTrainee"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla silindi');
+					showDeleteModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showDeleteModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-error" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Trash2 size={16} />
-					{/if}
-					Sil
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showDeleteModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showDeleteModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-error" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Trash2 size={16} />
+				{/if}
+				Sil
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>

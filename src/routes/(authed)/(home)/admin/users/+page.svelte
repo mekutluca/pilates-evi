@@ -12,6 +12,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -185,249 +186,210 @@
 </div>
 
 <!-- Add User Modal -->
-<dialog class="modal" class:modal-open={showAddModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Yeni Kullanıcı Ekle</h3>
-		<form
-			method="POST"
-			action="?/createUser"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showAddModal} title="Yeni Kullanıcı Ekle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/createUser"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Kullanıcı başarıyla oluşturuldu');
-						showAddModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Kullanıcı başarıyla oluşturuldu');
+					showAddModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Ad Soyad</legend>
-				<input type="text" name="fullName" class="input w-full" bind:value={fullName} required />
-			</fieldset>
+				await update();
+			};
+		}}
+	>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Ad Soyad</legend>
+			<input type="text" name="fullName" class="input w-full" bind:value={fullName} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<input type="email" name="email" class="input w-full" bind:value={email} required />
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Email</legend>
+			<input type="email" name="email" class="input w-full" bind:value={email} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Şifre</legend>
-				<input
-					type="password"
-					name="password"
-					class="input w-full"
-					bind:value={password}
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Şifre</legend>
+			<input type="password" name="password" class="input w-full" bind:value={password} required />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Rol</legend>
-				<select name="role" class="select w-full" bind:value={role} required>
-					{#each roleOptions as option (option.value)}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Rol</legend>
+			<select name="role" class="select w-full" bind:value={role} required>
+				{#each roleOptions as option (option.value)}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
+		</fieldset>
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showAddModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-accent" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Plus size={16} />
-					{/if}
-					Ekle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showAddModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showAddModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Plus size={16} />
+				{/if}
+				Ekle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
 <!-- Edit User Modal -->
-<dialog class="modal" class:modal-open={showEditModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Kullanıcı Düzenle</h3>
-		<form
-			method="POST"
-			action="?/updateUser"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showEditModal} title="Kullanıcı Düzenle" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/updateUser"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Kullanıcı başarıyla güncellendi');
-						showEditModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Kullanıcı başarıyla güncellendi');
+					showEditModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="userId" value={selectedUser?.id} />
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="userId" value={selectedUser?.id} />
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Ad Soyad</legend>
-				<input
-					type="text"
-					name="fullName"
-					class="input w-full"
-					bind:value={fullName}
-					placeholder="Ad Soyad"
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Ad Soyad</legend>
+			<input
+				type="text"
+				name="fullName"
+				class="input w-full"
+				bind:value={fullName}
+				placeholder="Ad Soyad"
+			/>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<input type="email" name="email" class="input w-full" bind:value={email} disabled />
-				<input type="hidden" name="email" value={email} />
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Email</legend>
+			<input type="email" name="email" class="input w-full" bind:value={email} disabled />
+			<input type="hidden" name="email" value={email} />
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Rol</legend>
-				<select name="role" class="select w-full" bind:value={role}>
-					{#each roleOptions as option (option.value)}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Rol</legend>
+			<select name="role" class="select w-full" bind:value={role}>
+				{#each roleOptions as option (option.value)}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
+		</fieldset>
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showEditModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-accent" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Edit size={16} />
-					{/if}
-					Güncelle
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showEditModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showEditModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Edit size={16} />
+				{/if}
+				Güncelle
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>
 
 <!-- Reset Password Modal -->
-<dialog class="modal" class:modal-open={showResetPasswordModal}>
-	<div class="modal-box">
-		<h3 class="mb-4 text-lg font-bold">Şifre Sıfırla</h3>
-		<form
-			method="POST"
-			action="?/resetPassword"
-			class="space-y-4"
-			use:enhance={() => {
-				formLoading = true;
-				return async ({ result, update }) => {
-					formLoading = false;
+<Modal bind:open={showResetPasswordModal} title="Şifre Sıfırla" onClose={resetForm}>
+	<form
+		method="POST"
+		action="?/resetPassword"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
 
-					if (result.type === 'success') {
-						toast.success('Şifre başarıyla sıfırlandı');
-						showResetPasswordModal = false;
-						resetForm();
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
+				if (result.type === 'success') {
+					toast.success('Şifre başarıyla sıfırlandı');
+					showResetPasswordModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
 
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="userId" value={selectedUser?.id} />
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="userId" value={selectedUser?.id} />
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<div class="input w-full bg-base-200 text-base-content/70">{email}</div>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Email</legend>
+			<div class="input w-full bg-base-200 text-base-content/70">{email}</div>
+		</fieldset>
 
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Yeni Şifre</legend>
-				<input
-					type="password"
-					name="newPassword"
-					class="input w-full"
-					bind:value={newPassword}
-					placeholder="Yeni şifre girin"
-					required
-				/>
-			</fieldset>
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Yeni Şifre</legend>
+			<input
+				type="password"
+				name="newPassword"
+				class="input w-full"
+				bind:value={newPassword}
+				placeholder="Yeni şifre girin"
+				required
+			/>
+		</fieldset>
 
-			<div class="modal-action">
-				<button
-					type="button"
-					class="btn"
-					onclick={() => {
-						showResetPasswordModal = false;
-						resetForm();
-					}}
-				>
-					İptal
-				</button>
-				<button type="submit" class="btn btn-accent" disabled={formLoading}>
-					{#if formLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						<Key size={16} />
-					{/if}
-					Şifreyi Sıfırla
-				</button>
-			</div>
-		</form>
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button
-			onclick={() => {
-				showResetPasswordModal = false;
-				resetForm();
-			}}>kapat</button
-		>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showResetPasswordModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Key size={16} />
+				{/if}
+				Şifreyi Sıfırla
+			</button>
+		</div>
 	</form>
-</dialog>
+</Modal>

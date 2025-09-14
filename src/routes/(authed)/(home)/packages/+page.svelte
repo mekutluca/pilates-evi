@@ -15,6 +15,7 @@
 	import type { CreatePackageForm, PackageWithGroup } from '$lib/types/Package';
 	import type { TraineeGroupWithTrainee, GroupWithMembers } from '$lib/types/Group';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
 	let { packages: initialPackages } = $derived(data);
@@ -238,33 +239,20 @@
 </div>
 
 <!-- Create Package Modal -->
-<dialog class="modal" class:modal-open={showCreateModal}>
-	<div class="modal-box w-11/12 max-w-5xl">
-		<div class="mb-4 flex items-center justify-between">
-			<h3 class="flex items-center gap-2 text-lg font-bold">
-				<Dumbbell size={20} />
-				Yeni Ders
-			</h3>
-			<button class="btn btn-circle btn-ghost btn-sm" onclick={handleCancelCreate}> ✕ </button>
+<Modal bind:open={showCreateModal} title="Yeni Ders" size="xl" onClose={handleCancelCreate}>
+	{#if formLoading}
+		<div class="flex items-center justify-center py-8">
+			<LoaderCircle size={32} class="animate-spin text-accent" />
+			<span class="ml-2">Ders oluşturuluyor...</span>
 		</div>
-
-		{#if formLoading}
-			<div class="flex items-center justify-center py-8">
-				<LoaderCircle size={32} class="animate-spin text-accent" />
-				<span class="ml-2">Ders oluşturuluyor...</span>
-			</div>
-		{:else}
-			<PackageCreationForm
-				onSubmit={handleCreatePackage}
-				onCancel={handleCancelCreate}
-				isVisible={showCreateModal}
-			/>
-		{/if}
-	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button onclick={handleCancelCreate}>kapat</button>
-	</form>
-</dialog>
+	{:else}
+		<PackageCreationForm
+			onSubmit={handleCreatePackage}
+			onCancel={handleCancelCreate}
+			isVisible={showCreateModal}
+		/>
+	{/if}
+</Modal>
 
 <!-- Package Statistics -->
 {#if packages.length > 0}
@@ -318,184 +306,167 @@
 {/if}
 
 <!-- Edit Package Modal -->
-<dialog class="modal" class:modal-open={showEditModal}>
-	<div class="modal-box w-11/12 max-w-5xl">
-		<div class="mb-4 flex items-center justify-between">
-			<h3 class="flex items-center gap-2 text-lg font-bold">
-				<Dumbbell size={20} />
-				Dersi Düzenle
-			</h3>
-			<button
-				class="btn btn-circle btn-ghost btn-sm"
-				onclick={closeEditModal}
-				disabled={formLoading}>✕</button
-			>
+<Modal bind:open={showEditModal} title="Dersi Düzenle" size="xl" onClose={closeEditModal}>
+	{#if formLoading}
+		<div class="flex items-center justify-center py-8">
+			<LoaderCircle size={32} class="animate-spin text-accent" />
+			<span class="ml-2">Ders güncelleniyor...</span>
 		</div>
-
-		{#if formLoading}
-			<div class="flex items-center justify-center py-8">
-				<LoaderCircle size={32} class="animate-spin text-accent" />
-				<span class="ml-2">Ders güncelleniyor...</span>
+	{:else}
+		<div class="space-y-4">
+			<!-- Package Name -->
+			<div>
+				<label class="label" for="edit-name">
+					<span class="label-text font-medium">Ders Adı *</span>
+				</label>
+				<input
+					id="edit-name"
+					type="text"
+					class="input-bordered input w-full"
+					bind:value={editName}
+					placeholder="Ders adını girin"
+					required
+				/>
 			</div>
-		{:else}
-			<div class="space-y-4">
-				<!-- Package Name -->
-				<div>
-					<label class="label" for="edit-name">
-						<span class="label-text font-medium">Ders Adı *</span>
+
+			<!-- Description -->
+			<div>
+				<label class="label" for="edit-description">
+					<span class="label-text font-medium">Açıklama</span>
+				</label>
+				<textarea
+					id="edit-description"
+					class="textarea-bordered textarea w-full"
+					bind:value={editDescription}
+					placeholder="Ders açıklaması (isteğe bağlı)"
+					rows="3"
+				></textarea>
+			</div>
+
+			<!-- Duration and Lessons per week (Non-editable) -->
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<div
+					class="tooltip tooltip-top"
+					data-tip="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
+				>
+					<label class="label" for="edit-weeks-duration">
+						<span class="label-text font-medium">Süre (Hafta)</span>
+						<span class="label-text-alt text-warning">Değiştirilemez</span>
 					</label>
 					<input
-						id="edit-name"
-						type="text"
+						id="edit-weeks-duration"
+						type="number"
 						class="input-bordered input w-full"
-						bind:value={editName}
-						placeholder="Ders adını girin"
+						value={editWeeksDuration}
+						disabled
+						readonly
+					/>
+				</div>
+
+				<div
+					class="tooltip tooltip-top"
+					data-tip="Bu değer değiştirilemez. Farklı ders sayısı için yeni ders oluşturun."
+				>
+					<label class="label" for="edit-lessons-per-week">
+						<span class="label-text font-medium">Haftalık Ders Sayısı</span>
+						<span class="label-text-alt text-warning">Değiştirilemez</span>
+					</label>
+					<input
+						id="edit-lessons-per-week"
+						type="number"
+						class="input-bordered input w-full"
+						value={editLessonsPerWeek}
+						disabled
+						readonly
+					/>
+				</div>
+			</div>
+
+			<!-- Capacity and Trainee Type -->
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<div>
+					<label class="label" for="edit-max-capacity">
+						<span class="label-text font-medium">Maksimum Kapasite *</span>
+					</label>
+					<input
+						id="edit-max-capacity"
+						type="number"
+						class="input-bordered input w-full"
+						bind:value={editMaxCapacity}
+						min="1"
+						max="50"
 						required
 					/>
 				</div>
 
-				<!-- Description -->
-				<div>
-					<label class="label" for="edit-description">
-						<span class="label-text font-medium">Açıklama</span>
+				<div
+					class="tooltip tooltip-top"
+					data-tip="Bu değer değiştirilemez. Farklı öğrenci türü için yeni ders oluşturun."
+				>
+					<label class="label" for="edit-trainee-type">
+						<span class="label-text font-medium">Öğrenci Türü</span>
+						<span class="label-text-alt text-warning">Değiştirilemez</span>
 					</label>
-					<textarea
-						id="edit-description"
-						class="textarea-bordered textarea w-full"
-						bind:value={editDescription}
-						placeholder="Ders açıklaması (isteğe bağlı)"
-						rows="3"
-					></textarea>
-				</div>
-
-				<!-- Duration and Lessons per week (Non-editable) -->
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div
-						class="tooltip tooltip-top"
-						data-tip="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
-					>
-						<label class="label" for="edit-weeks-duration">
-							<span class="label-text font-medium">Süre (Hafta)</span>
-							<span class="label-text-alt text-warning">Değiştirilemez</span>
-						</label>
-						<input
-							id="edit-weeks-duration"
-							type="number"
-							class="input-bordered input w-full"
-							value={editWeeksDuration}
-							disabled
-							readonly
-						/>
-					</div>
-
-					<div
-						class="tooltip tooltip-top"
-						data-tip="Bu değer değiştirilemez. Farklı ders sayısı için yeni ders oluşturun."
-					>
-						<label class="label" for="edit-lessons-per-week">
-							<span class="label-text font-medium">Haftalık Ders Sayısı</span>
-							<span class="label-text-alt text-warning">Değiştirilemez</span>
-						</label>
-						<input
-							id="edit-lessons-per-week"
-							type="number"
-							class="input-bordered input w-full"
-							value={editLessonsPerWeek}
-							disabled
-							readonly
-						/>
-					</div>
-				</div>
-
-				<!-- Capacity and Trainee Type -->
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div>
-						<label class="label" for="edit-max-capacity">
-							<span class="label-text font-medium">Maksimum Kapasite *</span>
-						</label>
-						<input
-							id="edit-max-capacity"
-							type="number"
-							class="input-bordered input w-full"
-							bind:value={editMaxCapacity}
-							min="1"
-							max="50"
-							required
-						/>
-					</div>
-
-					<div
-						class="tooltip tooltip-top"
-						data-tip="Bu değer değiştirilemez. Farklı öğrenci türü için yeni ders oluşturun."
-					>
-						<label class="label" for="edit-trainee-type">
-							<span class="label-text font-medium">Öğrenci Türü</span>
-							<span class="label-text-alt text-warning">Değiştirilemez</span>
-						</label>
-						<input
-							id="edit-trainee-type"
-							type="text"
-							class="input-bordered input w-full"
-							value={editPackageType === 'private'
-								? 'Özel - Belirli öğrencilerle'
-								: 'Grup - Esnek öğrenci katılımı'}
-							disabled
-							readonly
-						/>
-					</div>
-				</div>
-
-				<!-- Rescheduling Options -->
-				<div class="space-y-3">
-					<div class="flex items-center gap-3">
-						<input
-							id="edit-reschedulable"
-							type="checkbox"
-							class="checkbox checkbox-primary"
-							bind:checked={editReschedulable}
-						/>
-						<label for="edit-reschedulable" class="label-text cursor-pointer font-medium">
-							Randevu değişikliğine izin ver
-						</label>
-					</div>
-
-					{#if editReschedulable}
-						<div>
-							<label class="label" for="edit-reschedule-limit">
-								<span class="label-text">Değişiklik Limiti</span>
-								<span class="label-text-alt">Boş bırakırsanız sınırsız</span>
-							</label>
-							<input
-								id="edit-reschedule-limit"
-								type="number"
-								class="input-bordered input w-full md:w-48"
-								bind:value={editRescheduleLimit}
-								min="1"
-								placeholder="Örn: 3"
-							/>
-						</div>
-					{/if}
+					<input
+						id="edit-trainee-type"
+						type="text"
+						class="input-bordered input w-full"
+						value={editPackageType === 'private'
+							? 'Özel - Belirli öğrencilerle'
+							: 'Grup - Esnek öğrenci katılımı'}
+						disabled
+						readonly
+					/>
 				</div>
 			</div>
-		{/if}
 
-		<div class="modal-action">
-			<button class="btn btn-ghost" onclick={closeEditModal} disabled={formLoading}> İptal </button>
-			<button
-				class="btn btn-primary"
-				onclick={handleEditPackage}
-				disabled={formLoading || !editName.trim()}
-			>
-				{#if formLoading}
-					<LoaderCircle size={16} class="animate-spin" />
-				{:else}
-					<Dumbbell size={16} />
+			<!-- Rescheduling Options -->
+			<div class="space-y-3">
+				<div class="flex items-center gap-3">
+					<input
+						id="edit-reschedulable"
+						type="checkbox"
+						class="checkbox checkbox-primary"
+						bind:checked={editReschedulable}
+					/>
+					<label for="edit-reschedulable" class="label-text cursor-pointer font-medium">
+						Randevu değişikliğine izin ver
+					</label>
+				</div>
+
+				{#if editReschedulable}
+					<div>
+						<label class="label" for="edit-reschedule-limit">
+							<span class="label-text">Değişiklik Limiti</span>
+							<span class="label-text-alt">Boş bırakırsanız sınırsız</span>
+						</label>
+						<input
+							id="edit-reschedule-limit"
+							type="number"
+							class="input-bordered input w-full md:w-48"
+							bind:value={editRescheduleLimit}
+							min="1"
+							placeholder="Örn: 3"
+						/>
+					</div>
 				{/if}
-				Güncelle
-			</button>
+			</div>
 		</div>
+	{/if}
+
+	<div class="modal-action">
+		<button class="btn btn-ghost" onclick={closeEditModal} disabled={formLoading}> İptal </button>
+		<button
+			class="btn btn-primary"
+			onclick={handleEditPackage}
+			disabled={formLoading || !editName.trim()}
+		>
+			{#if formLoading}
+				<LoaderCircle size={16} class="animate-spin" />
+			{:else}
+				<Dumbbell size={16} />
+			{/if}
+			Güncelle
+		</button>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button onclick={closeEditModal}>kapat</button>
-	</form>
-</dialog>
+</Modal>
