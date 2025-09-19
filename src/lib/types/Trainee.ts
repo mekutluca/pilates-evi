@@ -1,2 +1,2 @@
 // Re-export from consolidated types
-export type { Trainee } from './index';
+export type { Trainee, TraineeGroupMembership } from './index';

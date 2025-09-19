@@ -72,6 +72,12 @@ export type TraineeGroupWithTrainee = TraineeGroup & {
 	};
 };
 
+// Helper type for trainee group memberships with package details
+export type TraineeGroupMembership = TraineeGroup & {
+	pe_groups: Group;
+	package?: Package | null;
+};
+
 // Extended types with relationships
 export type GroupWithMembers = Group & {
 	pe_trainee_groups?: TraineeGroupWithTrainee[];

@@ -121,3 +121,36 @@ export function getDayOfWeekFromDate(appointmentDate: string): string {
 	const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 	return days[dayIndex];
 }
+
+/**
+ * Formats a date string for display in Turkish locale
+ * @param dateString - The date string to format
+ * @returns Formatted date string
+ */
+export function formatDisplayDate(dateString: string | null): string {
+	if (!dateString) return '-';
+	return new Date(dateString).toLocaleDateString('tr-TR', {
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric'
+	});
+}
+
+/**
+ * Calculates end date based on start date and duration in weeks
+ * @param startDate - The start date string
+ * @param weeksDuration - Duration in weeks
+ * @returns Formatted end date string or 'Belirsiz' if no duration
+ */
+export function calculatePackageEndDate(
+	startDate: string | null,
+	weeksDuration: number | null
+): string {
+	if (!startDate || !weeksDuration) return 'Belirsiz';
+
+	const start = new Date(startDate);
+	const end = new Date(start);
+	end.setDate(start.getDate() + weeksDuration * 7);
+
+	return formatDisplayDate(end.toISOString());
+}
