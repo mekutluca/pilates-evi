@@ -58,7 +58,7 @@
 			key: 'weeks_duration',
 			title: 'Süre',
 			render: (pkg: PackageWithGroup) => {
-				return `${pkg.weeks_duration} hafta`;
+				return pkg.weeks_duration ? `${pkg.weeks_duration} hafta` : 'Devamlı';
 			}
 		},
 		{

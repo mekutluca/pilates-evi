@@ -21,20 +21,44 @@ export interface TraineeGroupRelation {
 	left_at: string | null;
 }
 
+// Time slot pattern for schedule
+export interface TimeSlotPattern {
+	day: DayOfWeek;
+	hour: number;
+}
+
+// Package info with complete type definitions
+export interface PackageInfo {
+	id?: number;
+	name?: string;
+	reschedulable?: boolean;
+	weeks_duration?: number | null;
+	lessons_per_week?: number;
+}
+
+// Package group with complete type definitions
+export interface PackageGroup {
+	id: number;
+	reschedule_left: number;
+	start_date: string;
+	end_date: string | null;
+	successor_id: number | null;
+	time_slots?: TimeSlotPattern[];
+	pe_rooms?: { id: number; name: string } | null;
+	pe_trainers?: { id: number; name: string } | null;
+	pe_packages?: PackageInfo | null;
+	pe_groups?: {
+		id: number;
+		type: string;
+		pe_trainee_groups?: TraineeGroupRelation[];
+	} | null;
+}
+
 // Types for appointments with relations (matches Supabase query with joins)
 export type AppointmentWithRelations = Appointment & {
 	pe_rooms?: { id?: number; name: string } | null;
 	pe_trainers?: { id?: number; name: string } | null;
-	pe_package_groups?: {
-		id: number;
-		reschedule_left: number;
-		pe_packages?: { id?: number; name?: string; reschedulable?: boolean } | null;
-		pe_groups?: {
-			id: number;
-			type: string;
-			pe_trainee_groups?: TraineeGroupRelation[];
-		} | null;
-	} | null;
+	pe_package_groups?: PackageGroup | null;
 };
 
 // Extended types with related data
@@ -42,7 +66,6 @@ export interface AppointmentWithDetails {
 	// Core database fields - use the exact same types as the database
 	id?: number;
 	appointment_date?: string | null;
-	created_at?: string;
 	created_by?: string | null;
 	hour: number;
 	notes?: string | null;
@@ -62,6 +85,8 @@ export interface AppointmentWithDetails {
 	trainee_count?: number;
 	package_name?: string;
 	reschedule_left?: number; // Number of reschedules remaining for this group
+	package_start_date?: string;
+	package_end_date?: string | null;
 }
 
 export interface WeeklyScheduleSlot {
@@ -139,6 +164,24 @@ export interface ProcessedGroupData {
 	current_capacity: number;
 	max_capacity: number;
 	day_time_slots: Map<number, Set<number>>;
+}
+
+// Types for package extension and conflict detection
+export interface ExtensionRange {
+	start: string;
+	end: string;
+}
+
+export interface ConflictDetail {
+	date: string;
+	hour: number;
+	day: DayOfWeek;
+}
+
+export interface ExtensionConflict {
+	packageIndex: number;
+	range: ExtensionRange;
+	conflicts: ConflictDetail[];
 }
 
 // Constants

@@ -8,53 +8,92 @@ export type Database = {
 	};
 	public: {
 		Tables: {
+			it_entries: {
+				Row: {
+					created_at: string;
+					final_balance: number;
+					for_week: string;
+					id: number;
+					start_balance: number;
+				};
+				Insert: {
+					created_at?: string;
+					final_balance?: number;
+					for_week: string;
+					id?: number;
+					start_balance?: number;
+				};
+				Update: {
+					created_at?: string;
+					final_balance?: number;
+					for_week?: string;
+					id?: number;
+					start_balance?: number;
+				};
+				Relationships: [];
+			};
+			it_users: {
+				Row: {
+					account_id: string | null;
+					current_balance: number;
+					full_name: string | null;
+					id: number;
+					rate: number | null;
+				};
+				Insert: {
+					account_id?: string | null;
+					current_balance?: number;
+					full_name?: string | null;
+					id?: number;
+					rate?: number | null;
+				};
+				Update: {
+					account_id?: string | null;
+					current_balance?: number;
+					full_name?: string | null;
+					id?: number;
+					rate?: number | null;
+				};
+				Relationships: [];
+			};
 			pe_appointments: {
 				Row: {
 					appointment_date: string | null;
-					created_at: string;
 					created_by: string | null;
 					hour: number;
 					id: number;
 					notes: string | null;
 					package_group_id: number | null;
-					room_id: number;
 					series_id: string | null;
 					session_number: number | null;
 					status: Database['public']['Enums']['appointment_status'] | null;
 					total_sessions: number | null;
-					trainer_id: number;
 					updated_at: string;
 				};
 				Insert: {
 					appointment_date?: string | null;
-					created_at?: string;
 					created_by?: string | null;
 					hour: number;
 					id?: number;
 					notes?: string | null;
 					package_group_id?: number | null;
-					room_id: number;
 					series_id?: string | null;
 					session_number?: number | null;
 					status?: Database['public']['Enums']['appointment_status'] | null;
 					total_sessions?: number | null;
-					trainer_id: number;
 					updated_at?: string;
 				};
 				Update: {
 					appointment_date?: string | null;
-					created_at?: string;
 					created_by?: string | null;
 					hour?: number;
 					id?: number;
 					notes?: string | null;
 					package_group_id?: number | null;
-					room_id?: number;
 					series_id?: string | null;
 					session_number?: number | null;
 					status?: Database['public']['Enums']['appointment_status'] | null;
 					total_sessions?: number | null;
-					trainer_id?: number;
 					updated_at?: string;
 				};
 				Relationships: [
@@ -63,20 +102,6 @@ export type Database = {
 						columns: ['package_group_id'];
 						isOneToOne: false;
 						referencedRelation: 'pe_package_groups';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_appointments_room_id_fkey';
-						columns: ['room_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_rooms';
-						referencedColumns: ['id'];
-					},
-					{
-						foreignKeyName: 'pe_appointments_trainer_id_fkey';
-						columns: ['trainer_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_trainers';
 						referencedColumns: ['id'];
 					}
 				];
@@ -101,25 +126,43 @@ export type Database = {
 			};
 			pe_package_groups: {
 				Row: {
-					created_at: string | null;
+					appointments_created_until: string;
+					end_date: string | null;
 					group_id: number;
 					id: number;
 					package_id: number;
 					reschedule_left: number;
+					room_id: number | null;
+					start_date: string;
+					successor_id: number | null;
+					time_slots: Json;
+					trainer_id: number | null;
 				};
 				Insert: {
-					created_at?: string | null;
+					appointments_created_until?: string;
+					end_date?: string | null;
 					group_id: number;
 					id?: number;
 					package_id: number;
 					reschedule_left?: number;
+					room_id?: number | null;
+					start_date?: string;
+					successor_id?: number | null;
+					time_slots?: Json;
+					trainer_id?: number | null;
 				};
 				Update: {
-					created_at?: string | null;
+					appointments_created_until?: string;
+					end_date?: string | null;
 					group_id?: number;
 					id?: number;
 					package_id?: number;
 					reschedule_left?: number;
+					room_id?: number | null;
+					start_date?: string;
+					successor_id?: number | null;
+					time_slots?: Json;
+					trainer_id?: number | null;
 				};
 				Relationships: [
 					{
@@ -134,6 +177,27 @@ export type Database = {
 						columns: ['package_id'];
 						isOneToOne: false;
 						referencedRelation: 'pe_packages';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_package_groups_room_id_fkey';
+						columns: ['room_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_rooms';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_package_groups_successor_id_fkey';
+						columns: ['successor_id'];
+						isOneToOne: true;
+						referencedRelation: 'pe_package_groups';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_package_groups_trainer_id_fkey';
+						columns: ['trainer_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_trainers';
 						referencedColumns: ['id'];
 					}
 				];

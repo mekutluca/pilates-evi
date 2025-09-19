@@ -99,7 +99,7 @@ export type PackageWithGroup = Package & {
 export interface CreatePackageForm {
 	name: string;
 	description?: string;
-	weeks_duration: number;
+	weeks_duration: number | null;
 	lessons_per_week: number;
 	max_capacity: number;
 	package_type: 'private' | 'group';
@@ -121,4 +121,12 @@ export interface PackageAssignmentForm {
 export interface SelectedTimeSlot {
 	day: string;
 	hour: number;
+}
+
+// Time slot pattern stored in pe_package_groups.time_slots
+export interface TimeSlotPattern {
+	day: string;
+	hour: number;
+	room_id: number;
+	trainer_id: number;
 }

@@ -76,20 +76,22 @@ export const actions: Actions = {
 			!packageForm.name ||
 			!packageForm.lessons_per_week ||
 			!packageForm.max_capacity ||
-			!packageForm.weeks_duration
+			!packageForm.package_type
 		) {
 			return fail(400, {
 				success: false,
-				message: 'Ders adı, süre, haftalık ders sayısı ve maksimum kapasite gereklidir'
+				message: 'Ders adı, tür, haftalık ders sayısı ve maksimum kapasite gereklidir'
 			});
 		}
 
-		// Validate weeks duration limits
-		if (packageForm.weeks_duration < 1 || packageForm.weeks_duration > 52) {
-			return fail(400, {
-				success: false,
-				message: 'Ders süresi 1 ile 52 hafta arasında olmalıdır'
-			});
+		// Validate weeks duration for private packages only
+		if (packageForm.package_type === 'private') {
+			if (!packageForm.weeks_duration || packageForm.weeks_duration < 1) {
+				return fail(400, {
+					success: false,
+					message: 'Özel dersler için ders süresi en az 1 hafta olmalıdır'
+				});
+			}
 		}
 
 		// Create package with new simplified structure

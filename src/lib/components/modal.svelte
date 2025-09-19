@@ -8,9 +8,17 @@
 		title?: string;
 		size?: 'sm' | 'md' | 'lg' | 'xl';
 		children: Snippet;
+		header?: Snippet;
 	}
 
-	let { open = $bindable(), onClose = () => {}, title, size = 'md', children }: Props = $props();
+	let {
+		open = $bindable(),
+		onClose = () => {},
+		title,
+		size = 'md',
+		children,
+		header
+	}: Props = $props();
 
 	let showContent = $state(false);
 	let resetTimeout: NodeJS.Timeout | null = null;
@@ -83,7 +91,11 @@
 
 <dialog class="modal" class:modal-open={open} onclose={handleDialogClose} onkeydown={handleKeyDown}>
 	<div class={sizeClasses[size]}>
-		{#if title}
+		{#if header}
+			<div class="mb-4">
+				{@render header()}
+			</div>
+		{:else if title}
 			<h3 class="mb-4 text-lg font-bold">{title}</h3>
 		{/if}
 

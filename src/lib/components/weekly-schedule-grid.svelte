@@ -74,14 +74,14 @@
 
 					if (viewMode === 'room') {
 						return (
-							apt.room_id === selectedEntity.id &&
+							apt.pe_package_groups?.pe_rooms?.id === selectedEntity.id &&
 							appointmentDayOfWeek === day &&
 							apt.hour === hour &&
 							(apt.status === 'scheduled' || apt.status === null)
 						);
 					} else {
 						return (
-							apt.trainer_id === selectedEntity.id &&
+							apt.pe_package_groups?.pe_trainers?.id === selectedEntity.id &&
 							appointmentDayOfWeek === day &&
 							apt.hour === hour &&
 							(apt.status === 'scheduled' || apt.status === null)
@@ -156,17 +156,16 @@
 			// Core database fields
 			id: apt.id,
 			appointment_date: apt.appointment_date,
-			created_at: apt.created_at,
 			created_by: apt.created_by,
 			hour: apt.hour,
 			notes: apt.notes,
 			package_group_id: apt.package_group_id!,
-			room_id: apt.room_id,
+			room_id: apt.pe_package_groups?.pe_rooms?.id || 0,
 			series_id: apt.series_id,
 			session_number: apt.session_number,
 			status: apt.status || 'scheduled',
 			total_sessions: apt.total_sessions,
-			trainer_id: apt.trainer_id,
+			trainer_id: apt.pe_package_groups?.pe_trainers?.id || 0,
 			updated_at: apt.updated_at,
 			// Extended fields from relations
 			room_name: apt.pe_rooms?.name || '',

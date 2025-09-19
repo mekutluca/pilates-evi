@@ -478,8 +478,8 @@
 			if (aptDayOfWeek !== day || apt.hour !== hour) return false;
 
 			// Check if it conflicts with our selected room or trainer
-			const roomConflict = apt.room_id === assignmentForm.room_id;
-			const trainerConflict = apt.trainer_id === assignmentForm.trainer_id;
+			const roomConflict = apt.pe_package_groups?.pe_rooms?.id === assignmentForm.room_id;
+			const trainerConflict = apt.pe_package_groups?.pe_trainers?.id === assignmentForm.trainer_id;
 
 			return roomConflict || trainerConflict;
 		});
@@ -514,7 +514,7 @@
 	);
 
 	// Trainee selection for step 3
-	function toggleTrainee(traineeId: number) {
+	function toggleTrainee(traineeId: number, event?: Event) {
 		// Don't allow toggling existing group trainees
 		if (existingGroupTrainees && existingGroupTrainees.includes(traineeId)) {
 			toast.info('Bu öğrenci zaten grubun üyesi');
@@ -646,7 +646,9 @@
 																	<div>{pkg.lessons_per_week} ders/hafta</div>
 																	<div>Max {pkg.max_capacity} kişi</div>
 																	<div>
-																		{#if pkg.weeks_duration}
+																		{#if pkg.package_type === 'group'}
+																			Devamlı
+																		{:else if pkg.weeks_duration}
 																			{pkg.weeks_duration} hafta
 																		{:else}
 																			Süresiz
@@ -690,7 +692,9 @@
 																	<div>{pkg.lessons_per_week} ders/hafta</div>
 																	<div>Max {pkg.max_capacity} kişi</div>
 																	<div>
-																		{#if pkg.weeks_duration}
+																		{#if pkg.package_type === 'group'}
+																			Devamlı
+																		{:else if pkg.weeks_duration}
 																			{pkg.weeks_duration} hafta
 																		{:else}
 																			Süresiz
@@ -1024,7 +1028,16 @@
 									{#each filteredTrainees as trainee (trainee.id)}
 										{@const isExisting = isTraineeInExistingGroup(trainee.id)}
 										{@const isSelected = selectedTrainees.includes(trainee.id)}
-										<label class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}">
+										<div
+											class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}"
+											role="button"
+											tabindex="0"
+											onclick={(event) => !isExisting && toggleTrainee(trainee.id, event)}
+											onkeydown={(event) =>
+												!isExisting &&
+												(event.key === 'Enter' || event.key === ' ') &&
+												toggleTrainee(trainee.id, event)}
+										>
 											<div
 												class="card border transition-colors {isExisting
 													? 'border-base-300 bg-base-100 opacity-60'
@@ -1043,9 +1056,9 @@
 															<!-- Regular checkbox for selectable trainees -->
 															<input
 																type="checkbox"
-																class="checkbox checkbox-sm checkbox-success"
+																class="pointer-events-none checkbox checkbox-sm checkbox-success"
 																checked={isSelected}
-																onchange={() => toggleTrainee(trainee.id)}
+																readonly
 															/>
 														{/if}
 														<div class="ml-3 flex-1">
@@ -1066,7 +1079,7 @@
 													</div>
 												</div>
 											</div>
-										</label>
+										</div>
 									{/each}
 								</div>
 
@@ -1112,8 +1125,16 @@
 								<ArrowRight class="h-4 w-4" />
 							</button>
 						{:else}
-							<button class="btn btn-accent" disabled={!canProceed()} onclick={handleFinalSubmit}>
-								<Check class="h-4 w-4" />
+							<button
+								class="btn btn-accent"
+								disabled={!canProceed() || formLoading}
+								onclick={handleFinalSubmit}
+							>
+								{#if formLoading}
+									<LoaderCircle class="h-4 w-4 animate-spin" />
+								{:else}
+									<Check class="h-4 w-4" />
+								{/if}
 								Kaydı Tamamla
 							</button>
 						{/if}

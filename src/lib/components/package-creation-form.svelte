@@ -54,7 +54,7 @@
 		onSubmit({
 			name,
 			description,
-			weeks_duration,
+			weeks_duration: package_type === 'group' ? null : weeks_duration,
 			lessons_per_week,
 			max_capacity,
 			package_type,
@@ -72,9 +72,7 @@
 			lessons_per_week > 0 &&
 			max_capacity > 0 &&
 			package_type !== undefined &&
-			weeks_duration &&
-			weeks_duration > 0 &&
-			weeks_duration <= 52
+			(package_type === 'group' || (weeks_duration && weeks_duration > 0))
 	);
 </script>
 
@@ -119,23 +117,35 @@
 						<!-- Weeks Duration -->
 						<div class="form-control">
 							<label class="label" for="weeks-duration">
-								<span class="label-text font-semibold">Ders Süresi (Hafta) *</span>
+								<span class="label-text font-semibold">
+									Ders Süresi (Hafta) {#if package_type === 'private'}*{/if}
+								</span>
 							</label>
-							<input
-								id="weeks-duration"
-								type="number"
-								class="input-bordered input w-full"
-								placeholder="Örn: 4"
-								min="1"
-								max="52"
-								bind:value={weeks_duration}
-								required
-							/>
-							<div class="label">
-								<span class="label-text-alt text-base-content/60"
-									>Bu ders kaç hafta sürecek (max 52)</span
+							{#if package_type === 'private'}
+								<input
+									id="weeks-duration"
+									type="number"
+									class="input-bordered input w-full"
+									placeholder="Örn: 4"
+									min="1"
+									bind:value={weeks_duration}
+									required
+								/>
+								<div class="label">
+									<span class="label-text-alt text-base-content/60">Bu ders kaç hafta sürecek</span>
+								</div>
+							{:else}
+								<div
+									class="input-bordered input flex w-full items-center bg-base-200 text-base-content/60"
 								>
-							</div>
+									Devamlı
+								</div>
+								<div class="label">
+									<span class="label-text-alt text-base-content/60"
+										>Manuel olarak sonlandırılana kadar devam eder</span
+									>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Lessons per Week -->
@@ -209,9 +219,9 @@
 													value="private"
 												/>
 												<div class="flex-1">
-													<div class="text-sm font-medium">Sabit Liste</div>
+													<div class="text-sm font-medium">Özel ders</div>
 													<div class="text-xs text-base-content/60">
-														Tüm derslerde aynı öğrenciler
+														Bireysel veya özel grup dersi
 													</div>
 												</div>
 											</div>
@@ -230,10 +240,8 @@
 													value="group"
 												/>
 												<div class="flex-1">
-													<div class="text-sm font-medium">Esnek Liste</div>
-													<div class="text-xs text-base-content/60">
-														Öğrenciler eklenip çıkartılabilir
-													</div>
+													<div class="text-sm font-medium">Grup dersi</div>
+													<div class="text-xs text-base-content/60">Herkese açık grup dersi</div>
 												</div>
 											</div>
 										</label>
@@ -265,9 +273,7 @@
 											/>
 											<div class="flex-1">
 												<div class="text-sm font-medium">Erteleme İzni</div>
-												<div class="text-xs text-base-content/60">
-													Öğrenciler dersi erteleme talebinde bulunabilir
-												</div>
+												<div class="text-xs text-base-content/60">Dersler ertelenebilir</div>
 											</div>
 										</label>
 									</div>

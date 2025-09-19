@@ -5,6 +5,7 @@
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -14,7 +15,9 @@
 		DayOfWeek,
 		AppointmentWithDetails,
 		TraineeGroupRelation,
-		AppointmentWithRelations
+		AppointmentWithRelations,
+		TimeSlotPattern,
+		ExtensionConflict
 	} from '$lib/types/Schedule';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
 	import {
@@ -23,7 +26,8 @@
 		formatDateParam,
 		getDateForDayOfWeek,
 		formatDayMonth,
-		getDayOfWeekFromDate
+		getDayOfWeekFromDate,
+		TURKISH_DAYS
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { page } from '$app/state';
@@ -32,7 +36,8 @@
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
 	// Extract data reactively
-	let appointments = $derived(data.appointments);
+	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
+	let allAppointments = $derived(data.allAppointments as AppointmentWithRelations[]);
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
@@ -72,6 +77,10 @@
 
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
+
+	// Extension modal state
+	let showExtensionModal = $state(false);
+	let additionalPackages = $state(1);
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -135,12 +144,13 @@
 		appointment: AppointmentWithRelations,
 		roomName?: string | null,
 		trainerName?: string | null
-	) {
+	): AppointmentWithDetails {
+		const packageGroup = appointment.pe_package_groups;
 		return {
-			// Database fields - use direct values from Appointment
+			// Database fields - use values from appointment and package group
 			id: appointment.id,
-			room_id: appointment.room_id,
-			trainer_id: appointment.trainer_id,
+			room_id: packageGroup?.pe_rooms?.id || 0,
+			trainer_id: packageGroup?.pe_trainers?.id || 0,
 			package_group_id: appointment.package_group_id!,
 			hour: appointment.hour,
 			status: appointment.status || 'scheduled',
@@ -148,23 +158,24 @@
 			session_number: appointment.session_number,
 			total_sessions: appointment.total_sessions,
 			notes: appointment.notes,
-			created_at: appointment.created_at,
 			updated_at: appointment.updated_at,
 			created_by: appointment.created_by,
 			series_id: appointment.series_id,
 			// Extended fields using relation data
-			room_name: roomName || appointment.pe_rooms?.name || '',
-			trainer_name: trainerName || appointment.pe_trainers?.name || '',
-			package_name: appointment.pe_package_groups?.pe_packages?.name || '',
+			room_name: roomName || packageGroup?.pe_rooms?.name || '',
+			trainer_name: trainerName || packageGroup?.pe_trainers?.name || '',
+			package_name: packageGroup?.pe_packages?.name || '',
 			trainee_names:
-				appointment.pe_package_groups?.pe_groups?.pe_trainee_groups
+				packageGroup?.pe_groups?.pe_trainee_groups
 					?.filter((tg: TraineeGroupRelation) => !tg.left_at) // Only active members
 					?.map((tg: TraineeGroupRelation) => tg.pe_trainees.name) || [],
 			trainee_count:
-				appointment.pe_package_groups?.pe_groups?.pe_trainee_groups?.filter(
+				packageGroup?.pe_groups?.pe_trainee_groups?.filter(
 					(tg: TraineeGroupRelation) => !tg.left_at
 				)?.length || 0,
-			reschedule_left: appointment.pe_package_groups?.reschedule_left ?? 0
+			reschedule_left: appointment.pe_package_groups?.reschedule_left ?? 0,
+			package_start_date: packageGroup?.start_date,
+			package_end_date: packageGroup?.end_date
 		};
 	}
 
@@ -280,6 +291,200 @@
 		return false;
 	}
 
+	// Check if an appointment is the last session and can be extended
+	function isLastSessionAndExtendable(appointment: AppointmentWithDetails): boolean {
+		return (
+			appointment.session_number === appointment.total_sessions &&
+			appointment.total_sessions !== null &&
+			appointment.total_sessions !== undefined &&
+			appointment.total_sessions > 1
+		);
+	}
+
+	// Check if an appointment belongs to a private package that can be extended
+	function isPrivatePackage(appointment: AppointmentWithDetails): boolean {
+		// Private packages have a finite total_sessions, group packages have null total_sessions
+		const isPrivate =
+			appointment.total_sessions !== null &&
+			appointment.total_sessions !== undefined &&
+			appointment.total_sessions > 0;
+
+		if (!isPrivate) return false;
+
+		// Check if this package is the latest in the extension chain (no successor)
+		return isLatestInExtensionChain(appointment);
+	}
+
+	// Check if the appointment belongs to the latest package in an extension chain
+	function isLatestInExtensionChain(appointment: AppointmentWithDetails): boolean {
+		if (!appointment.package_group_id) return false;
+
+		// Find the appointment's package group in the loaded data
+		const packageGroup = appointments.find(
+			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
+		)?.pe_package_groups;
+
+		// If no successor_id, this is the latest package in the chain
+		return packageGroup?.successor_id === null || packageGroup?.successor_id === undefined;
+	}
+
+	// Open extension modal
+	function openExtensionModal(appointment: AppointmentWithDetails) {
+		selectedAppointment = appointment;
+		showExtensionModal = true;
+		additionalPackages = 1; // Reset to default
+	}
+
+	// Get package chain information (current package + all successors)
+	function getPackageChain(appointment: AppointmentWithDetails) {
+		const chain = [];
+		let currentPackageGroupId = appointment.package_group_id;
+
+		while (currentPackageGroupId) {
+			const packageGroup = appointments.find(
+				(apt) => apt.pe_package_groups?.id === currentPackageGroupId
+			)?.pe_package_groups;
+
+			if (packageGroup) {
+				chain.push({
+					id: packageGroup.id,
+					start_date: packageGroup.start_date,
+					end_date: packageGroup.end_date,
+					successor_id: packageGroup.successor_id
+				});
+				currentPackageGroupId = packageGroup.successor_id;
+			} else {
+				break;
+			}
+		}
+
+		return chain;
+	}
+
+	// Calculate extension date ranges
+	function calculateExtensionRanges(appointment: AppointmentWithDetails, packageCount: number) {
+		const packageInfo = appointments.find(
+			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
+		)?.pe_package_groups?.pe_packages;
+
+		if (!packageInfo || !('weeks_duration' in packageInfo) || !packageInfo.weeks_duration)
+			return [];
+
+		const chain = getPackageChain(appointment);
+		const lastPackage = chain[chain.length - 1];
+		if (!lastPackage?.end_date) return [];
+
+		const lastEndDate = new SvelteDate(lastPackage.end_date);
+		const weeksDuration = packageInfo.weeks_duration as number;
+
+		const ranges = [];
+		for (let i = 0; i < packageCount; i++) {
+			const startDate = new SvelteDate(lastEndDate.getTime());
+			startDate.setDate(lastEndDate.getDate() + 1 + i * weeksDuration * 7);
+
+			const endDate = new SvelteDate(startDate.getTime());
+			endDate.setDate(startDate.getDate() + weeksDuration * 7 - 1);
+
+			ranges.push({
+				start: startDate.toISOString().split('T')[0],
+				end: endDate.toISOString().split('T')[0]
+			});
+		}
+
+		return ranges;
+	}
+
+	// Check for conflicts in extension ranges
+	function checkExtensionConflicts(
+		appointment: AppointmentWithDetails,
+		packageCount: number
+	): ExtensionConflict[] {
+		const packageInfo = appointments.find(
+			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
+		)?.pe_package_groups;
+
+		if (!packageInfo || !('time_slots' in packageInfo) || !packageInfo.time_slots) return [];
+
+		const ranges = calculateExtensionRanges(appointment, packageCount);
+		const timeSlots = packageInfo.time_slots as TimeSlotPattern[];
+		const conflicts: ExtensionConflict[] = [];
+
+		// Get room and trainer IDs
+		const roomId = packageInfo.pe_rooms?.id;
+		const trainerId = packageInfo.pe_trainers?.id;
+
+		if (!roomId || !trainerId) return [];
+
+		for (const range of ranges) {
+			const rangeConflicts = [];
+			const startDate = new SvelteDate(range.start);
+			const endDate = new SvelteDate(range.end);
+
+			// Check each time slot for conflicts
+			for (const slot of timeSlots) {
+				// Generate all appointment dates for this slot within the range
+				let checkDate = new SvelteDate(startDate.getTime());
+
+				while (checkDate <= endDate) {
+					// Calculate the actual date for this day of week
+					const dayNames = [
+						'sunday',
+						'monday',
+						'tuesday',
+						'wednesday',
+						'thursday',
+						'friday',
+						'saturday'
+					];
+					const targetDayIndex = dayNames.indexOf(slot.day);
+					const currentDayIndex = checkDate.getDay();
+					const daysToAdd = (targetDayIndex - currentDayIndex + 7) % 7;
+
+					const appointmentDate = new SvelteDate(checkDate.getTime());
+					appointmentDate.setDate(checkDate.getDate() + daysToAdd);
+
+					// Only check if the appointment date is within our range
+					if (appointmentDate >= startDate && appointmentDate <= endDate) {
+						const dateStr = appointmentDate.toISOString().split('T')[0];
+
+						// Check for conflicts with existing appointments
+						const hasConflict = allAppointments.some((apt) => {
+							if (!apt.appointment_date || apt.status !== 'scheduled') return false;
+							if (apt.appointment_date !== dateStr || apt.hour !== slot.hour) return false;
+
+							// Check room and trainer conflicts
+							const existingRoomId = apt.pe_package_groups?.pe_rooms?.id;
+							const existingTrainerId = apt.pe_package_groups?.pe_trainers?.id;
+
+							return existingRoomId === roomId || existingTrainerId === trainerId;
+						});
+
+						if (hasConflict) {
+							rangeConflicts.push({
+								date: dateStr,
+								hour: slot.hour,
+								day: slot.day
+							});
+						}
+					}
+
+					// Move to next week
+					checkDate.setDate(checkDate.getDate() + 7);
+				}
+			}
+
+			if (rangeConflicts.length > 0) {
+				conflicts.push({
+					packageIndex: ranges.indexOf(range),
+					range: range,
+					conflicts: rangeConflicts
+				});
+			}
+		}
+
+		return conflicts;
+	}
+
 	// Check if we're viewing the current week
 	const isCurrentWeek = $derived(() => {
 		const now = getWeekStart(new Date());
@@ -306,7 +511,7 @@
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
 						(apt) =>
-							apt.room_id === selectedRoom.id &&
+							apt.pe_package_groups?.pe_rooms?.id === selectedRoom.id &&
 							apt.appointment_date === dateString &&
 							apt.hour === hour &&
 							apt.status === 'scheduled'
@@ -339,7 +544,7 @@
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
 						(apt) =>
-							apt.trainer_id === selectedTrainer.id &&
+							apt.pe_package_groups?.pe_trainers?.id === selectedTrainer.id &&
 							apt.appointment_date === dateString &&
 							apt.hour === hour &&
 							apt.status === 'scheduled'
@@ -588,12 +793,17 @@
 																	{slot.appointment.room_name}
 																{/if}
 															</div>
-															<div class="truncate text-primary-content/80">
-																{slot.appointment.trainee_count} öğrenci
-															</div>
 															{#if slot.appointment.package_name}
 																<div class="truncate text-xs text-primary-content/70">
 																	{slot.appointment.package_name}
+																</div>
+															{/if}
+															{#if isLastSessionAndExtendable(slot.appointment)}
+																<div
+																	class="flex items-center justify-center gap-1 text-xs font-semibold"
+																>
+																	<ClockAlert size={12} />
+																	<span>Son ders</span>
 																</div>
 															{/if}
 														</button>
@@ -657,7 +867,6 @@
 <!-- Appointment Details Modal -->
 <Modal
 	bind:open={showAppointmentDetailsModal}
-	title="Randevu Detayları"
 	size="lg"
 	onClose={() => {
 		// Only reset selectedAppointment if we're not in reschedule mode
@@ -666,8 +875,32 @@
 		}
 	}}
 >
+	{#snippet header()}
+		<div class="flex items-center justify-between">
+			<h3 class="text-lg font-bold">Randevu Detayları</h3>
+			{#if selectedAppointment && isPrivatePackage(selectedAppointment)}
+				<button
+					type="button"
+					class="btn btn-sm btn-warning"
+					onclick={() => openExtensionModal(selectedAppointment!)}
+				>
+					Paketi uzat
+				</button>
+			{/if}
+		</div>
+	{/snippet}
 	{#if selectedAppointment}
 		<div class="space-y-4">
+			<!-- Extension Alert Strip -->
+			{#if isLastSessionAndExtendable(selectedAppointment)}
+				<div class="alert alert-warning p-3">
+					<div class="flex items-center gap-2">
+						<ClockAlert size={16} />
+						<span class="text-sm font-medium">Bu paketin son dersi</span>
+					</div>
+				</div>
+			{/if}
+
 			<!-- Time and Room Info -->
 			<div class="card bg-base-200">
 				<div class="card-body p-4">
@@ -709,8 +942,24 @@
 			<!-- Package Info -->
 			<div>
 				<h4 class="mb-2 text-base font-semibold">Ders</h4>
-				<div class="badge badge-accent">
-					{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
+				<div class="space-y-2">
+					<div class="badge badge-accent">
+						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
+					</div>
+					{#if selectedAppointment.package_start_date}
+						<div class="text-sm text-base-content/70">
+							<strong>Başlangıç:</strong>
+							{formatDayMonth(new Date(selectedAppointment.package_start_date))}
+							{#if selectedAppointment.package_end_date}
+								<br />
+								<strong>Bitiş:</strong>
+								{formatDayMonth(new Date(selectedAppointment.package_end_date))}
+							{:else}
+								<br />
+								<strong>Bitiş:</strong> <span class="text-info">Devamlı</span>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			</div>
 
@@ -745,7 +994,11 @@
 				class="btn btn-warning"
 				onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
 			>
-				Ertele ({selectedAppointment.reschedule_left} kaldı)
+				{#if (selectedAppointment.reschedule_left ?? 0) >= 999}
+					Ertele
+				{:else}
+					Ertele ({selectedAppointment.reschedule_left} kaldı)
+				{/if}
 			</button>
 		{/if}
 		<button
@@ -920,5 +1173,203 @@
 				</div>
 			</form>
 		</div>
+	{/if}
+</Modal>
+
+<!-- Extension Modal -->
+<Modal bind:open={showExtensionModal} title="Paketi Uzat">
+	{#if selectedAppointment}
+		<form
+			method="POST"
+			action="?/extendPackage"
+			use:enhance={() => {
+				return async ({ result, update }) => {
+					if (result.type === 'success') {
+						toast.success('Paket başarıyla uzatıldı');
+						showExtensionModal = false;
+						selectedAppointment = null;
+						additionalPackages = 1;
+					} else if (result.type === 'failure') {
+						toast.error(getActionErrorMessage(result));
+					}
+					await update();
+				};
+			}}
+			class="space-y-5"
+		>
+			<input type="hidden" name="package_group_id" value={selectedAppointment.package_group_id} />
+			<input type="hidden" name="package_count" value={additionalPackages} />
+
+			{#if selectedAppointment}
+				{@const packageInfo = appointments.find(
+					(apt) => apt.pe_package_groups?.id === selectedAppointment!.package_group_id
+				)?.pe_package_groups?.pe_packages}
+				{@const packageChain = getPackageChain(selectedAppointment)}
+				{@const extensionRanges = calculateExtensionRanges(selectedAppointment, additionalPackages)}
+				{@const extensionConflicts = checkExtensionConflicts(
+					selectedAppointment,
+					additionalPackages
+				)}
+
+				<!-- Package Summary -->
+				<div class="rounded-lg border border-base-300 bg-base-100 p-4">
+					<div class="mb-3 flex items-center gap-3">
+						<div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-300">
+							<span class="text-sm font-semibold">{packageChain.length}</span>
+						</div>
+						<div>
+							<h4 class="font-medium">{selectedAppointment.package_name}</h4>
+							{#if packageInfo}
+								<p class="text-sm text-base-content/60">
+									{(packageInfo as any).weeks_duration} hafta • Haftada {(packageInfo as any)
+										.lessons_per_week} ders
+								</p>
+							{/if}
+						</div>
+					</div>
+					<div class="text-sm text-base-content/70">
+						<span>{selectedAppointment.trainee_names?.join(', ')}</span>
+						<span class="mx-2">•</span>
+						<span>{selectedAppointment.trainer_name}</span>
+						<span class="mx-2">•</span>
+						<span>{selectedAppointment.room_name}</span>
+					</div>
+				</div>
+
+				<!-- Extension Input -->
+				<div class="form-control">
+					<label class="label pb-2" for="package_count">
+						<span class="label-text font-medium">Kaç paket uzatılsın?</span>
+					</label>
+					<input
+						type="number"
+						id="package_count"
+						name="package_count"
+						bind:value={additionalPackages}
+						min="1"
+						max="20"
+						class="input-bordered input text-center text-lg font-medium"
+						required
+					/>
+					{#if packageInfo}
+						<div class="label pt-1">
+							<span class="label-text-alt text-base-content/50">
+								Her paket {(packageInfo as any).weeks_duration} hafta, haftada {(packageInfo as any)
+									.lessons_per_week} ders
+							</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Timeline -->
+				<div class="space-y-3">
+					<h5 class="text-sm font-medium tracking-wide text-base-content/70 uppercase">
+						Paket Zinciri
+					</h5>
+					<div class="space-y-2">
+						<!-- Existing packages -->
+						{#each packageChain as pkg, index (pkg.id)}
+							<div class="flex items-center gap-3 rounded-lg border border-base-300 p-3">
+								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-base-300">
+									<span class="text-xs font-medium">{index + 1}</span>
+								</div>
+								<div class="flex-1">
+									<span class="text-sm font-medium">Mevcut paket</span>
+								</div>
+								<span class="font-mono text-sm text-base-content/60">
+									{formatDayMonth(new Date(pkg.start_date))} - {formatDayMonth(
+										new Date(pkg.end_date!)
+									)}
+								</span>
+							</div>
+						{/each}
+
+						<!-- New packages -->
+						{#if extensionRanges.length > 0}
+							{#each extensionRanges as range, index (range.start)}
+								<div
+									class="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3"
+								>
+									<div class="flex h-6 w-6 items-center justify-center rounded-full bg-success/20">
+										<span class="text-xs font-medium text-success"
+											>{packageChain.length + index + 1}</span
+										>
+									</div>
+									<div class="flex-1">
+										<span class="text-sm font-medium text-success">Yeni paket</span>
+									</div>
+									<span class="font-mono text-sm text-success">
+										{formatDayMonth(new Date(range.start))} - {formatDayMonth(new Date(range.end))}
+									</span>
+								</div>
+							{/each}
+						{/if}
+					</div>
+				</div>
+
+				<!-- Conflict Warning -->
+				{#if extensionConflicts.length > 0}
+					<div class="rounded-lg border border-error/30 bg-error/10 p-4">
+						<div class="space-y-3">
+							<div class="flex items-center gap-2">
+								<div class="flex h-5 w-5 items-center justify-center rounded-full bg-error/20">
+									<span class="text-xs font-bold text-error">!</span>
+								</div>
+								<h5 class="font-medium text-error">Çakışma Tespit Edildi</h5>
+							</div>
+							<div class="text-sm text-error/80">
+								Pakette yer alan oda veya eğitmen, aşağıdaki tarih ve saatlerde dolu. Paketi
+								uzatmanız için ya çakışan randevuları değiştirin, veya 'Yeni Kayıt' ekranından uygun
+								başka saatler seçin.
+							</div>
+							<div class="space-y-1">
+								{#each extensionConflicts as conflict (conflict.packageIndex)}
+									{#each conflict.conflicts as conflictDetail (conflictDetail.date + conflictDetail.hour)}
+										<div class="text-sm text-error/80">
+											• {formatDayMonth(new Date(conflictDetail.date))} ({TURKISH_DAYS[
+												[
+													'sunday',
+													'monday',
+													'tuesday',
+													'wednesday',
+													'thursday',
+													'friday',
+													'saturday'
+												].indexOf(conflictDetail.day)
+											]}) saat {conflictDetail.hour}:00
+										</div>
+									{/each}
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Summary -->
+				{#if additionalPackages > 0}
+					<div class="rounded-lg border border-success/30 bg-success/10 p-4">
+						<div class="flex items-center justify-between">
+							<span class="font-medium">Toplam uzatma</span>
+							<span class="font-semibold text-success">
+								{additionalPackages} paket
+								{#if packageInfo}
+									• {additionalPackages * ((packageInfo as any).weeks_duration ?? 1)} hafta
+								{/if}
+							</span>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Action Buttons -->
+				<div class="modal-action">
+					<button type="button" class="btn" onclick={() => (showExtensionModal = false)}
+						>İptal</button
+					>
+					<button type="submit" class="btn btn-info" disabled={extensionConflicts.length > 0}>
+						{extensionConflicts.length > 0 ? 'Çakışma Var' : 'Uzat'}
+					</button>
+				</div>
+			{/if}
+		</form>
 	{/if}
 </Modal>

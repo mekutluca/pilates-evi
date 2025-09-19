@@ -22,6 +22,7 @@
 		defaultSortOrder?: 'asc' | 'desc';
 		actions?: ActionItem[];
 		actionsTitle?: string;
+		onRowClick?: (item: T) => void;
 	}
 
 	let {
@@ -32,7 +33,8 @@
 		defaultSortKey = 'id',
 		defaultSortOrder = 'asc',
 		actions = [],
-		actionsTitle = 'İşlemler'
+		actionsTitle = 'İşlemler',
+		onRowClick
 	}: Props = $props();
 
 	let sortKey = $state(defaultSortKey);
@@ -174,7 +176,10 @@
 					</thead>
 					<tbody>
 						{#each filteredAndSortedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
-							<tr>
+							<tr
+								class={onRowClick ? 'cursor-pointer transition-colors hover:bg-base-200' : ''}
+								onclick={() => onRowClick?.(item)}
+							>
 								{#each columns as column (column.key)}
 									<td class={column.class || ''}>
 										{#if column.renderComponent}
@@ -189,7 +194,7 @@
 									</td>
 								{/each}
 								{#if actions && actions.length > 0}
-									<td class="text-right">
+									<td class="text-right" onclick={(e) => e.stopPropagation()}>
 										<ActionMenu
 											actions={actions.map(
 												(action): ActionItem => ({

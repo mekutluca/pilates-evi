@@ -171,7 +171,8 @@
 						<li class="w-full">
 							<a
 								href={route.href}
-								class="flex w-full items-center {page.url.pathname === route.href
+								class="flex w-full items-center {page.url.pathname === route.href ||
+								page.url.pathname.startsWith(route.href + '/')
 									? 'menu-active'
 									: ''}"
 							>
@@ -214,7 +215,8 @@
 									<a
 										href={route.href}
 										onclick={closeDrawer}
-										class="flex w-full items-center {page.url.pathname === route.href
+										class="flex w-full items-center {page.url.pathname === route.href ||
+										page.url.pathname.startsWith(route.href + '/')
 											? 'menu-active'
 											: ''}"
 									>

@@ -8,6 +8,7 @@ import type {
 	AppointmentSeriesData,
 	ProcessedGroupData
 } from '$lib/types/Schedule';
+import type { TimeSlotPattern } from '$lib/types/index';
 import { randomUUID } from 'crypto';
 import { getDateForDayOfWeek } from '$lib/utils/date-utils';
 import { findOrCreateGroup } from '$lib/utils/group-utils';
@@ -89,10 +90,10 @@ function getAppointmentSeriesQuery(): string {
 		pe_package_groups!inner(
 			id,
 			pe_packages!inner(id, name, max_capacity),
-			pe_groups!inner(id, type, pe_trainee_groups(pe_trainees(id), left_at))
+			pe_groups!inner(id, type, pe_trainee_groups(pe_trainees(id), left_at)),
+			pe_rooms!inner(id, name),
+			pe_trainers!inner(id, name)
 		),
-		pe_rooms!inner(id, name),
-		pe_trainers!inner(id, name),
 		hour,
 		appointment_date,
 		session_number,
@@ -104,11 +105,11 @@ function getAppointmentSeriesQuery(): string {
 function getBasicAppointmentQuery(): string {
 	return `
 		*,
-		pe_rooms!inner(id, name),
-		pe_trainers!inner(id, name),
 		pe_package_groups!inner(
 			id,
-			pe_packages!inner(id, name)
+			pe_packages!inner(id, name),
+			pe_rooms!inner(id, name),
+			pe_trainers!inner(id, name)
 		)
 	`;
 }
@@ -380,12 +381,17 @@ export const actions: Actions = {
 
 			// SCENARIOS 1 & 2: Need to create appointments and handle groups
 
-			// Check availability across all weeks before creating any appointments
-			const weeksToCreate = packageData.weeks_duration || 52; // Default to 52 weeks if unlimited
+			// Check availability before creating any appointments
+			// For private packages: use actual weeks_duration, for group packages: use batch size
+			const weeksToCheck =
+				packageData.package_type === 'private' && packageData.weeks_duration
+					? packageData.weeks_duration
+					: 12; // For group packages, check initial batch of 12 weeks
+
 			const startDate = new Date(assignmentForm.start_date);
 
 			for (const slot of assignmentForm.time_slots) {
-				for (let week = 0; week < weeksToCreate; week++) {
+				for (let week = 0; week < weeksToCheck; week++) {
 					// Calculate appointment date based on start date and week offset
 					const appointmentDate = new Date(startDate);
 					appointmentDate.setDate(startDate.getDate() + week * 7);
@@ -393,9 +399,9 @@ export const actions: Actions = {
 					// Check if this specific time slot is available for the room and trainer
 					const { data: conflictingAppointment } = await supabase
 						.from('pe_appointments')
-						.select('id')
-						.eq('room_id', assignmentForm.room_id)
-						.eq('trainer_id', assignmentForm.trainer_id)
+						.select('id, pe_package_groups!inner(room_id, trainer_id)')
+						.eq('pe_package_groups.room_id', assignmentForm.room_id)
+						.eq('pe_package_groups.trainer_id', assignmentForm.trainer_id)
 						.eq('appointment_date', appointmentDate.toISOString().split('T')[0])
 						.eq('hour', slot.hour)
 						.eq('status', 'scheduled')
@@ -476,28 +482,66 @@ export const actions: Actions = {
 			let packageGroupId: number;
 
 			if (shouldCreatePackageGroup && groupResult) {
-				// Get package details to set initial reschedule_left value
-				const { data: packageData, error: packageError } = await supabase
+				// Get package reschedule details
+				const { data: rescheduleData, error: rescheduleError } = await supabase
 					.from('pe_packages')
 					.select('reschedule_limit, reschedulable')
 					.eq('id', assignmentForm.package_id)
 					.single();
 
-				if (packageError) {
+				if (rescheduleError) {
 					return fail(500, {
 						success: false,
-						message: 'Paket bilgileri alınırken hata: ' + packageError.message
+						message: 'Paket bilgileri alınırken hata: ' + rescheduleError.message
 					});
 				}
 
-				const rescheduleLeft = packageData?.reschedulable ? packageData?.reschedule_limit || 0 : 0;
+				const rescheduleLeft = rescheduleData?.reschedulable
+					? (rescheduleData?.reschedule_limit ?? 999) // null means unlimited, so set to high number
+					: 0;
+
+				// Calculate dates for the new package group
+				const startDate = new Date(assignmentForm.start_date);
+				// Calculate end date - packages run from Monday to Sunday
+				const endDate =
+					packageData.package_type === 'private' && packageData.weeks_duration
+						? (() => {
+								const end = new Date(startDate);
+								end.setDate(startDate.getDate() + packageData.weeks_duration * 7 - 1); // Sunday of the last week
+								return end;
+							})()
+						: null; // null for group packages (unlimited)
+
+				// For batch creation: calculate how many weeks to create initially
+				const weeksToCreate =
+					packageData.package_type === 'private' && packageData.weeks_duration
+						? packageData.weeks_duration // Private packages: create all weeks
+						: 12; // Group packages: create initial batch of 12 weeks
+
+				const appointmentsCreatedUntil = new Date(
+					startDate.getTime() + weeksToCreate * 7 * 24 * 60 * 60 * 1000
+				);
+
+				// Create time slot pattern from assignment form
+				const timeSlotPattern: TimeSlotPattern[] = assignmentForm.time_slots.map((slot) => ({
+					day: slot.day,
+					hour: slot.hour,
+					room_id: assignmentForm.room_id,
+					trainer_id: assignmentForm.trainer_id
+				}));
 
 				const { data: packageGroupData, error: packageGroupError } = await supabase
 					.from('pe_package_groups')
 					.insert({
 						package_id: assignmentForm.package_id,
 						group_id: groupResult.group_id,
-						reschedule_left: rescheduleLeft
+						reschedule_left: rescheduleLeft,
+						start_date: startDate.toISOString().split('T')[0],
+						end_date: endDate ? endDate.toISOString().split('T')[0] : null,
+						appointments_created_until: appointmentsCreatedUntil.toISOString().split('T')[0],
+						time_slots: timeSlotPattern,
+						room_id: assignmentForm.room_id,
+						trainer_id: assignmentForm.trainer_id
 					})
 					.select('id')
 					.single();
@@ -531,40 +575,42 @@ export const actions: Actions = {
 
 			// Create appointments for scenarios 1 & 2
 			if (groupResult) {
-				const appointmentPromises = assignmentForm.time_slots.map(async (slot) => {
-					// Generate series_id for grouping appointments
-					const seriesId = randomUUID();
+				// Generate series_id for grouping all appointments of this package
+				const seriesId = randomUUID();
 
-					// Create appointment for each week based on package duration
-					const appointments = [];
+				// Calculate total sessions based on package type and lessons per week
+				const totalSessions =
+					packageData.package_type === 'private' && packageData.weeks_duration
+						? packageData.weeks_duration * assignmentForm.time_slots.length
+						: null; // null for unlimited group packages
 
-					for (let week = 0; week < weeksToCreate; week++) {
+				const allAppointments = [];
+				let sessionCounter = 1;
+
+				// Create appointments week by week, then slot by slot within each week
+				for (let week = 0; week < weeksToCheck; week++) {
+					for (const slot of assignmentForm.time_slots) {
 						// Calculate the actual appointment date for this slot's day of the week
-						// startDate is the Monday of the selected week, so we need to get the correct day
 						const weekStart = new Date(startDate);
 						weekStart.setDate(startDate.getDate() + week * 7); // Add week offset
 
 						// Get the actual date for this day of the week within the target week
 						const appointmentDate = getDateForDayOfWeek(weekStart, slot.day);
 
-						appointments.push({
+						allAppointments.push({
 							package_group_id: packageGroupId,
-							room_id: assignmentForm.room_id,
-							trainer_id: assignmentForm.trainer_id,
 							hour: slot.hour,
 							appointment_date: appointmentDate.toISOString().split('T')[0],
 							series_id: seriesId,
-							session_number: week + 1,
-							total_sessions: weeksToCreate,
+							session_number: sessionCounter,
+							total_sessions: totalSessions,
 							status: 'scheduled',
 							created_by: user.id
 						});
+
+						sessionCounter++;
 					}
-
-					return appointments;
-				});
-
-				const allAppointments = (await Promise.all(appointmentPromises)).flat();
+				}
 
 				// Insert all appointments
 				const { error: appointmentsError } = await supabase

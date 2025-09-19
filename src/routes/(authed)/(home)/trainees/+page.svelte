@@ -8,6 +8,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import type { Trainee } from '$lib/types/Trainee';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
@@ -140,6 +141,7 @@
 		defaultSortKey="id"
 		defaultSortOrder="asc"
 		actions={tableActions}
+		onRowClick={(trainee) => goto(`/trainees/${trainee.id}`)}
 	/>
 </div>
 
