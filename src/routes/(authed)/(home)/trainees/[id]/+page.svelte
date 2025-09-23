@@ -112,7 +112,7 @@
 							class="mt-4 space-y-4"
 						>
 							<div class="space-y-4">
-								<div class="form-control">
+								<div class="form-control w-full">
 									<label class="label" for="name">
 										<span class="label-text">Ad Soyad</span>
 									</label>
@@ -120,13 +120,13 @@
 										type="text"
 										name="name"
 										id="name"
-										class="input-bordered input"
+										class="input input-bordered w-full"
 										value={trainee.name}
 										required
 									/>
 								</div>
 
-								<div class="form-control">
+								<div class="form-control w-full">
 									<label class="label" for="email">
 										<span class="label-text">Email</span>
 									</label>
@@ -134,12 +134,12 @@
 										type="email"
 										name="email"
 										id="email"
-										class="input-bordered input"
+										class="input input-bordered w-full"
 										value={trainee.email || ''}
 									/>
 								</div>
 
-								<div class="form-control">
+								<div class="form-control w-full">
 									<label class="label" for="phone">
 										<span class="label-text">Telefon</span>
 									</label>
@@ -147,7 +147,7 @@
 										type="tel"
 										name="phone"
 										id="phone"
-										class="input-bordered input"
+										class="input input-bordered w-full"
 										value={trainee.phone}
 										required
 									/>

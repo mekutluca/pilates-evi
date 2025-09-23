@@ -51,14 +51,16 @@
 	// Initialize selectedRoomId when rooms data is available
 	$effect(() => {
 		if (rooms.length > 0 && selectedRoomId === 0) {
-			selectedRoomId = rooms[0].id;
+			const sortedRooms = rooms.toSorted((a, b) => a.id - b.id);
+			selectedRoomId = sortedRooms[0].id;
 		}
 	});
 
 	// Initialize selectedTrainerId when trainers data is available
 	$effect(() => {
 		if (trainers.length > 0 && selectedTrainerId === 0) {
-			selectedTrainerId = trainers[0].id;
+			const sortedTrainers = trainers.toSorted((a, b) => a.id - b.id);
+			selectedTrainerId = sortedTrainers[0].id;
 		}
 	});
 	// Initialize week from URL parameter or current date - make it reactive to URL changes
@@ -609,7 +611,7 @@
 							bind:value={selectedRoomId}
 							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
-							{#each rooms as room (room.id)}
+							{#each rooms.toSorted((a, b) => a.id - b.id) as room (room.id)}
 								<option value={room.id}>{room.name}</option>
 							{/each}
 						</select>
@@ -624,7 +626,7 @@
 							bind:value={selectedTrainerId}
 							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
-							{#each trainers as trainer (trainer.id)}
+							{#each trainers.toSorted((a, b) => a.id - b.id) as trainer (trainer.id)}
 								<option value={trainer.id}>{trainer.name}</option>
 							{/each}
 						</select>
