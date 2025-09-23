@@ -87,8 +87,16 @@
 
 		// Navigation loading logic
 		beforeNavigate((navigation) => {
-			// Don't show loading for external links or non-http protocols
-			if (navigation.to?.url.protocol && !navigation.to.url.protocol.startsWith('http')) {
+			// Don't show loading for non-http protocols (mailto, tel, etc.) or external links
+			const url = navigation.to?.url;
+
+			// Skip loading for non-SvelteKit navigation (external protocols, etc.)
+			if (!url || (url.protocol && url.protocol !== 'http:' && url.protocol !== 'https:')) {
+				return;
+			}
+
+			// Skip loading for external links (different origin)
+			if (url.origin && url.origin !== window.location.origin) {
 				return;
 			}
 
@@ -97,6 +105,7 @@
 				loading = true;
 			}, 2000);
 		});
+
 		afterNavigate(() => {
 			if (loadingTimer) clearTimeout(loadingTimer);
 			loading = false;
