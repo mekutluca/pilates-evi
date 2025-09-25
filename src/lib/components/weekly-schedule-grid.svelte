@@ -192,10 +192,6 @@
 <div class="card bg-base-100 shadow-xl">
 	<div class="card-body">
 		{#if selectedEntity}
-			<h3 class="mb-4 card-title text-lg">
-				{viewMode === 'room' ? 'Oda' : 'Eğitmen'}: {selectedEntity.name}
-			</h3>
-
 			<div class="overflow-x-auto">
 				<table class="table w-full border-collapse table-xs">
 					<thead>

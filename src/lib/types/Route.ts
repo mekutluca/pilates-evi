@@ -32,6 +32,13 @@ export const allRoutes: Route[] = [
 		group: 'Genel'
 	},
 	{
+		href: '/my-schedule',
+		label: 'Haftalık Programım',
+		icon: Calendar,
+		availableToRoles: ['trainer'],
+		group: 'Genel'
+	},
+	{
 		href: '/new-assignment',
 		label: 'Yeni Kayıt',
 		icon: Plus,
