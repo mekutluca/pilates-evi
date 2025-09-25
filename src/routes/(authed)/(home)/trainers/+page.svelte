@@ -7,6 +7,7 @@
 	import SearchInput from '$lib/components/search-input.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
 	import type { Trainer } from '$lib/types/Trainer';
 	// Training system removed
@@ -16,40 +17,59 @@
 	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
-	let { trainers: initialTrainers } = $derived(data);
+	let { trainers: initialTrainers, userRole } = $derived(data);
 
 	let trainers = $derived<Trainer[]>(initialTrainers || []);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
 	let showDeleteModal = $state(false);
+	let showResetPasswordModal = $state(false);
 	let selectedTrainer = $state<Trainer | null>(null);
 	let formLoading = $state(false);
 
 	// Form data for add/edit trainer
 	let name = $state('');
 	let phone = $state('');
+	let email = $state('');
+	let password = $state('');
+	let newPassword = $state('');
 	// Training system removed
 
-	const tableActions: ActionItem[] = [
+	const tableActions = $derived<ActionItem[]>([
 		{
 			label: 'Düzenle',
 			handler: (id) => {
+				if (!id) return;
 				const trainer = trainers.find((t) => t.id === Number(id));
 				if (trainer) openEditModal(trainer);
 			},
 			icon: Edit
 		},
+		...(userRole === 'admin'
+			? [
+					{
+						label: 'Şifre Sıfırla',
+						handler: (id?: string | number) => {
+							if (!id) return;
+							const trainer = trainers.find((t) => t.id === Number(id));
+							if (trainer) openResetPasswordModal(trainer);
+						},
+						icon: Key
+					}
+				]
+			: []),
 		{
 			label: 'Sil',
 			handler: (id) => {
+				if (!id) return;
 				const trainer = trainers.find((t) => t.id === Number(id));
 				if (trainer) openDeleteModal(trainer);
 			},
 			class: 'text-error',
 			icon: Trash2
 		}
-	];
+	]);
 
 	const tableColumns = [
 		{
@@ -96,14 +116,22 @@
 		closeDropdown();
 	}
 
+	function openResetPasswordModal(trainer: Trainer) {
+		selectedTrainer = trainer;
+		newPassword = '';
+		showResetPasswordModal = true;
+		closeDropdown();
+	}
+
 	function resetForm() {
 		name = '';
 		phone = '';
+		email = '';
+		password = '';
+		newPassword = '';
 		selectedTrainer = null;
 		// No training selection needed
 	}
-
-	// Training-related functions removed - no longer needed with package-based system
 </script>
 
 <div class="p-6">
@@ -150,7 +178,7 @@
 				formLoading = false;
 
 				if (result.type === 'success') {
-					toast.success('Eğitmen başarıyla oluşturuldu');
+					toast.success('Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu');
 					showAddModal = false;
 					resetForm();
 				} else if (result.type === 'failure') {
@@ -174,6 +202,31 @@
 				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
+				required
+			/>
+		</fieldset>
+
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">E-posta</legend>
+			<input
+				type="email"
+				name="email"
+				class="input w-full"
+				bind:value={email}
+				placeholder="ornek@email.com"
+				required
+			/>
+		</fieldset>
+
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Şifre</legend>
+			<input
+				type="password"
+				name="password"
+				class="input w-full"
+				bind:value={password}
+				placeholder="Minimum 6 karakter"
+				minlength="6"
 				required
 			/>
 		</fieldset>
@@ -317,6 +370,71 @@
 					<Trash2 size={16} />
 				{/if}
 				Sil
+			</button>
+		</div>
+	</form>
+</Modal>
+
+<!-- Reset Password Modal -->
+<Modal bind:open={showResetPasswordModal} title="Şifre Sıfırla" onClose={resetForm}>
+	<p class="mb-4">
+		<strong>{selectedTrainer?.name}</strong> adlı eğitmenin şifresini sıfırlamak istediğinizden emin
+		misiniz?
+	</p>
+	<form
+		method="POST"
+		action="?/resetPassword"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+
+				if (result.type === 'success') {
+					toast.success('Şifre başarıyla sıfırlandı');
+					showResetPasswordModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
+
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">Yeni Şifre</legend>
+			<input
+				type="password"
+				name="newPassword"
+				class="input w-full"
+				bind:value={newPassword}
+				placeholder="Minimum 6 karakter"
+				minlength="6"
+				required
+			/>
+		</fieldset>
+
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showResetPasswordModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-warning" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Key size={16} />
+				{/if}
+				Şifre Sıfırla
 			</button>
 		</div>
 	</form>
