@@ -11,14 +11,15 @@ export type Room = Tables<'pe_rooms'>;
 export type Trainer = Tables<'pe_trainers'>;
 export type Trainee = Tables<'pe_trainees'>;
 export type Package = Tables<'pe_packages'>;
-export type Group = Tables<'pe_groups'>;
-export type PackageGroup = Tables<'pe_package_groups'>;
+export type Purchase = Tables<'pe_purchases'>;
+export type PurchaseTrainee = Tables<'pe_purchase_trainees'>;
+export type Appointment = Tables<'pe_appointments'>;
 
 // Insert and update types
-export type GroupInsert = TablesInsert<'pe_groups'>;
-export type GroupUpdate = TablesUpdate<'pe_groups'>;
-export type PackageGroupInsert = TablesInsert<'pe_package_groups'>;
-export type TraineeGroupInsert = TablesInsert<'pe_trainee_groups'>;
+export type PurchaseInsert = TablesInsert<'pe_purchases'>;
+export type PurchaseUpdate = TablesUpdate<'pe_purchases'>;
+export type PurchaseTraineeInsert = TablesInsert<'pe_purchase_trainees'>;
+export type AppointmentInsert = TablesInsert<'pe_appointments'>;
 
 // ===============================================
 // APPLICATION TYPES
@@ -56,49 +57,53 @@ export interface ActionItem {
 }
 
 // ===============================================
-// GROUP TYPES
+// PURCHASE TYPES (replaces old group system)
 // ===============================================
 
-export type TraineeGroup = Tables<'pe_trainee_groups'>;
-export type TraineeGroupUpdate = TablesUpdate<'pe_trainee_groups'>;
-export type GroupType = 'individual' | 'fixed' | 'dynamic';
+// Helper type for purchase with trainees
+export type PurchaseWithTrainees = Purchase & {
+	pe_purchase_trainees: Array<{
+		pe_trainees: Trainee;
+	}>;
+	pe_packages?: Package;
+	pe_rooms?: Room;
+	pe_trainers?: Trainer;
+};
 
-// Helper type for trainee group relationships
-export type TraineeGroupWithTrainee = TraineeGroup & {
-	pe_trainees: {
-		id: number;
-		name: string;
-		email?: string;
+// Helper type for trainee purchases/memberships
+export type TraineePurchase = PurchaseTrainee & {
+	pe_purchases: Purchase & {
+		pe_packages: Package;
+		pe_rooms?: Room;
+		pe_trainers?: Trainer;
 	};
 };
 
-// Helper type for trainee group memberships with package details
-export type TraineeGroupMembership = TraineeGroup & {
-	pe_groups: Group;
-	package?: Package | null;
-};
-
-// Extended types with relationships
-export type GroupWithMembers = Group & {
-	pe_trainee_groups?: TraineeGroupWithTrainee[];
-	active_member_count?: number;
-};
-
-// Helper type for group creation
-export type GroupCreationData = {
-	type: GroupType;
-	trainee_ids: number[];
+// Legacy compatibility type for trainee purchase memberships (adds compatibility fields)
+export type TraineePurchaseMembership = Tables<'pe_purchase_trainees'> & {
+	pe_purchases: Tables<'pe_purchases'> & {
+		pe_packages: Tables<'pe_packages'>;
+		pe_rooms?: Tables<'pe_rooms'>;
+		pe_trainers?: Tables<'pe_trainers'>;
+	};
+	// Add frontend-expected fields for compatibility
+	package?: Tables<'pe_packages'> | null;
+	joined_at: string;
+	left_at?: string | null;
+	purchase_id?: number;
+	purchase_end_date?: string | null;
+	is_extension?: boolean;
+	extension_number?: number;
+	id: number | string;
 };
 
 // ===============================================
 // PACKAGE TYPES
 // ===============================================
 
-// Package with relations (matches Supabase query with joins)
-export type PackageWithGroup = Package & {
-	pe_package_groups?: Array<{
-		pe_groups: GroupWithMembers;
-	}>;
+// Package with purchases (replaces old package with groups)
+export type PackageWithPurchases = Package & {
+	pe_purchases?: PurchaseWithTrainees[];
 };
 
 // Form types for simplified package creation
@@ -113,15 +118,15 @@ export interface CreatePackageForm {
 	reschedule_limit?: number;
 }
 
-// Package assignment types for the new assignment flow
-export interface PackageAssignmentForm {
+// Package purchase types for the new assignment flow
+export interface PackagePurchaseForm {
 	package_id: number;
 	room_id: number;
 	trainer_id: number;
 	start_date: string;
 	time_slots: SelectedTimeSlot[];
 	trainee_ids: number[];
-	group_id?: number; // Optional - used when adding to existing group
+	purchase_id?: number; // Optional: for adding trainees to existing purchase
 }
 
 export interface SelectedTimeSlot {
@@ -129,10 +134,3 @@ export interface SelectedTimeSlot {
 	hour: number;
 }
 
-// Time slot pattern stored in pe_package_groups.time_slots
-export interface TimeSlotPattern {
-	day: string;
-	hour: number;
-	room_id: number;
-	trainer_id: number;
-}

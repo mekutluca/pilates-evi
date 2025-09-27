@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	const { data: trainerData, error: trainerError } = await supabase
 		.from('pe_trainers')
 		.select('id, name')
-		.eq('trainer_user_id', user.id)
+		.eq('auth_id', user.id)
 		.single();
 
 	if (trainerError || !trainerData) {
@@ -39,22 +39,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		.select(
 			`
 			*,
-			pe_package_groups(
+			pe_purchases(
 				id,
 				pe_rooms(id, name),
 				pe_packages(name),
-				pe_groups(
-					id,
-					type,
-					pe_trainee_groups(
-						pe_trainees(name),
-						left_at
-					)
+				pe_trainers(id, name),
+				pe_purchase_trainees(
+					pe_trainees(name)
 				)
 			)
 		`
 		)
-		.eq('pe_package_groups.trainer_id', trainerData.id)
+		.eq('pe_purchases.trainer_id', trainerData.id)
 		.gte('appointment_date', weekStart.toISOString().split('T')[0])
 		.lte('appointment_date', weekEnd.toISOString().split('T')[0])
 		.eq('status', 'scheduled')

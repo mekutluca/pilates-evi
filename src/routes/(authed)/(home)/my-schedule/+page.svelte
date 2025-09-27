@@ -36,7 +36,7 @@
 			name: trainerName || 'Eğitmen',
 			is_active: true,
 			phone: '',
-			trainer_user_id: null
+			auth_id: null
 		}
 	]);
 

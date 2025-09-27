@@ -8,24 +8,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
 
-	// Fetch all packages with simplified structure
+	// Fetch all packages with purchase-based structure
 	const { data: packages, error: packagesError } = await supabase
 		.from('pe_packages')
 		.select(
 			`
 			*,
-			pe_package_groups (
-				pe_groups (
-					id,
-					type,
-					pe_trainee_groups (
-						pe_trainees (
-							id,
-							name,
-							email
-						),
-						left_at
-					)
+			pe_purchases (
+				id,
+				start_date,
+				end_date,
+				pe_purchase_trainees (
+					pe_trainees (
+						id,
+						name,
+						email
+					),
+					start_date,
+					end_date
 				)
 			)
 		`
@@ -105,8 +105,7 @@ export const actions: Actions = {
 				max_capacity: packageForm.max_capacity,
 				package_type: packageForm.package_type,
 				reschedulable: packageForm.reschedulable,
-				reschedule_limit: packageForm.reschedule_limit || null,
-				created_by: user.id
+				reschedule_limit: packageForm.reschedule_limit || null
 			})
 			.select('id')
 			.single();

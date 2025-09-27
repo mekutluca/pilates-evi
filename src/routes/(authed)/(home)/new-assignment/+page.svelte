@@ -13,7 +13,7 @@
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Dumbbell from '@lucide/svelte/icons/dumbbell';
-	import type { PackageAssignmentForm, SelectedTimeSlot } from '$lib/types/Package';
+	import type { PackagePurchaseForm, SelectedTimeSlot } from '$lib/types/Package';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import {
 		getWeekStart,
@@ -25,7 +25,7 @@
 	import WeeklyScheduleGrid from '$lib/components/weekly-schedule-grid.svelte';
 
 	let { data } = $props();
-	let { packages, appointments, existingAppointmentSeries, existingGroupTrainees } = $derived(data);
+	let { packages, appointments, existingPurchaseSeries, existingPurchaseTrainees } = $derived(data);
 
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
@@ -44,7 +44,7 @@
 	}
 
 	// Assignment form data
-	let assignmentForm = $state<PackageAssignmentForm>({
+	let assignmentForm = $state<PackagePurchaseForm>({
 		package_id: 0,
 		room_id: 0,
 		trainer_id: 0,
@@ -56,7 +56,7 @@
 	// Step titles - dynamic based on package type
 	const stepTitles = $derived(() => {
 		if (selectedPackage?.package_type === 'group') {
-			return ['Ders Seçimi', 'Grup Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
+			return ['Ders Seçimi', 'Program Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
 		}
 		return ['Ders Seçimi', 'Kaynak Seçimi & Zaman Planlaması', 'Öğrenci Seçimi'];
 	});
@@ -83,20 +83,20 @@
 		url.searchParams.set('start_date', assignmentForm.start_date);
 		url.searchParams.set('weeks_duration', (selectedPackage.weeks_duration || 52).toString());
 
-		// Include selected group ID if an existing group is selected
-		if (selectedGroupId) {
-			url.searchParams.set('selected_group_id', selectedGroupId.toString());
+		// Include selected purchase ID if an existing purchase is selected
+		if (selectedPurchaseId) {
+			url.searchParams.set('selected_purchase_id', selectedPurchaseId.toString());
 		} else {
-			url.searchParams.delete('selected_group_id');
+			url.searchParams.delete('selected_purchase_id');
 		}
 
 		// Use goto to trigger a server-side reload with new parameters
 		await goto(url.toString(), { replaceState: true });
 	}
 
-	// Step 2 state (Group selection - only for group packages)
-	let selectedGroupId = $state<number | null>(null);
-	let createNewGroup = $state(false);
+	// Step 2 state (Purchase selection - only for group packages)
+	let selectedPurchaseId = $state<number | null>(null);
+	let createNewPurchase = $state(false);
 
 	// Navigation flow tracking
 	let navigationPath = $state<number[]>([1]); // Track the actual path taken
@@ -243,22 +243,22 @@
 		}
 	}
 
-	// Step 2: Group Selection (only for group packages)
+	// Step 2: Purchase Selection (only for group packages)
 	async function handleStep2Submit() {
 		// This is only called for group packages
 		if (!selectedPackage || selectedPackage.package_type !== 'group') return;
 
-		if (createNewGroup) {
-			// Creating new group - go to resource & time selection (step 3)
+		if (createNewPurchase) {
+			// Creating new purchase - go to resource & time selection (step 3)
 			nextStep();
 			await reloadAppointments();
-		} else if (selectedGroupId) {
-			// Selected existing group - reload to get existing trainees and skip resource/time and go directly to trainee selection (step 4)
-			await reloadAppointments(); // Load existing trainees for the selected group
+		} else if (selectedPurchaseId) {
+			// Selected existing purchase - reload to get existing trainees and skip resource/time and go directly to trainee selection (step 4)
+			await reloadAppointments(); // Load existing trainees for the selected purchase
 			currentStep = 4;
 			navigationPath.push(4);
 		} else {
-			toast.error('Grup seçimi gereklidir');
+			toast.error('Program seçimi gereklidir');
 		}
 	}
 
@@ -304,14 +304,9 @@
 
 		assignmentForm.trainee_ids = selectedTrainees;
 
-		// Set group_id if an existing group was selected
-		if (selectedGroupId) {
-			const selectedGroup = existingAppointmentSeries?.find(
-				(group) => group.package_group_id === selectedGroupId
-			);
-			if (selectedGroup) {
-				assignmentForm.group_id = selectedGroup.group_id;
-			}
+		// Set purchase_id if an existing purchase was selected
+		if (selectedPurchaseId) {
+			assignmentForm.purchase_id = selectedPurchaseId;
 		}
 
 		// Submit the assignment via fetch
@@ -352,8 +347,8 @@
 				return assignmentForm.package_id > 0;
 			case 2:
 				if (isGroupPackage) {
-					// Group selection step - either create new or select existing
-					return createNewGroup || selectedGroupId !== null;
+					// Purchase selection step - either create new or select existing
+					return createNewPurchase || selectedPurchaseId !== null;
 				} else {
 					// Resource & time selection for private packages
 					return (
@@ -478,8 +473,8 @@
 			if (aptDayOfWeek !== day || apt.hour !== hour) return false;
 
 			// Check if it conflicts with our selected room or trainer
-			const roomConflict = apt.pe_package_groups?.pe_rooms?.id === assignmentForm.room_id;
-			const trainerConflict = apt.pe_package_groups?.pe_trainers?.id === assignmentForm.trainer_id;
+			const roomConflict = apt.pe_purchases?.room_id === assignmentForm.room_id;
+			const trainerConflict = apt.pe_purchases?.trainer_id === assignmentForm.trainer_id;
 
 			return roomConflict || trainerConflict;
 		});
@@ -515,9 +510,9 @@
 
 	// Trainee selection for step 3
 	function toggleTrainee(traineeId: number, event?: Event) {
-		// Don't allow toggling existing group trainees
-		if (existingGroupTrainees && existingGroupTrainees.includes(traineeId)) {
-			toast.info('Bu öğrenci zaten grubun üyesi');
+		// Don't allow toggling existing purchase trainees
+		if (existingPurchaseTrainees && existingPurchaseTrainees.includes(traineeId)) {
+			toast.info('Bu öğrenci zaten programın üyesi');
 			return;
 		}
 
@@ -535,14 +530,14 @@
 		}
 	}
 
-	// Check if a trainee is already in the existing group
-	function isTraineeInExistingGroup(traineeId: number): boolean {
-		return existingGroupTrainees && existingGroupTrainees.includes(traineeId);
+	// Check if a trainee is already in the existing purchase
+	function isTraineeInExistingPurchase(traineeId: number): boolean {
+		return existingPurchaseTrainees && existingPurchaseTrainees.includes(traineeId);
 	}
 
-	// Helper to get existing group trainee count
+	// Helper to get existing purchase trainee count
 	function getExistingTraineeCount(): number {
-		return existingGroupTrainees ? existingGroupTrainees.length : 0;
+		return existingPurchaseTrainees ? existingPurchaseTrainees.length : 0;
 	}
 
 	// Helper to get available capacity for new trainees
@@ -713,18 +708,18 @@
 						</div>
 					</div>
 				{:else if currentStep === 2 && selectedPackage?.package_type === 'group'}
-					<!-- Step 2: Group Selection (only for group packages) -->
+					<!-- Step 2: Purchase Selection (only for group packages) -->
 					<div class="space-y-6">
 						<h2 class="flex items-center gap-2 text-xl font-semibold">
 							<Users class="h-5 w-5 text-accent" />
-							Grup Seçimi
+							Program Seçimi
 						</h2>
 
 						<div class="space-y-4">
-							<!-- Create New Group Option -->
+							<!-- Create New Purchase Option -->
 							<label class="cursor-pointer">
 								<div
-									class="card border transition-all duration-200 hover:shadow-lg {createNewGroup
+									class="card border transition-all duration-200 hover:shadow-lg {createNewPurchase
 										? 'border-accent bg-accent/10 shadow-lg'
 										: 'hover:border-accent/50'}"
 								>
@@ -733,18 +728,18 @@
 											<input
 												type="radio"
 												class="radio mt-1 radio-sm radio-accent"
-												checked={createNewGroup}
+												checked={createNewPurchase}
 												onchange={async () => {
-													createNewGroup = true;
-													selectedGroupId = null;
-													// Clear existing group trainees data
+													createNewPurchase = true;
+													selectedPurchaseId = null;
+													// Clear existing purchase trainees data
 													await reloadAppointments();
 												}}
 											/>
 											<div class="flex-1">
-												<div class="font-medium">Yeni Grup Oluştur</div>
+												<div class="font-medium">Yeni Program Oluştur</div>
 												<div class="mt-1 text-xs text-base-content/60">
-													Bu ders için yeni bir grup oluşturun ve öğrencileri seçin
+													Bu ders için yeni bir program oluşturun ve öğrencileri seçin
 												</div>
 											</div>
 										</div>
@@ -752,20 +747,20 @@
 								</div>
 							</label>
 
-							<!-- Existing Appointment Series -->
-							{#if existingAppointmentSeries && existingAppointmentSeries.length > 0 && selectedPackage}
-								{@const packageSeries = existingAppointmentSeries.filter(
+							<!-- Existing Purchase Series -->
+							{#if existingPurchaseSeries && existingPurchaseSeries.length > 0 && selectedPackage}
+								{@const packageSeries = existingPurchaseSeries.filter(
 									(series) => series.package_id === selectedPackage.id
 								)}
 								<div class="space-y-3 pt-4">
-									<h4 class="font-medium text-base-content">Mevcut Ders Grupları</h4>
+									<h4 class="font-medium text-base-content">Mevcut Ders Programları</h4>
 									{#if packageSeries.length > 0}
 										<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-											{#each packageSeries as group (group.package_group_id)}
+											{#each packageSeries as purchase (purchase.purchase_id)}
 												<label class="cursor-pointer">
 													<div
-														class="card border-2 transition-all duration-200 hover:shadow-lg {selectedGroupId ===
-														group.package_group_id
+														class="card border-2 transition-all duration-200 hover:shadow-lg {selectedPurchaseId ===
+														purchase.purchase_id
 															? 'border-accent bg-accent/5 shadow-lg ring-2 ring-accent/20'
 															: 'border-base-300 hover:border-accent/50 hover:shadow-md'}"
 													>
@@ -774,11 +769,11 @@
 																<input
 																	type="radio"
 																	class="radio mt-1 radio-accent"
-																	checked={selectedGroupId === group.package_group_id}
+																	checked={selectedPurchaseId === purchase.purchase_id}
 																	onchange={async () => {
-																		selectedGroupId = group.package_group_id;
-																		createNewGroup = false;
-																		// Reload to get existing trainees for this group
+																		selectedPurchaseId = purchase.purchase_id;
+																		createNewPurchase = false;
+																		// Reload to get existing trainees for this purchase
 																		await reloadAppointments();
 																	}}
 																/>
@@ -787,11 +782,11 @@
 																	<div class="flex flex-wrap gap-4 text-sm">
 																		<div class="flex items-center gap-1.5">
 																			<span class="text-base-content/70">Oda:</span>
-																			<span class="font-medium">{group.room_name}</span>
+																			<span class="font-medium">{purchase.room_name}</span>
 																		</div>
 																		<div class="flex items-center gap-1.5">
 																			<span class="text-base-content/70">Eğitmen:</span>
-																			<span class="font-medium">{group.trainer_name}</span>
+																			<span class="font-medium">{purchase.trainer_name}</span>
 																		</div>
 																	</div>
 
@@ -801,7 +796,7 @@
 																			<span class="text-base-content/70">Ders Saatleri:</span>
 																		</div>
 																		<div class="flex flex-wrap gap-2">
-																			{#each group.day_time_combinations || [] as combo (combo.day)}
+																			{#each purchase.day_time_combinations || [] as combo (combo.day)}
 																				{@const dayName = TURKISH_DAYS[combo.day]}
 																				{#each combo.hours as hour (hour)}
 																					<span class="badge badge-sm px-2 py-1 badge-secondary">
@@ -822,11 +817,11 @@
 																		</div>
 																		<div class="flex items-center gap-2">
 																			<span class="text-sm font-semibold text-success">
-																				{group.current_capacity}
+																				{purchase.current_capacity}
 																			</span>
 																			<span class="text-xs text-base-content/50">/</span>
 																			<span class="text-sm text-base-content/70">
-																				{group.max_capacity}
+																				{purchase.max_capacity}
 																			</span>
 																			<span class="text-xs text-base-content/50">öğrenci</span>
 																		</div>
@@ -1026,7 +1021,7 @@
 								<!-- Trainee List -->
 								<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
 									{#each filteredTrainees as trainee (trainee.id)}
-										{@const isExisting = isTraineeInExistingGroup(trainee.id)}
+										{@const isExisting = isTraineeInExistingPurchase(trainee.id)}
 										{@const isSelected = selectedTrainees.includes(trainee.id)}
 										<div
 											class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}"

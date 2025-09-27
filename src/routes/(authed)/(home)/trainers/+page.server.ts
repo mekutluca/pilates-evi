@@ -49,7 +49,7 @@ export const actions: Actions = {
 			.insert({
 				name,
 				phone,
-				trainer_user_id: userData.user.id
+				auth_id: userData.user.id
 			})
 			.select()
 			.single();
@@ -174,11 +174,11 @@ export const actions: Actions = {
 		// First get the trainer to find their user_id
 		const { data: trainerData, error: trainerError } = await admin
 			.from('pe_trainers')
-			.select('trainer_user_id')
+			.select('auth_id')
 			.eq('id', trainerId)
 			.single();
 
-		if (trainerError || !trainerData?.trainer_user_id) {
+		if (trainerError || !trainerData?.auth_id) {
 			return fail(500, {
 				success: false,
 				message: 'Eğitmen bulunamadı veya kullanıcı hesabı mevcut değil'
@@ -186,12 +186,9 @@ export const actions: Actions = {
 		}
 
 		// Update user password using Supabase admin API
-		const { error: updateError } = await admin.auth.admin.updateUserById(
-			trainerData.trainer_user_id,
-			{
-				password: newPassword
-			}
-		);
+		const { error: updateError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+			password: newPassword
+		});
 
 		if (updateError) {
 			return fail(500, {

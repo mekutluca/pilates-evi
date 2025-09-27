@@ -1,12 +1,8 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import type { Tables } from '$lib/database.types';
+import type { TraineePurchaseMembership } from '$lib/types';
 import { getRequiredFormDataString } from '$lib/utils';
-
-type TraineeGroupMembership = Tables<'pe_trainee_groups'> & {
-	pe_groups: Tables<'pe_groups'>;
-	package?: Tables<'pe_packages'> | null;
-};
 
 export const load: PageServerLoad = async ({ params, locals: { supabase } }) => {
 	const traineeId = Number(params.id);
@@ -26,67 +22,234 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		throw error(404, 'Öğrenci bulunamadı');
 	}
 
-	// Get trainee's group memberships with package details
-	const { data: groupMemberships, error: groupError } = await supabase
-		.from('pe_trainee_groups')
+	// Get trainee's purchase memberships with package details including successor relationships
+	const { data: purchaseMemberships, error: purchaseError } = await supabase
+		.from('pe_purchase_trainees')
 		.select(
 			`
 			*,
-			pe_groups (
-				id,
-				type,
-				created_at
+			pe_purchases (
+				*,
+				successor_id,
+				pe_packages (
+					id,
+					name,
+					description,
+					weeks_duration,
+					lessons_per_week,
+					max_capacity,
+					package_type,
+					reschedulable,
+					reschedule_limit,
+					created_at
+				),
+				pe_rooms (
+					id,
+					name
+				),
+				pe_trainers (
+					id,
+					name
+				)
 			)
 		`
 		)
 		.eq('trainee_id', traineeId)
-		.order('created_at', { ascending: false });
+		.order('id', { ascending: false });
 
-	// Get package details separately by finding package_groups for each group
-	const groupMembershipsWithPackages: TraineeGroupMembership[] = [];
-	if (groupMemberships) {
-		for (const membership of groupMemberships) {
-			// Get package info for this group
-			const { data: packageGroup, error: packageError } = await supabase
-				.from('pe_package_groups')
-				.select(
-					`
-					*,
-					pe_packages (
-						id,
-						name,
-						description,
-						weeks_duration,
-						lessons_per_week,
-						max_capacity,
-						package_type,
-						reschedulable,
-						reschedule_limit,
-						created_at
-					)
-				`
+	// Get all purchases that this trainee is involved in (including extensions where trainee might not be directly linked)
+	// First get purchases where trainee is directly linked
+	const { data: directPurchases, error: directPurchasesError } = await supabase
+		.from('pe_purchase_trainees')
+		.select(`
+			trainee_id,
+			pe_purchases!inner (
+				id,
+				start_date,
+				end_date,
+				successor_id,
+				pe_packages (
+					id,
+					name,
+					package_type
 				)
-				.eq('group_id', membership.pe_groups.id)
-				.single();
+			)
+		`)
+		.eq('trainee_id', traineeId);
 
-			if (packageError) {
-				console.error('Error fetching package for group:', membership.pe_groups.id, packageError);
-			}
+	if (directPurchasesError) {
+		console.error('Error fetching direct purchases for trainee:', directPurchasesError);
+	}
 
-			groupMembershipsWithPackages.push({
-				...membership,
-				package: packageGroup?.pe_packages || null
-			});
+	// Get all purchases that are in the same chains (including extensions)
+	const directPurchaseIds = directPurchases?.map(p => p.pe_purchases.id) || [];
+
+	// Now get all purchases that are part of chains starting from or including direct purchases
+	const { data: allRelatedPurchases, error: allPurchasesError } = await supabase
+		.from('pe_purchases')
+		.select(`
+			id,
+			start_date,
+			end_date,
+			successor_id,
+			pe_packages (
+				id,
+				name,
+				package_type
+			)
+		`);
+
+	if (allPurchasesError) {
+		console.error('Error fetching all purchases:', allPurchasesError);
+	}
+
+	// Build complete chains including extensions for this trainee
+	const findChainForPurchase = (purchaseId: number, allPurchases: any[]): number[] => {
+		const visited = new Set<number>();
+		const chain = [];
+
+		// First, find the root of this chain (go backwards)
+		let current = purchaseId;
+		const reverseChain = [current];
+
+		// Find any purchase that has current as successor (parent)
+		while (true) {
+			const parent = allPurchases.find(p => p.successor_id === current);
+			if (!parent || visited.has(parent.id)) break;
+			visited.add(parent.id);
+			current = parent.id;
+			reverseChain.unshift(current);
 		}
+
+		// Now start from the root and follow successors forward
+		current = reverseChain[0];
+		chain.push(current);
+		visited.clear();
+		visited.add(current);
+
+		while (true) {
+			const successor = allPurchases.find(p => p.id === current)?.successor_id;
+			if (!successor || visited.has(successor)) break;
+			visited.add(successor);
+			chain.push(successor);
+			current = successor;
+		}
+
+		return chain;
+	};
+
+	// Get all purchase IDs that are part of chains involving this trainee
+	const allTraineeChainPurchaseIds = new Set<number>();
+	directPurchaseIds.forEach(purchaseId => {
+		const chainIds = findChainForPurchase(purchaseId, allRelatedPurchases || []);
+		chainIds.forEach(id => allTraineeChainPurchaseIds.add(id));
+	});
+
+
+	// Filter related purchases to only those in trainee's chains
+	const allPurchasesForTrainee = allRelatedPurchases?.filter(purchase =>
+		allTraineeChainPurchaseIds.has(purchase.id)
+	).map(purchase => ({
+		trainee_id: traineeId,
+		pe_purchases: purchase
+	})) || [];
+
+	// Build purchase chains using successor relationships
+	const buildPurchaseChain = (purchaseId: number, allPurchases: any[]): any[] => {
+		const chain = [];
+		let currentPurchaseId = purchaseId;
+
+		while (currentPurchaseId) {
+			const purchaseData = allPurchases.find(p => p.pe_purchases.id === currentPurchaseId);
+			if (!purchaseData) break;
+
+			chain.push(purchaseData.pe_purchases);
+			currentPurchaseId = purchaseData.pe_purchases.successor_id;
+		}
+
+		return chain;
+	};
+
+	// Transform to match the expected frontend structure, expanding purchases in successor chains
+	const groupMembershipsWithPackages: TraineePurchaseMembership[] = [];
+	const processedPurchases = new Set<number>(); // To avoid duplicates
+
+	if (purchaseMemberships && allPurchasesForTrainee) {
+		// First, identify root purchases (ones that are not successors of other purchases)
+		const allPurchaseIds = new Set(allPurchasesForTrainee.map(p => p.pe_purchases.id));
+		const successorIds = new Set(
+			allPurchasesForTrainee
+				.map(p => p.pe_purchases.successor_id)
+				.filter(id => id !== null)
+		);
+
+		const rootPurchaseIds = new Set(
+			[...allPurchaseIds].filter(id => !successorIds.has(id))
+		);
+
+
+		// Find memberships for root purchases and build complete chains
+		for (const membership of purchaseMemberships) {
+			if (membership.pe_purchases && rootPurchaseIds.has(membership.pe_purchases.id) && !processedPurchases.has(membership.pe_purchases.id)) {
+				// Build the complete purchase chain starting from this root purchase
+				const purchaseChain = buildPurchaseChain(membership.pe_purchases.id, allPurchasesForTrainee);
+
+
+				// Mark all purchases in this chain as processed
+				purchaseChain.forEach(purchase => processedPurchases.add(purchase.id));
+
+				// Create one membership item per purchase in the chain
+				purchaseChain.forEach((purchase, index) => {
+					groupMembershipsWithPackages.push({
+						...membership,
+						package: membership.pe_purchases.pe_packages || null,
+						joined_at: purchase.start_date || membership.pe_purchases.start_date || new Date().toISOString(),
+						left_at: index === 0 ? membership.end_date : null, // Only first purchase respects trainee departure
+						purchase_id: purchase.id,
+						purchase_end_date: purchase.end_date,
+						is_extension: index > 0,
+						extension_number: index > 0 ? index : undefined,
+						id: `${membership.id}-${index}` // Unique ID for each purchase in chain
+					});
+				});
+			}
+		}
+
 	}
 
-	if (groupError) {
-		console.error('Error fetching group memberships:', groupError);
+	if (purchaseError) {
+		console.error('Error fetching purchase memberships:', purchaseError);
 	}
+
+	// Get future appointments for this trainee to determine truly active purchases
+	const today = new Date().toISOString().split('T')[0];
+	const { data: futureAppointments, error: appointmentsError } = await supabase
+		.from('pe_appointments')
+		.select(`
+			purchase_id,
+			appointment_date,
+			status,
+			pe_purchases!inner(
+				pe_purchase_trainees!inner(trainee_id)
+			)
+		`)
+		.eq('pe_purchases.pe_purchase_trainees.trainee_id', traineeId)
+		.gte('appointment_date', today)
+		.eq('status', 'scheduled');
+
+	if (appointmentsError) {
+		console.error('Error fetching future appointments:', appointmentsError);
+	}
+
+	// Create a set of purchase IDs that have future appointments for this trainee
+	const purchaseIdsWithFutureAppointments = new Set(
+		futureAppointments?.map(apt => apt.purchase_id) || []
+	);
 
 	return {
 		trainee,
-		groupMemberships: groupMembershipsWithPackages || []
+		groupMemberships: groupMembershipsWithPackages || [],
+		purchaseIdsWithFutureAppointments: Array.from(purchaseIdsWithFutureAppointments)
 	};
 };
 

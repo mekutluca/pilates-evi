@@ -78,6 +78,15 @@ export function formatDateParam(date: Date): string {
 }
 
 /**
+ * Formats a date as YYYY-MM-DD for database storage (replaces common .toISOString().split('T')[0] pattern)
+ * @param date - The date to format
+ * @returns Formatted date string in YYYY-MM-DD format
+ */
+export function formatDateForDB(date: Date): string {
+	return date.toISOString().split('T')[0];
+}
+
+/**
  * Gets the date for a specific day of the week within a given week
  * @param weekStart - The start date of the week (Monday)
  * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)

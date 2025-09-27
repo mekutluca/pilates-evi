@@ -12,8 +12,8 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import PackageCreationForm from '$lib/components/package-creation-form.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
-	import type { CreatePackageForm, PackageWithGroup } from '$lib/types/Package';
-	import type { TraineeGroupWithTrainee, GroupWithMembers } from '$lib/types/Group';
+	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types/Package';
+	import type { PurchaseWithTrainees } from '$lib/types/index';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 
@@ -24,7 +24,7 @@
 	let searchTerm = $state('');
 	let showCreateModal = $state(false);
 	let showEditModal = $state(false);
-	let selectedPackage = $state<PackageWithGroup | null>(null);
+	let selectedPackage = $state<PackageWithPurchases | null>(null);
 	let formLoading = $state(false);
 
 	// Edit form data
@@ -57,14 +57,14 @@
 		{
 			key: 'weeks_duration',
 			title: 'Süre',
-			render: (pkg: PackageWithGroup) => {
+			render: (pkg: PackageWithPurchases) => {
 				return pkg.weeks_duration ? `${pkg.weeks_duration} hafta` : 'Devamlı';
 			}
 		},
 		{
 			key: 'package_type',
 			title: 'Ders Türü',
-			render: (pkg: PackageWithGroup) => {
+			render: (pkg: PackageWithPurchases) => {
 				const type = pkg.package_type === 'private' ? 'Özel' : 'Grup';
 				const color = pkg.package_type === 'private' ? 'badge-info' : 'badge-warning';
 				return `<div class="badge ${color} badge-sm">${type}</div>`;
@@ -73,20 +73,20 @@
 		{
 			key: 'lessons_per_week',
 			title: 'Haftalık Ders',
-			render: (pkg: PackageWithGroup) => {
+			render: (pkg: PackageWithPurchases) => {
 				return `${pkg.lessons_per_week} ders/hafta`;
 			}
 		},
 		{
 			key: 'max_capacity',
 			title: 'Maksimum Kapasite',
-			render: (pkg: PackageWithGroup) => {
+			render: (pkg: PackageWithPurchases) => {
 				return `${pkg.max_capacity} kişi`;
 			}
 		}
 	];
 
-	function openEditModal(pkg: PackageWithGroup) {
+	function openEditModal(pkg: PackageWithPurchases) {
 		selectedPackage = pkg;
 		// Populate form with current values
 		editName = pkg.name;
@@ -286,16 +286,14 @@
 				<div class="stat-value text-info">
 					{packages.reduce((sum, p) => {
 						const totalActiveMembers =
-							p.pe_package_groups?.reduce(
-								(groupSum: number, pg: { pe_groups: GroupWithMembers }) => {
-									const activeMembers =
-										pg.pe_groups?.pe_trainee_groups?.filter(
-											(tg: TraineeGroupWithTrainee) => !tg.left_at
-										) || [];
-									return groupSum + activeMembers.length;
-								},
-								0
-							) || 0;
+							p.pe_purchases?.reduce((purchaseSum: number, purchase: PurchaseWithTrainees) => {
+								// Only count members from active purchases
+								if (purchase.end_date && new Date(purchase.end_date) <= new Date()) {
+									return purchaseSum; // Skip expired purchases
+								}
+								const activeMembers = purchase.pe_purchase_trainees || [];
+								return purchaseSum + activeMembers.length;
+							}, 0) || 0;
 						return sum + totalActiveMembers;
 					}, 0)}
 				</div>

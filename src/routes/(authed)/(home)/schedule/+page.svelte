@@ -14,7 +14,6 @@
 		ScheduleGrid,
 		DayOfWeek,
 		AppointmentWithDetails,
-		TraineeGroupRelation,
 		AppointmentWithRelations,
 		TimeSlotPattern,
 		ExtensionConflict
@@ -83,6 +82,7 @@
 	// Extension modal state
 	let showExtensionModal = $state(false);
 	let additionalPackages = $state(1);
+	let extensionLoading = $state(false);
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -147,37 +147,31 @@
 		roomName?: string | null,
 		trainerName?: string | null
 	): AppointmentWithDetails {
-		const packageGroup = appointment.pe_package_groups;
+		const purchase = appointment.pe_purchases;
 		return {
-			// Database fields - use values from appointment and package group
+			// Database fields - use values from appointment and purchase
 			id: appointment.id,
-			room_id: packageGroup?.pe_rooms?.id || 0,
-			trainer_id: packageGroup?.pe_trainers?.id || 0,
-			package_group_id: appointment.package_group_id!,
+			room_id: purchase?.room_id || 0,
+			trainer_id: purchase?.trainer_id || 0,
+			purchase_id: appointment.purchase_id!,
 			hour: appointment.hour,
 			status: appointment.status || 'scheduled',
 			appointment_date: appointment.appointment_date,
 			session_number: appointment.session_number,
 			total_sessions: appointment.total_sessions,
 			notes: appointment.notes,
-			updated_at: appointment.updated_at,
-			created_by: appointment.created_by,
 			series_id: appointment.series_id,
 			// Extended fields using relation data
-			room_name: roomName || packageGroup?.pe_rooms?.name || '',
-			trainer_name: trainerName || packageGroup?.pe_trainers?.name || '',
-			package_name: packageGroup?.pe_packages?.name || '',
+			room_name: roomName || purchase?.pe_rooms?.name || '',
+			trainer_name: trainerName || purchase?.pe_trainers?.name || '',
+			package_name: purchase?.pe_packages?.name || '',
 			trainee_names:
-				packageGroup?.pe_groups?.pe_trainee_groups
-					?.filter((tg: TraineeGroupRelation) => !tg.left_at) // Only active members
-					?.map((tg: TraineeGroupRelation) => tg.pe_trainees.name) || [],
-			trainee_count:
-				packageGroup?.pe_groups?.pe_trainee_groups?.filter(
-					(tg: TraineeGroupRelation) => !tg.left_at
-				)?.length || 0,
-			reschedule_left: appointment.pe_package_groups?.reschedule_left ?? 0,
-			package_start_date: packageGroup?.start_date,
-			package_end_date: packageGroup?.end_date
+				purchase?.pe_purchase_trainees?.map((pt: { pe_trainees: { name: string } }) => pt.pe_trainees.name) ||
+				[],
+			trainee_count: purchase?.pe_purchase_trainees?.length || 0,
+			reschedule_left: purchase?.reschedule_left ?? 0,
+			package_start_date: purchase?.start_date,
+			package_end_date: purchase?.end_date
 		};
 	}
 
@@ -262,7 +256,7 @@
 		}
 
 		// Check if the package group has reschedules remaining
-		if (!appointment.package_group_id || (appointment.reschedule_left ?? 0) <= 0) {
+		if (!appointment.purchase_id || (appointment.reschedule_left ?? 0) <= 0) {
 			return false; // No reschedules left
 		}
 
@@ -295,12 +289,16 @@
 
 	// Check if an appointment is the last session and can be extended
 	function isLastSessionAndExtendable(appointment: AppointmentWithDetails): boolean {
-		return (
+		// First check if this is the last session of its package
+		const isLastSession = (
 			appointment.session_number === appointment.total_sessions &&
 			appointment.total_sessions !== null &&
 			appointment.total_sessions !== undefined &&
 			appointment.total_sessions > 1
 		);
+
+		// Only show "Son ders" if it's the last session AND this package is the latest in the extension chain
+		return isLastSession && isLatestInExtensionChain(appointment);
 	}
 
 	// Check if an appointment belongs to a private package that can be extended
@@ -319,15 +317,15 @@
 
 	// Check if the appointment belongs to the latest package in an extension chain
 	function isLatestInExtensionChain(appointment: AppointmentWithDetails): boolean {
-		if (!appointment.package_group_id) return false;
+		if (!appointment.purchase_id) return false;
 
-		// Find the appointment's package group in the loaded data
-		const packageGroup = appointments.find(
-			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
-		)?.pe_package_groups;
+		// Find the appointment's purchase in the loaded data
+		const purchase = appointments.find(
+			(apt) => apt.purchase_id === appointment.purchase_id
+		)?.pe_purchases;
 
 		// If no successor_id, this is the latest package in the chain
-		return packageGroup?.successor_id === null || packageGroup?.successor_id === undefined;
+		return purchase?.successor_id === null || purchase?.successor_id === undefined;
 	}
 
 	// Open extension modal
@@ -335,26 +333,27 @@
 		selectedAppointment = appointment;
 		showExtensionModal = true;
 		additionalPackages = 1; // Reset to default
+		extensionLoading = false; // Reset loading state
 	}
 
 	// Get package chain information (current package + all successors)
 	function getPackageChain(appointment: AppointmentWithDetails) {
 		const chain = [];
-		let currentPackageGroupId = appointment.package_group_id;
+		let currentPurchaseId: number | null = appointment.purchase_id;
 
-		while (currentPackageGroupId) {
-			const packageGroup = appointments.find(
-				(apt) => apt.pe_package_groups?.id === currentPackageGroupId
-			)?.pe_package_groups;
+		while (currentPurchaseId) {
+			const purchase = appointments.find(
+				(apt) => apt.purchase_id === currentPurchaseId
+			)?.pe_purchases;
 
-			if (packageGroup) {
+			if (purchase) {
 				chain.push({
-					id: packageGroup.id,
-					start_date: packageGroup.start_date,
-					end_date: packageGroup.end_date,
-					successor_id: packageGroup.successor_id
+					id: purchase.id,
+					start_date: purchase.start_date,
+					end_date: purchase.end_date,
+					successor_id: purchase.successor_id
 				});
-				currentPackageGroupId = packageGroup.successor_id;
+				currentPurchaseId = purchase.successor_id;
 			} else {
 				break;
 			}
@@ -366,8 +365,8 @@
 	// Calculate extension date ranges
 	function calculateExtensionRanges(appointment: AppointmentWithDetails, packageCount: number) {
 		const packageInfo = appointments.find(
-			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
-		)?.pe_package_groups?.pe_packages;
+			(apt) => apt.purchase_id === appointment.purchase_id
+		)?.pe_purchases?.pe_packages;
 
 		if (!packageInfo || !('weeks_duration' in packageInfo) || !packageInfo.weeks_duration)
 			return [];
@@ -401,19 +400,19 @@
 		appointment: AppointmentWithDetails,
 		packageCount: number
 	): ExtensionConflict[] {
-		const packageInfo = appointments.find(
-			(apt) => apt.pe_package_groups?.id === appointment.package_group_id
-		)?.pe_package_groups;
+		const purchase = appointments.find(
+			(apt) => apt.purchase_id === appointment.purchase_id
+		)?.pe_purchases;
 
-		if (!packageInfo || !('time_slots' in packageInfo) || !packageInfo.time_slots) return [];
+		if (!purchase || !('time_slots' in purchase) || !purchase.time_slots) return [];
 
 		const ranges = calculateExtensionRanges(appointment, packageCount);
-		const timeSlots = packageInfo.time_slots as TimeSlotPattern[];
+		const timeSlots = purchase.time_slots as TimeSlotPattern[];
 		const conflicts: ExtensionConflict[] = [];
 
 		// Get room and trainer IDs
-		const roomId = packageInfo.pe_rooms?.id;
-		const trainerId = packageInfo.pe_trainers?.id;
+		const roomId = purchase.room_id;
+		const trainerId = purchase.trainer_id;
 
 		if (!roomId || !trainerId) return [];
 
@@ -455,8 +454,8 @@
 							if (apt.appointment_date !== dateStr || apt.hour !== slot.hour) return false;
 
 							// Check room and trainer conflicts
-							const existingRoomId = apt.pe_package_groups?.pe_rooms?.id;
-							const existingTrainerId = apt.pe_package_groups?.pe_trainers?.id;
+							const existingRoomId = apt.pe_purchases?.room_id;
+							const existingTrainerId = apt.pe_purchases?.trainer_id;
 
 							return existingRoomId === roomId || existingTrainerId === trainerId;
 						});
@@ -513,11 +512,12 @@
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
 						(apt) =>
-							apt.pe_package_groups?.pe_rooms?.id === selectedRoom.id &&
+							apt.pe_purchases?.room_id === selectedRoom.id &&
 							apt.appointment_date === dateString &&
 							apt.hour === hour &&
 							apt.status === 'scheduled'
 					);
+
 
 					grid[selectedRoom.id].slots[day][hour] = {
 						room_id: selectedRoom.id,
@@ -546,11 +546,12 @@
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
 						(apt) =>
-							apt.pe_package_groups?.pe_trainers?.id === selectedTrainer.id &&
+							apt.pe_purchases?.trainer_id === selectedTrainer.id &&
 							apt.appointment_date === dateString &&
 							apt.hour === hour &&
 							apt.status === 'scheduled'
 					);
+
 
 					grid[selectedTrainer.id].slots[day][hour] = {
 						room_id: selectedTrainer.id,
@@ -1185,11 +1186,12 @@
 			method="POST"
 			action="?/extendPackage"
 			use:enhance={() => {
+				extensionLoading = true;
 				return async ({ result, update }) => {
+					extensionLoading = false;
 					if (result.type === 'success') {
 						toast.success('Paket başarıyla uzatıldı');
 						showExtensionModal = false;
-						selectedAppointment = null;
 						additionalPackages = 1;
 					} else if (result.type === 'failure') {
 						toast.error(getActionErrorMessage(result));
@@ -1199,13 +1201,13 @@
 			}}
 			class="space-y-5"
 		>
-			<input type="hidden" name="package_group_id" value={selectedAppointment.package_group_id} />
+			<input type="hidden" name="purchase_id" value={selectedAppointment.purchase_id} />
 			<input type="hidden" name="package_count" value={additionalPackages} />
 
 			{#if selectedAppointment}
 				{@const packageInfo = appointments.find(
-					(apt) => apt.pe_package_groups?.id === selectedAppointment!.package_group_id
-				)?.pe_package_groups?.pe_packages}
+					(apt) => apt.purchase_id === selectedAppointment!.purchase_id
+				)?.pe_purchases?.pe_packages}
 				{@const packageChain = getPackageChain(selectedAppointment)}
 				{@const extensionRanges = calculateExtensionRanges(selectedAppointment, additionalPackages)}
 				{@const extensionConflicts = checkExtensionConflicts(
@@ -1223,8 +1225,7 @@
 							<h4 class="font-medium">{selectedAppointment.package_name}</h4>
 							{#if packageInfo}
 								<p class="text-sm text-base-content/60">
-									{(packageInfo as any).weeks_duration} hafta • Haftada {(packageInfo as any)
-										.lessons_per_week} ders
+									{packageInfo.weeks_duration ?? 0} hafta • Haftada {packageInfo.lessons_per_week ?? 0} ders
 								</p>
 							{/if}
 						</div>
@@ -1256,8 +1257,7 @@
 					{#if packageInfo}
 						<div class="label pt-1">
 							<span class="label-text-alt text-base-content/50">
-								Her paket {(packageInfo as any).weeks_duration} hafta, haftada {(packageInfo as any)
-									.lessons_per_week} ders
+								Her paket {packageInfo.weeks_duration ?? 0} hafta, haftada {packageInfo.lessons_per_week ?? 0} ders
 							</span>
 						</div>
 					{/if}
@@ -1355,7 +1355,7 @@
 							<span class="font-semibold text-success">
 								{additionalPackages} paket
 								{#if packageInfo}
-									• {additionalPackages * ((packageInfo as any).weeks_duration ?? 1)} hafta
+									• {additionalPackages * (packageInfo.weeks_duration ?? 1)} hafta
 								{/if}
 							</span>
 						</div>
@@ -1367,8 +1367,12 @@
 					<button type="button" class="btn" onclick={() => (showExtensionModal = false)}
 						>İptal</button
 					>
-					<button type="submit" class="btn btn-info" disabled={extensionConflicts.length > 0}>
-						{extensionConflicts.length > 0 ? 'Çakışma Var' : 'Uzat'}
+					<button type="submit" class="btn btn-info" disabled={extensionConflicts.length > 0 || extensionLoading}>
+						{#if extensionLoading}
+							<LoaderCircle size={16} class="animate-spin" />
+						{:else}
+							{extensionConflicts.length > 0 ? 'Çakışma Var' : 'Uzat'}
+						{/if}
 					</button>
 				</div>
 			{/if}

@@ -14,22 +14,57 @@
 	import { enhance } from '$app/forms';
 
 	let { data } = $props();
-	let { trainee, groupMemberships } = $derived(data);
+	let { trainee, groupMemberships, purchaseIdsWithFutureAppointments } = $derived(data);
 
 	// Edit mode state
 	let editMode = $state(false);
 	let saving = $state(false);
 
-	// Filter memberships with packages and separate by active status
+	// Filter memberships with packages and group by package
 	const packagesWithMemberships = $derived(
 		groupMemberships.filter((membership) => membership.package)
 	);
 
-	const activePackages = $derived(
-		packagesWithMemberships.filter((membership) => !membership.left_at)
+	// Group memberships by package ID
+	const membershipsByPackage = $derived(() => {
+		const grouped = new Map<number, { package: any; memberships: any[] }>();
+		packagesWithMemberships.forEach((membership) => {
+			const packageId = membership.package!.id;
+			if (!grouped.has(packageId)) {
+				grouped.set(packageId, {
+					package: membership.package!,
+					memberships: []
+				});
+			}
+			grouped.get(packageId)!.memberships.push(membership);
+		});
+
+		// Sort memberships within each package by joined date
+		grouped.forEach((group) => {
+			group.memberships.sort((a: any, b: any) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime());
+		});
+
+		return grouped;
+	});
+
+	// Determine if a package group is active or past
+	const activePackageGroups = $derived(
+		Array.from(membershipsByPackage().values()).filter((group) => {
+			// A package group is active if any membership in it is active
+			return group.memberships.some((membership: any) => {
+				return getMembershipStatus(membership).text === 'Aktif';
+			});
+		})
 	);
 
-	const pastPackages = $derived(packagesWithMemberships.filter((membership) => membership.left_at));
+	const pastPackageGroups = $derived(
+		Array.from(membershipsByPackage().values()).filter((group) => {
+			// A package group is past if all memberships in it are past
+			return group.memberships.every((membership: any) => {
+				return getMembershipStatus(membership).text === 'Tamamlandı';
+			});
+		})
+	);
 
 	function toggleEditMode() {
 		editMode = !editMode;
@@ -38,6 +73,33 @@
 	function cancelEdit() {
 		editMode = false;
 	}
+
+	// Get the display date for a membership based on package type
+	function getMembershipDisplayDate(membership: any): string {
+		if (membership.package?.package_type === 'group') {
+			// For group packages, show when trainee left or "Devam ediyor"
+			return membership.left_at ? formatDisplayDate(membership.left_at) : 'Devam ediyor';
+		} else {
+			// For private packages, use purchase end date if available
+			if (membership.purchase_end_date) {
+				return formatDisplayDate(membership.purchase_end_date);
+			}
+
+			// Final fallback to calculated date
+			return calculatePackageEndDate(membership.joined_at, membership.package?.weeks_duration);
+		}
+	}
+
+	// Get membership status
+	function getMembershipStatus(membership: any): { text: string; class: string } {
+		const isActive = !membership.left_at ||
+			(membership.purchase_id && purchaseIdsWithFutureAppointments.includes(membership.purchase_id));
+
+		return isActive
+			? { text: 'Aktif', class: 'badge-success' }
+			: { text: 'Tamamlandı', class: 'badge-neutral' };
+	}
+
 </script>
 
 <div class="space-y-6 p-6">
@@ -120,7 +182,7 @@
 										type="text"
 										name="name"
 										id="name"
-										class="input input-bordered w-full"
+										class="input-bordered input w-full"
 										value={trainee.name}
 										required
 									/>
@@ -134,7 +196,7 @@
 										type="email"
 										name="email"
 										id="email"
-										class="input input-bordered w-full"
+										class="input-bordered input w-full"
 										value={trainee.email || ''}
 									/>
 								</div>
@@ -147,7 +209,7 @@
 										type="tel"
 										name="phone"
 										id="phone"
-										class="input input-bordered w-full"
+										class="input-bordered input w-full"
 										value={trainee.phone}
 										required
 									/>
@@ -238,25 +300,42 @@
 				Aktif Paketler
 			</h3>
 
-			{#if activePackages.length > 0}
+			{#if activePackageGroups.length > 0}
 				<div class="mt-4 space-y-3">
-					{#each activePackages as item (item.id)}
-						<div class="rounded-lg border border-base-300 p-4">
-							<div class="flex items-center justify-between">
-								<div class="flex items-center gap-3">
-									<h4 class="font-semibold">{item.package!.name}</h4>
-									<span class="badge badge-secondary">
-										{item.package!.package_type === 'private' ? 'Özel' : 'Grup'}
-									</span>
-								</div>
-								<div class="flex items-center gap-4 text-sm text-base-content/70">
-									<span
-										>{formatDisplayDate(item.joined_at)} - {calculatePackageEndDate(
-											item.joined_at,
-											item.package!.weeks_duration
-										)}</span
-									>
+					{#each activePackageGroups as group (group.package.id)}
+						<div class="collapse collapse-arrow border border-base-300 bg-base-100">
+							<input type="checkbox" />
+							<div class="collapse-title">
+								<div class="flex items-center justify-between">
+									<div class="flex items-center gap-3">
+										<h4 class="font-semibold">{group.package.name}</h4>
+										<span class="badge badge-secondary">
+											{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
+										</span>
+										<span class="badge badge-sm badge-outline">
+											{group.memberships.length} paket
+										</span>
+									</div>
 									<div class="badge badge-sm badge-success">Aktif</div>
+								</div>
+							</div>
+							<div class="collapse-content">
+								<div class="space-y-2 pt-2">
+									{#each group.memberships as membership (membership.id)}
+										{@const status = getMembershipStatus(membership)}
+										<div class="flex items-center justify-between rounded-lg bg-base-200 p-3">
+											<div class="flex items-center gap-3">
+												<div>
+													<p class="text-sm font-medium">
+														{formatDisplayDate(membership.joined_at)} - {getMembershipDisplayDate(membership)}
+													</p>
+												</div>
+											</div>
+											<div class="badge badge-sm {status.class}">
+												{status.text}
+											</div>
+										</div>
+									{/each}
 								</div>
 							</div>
 						</div>
@@ -271,7 +350,7 @@
 	</div>
 
 	<!-- Past Packages -->
-	{#if pastPackages.length > 0}
+	{#if pastPackageGroups.length > 0}
 		<div class="card bg-base-100 shadow">
 			<div class="card-body">
 				<h3 class="card-title flex items-center gap-2 text-lg">
@@ -280,22 +359,40 @@
 				</h3>
 
 				<div class="mt-4 space-y-3">
-					{#each pastPackages as item (item.id)}
-						<div class="rounded-lg border border-base-300 p-4 opacity-75">
-							<div class="flex items-center justify-between">
-								<div class="flex items-center gap-3">
-									<h4 class="font-semibold">{item.package!.name}</h4>
-									<span class="badge badge-secondary">
-										{item.package!.package_type === 'private' ? 'Özel' : 'Grup'}
-									</span>
-								</div>
-								<div class="flex items-center gap-4 text-sm text-base-content/70">
-									<span
-										>{formatDisplayDate(item.joined_at)} - {item.left_at
-											? formatDisplayDate(item.left_at)
-											: 'Devam ediyor'}</span
-									>
+					{#each pastPackageGroups as group (group.package.id)}
+						<div class="collapse collapse-arrow border border-base-300 bg-base-100 opacity-75">
+							<input type="checkbox" />
+							<div class="collapse-title">
+								<div class="flex items-center justify-between">
+									<div class="flex items-center gap-3">
+										<h4 class="font-semibold">{group.package.name}</h4>
+										<span class="badge badge-secondary">
+											{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
+										</span>
+										<span class="badge badge-sm badge-outline">
+											{group.memberships.length} paket
+										</span>
+									</div>
 									<div class="badge badge-sm badge-neutral">Tamamlandı</div>
+								</div>
+							</div>
+							<div class="collapse-content">
+								<div class="space-y-2 pt-2">
+									{#each group.memberships as membership (membership.id)}
+										{@const status = getMembershipStatus(membership)}
+										<div class="flex items-center justify-between rounded-lg bg-base-200 p-3">
+											<div class="flex items-center gap-3">
+												<div>
+													<p class="text-sm font-medium">
+														{formatDisplayDate(membership.joined_at)} - {getMembershipDisplayDate(membership)}
+													</p>
+												</div>
+											</div>
+											<div class="badge badge-sm {status.class}">
+												{status.text}
+											</div>
+										</div>
+									{/each}
 								</div>
 							</div>
 						</div>
@@ -306,7 +403,7 @@
 	{/if}
 
 	<!-- Empty State -->
-	{#if groupMemberships.length === 0}
+	{#if packagesWithMemberships.length === 0}
 		<div class="card bg-base-100 shadow">
 			<div class="card-body py-12 text-center">
 				<Package size={48} class="mx-auto mb-4 text-base-content/30" />

@@ -1,9 +1,9 @@
 // Re-export package-related types from consolidated types
 export type {
 	Package,
-	PackageGroup,
-	PackageWithGroup,
+	Purchase,
+	PackageWithPurchases,
 	CreatePackageForm,
-	PackageAssignmentForm,
+	PackagePurchaseForm,
 	SelectedTimeSlot
 } from './index';

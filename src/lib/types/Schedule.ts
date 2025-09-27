@@ -15,13 +15,13 @@ export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
 export type AppointmentUpdate = TablesUpdate<'pe_appointments'>;
 
-// Types for trainee group relations to fix 'any' type errors
-export interface TraineeGroupRelation {
+// Types for purchase trainee relations to fix 'any' type errors
+export interface PurchaseTraineeRelation {
 	pe_trainees: { name: string };
-	left_at: string | null;
+	end_date: string | null;
 }
 
-// Time slot pattern for schedule
+// Time slot pattern for schedule (now stored as JSON in pe_purchases)
 export interface TimeSlotPattern {
 	day: DayOfWeek;
 	hour: number;
@@ -36,29 +36,28 @@ export interface PackageInfo {
 	lessons_per_week?: number;
 }
 
-// Package group with complete type definitions
-export interface PackageGroup {
+// Purchase with complete type definitions (replaces PackageGroup)
+export interface Purchase {
 	id: number;
 	reschedule_left: number;
 	start_date: string;
 	end_date: string | null;
 	successor_id: number | null;
-	time_slots?: TimeSlotPattern[];
+	room_id: number | null;
+	trainer_id: number | null;
+	time_slots?: TimeSlotPattern[]; // JSON field containing TimeSlotPattern[]
 	pe_rooms?: { id: number; name: string } | null;
 	pe_trainers?: { id: number; name: string } | null;
 	pe_packages?: PackageInfo | null;
-	pe_groups?: {
-		id: number;
-		type: string;
-		pe_trainee_groups?: TraineeGroupRelation[];
-	} | null;
+	pe_purchase_trainees?: PurchaseTraineeRelation[];
 }
 
 // Types for appointments with relations (matches Supabase query with joins)
 export type AppointmentWithRelations = Appointment & {
+	purchase_id: number;
+	pe_purchases?: Purchase | null;
 	pe_rooms?: { id?: number; name: string } | null;
 	pe_trainers?: { id?: number; name: string } | null;
-	pe_package_groups?: PackageGroup | null;
 };
 
 // Extended types with related data
@@ -66,16 +65,14 @@ export interface AppointmentWithDetails {
 	// Core database fields - use the exact same types as the database
 	id?: number;
 	appointment_date?: string | null;
-	created_by?: string | null;
 	hour: number;
 	notes?: string | null;
-	package_group_id?: number | null; // Match database type exactly
+	purchase_id: number; // Updated to match new schema
 	room_id?: number;
 	series_id?: string | null;
 	session_number?: number | null;
 	total_sessions?: number | null;
 	trainer_id?: number;
-	updated_at?: string;
 	status?: string | null; // Match database type
 
 	// Extended fields for UI display
@@ -84,7 +81,7 @@ export interface AppointmentWithDetails {
 	trainee_names?: string[];
 	trainee_count?: number;
 	package_name?: string;
-	reschedule_left?: number; // Number of reschedules remaining for this group
+	reschedule_left?: number; // Number of reschedules remaining for this purchase
 	package_start_date?: string;
 	package_end_date?: string | null;
 }
@@ -108,22 +105,11 @@ export interface ScheduleGrid {
 	};
 }
 
-// Utility types for forms
-export interface CreateAppointmentForm {
-	room_id: number;
-	trainer_id: number;
-	package_id: number;
-	appointment_date: string;
-	hour: number;
-	group_id: number;
-	notes?: string;
-}
 
-// Type for existing appointment series used in group selection
-export interface ExistingAppointmentSeries {
-	package_group_id: number;
+// Type for existing appointment series used in purchase selection
+export interface ExistingPurchaseSeries {
+	purchase_id: number;
 	package_id: number;
-	group_id: number;
 	room_name: string;
 	trainer_name: string;
 	current_capacity: number;
@@ -135,30 +121,26 @@ export interface ExistingAppointmentSeries {
 }
 
 // Server-side query result types
-export interface TraineeGroupData {
+export interface PurchaseTraineeData {
 	pe_trainees: { id: number };
-	left_at: string | null;
+	end_date: string | null;
 }
 
 export interface AppointmentSeriesData {
-	package_group_id: number;
+	purchase_id: number;
 	appointment_date: string;
 	hour: number;
-	pe_package_groups?: {
-		pe_groups?: {
-			id: number;
-			pe_trainee_groups?: TraineeGroupData[];
-		} | null;
+	pe_purchases?: {
 		pe_packages?: { id: number; max_capacity: number } | null;
+		pe_purchase_trainees?: PurchaseTraineeData[];
+		pe_rooms?: { name: string } | null;
+		pe_trainers?: { name: string } | null;
 	} | null;
-	pe_rooms?: { name: string } | null;
-	pe_trainers?: { name: string } | null;
 }
 
-export interface ProcessedGroupData {
-	package_group_id: number;
+export interface ProcessedPurchaseData {
+	purchase_id: number;
 	package_id: number;
-	group_id: number;
 	room_name?: string;
 	trainer_name?: string;
 	current_capacity: number;
