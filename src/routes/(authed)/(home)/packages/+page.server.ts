@@ -1,50 +1,11 @@
-import { error, fail } from '@sveltejs/kit';
-import type { PageServerLoad, Actions } from './$types';
+import { fail } from '@sveltejs/kit';
+import type { Actions } from './$types';
 import type { CreatePackageForm } from '$lib/types/Package';
-
-export const load: PageServerLoad = async ({ locals: { supabase, user, userRole } }) => {
-	// Ensure admin and coordinator users can access this page
-	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
-	}
-
-	// Fetch all packages with purchase-based structure
-	const { data: packages, error: packagesError } = await supabase
-		.from('pe_packages')
-		.select(
-			`
-			*,
-			pe_purchases (
-				id,
-				start_date,
-				end_date,
-				pe_purchase_trainees (
-					pe_trainees (
-						id,
-						name,
-						email
-					),
-					start_date,
-					end_date
-				)
-			)
-		`
-		)
-		.order('created_at', { ascending: false });
-
-	if (packagesError) {
-		throw error(500, 'Dersler yüklenirken hata oluştu: ' + packagesError.message);
-	}
-
-	return {
-		packages: packages || []
-	};
-};
 
 export const actions: Actions = {
 	createPackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Ensure admin and coordinator users can perform this action
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+		// Only admin users can create packages
+		if (!user || userRole !== 'admin') {
 			return fail(403, {
 				success: false,
 				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
@@ -127,8 +88,8 @@ export const actions: Actions = {
 	},
 
 	editPackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Ensure admin and coordinator users can perform this action
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+		// Only admin users can edit packages
+		if (!user || userRole !== 'admin') {
 			return fail(403, {
 				success: false,
 				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'

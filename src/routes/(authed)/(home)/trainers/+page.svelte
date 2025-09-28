@@ -36,40 +36,38 @@
 	let newPassword = $state('');
 	// Training system removed
 
-	const tableActions = $derived<ActionItem[]>([
-		{
-			label: 'Düzenle',
-			handler: (id) => {
-				if (!id) return;
-				const trainer = trainers.find((t) => t.id === Number(id));
-				if (trainer) openEditModal(trainer);
+	const tableActions = $derived<ActionItem[]>(
+		userRole === 'admin' ? [
+			{
+				label: 'Düzenle',
+				handler: (id?: string | number) => {
+					if (!id) return;
+					const trainer = trainers.find((t) => t.id === Number(id));
+					if (trainer) openEditModal(trainer);
+				},
+				icon: Edit
 			},
-			icon: Edit
-		},
-		...(userRole === 'admin'
-			? [
-					{
-						label: 'Şifre Sıfırla',
-						handler: (id?: string | number) => {
-							if (!id) return;
-							const trainer = trainers.find((t) => t.id === Number(id));
-							if (trainer) openResetPasswordModal(trainer);
-						},
-						icon: Key
-					}
-				]
-			: []),
-		{
-			label: 'Sil',
-			handler: (id) => {
-				if (!id) return;
-				const trainer = trainers.find((t) => t.id === Number(id));
-				if (trainer) openDeleteModal(trainer);
+			{
+				label: 'Şifre Sıfırla',
+				handler: (id?: string | number) => {
+					if (!id) return;
+					const trainer = trainers.find((t) => t.id === Number(id));
+					if (trainer) openResetPasswordModal(trainer);
+				},
+				icon: Key
 			},
-			class: 'text-error',
-			icon: Trash2
-		}
-	]);
+			{
+				label: 'Sil',
+				handler: (id?: string | number) => {
+					if (!id) return;
+					const trainer = trainers.find((t) => t.id === Number(id));
+					if (trainer) openDeleteModal(trainer);
+				},
+				class: 'text-error',
+				icon: Trash2
+			}
+		] : []
+	);
 
 	const tableColumns = [
 		{
@@ -143,16 +141,18 @@
 			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara..." />
 		</div>
 
-		<button
-			class="btn btn-info"
-			onclick={() => {
-				resetForm();
-				showAddModal = true;
-			}}
-		>
-			<UserPlus size={16} />
-			Yeni Eğitmen
-		</button>
+		{#if userRole === 'admin'}
+			<button
+				class="btn btn-info"
+				onclick={() => {
+					resetForm();
+					showAddModal = true;
+				}}
+			>
+				<UserPlus size={16} />
+				Yeni Eğitmen
+			</button>
+		{/if}
 	</div>
 
 	<SortableTable

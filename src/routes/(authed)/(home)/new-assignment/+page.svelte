@@ -613,9 +613,25 @@
 						</h2>
 
 						<!-- Package Selection -->
-						<div class="space-y-6">
-							<!-- Private Packages -->
-							{#if groupedPackages().private.length > 0}
+						{#if packages.length === 0}
+							<!-- Empty state when no packages exist -->
+							<div class="flex flex-col items-center justify-center py-16 text-center">
+								<Dumbbell class="h-16 w-16 text-base-content/30 mb-4" />
+								<h3 class="text-lg font-semibold text-base-content/70 mb-2">
+									Henüz ders eklenmemiş
+								</h3>
+								<p class="text-base-content/60 mb-6 max-w-md">
+									Yeni kayıt oluşturmak için önce ders oluşturmalısınız.
+								</p>
+								<a href="/packages" class="btn btn-accent">
+									<Plus class="h-4 w-4" />
+									İlk Dersi Oluştur
+								</a>
+							</div>
+						{:else}
+							<div class="space-y-6">
+								<!-- Private Packages -->
+								{#if groupedPackages().private.length > 0}
 								<div class="space-y-3">
 									<h4 class="font-medium text-base-content">Özel Dersler</h4>
 									<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -705,7 +721,8 @@
 									</div>
 								</div>
 							{/if}
-						</div>
+							</div>
+						{/if}
 					</div>
 				{:else if currentStep === 2 && selectedPackage?.package_type === 'group'}
 					<!-- Step 2: Purchase Selection (only for group packages) -->

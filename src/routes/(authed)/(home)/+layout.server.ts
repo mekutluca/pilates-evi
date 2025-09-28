@@ -3,6 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import type { Trainer } from '$lib/types/Trainer';
 import type { Room } from '$lib/types/Room.js';
 import type { Trainee } from '$lib/types/Trainee.js';
+import type { Package } from '$lib/types/Package.js';
 
 export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
 	// Ensure user is authenticated
@@ -14,13 +15,14 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 	const queries = [
 		{ name: 'trainers', query: supabase.from('pe_trainers').select('*') },
 		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
-		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') }
+		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
+		{ name: 'packages', query: supabase.from('pe_packages').select('*').order('created_at', { ascending: false }) }
 	] as const;
 
 	try {
 		const results = await Promise.all(queries.map((q) => q.query));
 
-		const data: Record<string, (Trainer | Room | Trainee)[]> = {};
+		const data: Record<string, (Trainer | Room | Trainee | Package)[]> = {};
 
 		queries.forEach((query, index) => {
 			const { data: queryData, error: queryError } = results[index];
@@ -37,7 +39,8 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		return {
 			trainers: data.trainers as Trainer[],
 			rooms: data.rooms as Room[],
-			trainees: data.trainees as Trainee[]
+			trainees: data.trainees as Trainee[],
+			packages: data.packages as Package[]
 		};
 	} catch (err) {
 		console.error('Failed to load application data:', err);
@@ -45,7 +48,8 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		return {
 			trainers: [],
 			rooms: [],
-			trainees: []
+			trainees: [],
+			packages: []
 		};
 	}
 };

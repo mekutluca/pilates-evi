@@ -111,22 +111,15 @@ function getBasicAppointmentQuery(): string {
 	`;
 }
 
-export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
+export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url, parent }) => {
 	// Ensure admin and coordinator users can access this page
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
 
-	// Only fetch packages since rooms, trainers, trainees are inherited from parent layout
-	const { data: packages, error: packagesError } = await supabase
-		.from('pe_packages')
-		.select('*')
-		.eq('is_active', true)
-		.order('name');
-
-	if (packagesError) {
-		throw error(500, 'Paketler yüklenirken hata oluştu: ' + packagesError.message);
-	}
+	// Get all layout data (packages, trainers, rooms, trainees are inherited from parent layout)
+	const { packages: allPackages } = await parent();
+	const packages = allPackages.filter(pkg => pkg.is_active !== false).sort((a, b) => a.name.localeCompare(b.name));
 
 	// Check if we have query parameters for dynamic appointment loading
 	const packageId = url.searchParams.get('package_id');

@@ -16,7 +16,7 @@
 	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
-	let { trainees: initialTrainees } = $derived(data);
+	let { trainees: initialTrainees, userRole } = $derived(data);
 
 	let trainees = $derived<Trainee[]>(initialTrainees || []);
 	let searchTerm = $state('');
@@ -31,25 +31,25 @@
 	let phone = $state('');
 	let notes = $state('');
 
-	const tableActions: ActionItem[] = [
+	const tableActions = $derived<ActionItem[]>([
 		{
 			label: 'Düzenle',
-			handler: (id) => {
+			handler: (id?: string | number) => {
 				const trainee = trainees.find((t) => t.id === Number(id));
 				if (trainee) openEditModal(trainee);
 			},
 			icon: Edit
 		},
-		{
+		...(userRole === 'admin' ? [{
 			label: 'Sil',
-			handler: (id) => {
+			handler: (id?: string | number) => {
 				const trainee = trainees.find((t) => t.id === Number(id));
 				if (trainee) openDeleteModal(trainee);
 			},
 			class: 'text-error',
 			icon: Trash2
-		}
-	];
+		}] : [])
+	]);
 
 	const tableColumns = [
 		{

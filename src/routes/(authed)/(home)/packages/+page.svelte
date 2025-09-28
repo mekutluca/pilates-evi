@@ -2,8 +2,6 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import Plus from '@lucide/svelte/icons/plus';
-	import Users from '@lucide/svelte/icons/users';
-	import Calendar from '@lucide/svelte/icons/calendar';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Edit from '@lucide/svelte/icons/edit';
 	import Dumbbell from '@lucide/svelte/icons/dumbbell';
@@ -13,12 +11,11 @@
 	import PackageCreationForm from '$lib/components/package-creation-form.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
 	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types/Package';
-	import type { PurchaseWithTrainees } from '$lib/types/index';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
-	let { packages: initialPackages } = $derived(data);
+	let { packages: initialPackages, userRole } = $derived(data);
 
 	let packages = $derived(initialPackages || []);
 	let searchTerm = $state('');
@@ -37,17 +34,19 @@
 	let editReschedulable = $state(true);
 	let editRescheduleLimit = $state<number | null>(null);
 
-	// Package management actions
-	const tableActions: ActionItem[] = [
-		{
-			label: 'Düzenle',
-			handler: (id) => {
-				const pkg = packages.find((p) => p.id === Number(id));
-				if (pkg) openEditModal(pkg);
-			},
-			icon: Edit
-		}
-	];
+	// Package management actions - only show for admins
+	const tableActions = $derived<ActionItem[]>(
+		userRole === 'admin' ? [
+			{
+				label: 'Düzenle',
+				handler: (id) => {
+					const pkg = packages.find((p) => p.id === Number(id));
+					if (pkg) openEditModal(pkg);
+				},
+				icon: Edit
+			}
+		] : []
+	);
 
 	const tableColumns = [
 		{
@@ -215,15 +214,17 @@
 			<SearchInput bind:value={searchTerm} placeholder="Ders ara..." />
 		</div>
 
-		<button
-			class="btn btn-accent"
-			onclick={() => {
-				showCreateModal = true;
-			}}
-		>
-			<Plus size={16} />
-			Yeni Ders
-		</button>
+		{#if userRole === 'admin'}
+			<button
+				class="btn btn-accent"
+				onclick={() => {
+					showCreateModal = true;
+				}}
+			>
+				<Plus size={16} />
+				Yeni Ders
+			</button>
+		{/if}
 	</div>
 
 	<!-- Packages Table -->
@@ -254,54 +255,6 @@
 	{/if}
 </Modal>
 
-<!-- Package Statistics -->
-{#if packages.length > 0}
-	<div class="mt-8">
-		<div class="stats stats-vertical shadow lg:stats-horizontal">
-			<div class="stat">
-				<div class="stat-figure text-accent">
-					<Dumbbell size={32} />
-				</div>
-				<div class="stat-title">Toplam Ders</div>
-				<div class="stat-value text-accent">{packages.length}</div>
-				<div class="stat-desc">kayıtlı</div>
-			</div>
-
-			<div class="stat">
-				<div class="stat-figure text-success">
-					<Calendar size={32} />
-				</div>
-				<div class="stat-title">Aktif Ders</div>
-				<div class="stat-value text-success">
-					{packages.filter((p) => p.is_active).length}
-				</div>
-				<div class="stat-desc">çalışıyor</div>
-			</div>
-
-			<div class="stat">
-				<div class="stat-figure text-info">
-					<Users size={32} />
-				</div>
-				<div class="stat-title">Toplam Öğrenci</div>
-				<div class="stat-value text-info">
-					{packages.reduce((sum, p) => {
-						const totalActiveMembers =
-							p.pe_purchases?.reduce((purchaseSum: number, purchase: PurchaseWithTrainees) => {
-								// Only count members from active purchases
-								if (purchase.end_date && new Date(purchase.end_date) <= new Date()) {
-									return purchaseSum; // Skip expired purchases
-								}
-								const activeMembers = purchase.pe_purchase_trainees || [];
-								return purchaseSum + activeMembers.length;
-							}, 0) || 0;
-						return sum + totalActiveMembers;
-					}, 0)}
-				</div>
-				<div class="stat-desc">Derste</div>
-			</div>
-		</div>
-	</div>
-{/if}
 
 <!-- Edit Package Modal -->
 <Modal bind:open={showEditModal} title="Dersi Düzenle" size="xl" onClose={closeEditModal}>

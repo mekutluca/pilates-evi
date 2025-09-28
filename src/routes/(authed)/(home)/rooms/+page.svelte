@@ -15,7 +15,7 @@
 	import Modal from '$lib/components/modal.svelte';
 
 	let { data } = $props();
-	let { rooms: initialRooms } = $derived(data);
+	let { rooms: initialRooms, userRole } = $derived(data);
 
 	let rooms = $derived<Room[]>(initialRooms || []);
 	let searchTerm = $state('');
@@ -28,25 +28,27 @@
 	let name = $state('');
 	let capacity = $state<number | null>(null);
 
-	const tableActions: ActionItem[] = [
-		{
-			label: 'Düzenle',
-			handler: (id) => {
-				const room = rooms.find((r) => r.id === Number(id));
-				if (room) openEditModal(room);
+	const tableActions = $derived<ActionItem[]>(
+		userRole === 'admin' ? [
+			{
+				label: 'Düzenle',
+				handler: (id?: string | number) => {
+					const room = rooms.find((r) => r.id === Number(id));
+					if (room) openEditModal(room);
+				},
+				icon: Edit
 			},
-			icon: Edit
-		},
-		{
-			label: 'Sil',
-			handler: (id) => {
-				const room = rooms.find((r) => r.id === Number(id));
-				if (room) openDeleteModal(room);
-			},
-			class: 'text-error',
-			icon: Trash2
-		}
-	];
+			{
+				label: 'Sil',
+				handler: (id?: string | number) => {
+					const room = rooms.find((r) => r.id === Number(id));
+					if (room) openDeleteModal(room);
+				},
+				class: 'text-error',
+				icon: Trash2
+			}
+		] : []
+	);
 
 	const tableColumns = [
 		{
@@ -94,16 +96,18 @@
 			<SearchInput bind:value={searchTerm} placeholder="Oda ara..." />
 		</div>
 
-		<button
-			class="btn btn-primary"
-			onclick={() => {
-				resetForm();
-				showAddModal = true;
-			}}
-		>
-			<Plus size={16} />
-			Yeni Oda
-		</button>
+		{#if userRole === 'admin'}
+			<button
+				class="btn btn-primary"
+				onclick={() => {
+					resetForm();
+					showAddModal = true;
+				}}
+			>
+				<Plus size={16} />
+				Yeni Oda
+			</button>
+		{/if}
 	</div>
 
 	<SortableTable
