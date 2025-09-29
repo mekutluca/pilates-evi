@@ -170,51 +170,38 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		return chain;
 	};
 
-	// Transform to match the expected frontend structure, expanding purchases in successor chains
+	// Transform to match the expected frontend structure
+	// Each pe_purchase_trainees entry represents a distinct membership period (join -> leave or join -> ongoing)
 	const groupMembershipsWithPackages: TraineePurchaseMembership[] = [];
-	const processedPurchases = new Set<number>(); // To avoid duplicates
+	const processedMembershipIds = new Set<number>(); // Track processed membership entries, not purchases
 
 	if (purchaseMemberships && allPurchasesForTrainee) {
-		// First, identify root purchases (ones that are not successors of other purchases)
-		const allPurchaseIds = new Set(allPurchasesForTrainee.map(p => p.pe_purchases.id));
-		const successorIds = new Set(
-			allPurchasesForTrainee
-				.map(p => p.pe_purchases.successor_id)
-				.filter(id => id !== null)
-		);
-
-		const rootPurchaseIds = new Set(
-			[...allPurchaseIds].filter(id => !successorIds.has(id))
-		);
-
-
-		// Find memberships for root purchases and build complete chains
+		// Process each membership entry individually
+		// This handles cases where a trainee leaves and rejoins the same purchase
 		for (const membership of purchaseMemberships) {
-			if (membership.pe_purchases && rootPurchaseIds.has(membership.pe_purchases.id) && !processedPurchases.has(membership.pe_purchases.id)) {
-				// Build the complete purchase chain starting from this root purchase
+			if (membership.pe_purchases && !processedMembershipIds.has(membership.id)) {
+				// Mark this specific membership entry as processed
+				processedMembershipIds.add(membership.id);
+
+				// Get the purchase chain for this membership's purchase
 				const purchaseChain = buildPurchaseChain(membership.pe_purchases.id, allPurchasesForTrainee);
 
-
-				// Mark all purchases in this chain as processed
-				purchaseChain.forEach(purchase => processedPurchases.add(purchase.id));
-
-				// Create one membership item per purchase in the chain
+				// For the specific membership entry, create entries for the purchase chain
 				purchaseChain.forEach((purchase, index) => {
 					groupMembershipsWithPackages.push({
 						...membership,
 						package: membership.pe_purchases.pe_packages || null,
-						joined_at: purchase.start_date || membership.pe_purchases.start_date || new Date().toISOString(),
+						joined_at: index === 0 ? membership.start_date || membership.pe_purchases.start_date || new Date().toISOString() : purchase.start_date,
 						left_at: index === 0 ? membership.end_date : null, // Only first purchase respects trainee departure
 						purchase_id: purchase.id,
 						purchase_end_date: purchase.end_date,
 						is_extension: index > 0,
 						extension_number: index > 0 ? index : undefined,
-						id: `${membership.id}-${index}` // Unique ID for each purchase in chain
+						id: `${membership.id}-${index}` // Unique ID based on membership entry and chain position
 					});
 				});
 			}
 		}
-
 	}
 
 	if (purchaseError) {
@@ -283,5 +270,70 @@ export const actions: Actions = {
 		}
 
 		return { success: true };
+	},
+
+	removeFromGroup: async ({ request, params, locals: { supabase, user, userRole } }) => {
+		// Check permissions - only admin and coordinator can remove trainees from groups
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+		}
+
+		const traineeId = Number(params.id);
+
+		if (isNaN(traineeId)) {
+			throw error(400, 'Geçersiz öğrenci ID');
+		}
+
+		const formData = await request.formData();
+		const purchaseIdStr = formData.get('purchase_id')?.toString();
+
+		if (!purchaseIdStr) {
+			return fail(400, { message: 'Grup seçimi gereklidir' });
+		}
+
+		const purchaseId = Number(purchaseIdStr);
+
+		if (isNaN(purchaseId)) {
+			return fail(400, { message: 'Geçersiz grup ID' });
+		}
+
+		// Verify that the trainee is actually in this purchase group and is active
+		const { data: existingMembership, error: membershipError } = await supabase
+			.from('pe_purchase_trainees')
+			.select('*, pe_purchases(pe_packages(name, package_type))')
+			.eq('trainee_id', traineeId)
+			.eq('purchase_id', purchaseId)
+			.is('end_date', null)
+			.single();
+
+		if (membershipError || !existingMembership) {
+			return fail(404, { message: 'Öğrenci bu grupta aktif değil' });
+		}
+
+		// Only allow removal from group packages
+		if (existingMembership.pe_purchases?.pe_packages?.package_type !== 'group') {
+			return fail(400, { message: 'Sadece grup derslerinden çıkarılabilir' });
+		}
+
+		// Set end_date to today to remove the trainee from the group
+		const today = new Date().toISOString().split('T')[0];
+
+		const { error: removalError } = await supabase
+			.from('pe_purchase_trainees')
+			.update({ end_date: today })
+			.eq('trainee_id', traineeId)
+			.eq('purchase_id', purchaseId)
+			.is('end_date', null);
+
+		if (removalError) {
+			console.error('Error removing trainee from group:', removalError);
+			return fail(500, { message: 'Öğrenci gruptan çıkarılırken hata oluştu' });
+		}
+
+		const packageName = existingMembership.pe_purchases?.pe_packages?.name || 'gruptan';
+		return {
+			success: true,
+			message: `Öğrenci "${packageName}" dersinden başarıyla çıkarıldı`
+		};
 	}
 };

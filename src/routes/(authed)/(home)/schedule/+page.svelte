@@ -166,9 +166,11 @@
 			trainer_name: trainerName || purchase?.pe_trainers?.name || '',
 			package_name: purchase?.pe_packages?.name || '',
 			trainee_names:
-				purchase?.pe_purchase_trainees?.map((pt: { pe_trainees: { name: string } }) => pt.pe_trainees.name) ||
+				purchase?.pe_purchase_trainees
+					?.filter((pt: { end_date: string | null }) => !pt.end_date) // Only active members
+					?.map((pt: { pe_trainees: { name: string } }) => pt.pe_trainees.name) ||
 				[],
-			trainee_count: purchase?.pe_purchase_trainees?.length || 0,
+			trainee_count: purchase?.pe_purchase_trainees?.filter((pt: { end_date: string | null }) => !pt.end_date)?.length || 0,
 			reschedule_left: purchase?.reschedule_left ?? 0,
 			package_start_date: purchase?.start_date,
 			package_end_date: purchase?.end_date

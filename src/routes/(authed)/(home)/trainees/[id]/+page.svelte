@@ -9,9 +9,12 @@
 	import Edit from '@lucide/svelte/icons/edit';
 	import Save from '@lucide/svelte/icons/save';
 	import X from '@lucide/svelte/icons/x';
+	import UserMinus from '@lucide/svelte/icons/user-minus';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import Modal from '$lib/components/modal.svelte';
 	import { formatDisplayDate, calculatePackageEndDate } from '$lib/utils';
 	import { enhance } from '$app/forms';
+	import { toast } from 'svelte-sonner';
 
 	let { data } = $props();
 	let { trainee, groupMemberships, purchaseIdsWithFutureAppointments } = $derived(data);
@@ -19,6 +22,13 @@
 	// Edit mode state
 	let editMode = $state(false);
 	let saving = $state(false);
+
+	// Removal state - track which membership is being removed
+	let removingMemberships = $state(new Set<string>());
+
+	// Confirmation modal state
+	let showRemovalConfirmation = $state(false);
+	let membershipToRemove = $state<any>(null);
 
 	// Filter memberships with packages and group by package
 	const packagesWithMemberships = $derived(
@@ -92,12 +102,55 @@
 
 	// Get membership status
 	function getMembershipStatus(membership: any): { text: string; class: string } {
-		const isActive = !membership.left_at ||
+		const today = new Date();
+		const startDate = new Date(membership.joined_at || membership.start_date);
+
+		// Check if trainee has validly left the group
+		let hasValidEndDate = false;
+		if (membership.end_date) {
+			const endDate = new Date(membership.end_date);
+			// Only consider end_date valid if it's >= start_date and <= today
+			hasValidEndDate = endDate >= startDate && endDate <= today;
+		}
+
+		const hasLeftGroup = membership.left_at || hasValidEndDate;
+
+		// For active membership: must not have left AND have future appointments
+		const isActive = !hasLeftGroup &&
 			(membership.purchase_id && purchaseIdsWithFutureAppointments.includes(membership.purchase_id));
 
 		return isActive
 			? { text: 'Aktif', class: 'badge-success' }
 			: { text: 'Tamamlandı', class: 'badge-neutral' };
+	}
+
+	// Check if a membership can be removed (only active group packages)
+	function canRemoveMembership(membership: any): boolean {
+		// Use the same logic as getMembershipStatus for consistency
+		const status = getMembershipStatus(membership);
+		return status.text === 'Aktif' &&
+			   membership.package?.package_type === 'group' &&
+			   membership.purchase_id; // Must have a purchase_id
+	}
+
+	// Show removal confirmation modal
+	function showRemovalModal(membership: any) {
+		membershipToRemove = membership;
+		showRemovalConfirmation = true;
+	}
+
+	// Handle confirmed removal
+	function handleConfirmedRemoval() {
+		if (membershipToRemove) {
+			// Trigger the form submission programmatically
+			const form = document.getElementById(`remove-form-${membershipToRemove.id}`) as HTMLFormElement;
+			if (form) {
+				removingMemberships.add(membershipToRemove.id);
+				form.requestSubmit();
+			}
+		}
+		showRemovalConfirmation = false;
+		membershipToRemove = null;
 	}
 
 </script>
@@ -306,23 +359,22 @@
 						<div class="collapse collapse-arrow border border-base-300 bg-base-100">
 							<input type="checkbox" />
 							<div class="collapse-title">
-								<div class="flex items-center justify-between">
-									<div class="flex items-center gap-3">
-										<h4 class="font-semibold">{group.package.name}</h4>
-										<span class="badge badge-secondary">
-											{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
-										</span>
-										<span class="badge badge-sm badge-outline">
-											{group.memberships.length} paket
-										</span>
-									</div>
-									<div class="badge badge-sm badge-success">Aktif</div>
+								<div class="flex items-center gap-3">
+									<h4 class="font-semibold">{group.package.name}</h4>
+									<span class="badge badge-secondary">
+										{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
+									</span>
+									<span class="badge badge-sm badge-outline">
+										{group.memberships.length} paket
+									</span>
 								</div>
 							</div>
 							<div class="collapse-content">
 								<div class="space-y-2 pt-2">
 									{#each group.memberships as membership (membership.id)}
 										{@const status = getMembershipStatus(membership)}
+										{@const canRemove = canRemoveMembership(membership)}
+										{@const isRemoving = removingMemberships.has(membership.id)}
 										<div class="flex items-center justify-between rounded-lg bg-base-200 p-3">
 											<div class="flex items-center gap-3">
 												<div>
@@ -331,8 +383,50 @@
 													</p>
 												</div>
 											</div>
-											<div class="badge badge-sm {status.class}">
-												{status.text}
+											<div class="flex items-center gap-2">
+												<div class="badge badge-sm {status.class}">
+													{status.text}
+												</div>
+												{#if canRemove}
+													<form
+														id="remove-form-{membership.id}"
+														method="POST"
+														action="?/removeFromGroup"
+														use:enhance={({ formData }) => {
+															formData.append('purchase_id', membership.purchase_id.toString());
+
+															return async ({ result, update }) => {
+																removingMemberships.delete(membership.id);
+
+																if (result.type === 'success') {
+																	const message = (result.data as any)?.message || 'Öğrenci gruptan başarıyla çıkarıldı';
+																	toast.success(message);
+																} else if (result.type === 'failure') {
+																	const message = (result.data as any)?.message || 'Bir hata oluştu';
+																	toast.error(message);
+																}
+
+																await update();
+															};
+														}}
+													>
+														<button
+															type="button"
+															class="btn btn-ghost btn-xs text-error hover:bg-error/10 gap-1"
+															disabled={isRemoving}
+															onclick={() => showRemovalModal(membership)}
+															title="Gruptan çıkar"
+														>
+															{#if isRemoving}
+																<span class="loading loading-xs loading-spinner"></span>
+																<span class="text-xs">Çıkarılıyor...</span>
+															{:else}
+																<UserMinus size={14} />
+																<span class="text-xs">Gruptan çıkar</span>
+															{/if}
+														</button>
+													</form>
+												{/if}
 											</div>
 										</div>
 									{/each}
@@ -415,3 +509,43 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Removal Confirmation Modal -->
+<Modal bind:open={showRemovalConfirmation} size="sm">
+	{#snippet header()}
+		<h3 class="text-lg font-semibold text-error">Gruptan Çıkar</h3>
+	{/snippet}
+
+	{#if membershipToRemove}
+		<div class="space-y-6">
+			<div class="space-y-4">
+				<p class="text-base-content/80">
+					<strong>{trainee?.name}</strong> adlı öğrenciyi <strong>{membershipToRemove.package?.name}</strong> dersinden çıkarmak istediğinize emin misiniz?
+				</p>
+				<div class="alert alert-warning">
+					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+					</svg>
+					<span class="text-sm">Bu işlem geri alınamaz. Öğrenci gruptan çıkarıldıktan sonra tekrar eklemek için yeni kayıt oluşturmanız gerekecek.</span>
+				</div>
+			</div>
+
+			<div class="flex justify-end gap-3">
+				<button
+					type="button"
+					class="btn btn-ghost"
+					onclick={() => { showRemovalConfirmation = false; membershipToRemove = null; }}
+				>
+					İptal
+				</button>
+				<button
+					type="button"
+					class="btn btn-error"
+					onclick={handleConfirmedRemoval}
+				>
+					Gruptan Çıkar
+				</button>
+			</div>
+		</div>
+	{/if}
+</Modal>
