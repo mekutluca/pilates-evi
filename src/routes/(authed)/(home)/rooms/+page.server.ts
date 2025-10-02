@@ -64,7 +64,7 @@ export const actions: Actions = {
 		return { success: true, message: 'Oda başarıyla güncellendi' };
 	},
 
-	deleteRoom: async ({ request, locals: { supabase, user, userRole } }) => {
+	archiveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
 		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
 			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
 		}
@@ -76,12 +76,45 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Oda ID gereklidir' });
 		}
 
-		const { error: deleteError } = await supabase.from('pe_rooms').delete().eq('id', roomId);
+		const { error: archiveError } = await supabase
+			.from('pe_rooms')
+			.update({ is_active: false })
+			.eq('id', roomId);
 
-		if (deleteError) {
-			return fail(500, { success: false, message: 'Oda silinirken hata: ' + deleteError.message });
+		if (archiveError) {
+			return fail(500, {
+				success: false,
+				message: 'Oda arşivlenirken hata: ' + archiveError.message
+			});
 		}
 
-		return { success: true, message: 'Oda başarıyla silindi' };
+		return { success: true, message: 'Oda başarıyla arşivlendi' };
+	},
+
+	restoreRoom: async ({ request, locals: { supabase, user, userRole } }) => {
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+		}
+
+		const formData = await request.formData();
+		const roomId = Number(formData.get('roomId'));
+
+		if (!roomId) {
+			return fail(400, { success: false, message: 'Oda ID gereklidir' });
+		}
+
+		const { error: restoreError } = await supabase
+			.from('pe_rooms')
+			.update({ is_active: true })
+			.eq('id', roomId);
+
+		if (restoreError) {
+			return fail(500, {
+				success: false,
+				message: 'Oda geri yüklenirken hata: ' + restoreError.message
+			});
+		}
+
+		return { success: true, message: 'Oda başarıyla geri yüklendi' };
 	}
 };

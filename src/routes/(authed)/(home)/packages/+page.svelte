@@ -5,6 +5,8 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Edit from '@lucide/svelte/icons/edit';
 	import Dumbbell from '@lucide/svelte/icons/dumbbell';
+	import Archive from '@lucide/svelte/icons/archive';
+	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import SearchInput from '$lib/components/search-input.svelte';
 	import SortableTable from '$lib/components/sortable-table.svelte';
@@ -17,10 +19,16 @@
 	let { data } = $props();
 	let { packages: initialPackages, userRole } = $derived(data);
 
-	let packages = $derived(initialPackages || []);
+	let showArchived = $state(false);
+	let hasArchivedPackages = $derived((initialPackages || []).some((p) => !p.is_active));
+	let packages = $derived(
+		showArchived ? initialPackages || [] : (initialPackages || []).filter((p) => p.is_active)
+	);
 	let searchTerm = $state('');
 	let showCreateModal = $state(false);
 	let showEditModal = $state(false);
+	let showArchiveModal = $state(false);
+	let showRestoreModal = $state(false);
 	let selectedPackage = $state<PackageWithPurchases | null>(null);
 	let formLoading = $state(false);
 
@@ -35,18 +43,44 @@
 	let editRescheduleLimit = $state<number | null>(null);
 
 	// Package management actions - only show for admins
-	const tableActions = $derived<ActionItem[]>(
-		userRole === 'admin' ? [
+	const getTableActions = (pkg: PackageWithPurchases): ActionItem[] => {
+		if (userRole !== 'admin') return [];
+
+		const baseActions: ActionItem[] = [
 			{
 				label: 'Düzenle',
 				handler: (id) => {
-					const pkg = packages.find((p) => p.id === Number(id));
-					if (pkg) openEditModal(pkg);
+					const p = packages.find((p) => p.id === Number(id));
+					if (p) openEditModal(p);
 				},
 				icon: Edit
 			}
-		] : []
-	);
+		];
+
+		if (pkg.is_active) {
+			baseActions.push({
+				label: 'Arşivle',
+				handler: (id) => {
+					const p = packages.find((p) => p.id === Number(id));
+					if (p) openArchiveModal(p);
+				},
+				class: 'text-error',
+				icon: Archive
+			});
+		} else {
+			baseActions.push({
+				label: 'Geri Yükle',
+				handler: (id) => {
+					const p = packages.find((p) => p.id === Number(id));
+					if (p) openRestoreModal(p);
+				},
+				class: 'text-success',
+				icon: ArchiveRestore
+			});
+		}
+
+		return baseActions;
+	};
 
 	const tableColumns = [
 		{
@@ -97,6 +131,16 @@
 		editReschedulable = pkg.reschedulable ?? true;
 		editRescheduleLimit = pkg.reschedule_limit;
 		showEditModal = true;
+	}
+
+	function openArchiveModal(pkg: PackageWithPurchases) {
+		selectedPackage = pkg;
+		showArchiveModal = true;
+	}
+
+	function openRestoreModal(pkg: PackageWithPurchases) {
+		selectedPackage = pkg;
+		showRestoreModal = true;
 	}
 
 	function closeEditModal() {
@@ -212,6 +256,12 @@
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Ders ara..." />
+			{#if hasArchivedPackages}
+				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
+					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+				</label>
+			{/if}
 		</div>
 
 		{#if userRole === 'admin'}
@@ -235,7 +285,7 @@
 		emptyMessage="Henüz Ders bulunmuyor"
 		defaultSortKey="created_at"
 		defaultSortOrder="desc"
-		actions={tableActions}
+		actions={getTableActions}
 	/>
 </div>
 
@@ -420,4 +470,104 @@
 			Güncelle
 		</button>
 	</div>
+</Modal>
+
+<!-- Archive Package Modal -->
+<Modal bind:open={showArchiveModal} title="Dersi Arşivle">
+	<p class="mb-4">
+		<strong>{selectedPackage?.name}</strong> adlı dersi arşivlemek istediğinizden emin misiniz?
+		Arşivlenen dersler listede görünmez hale gelecektir.
+	</p>
+	<form
+		method="POST"
+		action="?/archivePackage"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Ders başarıyla arşivlendi');
+					showArchiveModal = false;
+					selectedPackage = null;
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="packageId" value={selectedPackage?.id} />
+
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showArchiveModal = false;
+					selectedPackage = null;
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-error" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<Archive size={16} />
+				{/if}
+				Arşivle
+			</button>
+		</div>
+	</form>
+</Modal>
+
+<!-- Restore Package Modal -->
+<Modal bind:open={showRestoreModal} title="Dersi Geri Yükle">
+	<p class="mb-4">
+		<strong>{selectedPackage?.name}</strong> adlı dersi geri yüklemek istediğinizden emin misiniz?
+		Ders aktif dersler listesinde görünür hale gelecektir.
+	</p>
+	<form
+		method="POST"
+		action="?/restorePackage"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Ders başarıyla geri yüklendi');
+					showRestoreModal = false;
+					selectedPackage = null;
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="packageId" value={selectedPackage?.id} />
+
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showRestoreModal = false;
+					selectedPackage = null;
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-success" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<ArchiveRestore size={16} />
+				{/if}
+				Geri Yükle
+			</button>
+		</div>
+	</form>
 </Modal>

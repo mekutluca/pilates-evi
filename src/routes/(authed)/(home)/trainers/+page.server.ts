@@ -112,7 +112,7 @@ export const actions: Actions = {
 		};
 	},
 
-	deleteTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
+	archiveTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
 		const permissionError = validateUserPermission(user, userRole);
 		if (permissionError) return permissionError;
 
@@ -127,19 +127,110 @@ export const actions: Actions = {
 			});
 		}
 
-		// Delete trainer from pe_trainers table
-		const { error: deleteError } = await supabase.from('pe_trainers').delete().eq('id', trainerId);
+		// Get the trainer's auth_id first
+		const { data: trainerData, error: trainerError } = await supabase
+			.from('pe_trainers')
+			.select('auth_id')
+			.eq('id', trainerId)
+			.single();
 
-		if (deleteError) {
+		if (trainerError || !trainerData?.auth_id) {
 			return fail(500, {
 				success: false,
-				message: 'Eğitmen silinirken hata: ' + deleteError.message
+				message: 'Eğitmen bulunamadı'
+			});
+		}
+
+		// Disable the user account
+		const { error: disableError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+			ban_duration: 'none', // Indefinite ban
+			user_metadata: { banned: true }
+		});
+
+		if (disableError) {
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı hesabı devre dışı bırakılırken hata: ' + disableError.message
+			});
+		}
+
+		// Archive trainer by setting is_active to false
+		const { error: archiveError } = await supabase
+			.from('pe_trainers')
+			.update({ is_active: false })
+			.eq('id', trainerId);
+
+		if (archiveError) {
+			return fail(500, {
+				success: false,
+				message: 'Eğitmen arşivlenirken hata: ' + archiveError.message
 			});
 		}
 
 		return {
 			success: true,
-			message: 'Eğitmen başarıyla silindi'
+			message: 'Eğitmen başarıyla arşivlendi ve kullanıcı hesabı devre dışı bırakıldı'
+		};
+	},
+
+	restoreTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
+
+		const formData = await request.formData();
+		const trainerId = Number(formData.get('trainerId'));
+
+		// Validate required fields
+		if (!trainerId) {
+			return fail(400, {
+				success: false,
+				message: 'Eğitmen ID gereklidir'
+			});
+		}
+
+		// Get the trainer's auth_id first
+		const { data: trainerData, error: trainerError } = await supabase
+			.from('pe_trainers')
+			.select('auth_id')
+			.eq('id', trainerId)
+			.single();
+
+		if (trainerError || !trainerData?.auth_id) {
+			return fail(500, {
+				success: false,
+				message: 'Eğitmen bulunamadı'
+			});
+		}
+
+		// Re-enable the user account
+		const { error: enableError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+			ban_duration: '0s', // Remove ban
+			user_metadata: { banned: false }
+		});
+
+		if (enableError) {
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı hesabı etkinleştirilirken hata: ' + enableError.message
+			});
+		}
+
+		// Restore trainer by setting is_active to true
+		const { error: restoreError } = await supabase
+			.from('pe_trainers')
+			.update({ is_active: true })
+			.eq('id', trainerId);
+
+		if (restoreError) {
+			return fail(500, {
+				success: false,
+				message: 'Eğitmen geri yüklenirken hata: ' + restoreError.message
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Eğitmen başarıyla geri yüklendi ve kullanıcı hesabı etkinleştirildi'
 		};
 	},
 

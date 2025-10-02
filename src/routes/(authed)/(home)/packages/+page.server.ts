@@ -145,5 +145,79 @@ export const actions: Actions = {
 			success: true,
 			message: 'Ders başarıyla güncellendi'
 		};
+	},
+
+	archivePackage: async ({ request, locals: { supabase, user, userRole } }) => {
+		// Only admin users can archive packages
+		if (!user || userRole !== 'admin') {
+			return fail(403, {
+				success: false,
+				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
+			});
+		}
+
+		const formData = await request.formData();
+		const packageId = Number(formData.get('packageId'));
+
+		if (!packageId) {
+			return fail(400, {
+				success: false,
+				message: 'Ders ID gereklidir'
+			});
+		}
+
+		const { error: archiveError } = await supabase
+			.from('pe_packages')
+			.update({ is_active: false })
+			.eq('id', packageId);
+
+		if (archiveError) {
+			return fail(500, {
+				success: false,
+				message: 'Ders arşivlenirken hata: ' + archiveError.message
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Ders başarıyla arşivlendi'
+		};
+	},
+
+	restorePackage: async ({ request, locals: { supabase, user, userRole } }) => {
+		// Only admin users can restore packages
+		if (!user || userRole !== 'admin') {
+			return fail(403, {
+				success: false,
+				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
+			});
+		}
+
+		const formData = await request.formData();
+		const packageId = Number(formData.get('packageId'));
+
+		if (!packageId) {
+			return fail(400, {
+				success: false,
+				message: 'Ders ID gereklidir'
+			});
+		}
+
+		const { error: restoreError } = await supabase
+			.from('pe_packages')
+			.update({ is_active: true })
+			.eq('id', packageId);
+
+		if (restoreError) {
+			return fail(500, {
+				success: false,
+				message: 'Ders geri yüklenirken hata: ' + restoreError.message
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Ders başarıyla geri yüklendi'
+		};
 	}
 };

@@ -20,7 +20,7 @@
 		emptyMessage?: string;
 		defaultSortKey?: string;
 		defaultSortOrder?: 'asc' | 'desc';
-		actions?: ActionItem[];
+		actions?: ActionItem[] | ((item: T) => ActionItem[]);
 		actionsTitle?: string;
 		onRowClick?: (item: T) => void;
 	}
@@ -167,7 +167,7 @@
 									</div>
 								</th>
 							{/each}
-							{#if actions && actions.length > 0}
+							{#if actions && (typeof actions === 'function' || actions.length > 0)}
 								<th class="w-24 text-right select-none">
 									<span>{actionsTitle}</span>
 								</th>
@@ -193,10 +193,11 @@
 										{/if}
 									</td>
 								{/each}
-								{#if actions && actions.length > 0}
+								{#if actions && (typeof actions === 'function' ? actions(item).length > 0 : actions.length > 0)}
+									{@const itemActions = typeof actions === 'function' ? actions(item) : actions}
 									<td class="text-right" onclick={(e) => e.stopPropagation()}>
 										<ActionMenu
-											actions={actions.map(
+											actions={itemActions.map(
 												(action): ActionItem => ({
 													...action,
 													handler: async () => {
