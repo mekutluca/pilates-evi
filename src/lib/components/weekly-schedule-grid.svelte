@@ -11,16 +11,16 @@
 
 	interface Props {
 		viewMode: 'room' | 'trainer';
-		selectedEntityId: number;
+		selectedEntityId: string;
 		entities: Room[] | Trainer[];
 		appointments: AppointmentWithRelations[];
 		weekStart?: Date;
-		onSlotClick?: (entityId: number, day: DayOfWeek, hour: number) => void;
+		onSlotClick?: (entityId: string, day: DayOfWeek, hour: number) => void;
 		showSlotAvailability?: boolean;
-		availabilityCallback?: (entityId: number, day: DayOfWeek, hour: number) => boolean;
-		canSelectCallback?: (entityId: number, day: DayOfWeek, hour: number) => boolean;
+		availabilityCallback?: (entityId: string, day: DayOfWeek, hour: number) => boolean;
+		canSelectCallback?: (entityId: string, day: DayOfWeek, hour: number) => boolean;
 		selectedSlots?: Array<{ day: DayOfWeek; hour: number }>;
-		pastSlotCallback?: (entityId: number, day: DayOfWeek, hour: number) => boolean;
+		pastSlotCallback?: (entityId: string, day: DayOfWeek, hour: number) => boolean;
 	}
 
 	// State for appointment details modal
@@ -49,7 +49,7 @@
 		if (!selectedEntity) return {};
 
 		interface ScheduleSlot {
-			entity_id: number;
+			entity_id: string;
 			entity_name: string;
 			hour: number;
 			is_available: boolean;
@@ -66,25 +66,21 @@
 
 			SCHEDULE_HOURS.forEach((hour) => {
 				const appointment = appointments.find((apt) => {
-					// Skip appointments without appointment_date
-					if (!apt.appointment_date) return false;
+					// Skip appointments without date
+					if (!apt.date) return false;
 
 					// Get the day of week from the appointment date
-					const appointmentDayOfWeek = getDayOfWeekFromDate(apt.appointment_date);
+					const appointmentDayOfWeek = getDayOfWeekFromDate(apt.date);
 
 					if (viewMode === 'room') {
 						return (
-							apt.pe_purchases?.room_id === selectedEntity.id &&
-							appointmentDayOfWeek === day &&
-							apt.hour === hour &&
-							(apt.status === 'scheduled' || apt.status === null)
+							apt.room_id === selectedEntity.id && appointmentDayOfWeek === day && apt.hour === hour
 						);
 					} else {
 						return (
-							apt.pe_purchases?.trainer_id === selectedEntity.id &&
+							apt.trainer_id === selectedEntity.id &&
 							appointmentDayOfWeek === day &&
-							apt.hour === hour &&
-							(apt.status === 'scheduled' || apt.status === null)
+							apt.hour === hour
 						);
 					}
 				});
@@ -117,24 +113,23 @@
 		return slots;
 	});
 
-	function handleSlotClick(entityId: number, day: DayOfWeek, hour: number) {
+	function handleSlotClick(entityId: string, day: DayOfWeek, hour: number) {
 		if (onSlotClick) {
 			onSlotClick(entityId, day, hour);
 		}
 	}
 
 	// Find conflicting appointments for an unavailable slot
-	function findConflictingAppointment(entityId: number, day: DayOfWeek, hour: number) {
+	function findConflictingAppointment(entityId: string, day: DayOfWeek, hour: number) {
 		if (!weekStart) return null;
 
 		const targetDate = getDateForDayOfWeek(weekStart, day);
 		const targetDateStr = targetDate.toISOString().split('T')[0];
 
 		return appointments.find((apt) => {
-			if (!apt.appointment_date || (apt.status !== 'scheduled' && apt.status !== null))
-				return false;
+			if (!apt.date) return false;
 			if (apt.hour !== hour) return false;
-			if (apt.appointment_date !== targetDateStr) return false;
+			if (apt.date !== targetDateStr) return false;
 
 			// Return any appointment that matches the time slot - we'll show its details
 			return true;
@@ -142,7 +137,7 @@
 	}
 
 	// Handle clicking on unavailable slots to show appointment details
-	function handleUnavailableSlotClick(entityId: number, day: DayOfWeek, hour: number) {
+	function handleUnavailableSlotClick(entityId: string, day: DayOfWeek, hour: number) {
 		const conflictingAppointment = findConflictingAppointment(entityId, day, hour);
 		if (conflictingAppointment) {
 			selectedAppointmentDetails = toAppointmentDetails(conflictingAppointment);
@@ -152,31 +147,29 @@
 
 	// Convert AppointmentWithRelations to AppointmentWithDetails
 	function toAppointmentDetails(apt: AppointmentWithRelations): AppointmentWithDetails {
+		const firstTrainee = apt.pe_appointment_trainees?.[0];
 		return {
 			// Core database fields
 			id: apt.id,
-			appointment_date: apt.appointment_date,
+			date: apt.date,
 			hour: apt.hour,
-			notes: apt.notes,
-			purchase_id: apt.purchase_id!,
-			room_id: apt.pe_purchases?.room_id || 0,
-			series_id: apt.series_id,
-			session_number: apt.session_number,
-			status: apt.status || 'scheduled',
-			total_sessions: apt.total_sessions,
-			trainer_id: apt.pe_purchases?.trainer_id || 0,
+			purchase_id: apt.purchase_id,
+			group_lesson_id: apt.group_lesson_id,
+			room_id: apt.room_id,
+			trainer_id: apt.trainer_id,
+			session_number: firstTrainee?.session_number ?? null,
+			total_sessions: firstTrainee?.total_sessions ?? null,
 			// Extended fields from relations
 			room_name: apt.pe_rooms?.name || '',
 			trainer_name: apt.pe_trainers?.name || '',
-			package_name: apt.pe_purchases?.pe_packages?.name || '',
+			package_name:
+				apt.pe_purchases?.pe_packages?.name || apt.pe_group_lessons?.pe_packages?.name || '',
 			trainee_names:
-				apt.pe_purchases?.pe_purchase_trainees
-					?.filter((pt) => !pt.end_date) // Only active members
-					?.map((pt) => pt.pe_trainees.name) || [],
-			trainee_count:
-				apt.pe_purchases?.pe_purchase_trainees?.filter((pt) => !pt.end_date)?.length ||
-				0,
-			reschedule_left: apt.pe_purchases?.reschedule_left ?? 0
+				apt.pe_appointment_trainees
+					?.map((at) => at.pe_trainees?.name)
+					?.filter((name): name is string => !!name) || [],
+			trainee_count: apt.pe_appointment_trainees?.length || 0,
+			reschedule_left: apt.pe_purchases?.reschedule_left ?? undefined
 		};
 	}
 
@@ -301,8 +294,8 @@
 				<div class="flex justify-between">
 					<span class="font-medium">Tarih:</span>
 					<span
-						>{selectedAppointmentDetails.appointment_date
-							? new Date(selectedAppointmentDetails.appointment_date).toLocaleDateString('tr-TR')
+						>{selectedAppointmentDetails.date
+							? new Date(selectedAppointmentDetails.date).toLocaleDateString('tr-TR')
 							: 'Bilinmiyor'}</span
 					>
 				</div>

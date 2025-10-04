@@ -14,9 +14,7 @@
 		ScheduleGrid,
 		DayOfWeek,
 		AppointmentWithDetails,
-		AppointmentWithRelations,
-		TimeSlotPattern,
-		ExtensionConflict
+		AppointmentWithRelations
 	} from '$lib/types/Schedule';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
 	import {
@@ -25,8 +23,7 @@
 		formatDateParam,
 		getDateForDayOfWeek,
 		formatDayMonth,
-		getDayOfWeekFromDate,
-		TURKISH_DAYS
+		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { page } from '$app/state';
@@ -36,29 +33,30 @@
 
 	// Extract data reactively
 	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
-	let allAppointments = $derived(data.allAppointments as AppointmentWithRelations[]);
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
 
 	// UI state
 	let viewMode = $state<'room' | 'trainer'>('room');
-	let selectedRoomId = $state(0);
-	let selectedTrainerId = $state(0);
+	let selectedRoomId = $state('');
+	let selectedTrainerId = $state('');
 	let showDatePicker = $state(false);
 
 	// Initialize selectedRoomId when rooms data is available
 	$effect(() => {
-		if (rooms.length > 0 && selectedRoomId === 0) {
-			const sortedRooms = rooms.toSorted((a, b) => a.id - b.id);
+		if (rooms.length > 0 && selectedRoomId === '') {
+			const sortedRooms = rooms.toSorted((a, b) => (a.name || '').localeCompare(b.name || ''));
 			selectedRoomId = sortedRooms[0].id;
 		}
 	});
 
 	// Initialize selectedTrainerId when trainers data is available
 	$effect(() => {
-		if (trainers.length > 0 && selectedTrainerId === 0) {
-			const sortedTrainers = trainers.toSorted((a, b) => a.id - b.id);
+		if (trainers.length > 0 && selectedTrainerId === '') {
+			const sortedTrainers = trainers.toSorted((a, b) =>
+				(a.name || '').localeCompare(b.name || '')
+			);
 			selectedTrainerId = sortedTrainers[0].id;
 		}
 	});
@@ -72,14 +70,14 @@
 	let showAppointmentDetailsModal = $state(false);
 	let rescheduleMode = $state(false);
 	let showRescheduleConfirmation = $state(false);
-	let selectedRescheduleSlot = $state<{ roomId: number; day: DayOfWeek; hour: number } | null>(
+	let selectedRescheduleSlot = $state<{ roomId: string; day: DayOfWeek; hour: number } | null>(
 		null
 	);
 
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
 
-	// Extension modal state
+	// Extension modal state - TODO: Re-implement for new schema
 	let showExtensionModal = $state(false);
 	let additionalPackages = $state(1);
 	let extensionLoading = $state(false);
@@ -148,32 +146,38 @@
 		trainerName?: string | null
 	): AppointmentWithDetails {
 		const purchase = appointment.pe_purchases;
+		const groupLesson = appointment.pe_group_lessons;
+		const packageInfo = purchase?.pe_packages || groupLesson?.pe_packages;
+
+		// Get trainee information from appointment_trainees
+		const appointmentTrainees = appointment.pe_appointment_trainees || [];
+		const traineeNames = appointmentTrainees
+			.map((at) => at.pe_trainees?.name || '')
+			.filter(Boolean);
+
+		// Check if any trainee has their last session
+		const hasLastSession = appointmentTrainees.some(
+			(at) => at.session_number === at.total_sessions && at.total_sessions !== null
+		);
+
 		return {
-			// Database fields - use values from appointment and purchase
+			// Database fields - use values from appointment
 			id: appointment.id,
-			room_id: purchase?.room_id || 0,
-			trainer_id: purchase?.trainer_id || 0,
-			purchase_id: appointment.purchase_id!,
+			room_id: appointment.room_id,
+			trainer_id: appointment.trainer_id,
+			purchase_id: appointment.purchase_id,
+			group_lesson_id: appointment.group_lesson_id,
 			hour: appointment.hour,
-			status: appointment.status || 'scheduled',
-			appointment_date: appointment.appointment_date,
-			session_number: appointment.session_number,
-			total_sessions: appointment.total_sessions,
-			notes: appointment.notes,
-			series_id: appointment.series_id,
+			date: appointment.date,
 			// Extended fields using relation data
-			room_name: roomName || purchase?.pe_rooms?.name || '',
-			trainer_name: trainerName || purchase?.pe_trainers?.name || '',
-			package_name: purchase?.pe_packages?.name || '',
-			trainee_names:
-				purchase?.pe_purchase_trainees
-					?.filter((pt: { end_date: string | null }) => !pt.end_date) // Only active members
-					?.map((pt: { pe_trainees: { name: string } }) => pt.pe_trainees.name) ||
-				[],
-			trainee_count: purchase?.pe_purchase_trainees?.filter((pt: { end_date: string | null }) => !pt.end_date)?.length || 0,
+			room_name: roomName || appointment.pe_rooms?.name || '',
+			trainer_name: trainerName || appointment.pe_trainers?.name || '',
+			package_name: packageInfo?.name || '',
+			trainee_names: traineeNames,
+			trainee_count: traineeNames.length,
 			reschedule_left: purchase?.reschedule_left ?? 0,
-			package_start_date: purchase?.start_date,
-			package_end_date: purchase?.end_date
+			has_last_session: hasLastSession,
+			appointment_trainees: appointmentTrainees
 		};
 	}
 
@@ -196,7 +200,7 @@
 		showRescheduleConfirmation = false;
 	}
 
-	function handleRescheduleSlotClick(roomId: number, day: DayOfWeek, hour: number) {
+	function handleRescheduleSlotClick(roomId: string, day: DayOfWeek, hour: number) {
 		if (!rescheduleMode || !selectedAppointment) return;
 
 		selectedRescheduleSlot = { roomId, day, hour };
@@ -239,14 +243,13 @@
 	// Check if an appointment is in the past
 	function isAppointmentInPast(appointment: AppointmentWithDetails): boolean {
 		const now = new SvelteDate();
-		// Use the appointment_date if available, otherwise fallback to current week calculation
-		if (appointment.appointment_date) {
-			const appointmentDateTime = new SvelteDate(appointment.appointment_date);
+		// Use the date if available
+		if (appointment.date && appointment.hour !== null) {
+			const appointmentDateTime = new SvelteDate(appointment.date);
 			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
 			return appointmentDateTime < now;
 		}
 
-		// Fallback: derive day from appointment_date if needed
 		return false;
 	}
 
@@ -266,8 +269,8 @@
 		const now = new SvelteDate();
 		let appointmentDateTime: SvelteDate;
 
-		if (appointment.appointment_date) {
-			appointmentDateTime = new SvelteDate(appointment.appointment_date);
+		if (appointment.date && appointment.hour !== null) {
+			appointmentDateTime = new SvelteDate(appointment.date);
 			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
 		} else {
 			// Fallback: this shouldn't happen with new appointments
@@ -289,203 +292,23 @@
 		return false;
 	}
 
-	// Check if an appointment is the last session and can be extended
+	// Check if an appointment has any trainee with their last session
 	function isLastSessionAndExtendable(appointment: AppointmentWithDetails): boolean {
-		// First check if this is the last session of its package
-		const isLastSession = (
-			appointment.session_number === appointment.total_sessions &&
-			appointment.total_sessions !== null &&
-			appointment.total_sessions !== undefined &&
-			appointment.total_sessions > 1
-		);
-
-		// Only show "Son ders" if it's the last session AND this package is the latest in the extension chain
-		return isLastSession && isLatestInExtensionChain(appointment);
+		// Check if any trainee in this appointment has their last session
+		return appointment.has_last_session || false;
 	}
 
-	// Check if an appointment belongs to a private package that can be extended
+	// TODO: Re-implement extension functions for new schema
 	function isPrivatePackage(appointment: AppointmentWithDetails): boolean {
-		// Private packages have a finite total_sessions, group packages have null total_sessions
-		const isPrivate =
-			appointment.total_sessions !== null &&
-			appointment.total_sessions !== undefined &&
-			appointment.total_sessions > 0;
-
-		if (!isPrivate) return false;
-
-		// Check if this package is the latest in the extension chain (no successor)
-		return isLatestInExtensionChain(appointment);
+		// For now, check if appointment has a purchase_id (private lessons have purchases)
+		return appointment.purchase_id !== null && appointment.purchase_id !== undefined;
 	}
 
-	// Check if the appointment belongs to the latest package in an extension chain
-	function isLatestInExtensionChain(appointment: AppointmentWithDetails): boolean {
-		if (!appointment.purchase_id) return false;
-
-		// Find the appointment's purchase in the loaded data
-		const purchase = appointments.find(
-			(apt) => apt.purchase_id === appointment.purchase_id
-		)?.pe_purchases;
-
-		// If no successor_id, this is the latest package in the chain
-		return purchase?.successor_id === null || purchase?.successor_id === undefined;
-	}
-
-	// Open extension modal
 	function openExtensionModal(appointment: AppointmentWithDetails) {
 		selectedAppointment = appointment;
 		showExtensionModal = true;
-		additionalPackages = 1; // Reset to default
-		extensionLoading = false; // Reset loading state
-	}
-
-	// Get package chain information (current package + all successors)
-	function getPackageChain(appointment: AppointmentWithDetails) {
-		const chain = [];
-		let currentPurchaseId: number | null = appointment.purchase_id;
-
-		while (currentPurchaseId) {
-			const purchase = appointments.find(
-				(apt) => apt.purchase_id === currentPurchaseId
-			)?.pe_purchases;
-
-			if (purchase) {
-				chain.push({
-					id: purchase.id,
-					start_date: purchase.start_date,
-					end_date: purchase.end_date,
-					successor_id: purchase.successor_id
-				});
-				currentPurchaseId = purchase.successor_id;
-			} else {
-				break;
-			}
-		}
-
-		return chain;
-	}
-
-	// Calculate extension date ranges
-	function calculateExtensionRanges(appointment: AppointmentWithDetails, packageCount: number) {
-		const packageInfo = appointments.find(
-			(apt) => apt.purchase_id === appointment.purchase_id
-		)?.pe_purchases?.pe_packages;
-
-		if (!packageInfo || !('weeks_duration' in packageInfo) || !packageInfo.weeks_duration)
-			return [];
-
-		const chain = getPackageChain(appointment);
-		const lastPackage = chain[chain.length - 1];
-		if (!lastPackage?.end_date) return [];
-
-		const lastEndDate = new SvelteDate(lastPackage.end_date);
-		const weeksDuration = packageInfo.weeks_duration as number;
-
-		const ranges = [];
-		for (let i = 0; i < packageCount; i++) {
-			const startDate = new SvelteDate(lastEndDate.getTime());
-			startDate.setDate(lastEndDate.getDate() + 1 + i * weeksDuration * 7);
-
-			const endDate = new SvelteDate(startDate.getTime());
-			endDate.setDate(startDate.getDate() + weeksDuration * 7 - 1);
-
-			ranges.push({
-				start: startDate.toISOString().split('T')[0],
-				end: endDate.toISOString().split('T')[0]
-			});
-		}
-
-		return ranges;
-	}
-
-	// Check for conflicts in extension ranges
-	function checkExtensionConflicts(
-		appointment: AppointmentWithDetails,
-		packageCount: number
-	): ExtensionConflict[] {
-		const purchase = appointments.find(
-			(apt) => apt.purchase_id === appointment.purchase_id
-		)?.pe_purchases;
-
-		if (!purchase || !('time_slots' in purchase) || !purchase.time_slots) return [];
-
-		const ranges = calculateExtensionRanges(appointment, packageCount);
-		const timeSlots = purchase.time_slots as TimeSlotPattern[];
-		const conflicts: ExtensionConflict[] = [];
-
-		// Get room and trainer IDs
-		const roomId = purchase.room_id;
-		const trainerId = purchase.trainer_id;
-
-		if (!roomId || !trainerId) return [];
-
-		for (const range of ranges) {
-			const rangeConflicts = [];
-			const startDate = new SvelteDate(range.start);
-			const endDate = new SvelteDate(range.end);
-
-			// Check each time slot for conflicts
-			for (const slot of timeSlots) {
-				// Generate all appointment dates for this slot within the range
-				let checkDate = new SvelteDate(startDate.getTime());
-
-				while (checkDate <= endDate) {
-					// Calculate the actual date for this day of week
-					const dayNames = [
-						'sunday',
-						'monday',
-						'tuesday',
-						'wednesday',
-						'thursday',
-						'friday',
-						'saturday'
-					];
-					const targetDayIndex = dayNames.indexOf(slot.day);
-					const currentDayIndex = checkDate.getDay();
-					const daysToAdd = (targetDayIndex - currentDayIndex + 7) % 7;
-
-					const appointmentDate = new SvelteDate(checkDate.getTime());
-					appointmentDate.setDate(checkDate.getDate() + daysToAdd);
-
-					// Only check if the appointment date is within our range
-					if (appointmentDate >= startDate && appointmentDate <= endDate) {
-						const dateStr = appointmentDate.toISOString().split('T')[0];
-
-						// Check for conflicts with existing appointments
-						const hasConflict = allAppointments.some((apt) => {
-							if (!apt.appointment_date || apt.status !== 'scheduled') return false;
-							if (apt.appointment_date !== dateStr || apt.hour !== slot.hour) return false;
-
-							// Check room and trainer conflicts
-							const existingRoomId = apt.pe_purchases?.room_id;
-							const existingTrainerId = apt.pe_purchases?.trainer_id;
-
-							return existingRoomId === roomId || existingTrainerId === trainerId;
-						});
-
-						if (hasConflict) {
-							rangeConflicts.push({
-								date: dateStr,
-								hour: slot.hour,
-								day: slot.day
-							});
-						}
-					}
-
-					// Move to next week
-					checkDate.setDate(checkDate.getDate() + 7);
-				}
-			}
-
-			if (rangeConflicts.length > 0) {
-				conflicts.push({
-					packageIndex: ranges.indexOf(range),
-					range: range,
-					conflicts: rangeConflicts
-				});
-			}
-		}
-
-		return conflicts;
+		additionalPackages = 1;
+		extensionLoading = false;
 	}
 
 	// Check if we're viewing the current week
@@ -513,13 +336,8 @@
 				SCHEDULE_HOURS.forEach((hour) => {
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
-						(apt) =>
-							apt.pe_purchases?.room_id === selectedRoom.id &&
-							apt.appointment_date === dateString &&
-							apt.hour === hour &&
-							apt.status === 'scheduled'
+						(apt) => apt.room_id === selectedRoom.id && apt.date === dateString && apt.hour === hour
 					);
-
 
 					grid[selectedRoom.id].slots[day][hour] = {
 						room_id: selectedRoom.id,
@@ -548,12 +366,8 @@
 					const dateString = calculateDateForDayHour(day);
 					const appointment = appointments.find(
 						(apt) =>
-							apt.pe_purchases?.trainer_id === selectedTrainer.id &&
-							apt.appointment_date === dateString &&
-							apt.hour === hour &&
-							apt.status === 'scheduled'
+							apt.trainer_id === selectedTrainer.id && apt.date === dateString && apt.hour === hour
 					);
-
 
 					grid[selectedTrainer.id].slots[day][hour] = {
 						room_id: selectedTrainer.id,
@@ -614,7 +428,7 @@
 							bind:value={selectedRoomId}
 							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
-							{#each rooms.toSorted((a, b) => a.id - b.id) as room (room.id)}
+							{#each rooms.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as room (room.id)}
 								<option value={room.id}>{room.name}</option>
 							{/each}
 						</select>
@@ -629,7 +443,7 @@
 							bind:value={selectedTrainerId}
 							class="select-bordered select w-full max-w-xs select-sm md:select-md"
 						>
-							{#each trainers.toSorted((a, b) => a.id - b.id) as trainer (trainer.id)}
+							{#each trainers.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as trainer (trainer.id)}
 								<option value={trainer.id}>{trainer.name}</option>
 							{/each}
 						</select>
@@ -913,26 +727,15 @@
 						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
 						<div>
 							<strong>Gün:</strong>
-							{selectedAppointment.appointment_date
-								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek]
+							{selectedAppointment.date
+								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
 								: '-'}
 						</div>
-						<div><strong>Saat:</strong> {getTimeRangeString(selectedAppointment.hour)}</div>
 						<div>
-							<strong>Durum:</strong>
-							<span
-								class="badge badge-sm {selectedAppointment.status === 'scheduled'
-									? 'badge-success'
-									: selectedAppointment.status === 'completed'
-										? 'badge-info'
-										: 'badge-error'}"
-							>
-								{selectedAppointment.status === 'scheduled'
-									? 'Planlandı'
-									: selectedAppointment.status === 'completed'
-										? 'Tamamlandı'
-										: 'İptal Edildi'}
-							</span>
+							<strong>Saat:</strong>
+							{selectedAppointment.hour !== null
+								? getTimeRangeString(selectedAppointment.hour)
+								: '-'}
 						</div>
 					</div>
 				</div>
@@ -951,20 +754,6 @@
 					<div class="badge badge-accent">
 						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
 					</div>
-					{#if selectedAppointment.package_start_date}
-						<div class="text-sm text-base-content/70">
-							<strong>Başlangıç:</strong>
-							{formatDayMonth(new Date(selectedAppointment.package_start_date))}
-							{#if selectedAppointment.package_end_date}
-								<br />
-								<strong>Bitiş:</strong>
-								{formatDayMonth(new Date(selectedAppointment.package_end_date))}
-							{:else}
-								<br />
-								<strong>Bitiş:</strong> <span class="text-info">Devamlı</span>
-							{/if}
-						</div>
-					{/if}
 				</div>
 			</div>
 
@@ -979,21 +768,11 @@
 					{/each}
 				</div>
 			</div>
-
-			<!-- Notes -->
-			{#if selectedAppointment.notes}
-				<div>
-					<h4 class="mb-2 text-base font-semibold">Notlar</h4>
-					<div class="rounded bg-base-200 p-3 text-sm text-base-content/70">
-						{selectedAppointment.notes}
-					</div>
-				</div>
-			{/if}
 		</div>
 	{/if}
 
 	<div class="modal-action">
-		{#if selectedAppointment && selectedAppointment.status === 'scheduled' && canRescheduleAppointment(selectedAppointment)}
+		{#if selectedAppointment && canRescheduleAppointment(selectedAppointment)}
 			<button
 				type="button"
 				class="btn btn-warning"
@@ -1068,21 +847,21 @@
 					<div class="text-center">
 						<div class="font-medium text-base-content/70">Mevcut</div>
 						<div class="mt-1">
-							{#if selectedAppointment.appointment_date}
-								{@const currentDate = new Date(selectedAppointment.appointment_date)}
+							{#if selectedAppointment.date}
+								{@const currentDate = new Date(selectedAppointment.date)}
 								<div class="text-xs text-base-content/60">
 									{formatDayMonth(currentDate)}
 								</div>
 								<div class="font-semibold">
-									{DAY_NAMES[
-										getDayOfWeekFromDate(selectedAppointment.appointment_date) as DayOfWeek
-									]}
+									{DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]}
 								</div>
 							{:else}
 								<div class="font-semibold">-</div>
 							{/if}
 							<div class="text-xs text-base-content/70">
-								{getTimeRangeString(selectedAppointment.hour)}
+								{selectedAppointment.hour !== null
+									? getTimeRangeString(selectedAppointment.hour)
+									: '-'}
 							</div>
 						</div>
 					</div>
@@ -1181,7 +960,6 @@
 	{/if}
 </Modal>
 
-<!-- Extension Modal -->
 <Modal bind:open={showExtensionModal} title="Paketi Uzat">
 	{#if selectedAppointment}
 		<form
@@ -1206,178 +984,40 @@
 			<input type="hidden" name="purchase_id" value={selectedAppointment.purchase_id} />
 			<input type="hidden" name="package_count" value={additionalPackages} />
 
-			{#if selectedAppointment}
-				{@const packageInfo = appointments.find(
-					(apt) => apt.purchase_id === selectedAppointment!.purchase_id
-				)?.pe_purchases?.pe_packages}
-				{@const packageChain = getPackageChain(selectedAppointment)}
-				{@const extensionRanges = calculateExtensionRanges(selectedAppointment, additionalPackages)}
-				{@const extensionConflicts = checkExtensionConflicts(
-					selectedAppointment,
-					additionalPackages
-				)}
+			<div class="alert alert-warning">
+				<span>Extension functionality needs to be reimplemented for the new schema.</span>
+			</div>
 
-				<!-- Package Summary -->
-				<div class="rounded-lg border border-base-300 bg-base-100 p-4">
-					<div class="mb-3 flex items-center gap-3">
-						<div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-300">
-							<span class="text-sm font-semibold">{packageChain.length}</span>
-						</div>
-						<div>
-							<h4 class="font-medium">{selectedAppointment.package_name}</h4>
-							{#if packageInfo}
-								<p class="text-sm text-base-content/60">
-									{packageInfo.weeks_duration ?? 0} hafta • Haftada {packageInfo.lessons_per_week ?? 0} ders
-								</p>
-							{/if}
-						</div>
-					</div>
-					<div class="text-sm text-base-content/70">
-						<span>{selectedAppointment.trainee_names?.join(', ')}</span>
-						<span class="mx-2">•</span>
-						<span>{selectedAppointment.trainer_name}</span>
-						<span class="mx-2">•</span>
-						<span>{selectedAppointment.room_name}</span>
-					</div>
-				</div>
+			<!-- Extension Input -->
+			<div class="form-control">
+				<label class="label pb-2" for="package_count">
+					<span class="label-text font-medium">Kaç paket uzatılsın?</span>
+				</label>
+				<input
+					type="number"
+					id="package_count"
+					name="package_count"
+					bind:value={additionalPackages}
+					min="1"
+					max="20"
+					class="input-bordered input text-center text-lg font-medium"
+					required
+				/>
+			</div>
 
-				<!-- Extension Input -->
-				<div class="form-control">
-					<label class="label pb-2" for="package_count">
-						<span class="label-text font-medium">Kaç paket uzatılsın?</span>
-					</label>
-					<input
-						type="number"
-						id="package_count"
-						name="package_count"
-						bind:value={additionalPackages}
-						min="1"
-						max="20"
-						class="input-bordered input text-center text-lg font-medium"
-						required
-					/>
-					{#if packageInfo}
-						<div class="label pt-1">
-							<span class="label-text-alt text-base-content/50">
-								Her paket {packageInfo.weeks_duration ?? 0} hafta, haftada {packageInfo.lessons_per_week ?? 0} ders
-							</span>
-						</div>
+			<!-- Action Buttons -->
+			<div class="modal-action">
+				<button type="button" class="btn" onclick={() => (showExtensionModal = false)}>
+					İptal
+				</button>
+				<button type="submit" class="btn btn-info" disabled={true}>
+					{#if extensionLoading}
+						<LoaderCircle size={16} class="animate-spin" />
+					{:else}
+						Uzat (Henüz aktif değil)
 					{/if}
-				</div>
-
-				<!-- Timeline -->
-				<div class="space-y-3">
-					<h5 class="text-sm font-medium tracking-wide text-base-content/70 uppercase">
-						Paket Zinciri
-					</h5>
-					<div class="space-y-2">
-						<!-- Existing packages -->
-						{#each packageChain as pkg, index (pkg.id)}
-							<div class="flex items-center gap-3 rounded-lg border border-base-300 p-3">
-								<div class="flex h-6 w-6 items-center justify-center rounded-full bg-base-300">
-									<span class="text-xs font-medium">{index + 1}</span>
-								</div>
-								<div class="flex-1">
-									<span class="text-sm font-medium">Mevcut paket</span>
-								</div>
-								<span class="font-mono text-sm text-base-content/60">
-									{formatDayMonth(new Date(pkg.start_date))} - {formatDayMonth(
-										new Date(pkg.end_date!)
-									)}
-								</span>
-							</div>
-						{/each}
-
-						<!-- New packages -->
-						{#if extensionRanges.length > 0}
-							{#each extensionRanges as range, index (range.start)}
-								<div
-									class="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3"
-								>
-									<div class="flex h-6 w-6 items-center justify-center rounded-full bg-success/20">
-										<span class="text-xs font-medium text-success"
-											>{packageChain.length + index + 1}</span
-										>
-									</div>
-									<div class="flex-1">
-										<span class="text-sm font-medium text-success">Yeni paket</span>
-									</div>
-									<span class="font-mono text-sm text-success">
-										{formatDayMonth(new Date(range.start))} - {formatDayMonth(new Date(range.end))}
-									</span>
-								</div>
-							{/each}
-						{/if}
-					</div>
-				</div>
-
-				<!-- Conflict Warning -->
-				{#if extensionConflicts.length > 0}
-					<div class="rounded-lg border border-error/30 bg-error/10 p-4">
-						<div class="space-y-3">
-							<div class="flex items-center gap-2">
-								<div class="flex h-5 w-5 items-center justify-center rounded-full bg-error/20">
-									<span class="text-xs font-bold text-error">!</span>
-								</div>
-								<h5 class="font-medium text-error">Çakışma Tespit Edildi</h5>
-							</div>
-							<div class="text-sm text-error/80">
-								Pakette yer alan oda veya eğitmen, aşağıdaki tarih ve saatlerde dolu. Paketi
-								uzatmanız için ya çakışan randevuları değiştirin, veya 'Yeni Kayıt' ekranından uygun
-								başka saatler seçin.
-							</div>
-							<div class="space-y-1">
-								{#each extensionConflicts as conflict (conflict.packageIndex)}
-									{#each conflict.conflicts as conflictDetail (conflictDetail.date + conflictDetail.hour)}
-										<div class="text-sm text-error/80">
-											• {formatDayMonth(new Date(conflictDetail.date))} ({TURKISH_DAYS[
-												[
-													'sunday',
-													'monday',
-													'tuesday',
-													'wednesday',
-													'thursday',
-													'friday',
-													'saturday'
-												].indexOf(conflictDetail.day)
-											]}) saat {conflictDetail.hour}:00
-										</div>
-									{/each}
-								{/each}
-							</div>
-						</div>
-					</div>
-				{/if}
-
-				<!-- Summary -->
-				{#if additionalPackages > 0}
-					<div class="rounded-lg border border-success/30 bg-success/10 p-4">
-						<div class="flex items-center justify-between">
-							<span class="font-medium">Toplam uzatma</span>
-							<span class="font-semibold text-success">
-								{additionalPackages} paket
-								{#if packageInfo}
-									• {additionalPackages * (packageInfo.weeks_duration ?? 1)} hafta
-								{/if}
-							</span>
-						</div>
-					</div>
-				{/if}
-
-				<!-- Action Buttons -->
-				<div class="modal-action">
-					<button type="button" class="btn" onclick={() => (showExtensionModal = false)}
-						>İptal</button
-					>
-					<button type="submit" class="btn btn-info" disabled={extensionConflicts.length > 0 || extensionLoading}>
-						{#if extensionLoading}
-							<LoaderCircle size={16} class="animate-spin" />
-						{:else}
-							{extensionConflicts.length > 0 ? 'Çakışma Var' : 'Uzat'}
-						{/if}
-					</button>
-				</div>
-			{/if}
+				</button>
+			</div>
 		</form>
 	{/if}
 </Modal>

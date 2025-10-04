@@ -32,11 +32,10 @@
 	// Since we only show one trainer's schedule, we create a single-item array
 	const trainerEntities = $derived([
 		{
-			id: 1, // dummy ID since we're only showing current trainer
+			id: '1', // dummy ID since we're only showing current trainer
 			name: trainerName || 'Eğitmen',
 			is_active: true,
-			phone: '',
-			auth_id: null
+			phone: ''
 		}
 	]);
 
@@ -157,7 +156,7 @@
 	<!-- Schedule Grid -->
 	<WeeklyScheduleGrid
 		viewMode="trainer"
-		selectedEntityId={1}
+		selectedEntityId="1"
 		entities={trainerEntities}
 		{appointments}
 		weekStart={currentWeekStart()}

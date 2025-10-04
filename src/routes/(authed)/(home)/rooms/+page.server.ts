@@ -40,14 +40,10 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 
-		const roomId = Number(getRequiredFormDataString(formData, 'roomId'));
+		const roomId = getRequiredFormDataString(formData, 'roomId');
 		const name = getRequiredFormDataString(formData, 'name');
 		const capacityStr = getFormDataString(formData, 'capacity');
 		const capacity = capacityStr ? Number(capacityStr) : null;
-
-		if (isNaN(roomId)) {
-			return fail(400, { success: false, message: 'Geçersiz oda ID' });
-		}
 
 		const { error: updateError } = await supabase
 			.from('pe_rooms')
@@ -70,11 +66,7 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const roomId = Number(formData.get('roomId'));
-
-		if (!roomId) {
-			return fail(400, { success: false, message: 'Oda ID gereklidir' });
-		}
+		const roomId = getRequiredFormDataString(formData, 'roomId');
 
 		const { error: archiveError } = await supabase
 			.from('pe_rooms')
@@ -97,11 +89,7 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const roomId = Number(formData.get('roomId'));
-
-		if (!roomId) {
-			return fail(400, { success: false, message: 'Oda ID gereklidir' });
-		}
+		const roomId = getRequiredFormDataString(formData, 'roomId');
 
 		const { error: restoreError } = await supabase
 			.from('pe_rooms')

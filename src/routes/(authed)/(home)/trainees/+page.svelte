@@ -44,7 +44,7 @@
 			{
 				label: 'Düzenle',
 				handler: (id?: string | number) => {
-					const t = trainees.find((t) => t.id === Number(id));
+					const t = trainees.find((t) => t.id === String(id));
 					if (t) openEditModal(t);
 				},
 				icon: Edit
@@ -55,7 +55,7 @@
 			baseActions.push({
 				label: 'Arşivle',
 				handler: (id?: string | number) => {
-					const t = trainees.find((t) => t.id === Number(id));
+					const t = trainees.find((t) => t.id === String(id));
 					if (t) openArchiveModal(t);
 				},
 				class: 'text-error',
@@ -65,7 +65,7 @@
 			baseActions.push({
 				label: 'Geri Yükle',
 				handler: (id?: string | number) => {
-					const t = trainees.find((t) => t.id === Number(id));
+					const t = trainees.find((t) => t.id === String(id));
 					if (t) openRestoreModal(t);
 				},
 				class: 'text-success',
@@ -151,7 +151,7 @@
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Öğrenci ara..." />
 			{#if hasArchivedTrainees}
-				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
 					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
 				</label>
@@ -352,8 +352,8 @@
 
 <Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz?
-		Arşivlenen öğrenciler listede görünmez hale gelecektir.
+		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz? Arşivlenen
+		öğrenciler listede görünmez hale gelecektir.
 	</p>
 	<form
 		method="POST"

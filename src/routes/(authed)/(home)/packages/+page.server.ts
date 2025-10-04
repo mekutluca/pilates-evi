@@ -157,7 +157,7 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const packageId = Number(formData.get('packageId'));
+		const packageId = formData.get('packageId') as string;
 
 		if (!packageId) {
 			return fail(400, {
@@ -194,7 +194,7 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const packageId = Number(formData.get('packageId'));
+		const packageId = formData.get('packageId') as string;
 
 		if (!packageId) {
 			return fail(400, {

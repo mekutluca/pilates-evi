@@ -44,50 +44,44 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		.select(
 			`
 			*,
+			pe_rooms(id, name),
+			pe_trainers(id, name),
 			pe_purchases(
 				id,
-				room_id,
-				trainer_id,
 				reschedule_left,
-				start_date,
-				end_date,
-				successor_id,
-				time_slots,
-				pe_rooms(id, name),
-				pe_trainers(id, name),
-				pe_packages(name, reschedulable, weeks_duration, lessons_per_week),
-				pe_purchase_trainees(
-					end_date,
-					pe_trainees(name)
-				)
+				pe_packages(id, name, package_type, weeks_duration, lessons_per_week)
+			),
+			pe_group_lessons(
+				id,
+				pe_packages(id, name, package_type)
+			),
+			pe_appointment_trainees(
+				id,
+				session_number,
+				total_sessions,
+				pe_trainees(id, name)
 			)
 		`
 		)
-		.gte('appointment_date', weekStart.toISOString().split('T')[0])
-		.lte('appointment_date', weekEnd.toISOString().split('T')[0])
-		.order('appointment_date, hour');
+		.gte('date', weekStart.toISOString().split('T')[0])
+		.lte('date', weekEnd.toISOString().split('T')[0])
+		.order('date, hour');
 
 	if (appointmentsError) {
 		console.error('Error fetching appointments:', appointmentsError);
 	}
 
-	// Also fetch all scheduled appointments for conflict checking during extensions
+	// Also fetch all appointments for conflict checking during extensions
 	const { data: allAppointments, error: allAppointmentsError } = await supabase
 		.from('pe_appointments')
 		.select(
 			`
 			*,
-			pe_purchases(
-				id,
-				room_id,
-				trainer_id,
-				pe_rooms(id),
-				pe_trainers(id)
-			)
+			pe_rooms(id),
+			pe_trainers(id)
 		`
 		)
-		.eq('status', 'scheduled')
-		.order('appointment_date, hour');
+		.order('date, hour');
 
 	if (allAppointmentsError) {
 		console.error('Error fetching all appointments:', allAppointmentsError);
@@ -107,13 +101,12 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointmentId'));
-		const newRoomId = Number(getRequiredFormDataString(formData, 'newRoomId'));
+		const newRoomId = getRequiredFormDataString(formData, 'newRoomId');
 		const newDayOfWeek = getRequiredFormDataString(formData, 'newDayOfWeek') as DayOfWeek;
 		const newHour = Number(getRequiredFormDataString(formData, 'newHour'));
-		// Note: reason field removed since reschedule history is now handled at package level
 
 		// Validate inputs
-		if (isNaN(appointmentId) || isNaN(newRoomId) || isNaN(newHour)) {
+		if (isNaN(appointmentId) || isNaN(newHour)) {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}
 
@@ -139,10 +132,7 @@ export const actions: Actions = {
 		// Calculate time until appointment
 		const now = new Date();
 		const appointmentDateTime = new Date(
-			currentAppointment.appointment_date +
-				'T' +
-				String(currentAppointment.hour).padStart(2, '0') +
-				':00:00'
+			currentAppointment.date + 'T' + String(currentAppointment.hour).padStart(2, '0') + ':00:00'
 		);
 		const millisecondsUntil = appointmentDateTime.getTime() - now.getTime();
 		const hoursUntil = millisecondsUntil / (1000 * 60 * 60);
@@ -183,7 +173,7 @@ export const actions: Actions = {
 		}
 
 		// Calculate the new appointment date based on the current appointment's week and new day of week
-		const currentAppointmentDate = new Date(currentAppointment.appointment_date);
+		const currentAppointmentDate = new Date(currentAppointment.date);
 
 		// Calculate week start for the current appointment
 		const weekStart = new Date(currentAppointmentDate);
@@ -212,25 +202,23 @@ export const actions: Actions = {
 		// Check if new time slot is available
 		const { data: conflictingAppointments } = await supabase
 			.from('pe_appointments')
-			.select('id, pe_purchases!inner(room_id)')
-			.eq('pe_purchases.room_id', newRoomId)
-			.eq('appointment_date', newAppointmentDateString)
+			.select('id')
+			.eq('room_id', newRoomId)
+			.eq('date', newAppointmentDateString)
 			.eq('hour', newHour)
-			.eq('status', 'scheduled')
 			.neq('id', appointmentId);
 
 		if (conflictingAppointments && conflictingAppointments.length > 0) {
 			return fail(400, { success: false, message: 'Yeni zaman dilimi zaten dolu' });
 		}
 
-		// No room availability check needed - all time slots are available
-
-		// Update appointment (only date and hour, room is in package group)
+		// Update appointment with new date, hour, and room
 		const { error: updateError } = await supabase
 			.from('pe_appointments')
 			.update({
 				hour: newHour,
-				appointment_date: newAppointmentDateString
+				date: newAppointmentDateString,
+				room_id: newRoomId
 			})
 			.eq('id', appointmentId);
 
@@ -238,21 +226,6 @@ export const actions: Actions = {
 			return fail(500, {
 				success: false,
 				message: 'Randevu güncellenirken hata: ' + updateError.message
-			});
-		}
-
-		// Update purchase room
-		const { error: roomUpdateError } = await supabase
-			.from('pe_purchases')
-			.update({
-				room_id: newRoomId
-			})
-			.eq('id', purchase.id);
-
-		if (roomUpdateError) {
-			return fail(500, {
-				success: false,
-				message: 'Oda bilgisi güncellenirken hata: ' + roomUpdateError.message
 			});
 		}
 
@@ -274,36 +247,10 @@ export const actions: Actions = {
 		}
 
 		return { success: true, message: 'Randevu başarıyla ertelendi' };
-	},
+	}
 
-	updateAppointmentStatus: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
-		if (permissionError) return permissionError;
-
-		const formData = await request.formData();
-
-		const appointmentId = Number(getRequiredFormDataString(formData, 'appointmentId'));
-		const status = getRequiredFormDataString(formData, 'status') as AppointmentStatus;
-
-		if (isNaN(appointmentId)) {
-			return fail(400, { success: false, message: 'Geçersiz randevu ID' });
-		}
-
-		const { error: updateError } = await supabase
-			.from('pe_appointments')
-			.update({ status })
-			.eq('id', appointmentId);
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Randevu durumu güncellenirken hata: ' + updateError.message
-			});
-		}
-
-		return { success: true, message: 'Randevu durumu başarıyla güncellendi' };
-	},
-
+	// TODO: Implement extendPackage action for new schema when extensions are ready
+	/*
 	extendPackage: async ({ request, locals: { supabase, user } }) => {
 		if (!user) {
 			return fail(401, { success: false, message: 'Unauthorized' });
@@ -575,4 +522,5 @@ export const actions: Actions = {
 			});
 		}
 	}
+	*/
 };

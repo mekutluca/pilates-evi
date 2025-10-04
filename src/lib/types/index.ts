@@ -12,14 +12,16 @@ export type Trainer = Tables<'pe_trainers'>;
 export type Trainee = Tables<'pe_trainees'>;
 export type Package = Tables<'pe_packages'>;
 export type Purchase = Tables<'pe_purchases'>;
-export type PurchaseTrainee = Tables<'pe_purchase_trainees'>;
+export type Team = Tables<'pe_teams'>;
 export type Appointment = Tables<'pe_appointments'>;
+export type AppointmentTrainee = Tables<'pe_appointment_trainees'>;
 
 // Insert and update types
 export type PurchaseInsert = TablesInsert<'pe_purchases'>;
 export type PurchaseUpdate = TablesUpdate<'pe_purchases'>;
-export type PurchaseTraineeInsert = TablesInsert<'pe_purchase_trainees'>;
+export type TeamInsert = TablesInsert<'pe_teams'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
+export type AppointmentTraineeInsert = TablesInsert<'pe_appointment_trainees'>;
 
 // ===============================================
 // APPLICATION TYPES
@@ -60,42 +62,45 @@ export interface ActionItem {
 // PURCHASE TYPES (replaces old group system)
 // ===============================================
 
-// Helper type for purchase with trainees
+// Helper type for purchase with trainees (via teams junction table)
 export type PurchaseWithTrainees = Purchase & {
-	pe_purchase_trainees: Array<{
-		pe_trainees: Trainee;
-	}>;
-	pe_packages?: Package;
-	pe_rooms?: Room;
-	pe_trainers?: Trainer;
+	pe_teams: Array<
+		Team & {
+			pe_trainees: Trainee | null;
+		}
+	>;
+	pe_packages?: Package | null;
 };
 
-// Helper type for trainee purchases/memberships
-export type TraineePurchase = PurchaseTrainee & {
-	pe_purchases: Purchase & {
-		pe_packages: Package;
-		pe_rooms?: Room;
-		pe_trainers?: Trainer;
-	};
+// Helper type for trainee purchases/memberships (via teams junction table)
+export type TraineePurchase = Team & {
+	pe_purchases:
+		| (Purchase & {
+				pe_packages: Package | null;
+		  })
+		| null;
 };
 
-// Legacy compatibility type for trainee purchase memberships (adds compatibility fields)
-export type TraineePurchaseMembership = Tables<'pe_purchase_trainees'> & {
-	pe_purchases: Tables<'pe_purchases'> & {
-		pe_packages: Tables<'pe_packages'>;
-		pe_rooms?: Tables<'pe_rooms'>;
-		pe_trainers?: Tables<'pe_trainers'>;
-	};
-	// Add frontend-expected fields for compatibility
-	package?: Tables<'pe_packages'> | null;
+// Type for trainee purchase memberships with extended fields for UI
+export interface TraineePurchaseMembership {
+	id: string;
+	trainee_id: string | null;
+	pe_purchases: {
+		id: string;
+		created_at: string;
+		successor_id: string | null;
+		reschedule_left: number | null;
+		pe_packages: Package | null;
+	} | null;
+	// Extended UI fields
+	package?: Package | null;
 	joined_at: string;
 	left_at?: string | null;
-	purchase_id?: number;
+	purchase_id?: string;
 	purchase_end_date?: string | null;
 	is_extension?: boolean;
 	extension_number?: number;
-	id: number | string;
-};
+}
 
 // ===============================================
 // PACKAGE TYPES
@@ -120,17 +125,34 @@ export interface CreatePackageForm {
 
 // Package purchase types for the new assignment flow
 export interface PackagePurchaseForm {
-	package_id: number;
-	room_id: number;
-	trainer_id: number;
+	package_id: string;
+	room_id: string;
+	trainer_id: string;
 	start_date: string;
 	time_slots: SelectedTimeSlot[];
-	trainee_ids: number[];
-	purchase_id?: number; // Optional: for adding trainees to existing purchase
+	trainee_ids: string[];
+	purchase_id?: string;
+	group_lesson_id?: string;
 }
 
 export interface SelectedTimeSlot {
 	day: string;
 	hour: number;
+	date?: string; // The actual date for this slot (YYYY-MM-DD format)
 }
 
+// Type for existing group lessons returned from server
+export interface ExistingGroupLesson {
+	group_lesson_id: string;
+	package_id: string;
+	room_id: string;
+	room_name: string;
+	trainer_id: string;
+	trainer_name: string;
+	max_capacity: number;
+	current_capacity: number;
+	day_time_combinations: Array<{
+		day: string;
+		hours: number[];
+	}>;
+}

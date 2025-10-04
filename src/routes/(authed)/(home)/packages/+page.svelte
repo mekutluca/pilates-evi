@@ -50,7 +50,7 @@
 			{
 				label: 'Düzenle',
 				handler: (id) => {
-					const p = packages.find((p) => p.id === Number(id));
+					const p = packages.find((p) => p.id === String(id));
 					if (p) openEditModal(p);
 				},
 				icon: Edit
@@ -61,7 +61,7 @@
 			baseActions.push({
 				label: 'Arşivle',
 				handler: (id) => {
-					const p = packages.find((p) => p.id === Number(id));
+					const p = packages.find((p) => p.id === String(id));
 					if (p) openArchiveModal(p);
 				},
 				class: 'text-error',
@@ -71,7 +71,7 @@
 			baseActions.push({
 				label: 'Geri Yükle',
 				handler: (id) => {
-					const p = packages.find((p) => p.id === Number(id));
+					const p = packages.find((p) => p.id === String(id));
 					if (p) openRestoreModal(p);
 				},
 				class: 'text-success',
@@ -257,7 +257,7 @@
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Ders ara..." />
 			{#if hasArchivedPackages}
-				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
 					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
 				</label>
@@ -304,7 +304,6 @@
 		/>
 	{/if}
 </Modal>
-
 
 <!-- Edit Package Modal -->
 <Modal bind:open={showEditModal} title="Dersi Düzenle" size="xl" onClose={closeEditModal}>
@@ -475,8 +474,8 @@
 <!-- Archive Package Modal -->
 <Modal bind:open={showArchiveModal} title="Dersi Arşivle">
 	<p class="mb-4">
-		<strong>{selectedPackage?.name}</strong> adlı dersi arşivlemek istediğinizden emin misiniz?
-		Arşivlenen dersler listede görünmez hale gelecektir.
+		<strong>{selectedPackage?.name}</strong> adlı dersi arşivlemek istediğinizden emin misiniz? Arşivlenen
+		dersler listede görünmez hale gelecektir.
 	</p>
 	<form
 		method="POST"
@@ -525,8 +524,8 @@
 <!-- Restore Package Modal -->
 <Modal bind:open={showRestoreModal} title="Dersi Geri Yükle">
 	<p class="mb-4">
-		<strong>{selectedPackage?.name}</strong> adlı dersi geri yüklemek istediğinizden emin misiniz?
-		Ders aktif dersler listesinde görünür hale gelecektir.
+		<strong>{selectedPackage?.name}</strong> adlı dersi geri yüklemek istediğinizden emin misiniz? Ders
+		aktif dersler listesinde görünür hale gelecektir.
 	</p>
 	<form
 		method="POST"

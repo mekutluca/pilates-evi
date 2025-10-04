@@ -23,9 +23,7 @@
 	let showArchived = $state(false);
 	let hasArchivedTrainers = $derived((initialTrainers || []).some((t) => !t.is_active));
 	let trainers = $derived<Trainer[]>(
-		showArchived
-			? initialTrainers || []
-			: (initialTrainers || []).filter((t) => t.is_active)
+		showArchived ? initialTrainers || [] : (initialTrainers || []).filter((t) => t.is_active)
 	);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
@@ -52,7 +50,7 @@
 				label: 'Düzenle',
 				handler: (id?: string | number) => {
 					if (!id) return;
-					const t = trainers.find((t) => t.id === Number(id));
+					const t = trainers.find((t) => t.id === String(id));
 					if (t) openEditModal(t);
 				},
 				icon: Edit
@@ -61,7 +59,7 @@
 				label: 'Şifre Sıfırla',
 				handler: (id?: string | number) => {
 					if (!id) return;
-					const t = trainers.find((t) => t.id === Number(id));
+					const t = trainers.find((t) => t.id === String(id));
 					if (t) openResetPasswordModal(t);
 				},
 				icon: Key
@@ -73,7 +71,7 @@
 				label: 'Arşivle',
 				handler: (id?: string | number) => {
 					if (!id) return;
-					const t = trainers.find((t) => t.id === Number(id));
+					const t = trainers.find((t) => t.id === String(id));
 					if (t) openArchiveModal(t);
 				},
 				class: 'text-error',
@@ -84,7 +82,7 @@
 				label: 'Geri Yükle',
 				handler: (id?: string | number) => {
 					if (!id) return;
-					const t = trainers.find((t) => t.id === Number(id));
+					const t = trainers.find((t) => t.id === String(id));
 					if (t) openRestoreModal(t);
 				},
 				class: 'text-success',
@@ -172,7 +170,7 @@
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara..." />
 			{#if hasArchivedTrainers}
-				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
 					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
 				</label>
@@ -269,8 +267,6 @@
 			/>
 		</fieldset>
 
-		<!-- Training assignment section removed - no longer needed in package-based system -->
-
 		<div class="modal-action">
 			<button
 				type="button"
@@ -364,8 +360,8 @@
 <!-- Archive Trainer Modal -->
 <Modal bind:open={showArchiveModal} title="Eğitmeni Arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni arşivlemek istediğinizden emin misiniz?
-		Arşivlenen eğitmenler listede görünmez hale gelecektir.
+		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni arşivlemek istediğinizden emin misiniz? Arşivlenen
+		eğitmenler listede görünmez hale gelecektir.
 	</p>
 	<form
 		method="POST"

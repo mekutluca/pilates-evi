@@ -41,7 +41,7 @@
 			{
 				label: 'Düzenle',
 				handler: (id?: string | number) => {
-					const r = rooms.find((r) => r.id === Number(id));
+					const r = rooms.find((r) => r.id === String(id));
 					if (r) openEditModal(r);
 				},
 				icon: Edit
@@ -52,7 +52,7 @@
 			baseActions.push({
 				label: 'Arşivle',
 				handler: (id?: string | number) => {
-					const r = rooms.find((r) => r.id === Number(id));
+					const r = rooms.find((r) => r.id === String(id));
 					if (r) openArchiveModal(r);
 				},
 				class: 'text-error',
@@ -62,7 +62,7 @@
 			baseActions.push({
 				label: 'Geri Yükle',
 				handler: (id?: string | number) => {
-					const r = rooms.find((r) => r.id === Number(id));
+					const r = rooms.find((r) => r.id === String(id));
 					if (r) openRestoreModal(r);
 				},
 				class: 'text-success',
@@ -124,7 +124,7 @@
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Oda ara..." />
 			{#if hasArchivedRooms}
-				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
 					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
 				</label>
@@ -266,8 +266,8 @@
 
 <Modal bind:open={showArchiveModal} title="Odayı Arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedRoom?.name}</strong> adlı odayı arşivlemek istediğinizden emin misiniz?
-		Arşivlenen odalar listede görünmez hale gelecektir.
+		<strong>{selectedRoom?.name}</strong> adlı odayı arşivlemek istediğinizden emin misiniz? Arşivlenen
+		odalar listede görünmez hale gelecektir.
 	</p>
 	<form
 		method="POST"
@@ -315,8 +315,8 @@
 
 <Modal bind:open={showRestoreModal} title="Odayı Geri Yükle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedRoom?.name}</strong> adlı odayı geri yüklemek istediğinizden emin misiniz?
-		Oda aktif odalar listesinde görünür hale gelecektir.
+		<strong>{selectedRoom?.name}</strong> adlı odayı geri yüklemek istediğinizden emin misiniz? Oda aktif
+		odalar listesinde görünür hale gelecektir.
 	</p>
 	<form
 		method="POST"

@@ -43,23 +43,19 @@ export const actions: Actions = {
 			});
 		}
 
-		// Create trainer in pe_trainers table
-		const { data: trainerData, error: createError } = await supabase
-			.from('pe_trainers')
-			.insert({
-				name,
-				phone,
-				auth_id: userData.user.id
-			})
-			.select()
-			.single();
+		// Create trainer in pe_trainers table using auth user id
+		const { error: createError } = await supabase.from('pe_trainers').insert({
+			id: userData.user.id,
+			name,
+			phone
+		});
 
-		if (createError || !trainerData) {
-			// If trainer creation fails, we should clean up the user account
+		if (createError) {
+			// If trainer creation fails, clean up the user account
 			await admin.auth.admin.deleteUser(userData.user.id);
 			return fail(500, {
 				success: false,
-				message: 'Eğitmen oluşturulurken hata: ' + createError?.message
+				message: 'Eğitmen oluşturulurken hata: ' + createError.message
 			});
 		}
 
@@ -75,17 +71,9 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 
-		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
+		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');
-		// Training assignments removed in new system
-
-		if (isNaN(trainerId)) {
-			return fail(400, {
-				success: false,
-				message: 'Geçersiz eğitmen ID'
-			});
-		}
 
 		// Update trainer in pe_trainers table
 		const { error: updateError } = await supabase
@@ -103,9 +91,6 @@ export const actions: Actions = {
 			});
 		}
 
-		// Update training assignments
-		// Training assignment logic removed
-
 		return {
 			success: true,
 			message: 'Eğitmen başarıyla güncellendi'
@@ -117,32 +102,10 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const trainerId = Number(formData.get('trainerId'));
-
-		// Validate required fields
-		if (!trainerId) {
-			return fail(400, {
-				success: false,
-				message: 'Eğitmen ID gereklidir'
-			});
-		}
-
-		// Get the trainer's auth_id first
-		const { data: trainerData, error: trainerError } = await supabase
-			.from('pe_trainers')
-			.select('auth_id')
-			.eq('id', trainerId)
-			.single();
-
-		if (trainerError || !trainerData?.auth_id) {
-			return fail(500, {
-				success: false,
-				message: 'Eğitmen bulunamadı'
-			});
-		}
+		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
 		// Disable the user account
-		const { error: disableError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+		const { error: disableError } = await admin.auth.admin.updateUserById(trainerId, {
 			ban_duration: 'none', // Indefinite ban
 			user_metadata: { banned: true }
 		});
@@ -178,32 +141,10 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const trainerId = Number(formData.get('trainerId'));
-
-		// Validate required fields
-		if (!trainerId) {
-			return fail(400, {
-				success: false,
-				message: 'Eğitmen ID gereklidir'
-			});
-		}
-
-		// Get the trainer's auth_id first
-		const { data: trainerData, error: trainerError } = await supabase
-			.from('pe_trainers')
-			.select('auth_id')
-			.eq('id', trainerId)
-			.single();
-
-		if (trainerError || !trainerData?.auth_id) {
-			return fail(500, {
-				success: false,
-				message: 'Eğitmen bulunamadı'
-			});
-		}
+		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
 		// Re-enable the user account
-		const { error: enableError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+		const { error: enableError } = await admin.auth.admin.updateUserById(trainerId, {
 			ban_duration: '0s', // Remove ban
 			user_metadata: { banned: false }
 		});
@@ -244,15 +185,8 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const trainerId = Number(getRequiredFormDataString(formData, 'trainerId'));
+		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 		const newPassword = getRequiredFormDataString(formData, 'newPassword');
-
-		if (isNaN(trainerId)) {
-			return fail(400, {
-				success: false,
-				message: 'Geçersiz eğitmen ID'
-			});
-		}
 
 		// Validate password length
 		if (newPassword.length < 6) {
@@ -262,22 +196,8 @@ export const actions: Actions = {
 			});
 		}
 
-		// First get the trainer to find their user_id
-		const { data: trainerData, error: trainerError } = await admin
-			.from('pe_trainers')
-			.select('auth_id')
-			.eq('id', trainerId)
-			.single();
-
-		if (trainerError || !trainerData?.auth_id) {
-			return fail(500, {
-				success: false,
-				message: 'Eğitmen bulunamadı veya kullanıcı hesabı mevcut değil'
-			});
-		}
-
 		// Update user password using Supabase admin API
-		const { error: updateError } = await admin.auth.admin.updateUserById(trainerData.auth_id, {
+		const { error: updateError } = await admin.auth.admin.updateUserById(trainerId, {
 			password: newPassword
 		});
 

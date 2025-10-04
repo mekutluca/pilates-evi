@@ -52,15 +52,11 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 
-		const traineeId = Number(getRequiredFormDataString(formData, 'traineeId'));
+		const traineeId = getRequiredFormDataString(formData, 'traineeId');
 		const name = getRequiredFormDataString(formData, 'name');
 		const email = getRequiredFormDataString(formData, 'email');
 		const phone = getRequiredFormDataString(formData, 'phone');
 		const notes = getFormDataString(formData, 'notes');
-
-		if (isNaN(traineeId)) {
-			return fail(400, { success: false, message: 'Geçersiz öğrenci ID' });
-		}
 
 		// Validate email format
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -92,11 +88,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const traineeId = Number(formData.get('traineeId'));
-
-		if (!traineeId) {
-			return fail(400, { success: false, message: 'Öğrenci ID gereklidir' });
-		}
+		const traineeId = getRequiredFormDataString(formData, 'traineeId');
 
 		const { error: archiveError } = await supabase
 			.from('pe_trainees')
@@ -118,11 +110,7 @@ export const actions: Actions = {
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
-		const traineeId = Number(formData.get('traineeId'));
-
-		if (!traineeId) {
-			return fail(400, { success: false, message: 'Öğrenci ID gereklidir' });
-		}
+		const traineeId = getRequiredFormDataString(formData, 'traineeId');
 
 		const { error: restoreError } = await supabase
 			.from('pe_trainees')

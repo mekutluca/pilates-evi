@@ -16,7 +16,10 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		{ name: 'trainers', query: supabase.from('pe_trainers').select('*') },
 		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
 		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
-		{ name: 'packages', query: supabase.from('pe_packages').select('*').order('created_at', { ascending: false }) }
+		{
+			name: 'packages',
+			query: supabase.from('pe_packages').select('*').order('created_at', { ascending: false })
+		}
 	] as const;
 
 	try {
