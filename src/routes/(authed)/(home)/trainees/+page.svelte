@@ -5,7 +5,8 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import SearchInput from '$lib/components/search-input.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Archive from '@lucide/svelte/icons/archive';
+	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -18,11 +19,16 @@
 	let { data } = $props();
 	let { trainees: initialTrainees, userRole } = $derived(data);
 
-	let trainees = $derived<Trainee[]>(initialTrainees || []);
+	let showArchived = $state(false);
+	let hasArchivedTrainees = $derived((initialTrainees || []).some((t) => !t.is_active));
+	let trainees = $derived<Trainee[]>(
+		showArchived ? initialTrainees || [] : (initialTrainees || []).filter((t) => t.is_active)
+	);
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
-	let showDeleteModal = $state(false);
+	let showArchiveModal = $state(false);
+	let showRestoreModal = $state(false);
 	let selectedTrainee = $state<Trainee | null>(null);
 	let formLoading = $state(false);
 
@@ -31,25 +37,44 @@
 	let phone = $state('');
 	let notes = $state('');
 
-	const tableActions = $derived<ActionItem[]>([
-		{
-			label: 'Düzenle',
-			handler: (id?: string | number) => {
-				const trainee = trainees.find((t) => t.id === Number(id));
-				if (trainee) openEditModal(trainee);
-			},
-			icon: Edit
-		},
-		...(userRole === 'admin' ? [{
-			label: 'Sil',
-			handler: (id?: string | number) => {
-				const trainee = trainees.find((t) => t.id === Number(id));
-				if (trainee) openDeleteModal(trainee);
-			},
-			class: 'text-error',
-			icon: Trash2
-		}] : [])
-	]);
+	const getTableActions = (trainee: Trainee): ActionItem[] => {
+		if (userRole !== 'admin' && userRole !== 'coordinator') return [];
+
+		const baseActions: ActionItem[] = [
+			{
+				label: 'Düzenle',
+				handler: (id?: string | number) => {
+					const t = trainees.find((t) => t.id === Number(id));
+					if (t) openEditModal(t);
+				},
+				icon: Edit
+			}
+		];
+
+		if (trainee.is_active) {
+			baseActions.push({
+				label: 'Arşivle',
+				handler: (id?: string | number) => {
+					const t = trainees.find((t) => t.id === Number(id));
+					if (t) openArchiveModal(t);
+				},
+				class: 'text-error',
+				icon: Archive
+			});
+		} else {
+			baseActions.push({
+				label: 'Geri Yükle',
+				handler: (id?: string | number) => {
+					const t = trainees.find((t) => t.id === Number(id));
+					if (t) openRestoreModal(t);
+				},
+				class: 'text-success',
+				icon: ArchiveRestore
+			});
+		}
+
+		return baseActions;
+	};
 
 	const tableColumns = [
 		{
@@ -90,9 +115,15 @@
 		closeDropdown();
 	}
 
-	function openDeleteModal(trainee: Trainee) {
+	function openArchiveModal(trainee: Trainee) {
 		selectedTrainee = trainee;
-		showDeleteModal = true;
+		showArchiveModal = true;
+		closeDropdown();
+	}
+
+	function openRestoreModal(trainee: Trainee) {
+		selectedTrainee = trainee;
+		showRestoreModal = true;
 		closeDropdown();
 	}
 
@@ -119,6 +150,12 @@
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="form-control w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Öğrenci ara..." />
+			{#if hasArchivedTrainees}
+				<label class="mt-2 flex items-center gap-2 cursor-pointer">
+					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
+					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+				</label>
+			{/if}
 		</div>
 
 		<button
@@ -140,7 +177,7 @@
 		emptyMessage="Henüz öğrenci bulunmuyor"
 		defaultSortKey="id"
 		defaultSortOrder="asc"
-		actions={tableActions}
+		actions={getTableActions}
 		onRowClick={(trainee) => goto(`/trainees/${trainee.id}`)}
 	/>
 </div>
@@ -313,22 +350,22 @@
 	</form>
 </Modal>
 
-<Modal bind:open={showDeleteModal} title="Öğrenciyi Sil" onClose={resetForm}>
+<Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi silmek istediğinizden emin misiniz? Bu işlem
-		geri alınamaz.
+		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz?
+		Arşivlenen öğrenciler listede görünmez hale gelecektir.
 	</p>
 	<form
 		method="POST"
-		action="?/deleteTrainee"
+		action="?/archiveTrainee"
 		class="space-y-4"
 		use:enhance={() => {
 			formLoading = true;
 			return async ({ result, update }) => {
 				formLoading = false;
 				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla silindi');
-					showDeleteModal = false;
+					toast.success('Öğrenci başarıyla arşivlendi');
+					showArchiveModal = false;
 					resetForm();
 				} else if (result.type === 'failure') {
 					toast.error(getActionErrorMessage(result));
@@ -344,7 +381,7 @@
 				type="button"
 				class="btn"
 				onclick={() => {
-					showDeleteModal = false;
+					showArchiveModal = false;
 					resetForm();
 				}}
 			>
@@ -354,9 +391,58 @@
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
-					<Trash2 size={16} />
+					<Archive size={16} />
 				{/if}
-				Sil
+				Arşivle
+			</button>
+		</div>
+	</form>
+</Modal>
+
+<Modal bind:open={showRestoreModal} title="Öğrenciyi Geri Yükle" onClose={resetForm}>
+	<p class="mb-4">
+		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi geri yüklemek istediğinizden emin misiniz?
+		Öğrenci aktif öğrenciler listesinde görünür hale gelecektir.
+	</p>
+	<form
+		method="POST"
+		action="?/restoreTrainee"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla geri yüklendi');
+					showRestoreModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
+
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => {
+					showRestoreModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-success" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<ArchiveRestore size={16} />
+				{/if}
+				Geri Yükle
 			</button>
 		</div>
 	</form>

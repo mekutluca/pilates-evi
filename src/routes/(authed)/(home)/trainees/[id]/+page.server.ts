@@ -335,5 +335,55 @@ export const actions: Actions = {
 			success: true,
 			message: `Öğrenci "${packageName}" dersinden başarıyla çıkarıldı`
 		};
+	},
+
+	archiveTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
+		// Check permissions - only admin and coordinator can archive trainees
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+		}
+
+		const traineeId = Number(params.id);
+
+		if (isNaN(traineeId)) {
+			throw error(400, 'Geçersiz öğrenci ID');
+		}
+
+		const { error: archiveError } = await supabase
+			.from('pe_trainees')
+			.update({ is_active: false })
+			.eq('id', traineeId);
+
+		if (archiveError) {
+			console.error('Error archiving trainee:', archiveError);
+			return fail(500, { message: 'Öğrenci arşivlenirken hata oluştu' });
+		}
+
+		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
+	},
+
+	restoreTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
+		// Check permissions - only admin and coordinator can restore trainees
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+		}
+
+		const traineeId = Number(params.id);
+
+		if (isNaN(traineeId)) {
+			throw error(400, 'Geçersiz öğrenci ID');
+		}
+
+		const { error: restoreError } = await supabase
+			.from('pe_trainees')
+			.update({ is_active: true })
+			.eq('id', traineeId);
+
+		if (restoreError) {
+			console.error('Error restoring trainee:', restoreError);
+			return fail(500, { message: 'Öğrenci geri yüklenirken hata oluştu' });
+		}
+
+		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
 	}
 };

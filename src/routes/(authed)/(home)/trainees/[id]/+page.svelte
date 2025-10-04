@@ -10,11 +10,16 @@
 	import Save from '@lucide/svelte/icons/save';
 	import X from '@lucide/svelte/icons/x';
 	import UserMinus from '@lucide/svelte/icons/user-minus';
+	import Archive from '@lucide/svelte/icons/archive';
+	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
+	import ActionMenu from '$lib/components/action-menu.svelte';
+	import type { ActionItem } from '$lib/types/ActionItem';
 	import { formatDisplayDate, calculatePackageEndDate } from '$lib/utils';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
 	let { trainee, groupMemberships, purchaseIdsWithFutureAppointments } = $derived(data);
@@ -22,6 +27,38 @@
 	// Edit mode state
 	let editMode = $state(false);
 	let saving = $state(false);
+
+	// Archive/restore state
+	let showArchiveModal = $state(false);
+	let showRestoreModal = $state(false);
+	let archiving = $state(false);
+
+	// Action menu items
+	const menuActions = $derived<ActionItem[]>(
+		trainee
+			? trainee.is_active
+				? [
+						{
+							label: 'Arşivle',
+							handler: () => {
+								showArchiveModal = true;
+							},
+							icon: Archive,
+							class: 'text-error'
+						}
+					]
+				: [
+						{
+							label: 'Geri Yükle',
+							handler: () => {
+								showRestoreModal = true;
+							},
+							icon: ArchiveRestore,
+							class: 'text-success'
+						}
+					]
+			: []
+	);
 
 	// Removal state - track which membership is being removed
 	let removingMemberships = $state(new Set<string>());
@@ -164,9 +201,14 @@
 	{#if trainee}
 		<!-- Header -->
 		<div class="flex items-center justify-between">
-			<PageHeader title={trainee.name} subtitle="Öğrenci Detayları" />
-			{#if editMode}
-				<div class="flex gap-2">
+			<div class="flex items-center gap-3">
+				<PageHeader title={trainee.name} subtitle="Öğrenci Detayları" />
+				{#if !trainee.is_active}
+					<span class="badge badge-error badge-lg">Arşivlendi</span>
+				{/if}
+			</div>
+			<div class="flex gap-2">
+				{#if editMode}
 					<button onclick={cancelEdit} class="btn btn-ghost btn-sm" disabled={saving}>
 						<X size={16} />
 						İptal
@@ -184,13 +226,15 @@
 						{/if}
 						Kaydet
 					</button>
-				</div>
-			{:else}
-				<button onclick={toggleEditMode} class="btn btn-sm btn-success" disabled={saving}>
-					<Edit size={16} />
-					Düzenle
-				</button>
-			{/if}
+				{:else}
+					<button onclick={toggleEditMode} class="btn btn-sm btn-success" disabled={saving}>
+						<Edit size={16} />
+						Düzenle
+					</button>
+				{/if}
+
+				<ActionMenu actions={menuActions} />
+			</div>
 		</div>
 	{:else}
 		<!-- Loading header or trainee not found -->
@@ -548,4 +592,90 @@
 			</div>
 		</div>
 	{/if}
+</Modal>
+
+<!-- Archive Confirmation Modal -->
+<Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle">
+	<p class="mb-4">
+		<strong>{trainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz?
+		Arşivlenen öğrenciler listede görünmez hale gelecektir.
+	</p>
+	<form
+		method="POST"
+		action="?/archiveTrainee"
+		use:enhance={() => {
+			archiving = true;
+			return async ({ result, update }) => {
+				archiving = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla arşivlendi');
+					showArchiveModal = false;
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => (showArchiveModal = false)}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-error" disabled={archiving}>
+				{#if archiving}
+					<span class="loading loading-sm loading-spinner"></span>
+				{:else}
+					<Archive size={16} />
+				{/if}
+				Arşivle
+			</button>
+		</div>
+	</form>
+</Modal>
+
+<!-- Restore Confirmation Modal -->
+<Modal bind:open={showRestoreModal} title="Öğrenciyi Geri Yükle">
+	<p class="mb-4">
+		<strong>{trainee?.name}</strong> adlı öğrenciyi geri yüklemek istediğinizden emin misiniz?
+		Öğrenci aktif öğrenciler listesinde görünür hale gelecektir.
+	</p>
+	<form
+		method="POST"
+		action="?/restoreTrainee"
+		use:enhance={() => {
+			archiving = true;
+			return async ({ result, update }) => {
+				archiving = false;
+				if (result.type === 'success') {
+					toast.success('Öğrenci başarıyla geri yüklendi');
+					showRestoreModal = false;
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+				await update();
+			};
+		}}
+	>
+		<div class="modal-action">
+			<button
+				type="button"
+				class="btn"
+				onclick={() => (showRestoreModal = false)}
+			>
+				İptal
+			</button>
+			<button type="submit" class="btn btn-success" disabled={archiving}>
+				{#if archiving}
+					<span class="loading loading-sm loading-spinner"></span>
+				{:else}
+					<ArchiveRestore size={16} />
+				{/if}
+				Geri Yükle
+			</button>
+		</div>
+	</form>
 </Modal>

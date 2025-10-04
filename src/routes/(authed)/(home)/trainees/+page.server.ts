@@ -87,7 +87,7 @@ export const actions: Actions = {
 		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},
 
-	deleteTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
+	archiveTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
 		const permissionError = validateUserPermission(user, userRole);
 		if (permissionError) return permissionError;
 
@@ -98,15 +98,44 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Öğrenci ID gereklidir' });
 		}
 
-		const { error: deleteError } = await supabase.from('pe_trainees').delete().eq('id', traineeId);
+		const { error: archiveError } = await supabase
+			.from('pe_trainees')
+			.update({ is_active: false })
+			.eq('id', traineeId);
 
-		if (deleteError) {
+		if (archiveError) {
 			return fail(500, {
 				success: false,
-				message: 'Öğrenci silinirken hata: ' + deleteError.message
+				message: 'Öğrenci arşivlenirken hata: ' + archiveError.message
 			});
 		}
 
-		return { success: true, message: 'Öğrenci başarıyla silindi' };
+		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
+	},
+
+	restoreTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
+
+		const formData = await request.formData();
+		const traineeId = Number(formData.get('traineeId'));
+
+		if (!traineeId) {
+			return fail(400, { success: false, message: 'Öğrenci ID gereklidir' });
+		}
+
+		const { error: restoreError } = await supabase
+			.from('pe_trainees')
+			.update({ is_active: true })
+			.eq('id', traineeId);
+
+		if (restoreError) {
+			return fail(500, {
+				success: false,
+				message: 'Öğrenci geri yüklenirken hata: ' + restoreError.message
+			});
+		}
+
+		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
 	}
 };
