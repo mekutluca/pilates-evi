@@ -320,6 +320,15 @@
 					<span>{selectedAppointmentDetails.package_name || 'Bilinmiyor'}</span>
 				</div>
 
+				{#if selectedAppointmentDetails.trainee_names && selectedAppointmentDetails.trainee_names.length > 0}
+					<div class="flex justify-between">
+						<span class="font-medium">Öğrenciler:</span>
+						<span class="text-right"
+							>{selectedAppointmentDetails.trainee_names.join(', ')} ({selectedAppointmentDetails.trainee_count})</span
+						>
+					</div>
+				{/if}
+
 				{#if selectedAppointmentDetails.session_number && selectedAppointmentDetails.total_sessions}
 					<div class="flex justify-between">
 						<span class="font-medium">Seans:</span>

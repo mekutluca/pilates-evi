@@ -7,11 +7,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
 
-	// Get current trainer ID
+	// Get current trainer ID (trainer.id is the auth user id)
 	const { data: trainerData, error: trainerError } = await supabase
 		.from('pe_trainers')
 		.select('id, name')
-		.eq('auth_id', user.id)
+		.eq('id', user.id)
 		.single();
 
 	if (trainerError || !trainerData) {
@@ -33,7 +33,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	weekEnd.setDate(weekStart.getDate() + 6);
 	weekEnd.setHours(23, 59, 59, 999);
 
-	// Fetch only this trainer's appointments for the current week
+	// Fetch appointments for this trainer for the current week
+	const weekStartStr = weekStart.toISOString().split('T')[0];
+	const weekEndStr = weekEnd.toISOString().split('T')[0];
+
 	const { data: appointments, error: appointmentsError } = await supabase
 		.from('pe_appointments')
 		.select(
@@ -41,20 +44,28 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			*,
 			pe_purchases(
 				id,
-				pe_rooms(id, name),
-				pe_packages(name),
-				pe_trainers(id, name),
-				pe_purchase_trainees(
-					pe_trainees(name)
-				)
+				reschedule_left,
+				pe_packages(id, name, package_type, reschedulable, weeks_duration, lessons_per_week)
+			),
+			pe_group_lessons(
+				id,
+				pe_packages(id, name, package_type, reschedulable, weeks_duration, lessons_per_week)
+			),
+			pe_rooms(id, name, capacity),
+			pe_trainers(id, name),
+			pe_appointment_trainees(
+				id,
+				session_number,
+				total_sessions,
+				pe_trainees(id, name)
 			)
 		`
 		)
-		.eq('pe_purchases.trainer_id', trainerData.id)
-		.gte('appointment_date', weekStart.toISOString().split('T')[0])
-		.lte('appointment_date', weekEnd.toISOString().split('T')[0])
-		.eq('status', 'scheduled')
-		.order('appointment_date, hour');
+		.eq('trainer_id', trainerData.id)
+		.gte('date', weekStartStr)
+		.lte('date', weekEndStr)
+		.order('date', { ascending: true })
+		.order('hour', { ascending: true });
 
 	if (appointmentsError) {
 		console.error('Error fetching trainer appointments:', appointmentsError);
@@ -62,6 +73,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 	return {
 		appointments: appointments || [],
-		trainerName: trainerData.name
+		trainerName: trainerData.name,
+		trainerId: trainerData.id
 	};
 };
