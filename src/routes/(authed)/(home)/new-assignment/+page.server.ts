@@ -140,7 +140,9 @@ export const load: PageServerLoad = async ({
 				`
 				*,
 				pe_rooms(id, name),
-				pe_trainers(id, name)
+				pe_trainers(id, name),
+				pe_purchases(id, pe_packages(id, name)),
+				pe_group_lessons(id, pe_packages(id, name))
 			`
 			)
 			.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
@@ -165,7 +167,9 @@ export const load: PageServerLoad = async ({
 				`
 				*,
 				pe_rooms(id, name),
-				pe_trainers(id, name)
+				pe_trainers(id, name),
+				pe_purchases(id, pe_packages(id, name)),
+				pe_group_lessons(id, pe_packages(id, name))
 			`
 			)
 			.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
