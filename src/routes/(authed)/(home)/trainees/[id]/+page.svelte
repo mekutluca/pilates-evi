@@ -9,21 +9,20 @@
 	import Edit from '@lucide/svelte/icons/edit';
 	import Save from '@lucide/svelte/icons/save';
 	import X from '@lucide/svelte/icons/x';
-	import UserMinus from '@lucide/svelte/icons/user-minus';
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
 	import type { ActionItem } from '$lib/types/ActionItem';
-	import type { Package, TraineePurchaseMembership } from '$lib/types';
+	import type { TraineePurchaseMembership } from '$lib/types';
 	import { formatDisplayDate, calculatePackageEndDate } from '$lib/utils';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
-	let { trainee, groupMemberships, purchaseIdsWithFutureAppointments } = $derived(data);
+	let { trainee, groupMemberships } = $derived(data);
 
 	// Edit mode state
 	let editMode = $state(false);
@@ -61,62 +60,11 @@
 			: []
 	);
 
-	// Removal state - track which membership is being removed
-	let removingMemberships = $state(new Set<string>());
-
-	// Confirmation modal state
-	let showRemovalConfirmation = $state(false);
-	let membershipToRemove = $state<any>(null);
-
-	// Filter memberships with packages and group by package
-	const packagesWithMemberships = $derived(
-		groupMemberships.filter((membership) => membership.package)
-	);
-
-	// Group memberships by package ID
-	const membershipsByPackage = $derived(() => {
-		const grouped = new Map<
-			string,
-			{ package: Package; memberships: TraineePurchaseMembership[] }
-		>();
-		packagesWithMemberships.forEach((membership) => {
-			const packageId = membership.package!.id;
-			if (!grouped.has(packageId)) {
-				grouped.set(packageId, {
-					package: membership.package!,
-					memberships: []
-				});
-			}
-			grouped.get(packageId)!.memberships.push(membership);
-		});
-
-		// Sort memberships within each package by joined date
-		grouped.forEach((group) => {
-			group.memberships.sort(
-				(a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
-			);
-		});
-
-		return grouped;
-	});
-
-	// Determine if a package group is active or past
-	const activePackageGroups = $derived(
-		Array.from(membershipsByPackage().values()).filter((group) => {
-			// A package group is active if any membership in it is active
-			return group.memberships.some((membership) => {
-				return getMembershipStatus(membership).text === 'Aktif';
-			});
-		})
-	);
-
-	const pastPackageGroups = $derived(
-		Array.from(membershipsByPackage().values()).filter((group) => {
-			// A package group is past if all memberships in it are past
-			return group.memberships.every((membership) => {
-				return getMembershipStatus(membership).text === 'Tamamlandı';
-			});
-		})
+	// Filter memberships with packages and sort by start date (descending)
+	const sortedPurchases = $derived(
+		groupMemberships
+			.filter((membership) => membership.package)
+			.sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime())
 	);
 
 	function toggleEditMode() {
@@ -129,74 +77,23 @@
 
 	// Get the display date for a membership based on package type
 	function getMembershipDisplayDate(membership: TraineePurchaseMembership): string {
+		// Use purchase end date if available (works for both group and private)
+		if (membership.purchase_end_date) {
+			return formatDisplayDate(membership.purchase_end_date);
+		}
+
+		// For group packages without end date, show "Devam ediyor"
 		if (membership.package?.package_type === 'group') {
-			// For group packages, show when trainee left or "Devam ediyor"
 			return membership.left_at ? formatDisplayDate(membership.left_at) : 'Devam ediyor';
-		} else {
-			// For private packages, use purchase end date if available
-			if (membership.purchase_end_date) {
-				return formatDisplayDate(membership.purchase_end_date);
-			}
-
-			// Final fallback to calculated date
-			return calculatePackageEndDate(
-				membership.joined_at,
-				membership.package?.weeks_duration ?? null
-			);
 		}
+
+		// For private packages, calculate based on duration
+		return calculatePackageEndDate(
+			membership.joined_at,
+			membership.package?.weeks_duration ?? null
+		);
 	}
 
-	// Get membership status
-	function getMembershipStatus(membership: TraineePurchaseMembership): {
-		text: string;
-		class: string;
-	} {
-		const hasLeftGroup = !!membership.left_at;
-
-		// For active membership: must not have left AND have future appointments
-		const isActive =
-			!hasLeftGroup &&
-			(membership.purchase_id
-				? purchaseIdsWithFutureAppointments.includes(membership.purchase_id)
-				: false);
-
-		return isActive
-			? { text: 'Aktif', class: 'badge-success' }
-			: { text: 'Tamamlandı', class: 'badge-neutral' };
-	}
-
-	// Check if a membership can be removed (only active group packages)
-	function canRemoveMembership(membership: TraineePurchaseMembership): boolean {
-		// Use the same logic as getMembershipStatus for consistency
-		const status = getMembershipStatus(membership);
-		return (
-			status.text === 'Aktif' &&
-			membership.package?.package_type === 'group' &&
-			!!membership.purchase_id
-		); // Must have a purchase_id
-	}
-
-	// Show removal confirmation modal
-	function showRemovalModal(membership: TraineePurchaseMembership) {
-		membershipToRemove = membership;
-		showRemovalConfirmation = true;
-	}
-
-	// Handle confirmed removal
-	function handleConfirmedRemoval() {
-		if (membershipToRemove) {
-			// Trigger the form submission programmatically
-			const form = document.getElementById(
-				`remove-form-${membershipToRemove.id}`
-			) as HTMLFormElement;
-			if (form) {
-				removingMemberships.add(membershipToRemove.id);
-				form.requestSubmit();
-			}
-		}
-		showRemovalConfirmation = false;
-		membershipToRemove = null;
-	}
 </script>
 
 <div class="space-y-6 p-6">
@@ -396,157 +293,67 @@
 		</div>
 	{/if}
 
-	<!-- Active Packages -->
-	<div class="card bg-base-100 shadow">
-		<div class="card-body">
-			<h3 class="card-title flex items-center gap-2 text-lg">
-				<PackageIcon size={20} class="text-success" />
-				Aktif Paketler
-			</h3>
-
-			{#if activePackageGroups.length > 0}
-				<div class="mt-4 space-y-3">
-					{#each activePackageGroups as group (group.package.id)}
-						<div class="collapse-arrow collapse border border-base-300 bg-base-100">
-							<input type="checkbox" />
-							<div class="collapse-title">
-								<div class="flex items-center gap-3">
-									<h4 class="font-semibold">{group.package.name}</h4>
-									<span class="badge badge-secondary">
-										{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
-									</span>
-									<span class="badge badge-outline badge-sm">
-										{group.memberships.length} paket
-									</span>
-								</div>
-							</div>
-							<div class="collapse-content">
-								<div class="space-y-2 pt-2">
-									{#each group.memberships as membership (membership.id)}
-										{@const status = getMembershipStatus(membership)}
-										{@const canRemove = canRemoveMembership(membership)}
-										{@const isRemoving = removingMemberships.has(membership.id)}
-										<div class="flex items-center justify-between rounded-lg bg-base-200 p-3">
-											<div class="flex items-center gap-3">
-												<div>
-													<p class="text-sm font-medium">
-														{formatDisplayDate(membership.joined_at)} - {getMembershipDisplayDate(
-															membership
-														)}
-													</p>
-												</div>
-											</div>
-											<div class="flex items-center gap-2">
-												<div class="badge badge-sm {status.class}">
-													{status.text}
-												</div>
-												{#if canRemove}
-													<form
-														id="remove-form-{membership.id}"
-														method="POST"
-														action="?/removeFromGroup"
-														use:enhance={({ formData }) => {
-															if (membership.purchase_id) {
-																formData.append('purchase_id', membership.purchase_id);
-															}
-
-															return async ({ result, update }) => {
-																removingMemberships.delete(membership.id);
-
-																if (result.type === 'success') {
-																	const message =
-																		(result.data as any)?.message ||
-																		'Öğrenci gruptan başarıyla çıkarıldı';
-																	toast.success(message);
-																} else if (result.type === 'failure') {
-																	const message =
-																		(result.data as any)?.message || 'Bir hata oluştu';
-																	toast.error(message);
-																}
-
-																await update();
-															};
-														}}
-													>
-														<button
-															type="button"
-															class="btn gap-1 text-error btn-ghost btn-xs hover:bg-error/10"
-															disabled={isRemoving}
-															onclick={() => showRemovalModal(membership)}
-															title="Gruptan çıkar"
-														>
-															{#if isRemoving}
-																<span class="loading loading-xs loading-spinner"></span>
-																<span class="text-xs">Çıkarılıyor...</span>
-															{:else}
-																<UserMinus size={14} />
-																<span class="text-xs">Gruptan çıkar</span>
-															{/if}
-														</button>
-													</form>
-												{/if}
-											</div>
-										</div>
-									{/each}
-								</div>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<div class="py-8 text-center">
-					<p class="text-base-content/70">Aktif paket bulunmuyor</p>
-				</div>
-			{/if}
-		</div>
-	</div>
-
-	<!-- Past Packages -->
-	{#if pastPackageGroups.length > 0}
+	<!-- All Purchases -->
+	{#if sortedPurchases.length > 0}
 		<div class="card bg-base-100 shadow">
 			<div class="card-body">
 				<h3 class="card-title flex items-center gap-2 text-lg">
-					<PackageIcon size={20} class="text-base-content/60" />
-					Geçmiş Paketler
+					<PackageIcon size={20} class="text-success" />
+					Satın Alımlar
 				</h3>
 
 				<div class="mt-4 space-y-3">
-					{#each pastPackageGroups as group (group.package.id)}
-						<div class="collapse-arrow collapse border border-base-300 bg-base-100 opacity-75">
+					{#each sortedPurchases as purchase (purchase.id)}
+						<div class="collapse-arrow collapse border border-base-300 bg-base-100">
 							<input type="checkbox" />
 							<div class="collapse-title">
 								<div class="flex items-center justify-between">
 									<div class="flex items-center gap-3">
-										<h4 class="font-semibold">{group.package.name}</h4>
+										<h4 class="font-semibold">{purchase.package?.name}</h4>
 										<span class="badge badge-secondary">
-											{group.package.package_type === 'private' ? 'Özel' : 'Grup'}
-										</span>
-										<span class="badge badge-outline badge-sm">
-											{group.memberships.length} paket
+											{purchase.package?.package_type === 'private' ? 'Özel' : 'Grup'}
 										</span>
 									</div>
-									<div class="badge badge-sm badge-neutral">Tamamlandı</div>
+									<div class="flex items-center gap-2">
+										<span class="text-sm text-base-content/70">
+											{purchase.purchase_start_date
+												? formatDisplayDate(purchase.purchase_start_date)
+												: formatDisplayDate(purchase.joined_at)}
+											-
+											{getMembershipDisplayDate(purchase)}
+										</span>
+									</div>
 								</div>
 							</div>
 							<div class="collapse-content">
-								<div class="space-y-2 pt-2">
-									{#each group.memberships as membership (membership.id)}
-										{@const status = getMembershipStatus(membership)}
-										<div class="flex items-center justify-between rounded-lg bg-base-200 p-3">
-											<div class="flex items-center gap-3">
-												<div>
-													<p class="text-sm font-medium">
-														{formatDisplayDate(membership.joined_at)} - {getMembershipDisplayDate(
-															membership
-														)}
-													</p>
+								<div class="pt-2">
+									<!-- Appointments List -->
+									{#if purchase.appointments && purchase.appointments.length > 0}
+										<div class="rounded-lg border border-base-300 bg-base-100">
+											<div class="border-b border-base-300 bg-base-200 px-4 py-2">
+												<h5 class="text-sm font-semibold">Randevular</h5>
+											</div>
+											<div class="max-h-60 overflow-y-auto">
+												<div class="divide-y divide-base-300">
+													{#each purchase.appointments as appointment}
+														<div class="flex items-center justify-between px-4 py-2 hover:bg-base-200">
+															<div class="flex items-center gap-3">
+																<Calendar size={14} class="text-base-content/50" />
+																<span class="text-sm">
+																	{formatDisplayDate(appointment.date)} - {appointment.hour}:00
+																</span>
+															</div>
+															{#if new Date(appointment.date) < new Date()}
+																<span class="badge badge-neutral badge-sm">Geçmiş</span>
+															{:else}
+																<span class="badge badge-success badge-sm">Gelecek</span>
+															{/if}
+														</div>
+													{/each}
 												</div>
 											</div>
-											<div class="badge badge-sm {status.class}">
-												{status.text}
-											</div>
 										</div>
-									{/each}
+									{/if}
 								</div>
 							</div>
 						</div>
@@ -554,69 +361,19 @@
 				</div>
 			</div>
 		</div>
-	{/if}
-
-	<!-- Empty State -->
-	{#if packagesWithMemberships.length === 0}
+	{:else}
+		<!-- Empty State -->
 		<div class="card bg-base-100 shadow">
 			<div class="card-body py-12 text-center">
 				<PackageIcon size={48} class="mx-auto mb-4 text-base-content/30" />
 				<h3 class="mb-2 text-lg font-semibold text-base-content/70">
-					Henüz paket ataması yapılmamış
+					Henüz satın alım yapılmamış
 				</h3>
-				<p class="text-base-content/50">Bu öğrenci henüz herhangi bir pakete katılmamış.</p>
+				<p class="text-base-content/50">Bu öğrenci henüz herhangi bir paket satın almamış.</p>
 			</div>
 		</div>
 	{/if}
 </div>
-
-<!-- Removal Confirmation Modal -->
-<Modal bind:open={showRemovalConfirmation} size="sm">
-	{#snippet header()}
-		<h3 class="text-lg font-semibold text-error">Gruptan Çıkar</h3>
-	{/snippet}
-
-	{#if membershipToRemove}
-		<div class="space-y-6">
-			<div class="space-y-4">
-				<p class="text-base-content/80">
-					<strong>{trainee?.name}</strong> adlı öğrenciyi
-					<strong>{membershipToRemove.package?.name}</strong> dersinden çıkarmak istediğinize emin misiniz?
-				</p>
-				<div class="alert alert-warning">
-					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-						/>
-					</svg>
-					<span class="text-sm"
-						>Bu işlem geri alınamaz. Öğrenci gruptan çıkarıldıktan sonra tekrar eklemek için yeni
-						kayıt oluşturmanız gerekecek.</span
-					>
-				</div>
-			</div>
-
-			<div class="flex justify-end gap-3">
-				<button
-					type="button"
-					class="btn btn-ghost"
-					onclick={() => {
-						showRemovalConfirmation = false;
-						membershipToRemove = null;
-					}}
-				>
-					İptal
-				</button>
-				<button type="button" class="btn btn-error" onclick={handleConfirmedRemoval}>
-					Gruptan Çıkar
-				</button>
-			</div>
-		</div>
-	{/if}
-</Modal>
 
 <!-- Archive Confirmation Modal -->
 <Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle">

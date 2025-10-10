@@ -212,7 +212,7 @@ export const actions: Actions = {
 		let assignmentForm: PackagePurchaseForm;
 		try {
 			assignmentForm = JSON.parse(assignmentFormJson);
-		} catch {
+		} catch (e) {
 			return fail(400, {
 				success: false,
 				message: 'Atama verileri geçersiz format'
@@ -224,17 +224,6 @@ export const actions: Actions = {
 			return fail(400, {
 				success: false,
 				message: 'Paket seçimi gereklidir'
-			});
-		}
-
-		if (
-			!assignmentForm.room_id ||
-			!assignmentForm.trainer_id ||
-			assignmentForm.time_slots.length === 0
-		) {
-			return fail(400, {
-				success: false,
-				message: 'Oda, eğitmen ve zaman dilimi seçimi gereklidir'
 			});
 		}
 
@@ -257,6 +246,28 @@ export const actions: Actions = {
 			packageData.package_type === 'group' && !assignmentForm.group_lesson_id;
 		const isJoiningExistingGroupLesson =
 			packageData.package_type === 'group' && assignmentForm.group_lesson_id;
+
+		// Validate room, trainer, and time slots (NOT required for joining existing group)
+		if (!isJoiningExistingGroupLesson) {
+			if (
+				!assignmentForm.room_id ||
+				!assignmentForm.trainer_id ||
+				assignmentForm.time_slots.length === 0
+			) {
+				return fail(400, {
+					success: false,
+					message: 'Oda, eğitmen ve zaman dilimi seçimi gereklidir'
+				});
+			}
+
+			// Validate lessons per week
+			if (assignmentForm.time_slots.length !== packageData.lessons_per_week) {
+				return fail(400, {
+					success: false,
+					message: `Bu paket için ${packageData.lessons_per_week} zaman dilimi seçmelisiniz`
+				});
+			}
+		}
 
 		// Validate trainee selection for private packages and existing group lessons
 		if (packageData.package_type === 'private') {
@@ -283,14 +294,6 @@ export const actions: Actions = {
 			}
 		}
 		// For creating new group lesson, trainee selection is not required
-
-		// Validate lessons per week
-		if (assignmentForm.time_slots.length !== packageData.lessons_per_week) {
-			return fail(400, {
-				success: false,
-				message: `Bu paket için ${packageData.lessons_per_week} zaman dilimi seçmelisiniz`
-			});
-		}
 
 		try {
 			// STEP 1: Determine how many weeks of appointments to create
@@ -420,15 +423,63 @@ export const actions: Actions = {
 				groupLessonId = groupLessonData.id;
 			}
 
-			// STEP 2b: Create team UUID (only for private packages or joining existing group)
-			let teamId: string | null = null;
-			let purchaseId: string | null = null;
+			// STEP 2b: Create team and purchase for each trainee (for joining existing group lesson)
+			// OR create single team/purchase for private packages
+			const traineesPurchases: Array<{ traineeId: string; purchaseId: string; teamId: string }> =
+				[];
 
-			if (!isCreatingNewGroupLesson) {
-				teamId = randomUUID();
+			if (isJoiningExistingGroupLesson) {
+				// For joining existing group: create separate purchase for each trainee
+				for (const traineeId of assignmentForm.trainee_ids) {
+					const teamId = randomUUID();
 
-				// STEP 3: Save selected trainees to pe_teams table
-				// Each trainee gets a row with the same team id
+					// Create team entry for this trainee
+					const { error: teamError } = await supabase.from('pe_teams').insert({
+						id: teamId,
+						trainee_id: traineeId
+					});
+
+					if (teamError) {
+						return fail(500, {
+							success: false,
+							message: `Öğrenci takımı oluşturulurken hata: ${teamError.message}`
+						});
+					}
+
+					// Create purchase for this trainee
+					const rescheduleLeft = packageData.reschedulable
+						? (packageData.reschedule_limit ?? 999)
+						: 0;
+
+					const { data: purchaseData, error: purchaseError } = await supabase
+						.from('pe_purchases')
+						.insert({
+							package_id: assignmentForm.package_id,
+							team_id: teamId,
+							reschedule_left: rescheduleLeft,
+							successor_id: null
+						})
+						.select('id')
+						.single();
+
+					if (purchaseError) {
+						return fail(500, {
+							success: false,
+							message: `Satın alma oluşturulurken hata: ${purchaseError.message}`
+						});
+					}
+
+					traineesPurchases.push({
+						traineeId,
+						purchaseId: purchaseData.id,
+						teamId
+					});
+				}
+			} else if (!isCreatingNewGroupLesson) {
+				// For private packages: create single team with all trainees
+				const teamId = randomUUID();
+
+				// Save selected trainees to pe_teams table
 				const teamInserts = assignmentForm.trainee_ids.map((traineeId) => ({
 					id: teamId,
 					trainee_id: traineeId
@@ -443,7 +494,7 @@ export const actions: Actions = {
 					});
 				}
 
-				// STEP 4: Create purchase entry
+				// Create single purchase entry
 				const rescheduleLeft = packageData.reschedulable
 					? (packageData.reschedule_limit ?? 999)
 					: 0;
@@ -466,42 +517,121 @@ export const actions: Actions = {
 					});
 				}
 
-				purchaseId = purchaseData.id;
+				// All trainees share the same purchase
+				for (const traineeId of assignmentForm.trainee_ids) {
+					traineesPurchases.push({
+						traineeId,
+						purchaseId: purchaseData.id,
+						teamId
+					});
+				}
 			}
 
-			// STEP 5: Create appointments
-			// Sort appointment slots by date and hour to ensure correct session numbering
-			allAppointmentSlots.sort((a, b) => {
-				const dateCompare = a.date.localeCompare(b.date);
-				if (dateCompare !== 0) return dateCompare;
-				return a.hour - b.hour;
-			});
+			// STEP 5: Create appointments (only for new lessons, not joining existing)
+			let insertedAppointments: Array<{ id: string; date: string; hour: number }> = [];
 
-			const appointmentInserts = allAppointmentSlots.map((slot) => ({
-				purchase_id: isCreatingNewGroupLesson ? null : purchaseId,
-				group_lesson_id: isCreatingNewGroupLesson ? groupLessonId : null,
-				room_id: assignmentForm.room_id,
-				trainer_id: assignmentForm.trainer_id,
-				date: slot.date,
-				hour: slot.hour
-			}));
-
-			const { data: insertedAppointments, error: appointmentsError } = await supabase
-				.from('pe_appointments')
-				.insert(appointmentInserts)
-				.select('id, date, hour')
-				.order('date, hour');
-
-			if (appointmentsError) {
-				return fail(500, {
-					success: false,
-					message: 'Randevular oluşturulurken hata: ' + appointmentsError.message
+			if (!isJoiningExistingGroupLesson) {
+				// Sort appointment slots by date and hour to ensure correct session numbering
+				allAppointmentSlots.sort((a, b) => {
+					const dateCompare = a.date.localeCompare(b.date);
+					if (dateCompare !== 0) return dateCompare;
+					return a.hour - b.hour;
 				});
+
+				const appointmentInserts = allAppointmentSlots.map((slot) => ({
+					purchase_id: isCreatingNewGroupLesson
+						? null
+						: traineesPurchases.length > 0
+							? traineesPurchases[0].purchaseId
+							: null,
+					group_lesson_id: isCreatingNewGroupLesson ? groupLessonId : null,
+					room_id: assignmentForm.room_id,
+					trainer_id: assignmentForm.trainer_id,
+					date: slot.date,
+					hour: slot.hour
+				}));
+
+				const { data: createdAppointments, error: appointmentsError } = await supabase
+					.from('pe_appointments')
+					.insert(appointmentInserts)
+					.select('id, date, hour')
+					.order('date, hour');
+
+				if (appointmentsError) {
+					return fail(500, {
+						success: false,
+						message: 'Randevular oluşturulurken hata: ' + appointmentsError.message
+					});
+				}
+
+				insertedAppointments = createdAppointments || [];
 			}
 
-			// STEP 6: Create appointment_trainees entries (only for private packages and existing group joins)
-			if (!isCreatingNewGroupLesson) {
-				// Calculate total sessions
+			// STEP 6: Assign trainees to appointments
+			if (isJoiningExistingGroupLesson) {
+				// For joining existing group: get upcoming appointments and assign trainees
+				const today = new Date().toISOString().split('T')[0];
+
+				// Get upcoming appointments for this group lesson
+				const { data: upcomingAppointments, error: appointmentsError } = await supabase
+					.from('pe_appointments')
+					.select('id, date, hour')
+					.eq('group_lesson_id', groupLessonId!)
+					.gte('date', today)
+					.order('date, hour');
+
+				if (appointmentsError) {
+					return fail(500, {
+						success: false,
+						message: 'Grup dersi randevuları alınırken hata: ' + appointmentsError.message
+					});
+				}
+
+				if (!upcomingAppointments || upcomingAppointments.length === 0) {
+					return fail(400, {
+						success: false,
+						message: 'Bu grup dersi için gelecek tarihli randevu bulunamadı'
+					});
+				}
+
+				// Calculate number of appointments each trainee should be assigned to
+				const durationWeeks = assignmentForm.duration_weeks || 4;
+				const appointmentsPerTrainee = durationWeeks * packageData.lessons_per_week;
+
+				const appointmentTraineeInserts = [];
+
+				// For each trainee, assign to their appointments
+				for (const { traineeId, purchaseId } of traineesPurchases) {
+					const traineeAppointments = upcomingAppointments.slice(0, appointmentsPerTrainee);
+
+					for (let i = 0; i < traineeAppointments.length; i++) {
+						appointmentTraineeInserts.push({
+							appointment_id: traineeAppointments[i].id,
+							trainee_id: traineeId,
+							purchase_id: purchaseId,
+							session_number: i + 1,
+							total_sessions: appointmentsPerTrainee
+						});
+					}
+				}
+
+				const { error: traineeError } = await supabase
+					.from('pe_appointment_trainees')
+					.insert(appointmentTraineeInserts);
+
+				if (traineeError) {
+					return fail(500, {
+						success: false,
+						message: 'Öğrenciler randevulara eklenirken hata: ' + traineeError.message
+					});
+				}
+
+				return {
+					success: true,
+					message: `${assignmentForm.trainee_ids.length} öğrenci grup dersine başarıyla eklendi. Her öğrenci ${appointmentsPerTrainee} randevuya atandı.`
+				};
+			} else if (!isCreatingNewGroupLesson) {
+				// For private packages: assign trainees to all created appointments
 				const totalSessions = (packageData.weeks_duration || 1) * packageData.lessons_per_week;
 
 				const appointmentTraineeInserts = [];
@@ -511,10 +641,11 @@ export const actions: Actions = {
 					const appointment = insertedAppointments[sessionNumber - 1];
 
 					// Add all trainees to this appointment with the same session number
-					for (const traineeId of assignmentForm.trainee_ids) {
+					for (const { traineeId, purchaseId } of traineesPurchases) {
 						appointmentTraineeInserts.push({
 							appointment_id: appointment.id,
 							trainee_id: traineeId,
+							purchase_id: purchaseId,
 							session_number: sessionNumber,
 							total_sessions: totalSessions
 						});

@@ -98,8 +98,14 @@ export interface TraineePurchaseMembership {
 	left_at?: string | null;
 	purchase_id?: string;
 	purchase_end_date?: string | null;
+	purchase_start_date?: string | null;
 	is_extension?: boolean;
 	extension_number?: number;
+	appointments?: Array<{
+		id: string;
+		date: string;
+		hour: number;
+	}>;
 }
 
 // ===============================================
@@ -133,6 +139,7 @@ export interface PackagePurchaseForm {
 	trainee_ids: string[];
 	purchase_id?: string;
 	group_lesson_id?: string;
+	duration_weeks?: number; // For joining existing group lessons
 }
 
 export interface SelectedTimeSlot {

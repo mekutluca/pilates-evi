@@ -392,6 +392,8 @@
 		// Set group_lesson_id if an existing group lesson was selected
 		if (selectedGroupLessonId) {
 			assignmentForm.group_lesson_id = selectedGroupLessonId;
+			// Include duration_weeks for joining existing group lessons
+			assignmentForm.duration_weeks = assignmentWeeks;
 		}
 
 		// Submit the assignment via fetch
@@ -409,7 +411,7 @@
 			const result = await response.json();
 
 			if (result.type === 'success') {
-				toast.success('Kayıt tamamlandı');
+				toast.success(result.data?.message || 'Kayıt tamamlandı');
 				goto('/schedule');
 			} else {
 				toast.error(result.data?.message || 'Bir hata oluştu');
@@ -1009,12 +1011,12 @@
 										class="input-bordered input w-full"
 										bind:value={packageCount}
 									/>
-									<label class="label">
+									<div class="label">
 										<span class="label-text-alt text-base-content/60">
 											Toplam süre: <strong>{totalAssignmentWeeks()} hafta</strong>
 											({totalAssignmentWeeks() * selectedPackage.lessons_per_week} ders)
 										</span>
-									</label>
+									</div>
 								</div>
 							</div>
 						{:else}
@@ -1038,11 +1040,11 @@
 										class="input-bordered input w-full"
 										bind:value={assignmentWeeks}
 									/>
-									<label class="label">
+									<div class="label">
 										<span class="label-text-alt text-base-content/60">
 											Toplam: <strong>{assignmentWeeks} hafta</strong>
 										</span>
-									</label>
+									</div>
 								</div>
 							</div>
 						{/if}
