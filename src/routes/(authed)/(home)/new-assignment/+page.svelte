@@ -20,10 +20,10 @@
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDayOfWeekFromDate,
 		getDateForDayOfWeek
 	} from '$lib/utils/date-utils';
-	import WeeklyScheduleGrid from '$lib/components/weekly-schedule-grid.svelte';
+	import Schedule from '$lib/components/schedule.svelte';
+	import type { ScheduleSlot } from '$lib/components/schedule.types';
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
@@ -186,16 +186,6 @@
 			return null;
 		}
 		return active[currentIndex + 1];
-	}
-
-	// Get previous active step
-	function getPrevStep(fromStep: number): number | null {
-		const active = activeSteps();
-		const currentIndex = active.indexOf(fromStep);
-		if (currentIndex <= 0) {
-			return null;
-		}
-		return active[currentIndex - 1];
 	}
 
 	// Progress calculation based on active steps
@@ -604,6 +594,83 @@
 			hour: slot.hour
 		}))
 	);
+
+	// Slot data provider for Schedule component
+	function getSlotData(day: DayOfWeek, hour: number, dateString: string): ScheduleSlot {
+		const isPast = isSlotInPast(assignmentForm.room_id, day, hour);
+		const isAvailable = isSlotAvailable(assignmentForm.room_id, day, hour);
+		const isSelected = scheduleSelectedSlots.some((slot) => slot.day === day && slot.hour === hour);
+
+		// Find existing appointment in this slot
+		const appointment = appointments.find((apt) => {
+			return apt.room_id === assignmentForm.room_id && apt.date === dateString && apt.hour === hour;
+		});
+
+		if (appointment) {
+			// Note: appointments in new-assignment don't have relations loaded
+			// They're just used to show conflicts, so we show minimal info
+			return {
+				variant: 'appointment',
+				day,
+				hour,
+				date: dateString,
+				title: 'Dolu',
+				subtitle: '',
+				color: 'error',
+				clickable: false
+			};
+		} else if (isPast) {
+			return {
+				variant: 'empty',
+				day,
+				hour,
+				date: dateString,
+				label: '-'
+			};
+		} else if (isSelected) {
+			return {
+				variant: 'available',
+				day,
+				hour,
+				date: dateString,
+				label: 'Seçili',
+				clickable: true
+			};
+		} else if (isAvailable && canSelectSlot()) {
+			return {
+				variant: 'available',
+				day,
+				hour,
+				date: dateString,
+				label: 'Seç',
+				clickable: true
+			};
+		} else if (isAvailable && !canSelectSlot()) {
+			return {
+				variant: 'available',
+				day,
+				hour,
+				date: dateString,
+				label: '-',
+				disabled: true
+			};
+		} else {
+			return {
+				variant: 'empty',
+				day,
+				hour,
+				date: dateString,
+				label: '-'
+			};
+		}
+	}
+
+	// Handle slot click for Schedule component
+	function handleNewScheduleSlotClick(slot: ScheduleSlot) {
+		if (slot.variant === 'available' && slot.clickable) {
+			handleScheduleSlotClick(assignmentForm.room_id, slot.day, slot.hour);
+		}
+	}
 
 	// Filtered trainees based on search term
 	const filteredTrainees = $derived(
@@ -1166,19 +1233,19 @@
 										</button>
 									</div>
 
-									<WeeklyScheduleGrid
-										viewMode="room"
-										selectedEntityId={assignmentForm.room_id}
-										entities={rooms}
-										{appointments}
-										weekStart={currentWeekStart()}
-										onSlotClick={handleScheduleSlotClick}
-										showSlotAvailability={true}
-										availabilityCallback={isSlotAvailable}
-										canSelectCallback={canSelectSlot}
-										selectedSlots={scheduleSelectedSlots}
-										pastSlotCallback={isSlotInPast}
-									/>
+									{@const selectedRoom = rooms.find((r) => r.id === assignmentForm.room_id)}
+									{#if selectedRoom}
+										<Schedule
+											weekStart={currentWeekStart()}
+											entityName={selectedRoom.name || ''}
+											entityBadge={{
+												text: 'Oda',
+												color: 'primary'
+											}}
+											{getSlotData}
+											onSlotClick={handleNewScheduleSlotClick}
+										/>
+									{/if}
 								{:else}
 									<div class="py-8 text-center text-base-content/60">
 										Oda ve eğitmen seçildikten sonra zaman dilimleri görünecektir

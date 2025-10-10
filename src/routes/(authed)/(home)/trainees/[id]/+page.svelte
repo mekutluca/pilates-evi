@@ -93,7 +93,6 @@
 			membership.package?.weeks_duration ?? null
 		);
 	}
-
 </script>
 
 <div class="space-y-6 p-6">
@@ -336,7 +335,9 @@
 											<div class="max-h-60 overflow-y-auto">
 												<div class="divide-y divide-base-300">
 													{#each purchase.appointments as appointment}
-														<div class="flex items-center justify-between px-4 py-2 hover:bg-base-200">
+														<div
+															class="flex items-center justify-between px-4 py-2 hover:bg-base-200"
+														>
 															<div class="flex items-center gap-3">
 																<Calendar size={14} class="text-base-content/50" />
 																<span class="text-sm">
@@ -344,9 +345,9 @@
 																</span>
 															</div>
 															{#if new Date(appointment.date) < new Date()}
-																<span class="badge badge-neutral badge-sm">Geçmiş</span>
+																<span class="badge badge-sm badge-neutral">Geçmiş</span>
 															{:else}
-																<span class="badge badge-success badge-sm">Gelecek</span>
+																<span class="badge badge-sm badge-success">Gelecek</span>
 															{/if}
 														</div>
 													{/each}
@@ -366,9 +367,7 @@
 		<div class="card bg-base-100 shadow">
 			<div class="card-body py-12 text-center">
 				<PackageIcon size={48} class="mx-auto mb-4 text-base-content/30" />
-				<h3 class="mb-2 text-lg font-semibold text-base-content/70">
-					Henüz satın alım yapılmamış
-				</h3>
+				<h3 class="mb-2 text-lg font-semibold text-base-content/70">Henüz satın alım yapılmamış</h3>
 				<p class="text-base-content/50">Bu öğrenci henüz herhangi bir paket satın almamış.</p>
 			</div>
 		</div>

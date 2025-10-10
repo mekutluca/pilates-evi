@@ -3,9 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import type { DayOfWeek, AppointmentStatus } from '$lib/types/Schedule';
-import type { TimeSlotPattern } from '$lib/types/Schedule';
-import { randomUUID } from 'crypto';
+import type { DayOfWeek } from '$lib/types/Schedule';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {

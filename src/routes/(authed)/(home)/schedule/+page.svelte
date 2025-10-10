@@ -11,23 +11,25 @@
 	import { goto } from '$app/navigation';
 	import { SvelteDate } from 'svelte/reactivity';
 	import type {
-		ScheduleGrid,
 		DayOfWeek,
 		AppointmentWithDetails,
 		AppointmentWithRelations
 	} from '$lib/types/Schedule';
-	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
+	import { DAY_NAMES, getTimeRangeString } from '$lib/types/Schedule';
 	import {
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
 		getDateForDayOfWeek,
-		formatDayMonth,
-		getDayOfWeekFromDate
+		getDayOfWeekFromDate,
+		formatDayMonth
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
 	import { page } from '$app/state';
 	import Modal from '$lib/components/modal.svelte';
+	import Schedule from '$lib/components/schedule.svelte';
+	import type { ScheduleSlot } from '$lib/components/schedule.types';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
@@ -132,54 +134,6 @@
 			};
 		}
 	});
-
-	// Constants for day mapping
-	function calculateDateForDayHour(day: DayOfWeek): string {
-		const weekStart = currentWeekStart();
-		const targetDate = getDateForDayOfWeek(weekStart, day);
-		return formatDateParam(targetDate);
-	}
-
-	function createAppointmentDetails(
-		appointment: AppointmentWithRelations,
-		roomName?: string | null,
-		trainerName?: string | null
-	): AppointmentWithDetails {
-		const purchase = appointment.pe_purchases;
-		const groupLesson = appointment.pe_group_lessons;
-		const packageInfo = purchase?.pe_packages || groupLesson?.pe_packages;
-
-		// Get trainee information from appointment_trainees
-		const appointmentTrainees = appointment.pe_appointment_trainees || [];
-		const traineeNames = appointmentTrainees
-			.map((at) => at.pe_trainees?.name || '')
-			.filter(Boolean);
-
-		// Check if any trainee has their last session
-		const hasLastSession = appointmentTrainees.some(
-			(at) => at.session_number === at.total_sessions && at.total_sessions !== null
-		);
-
-		return {
-			// Database fields - use values from appointment
-			id: appointment.id,
-			room_id: appointment.room_id,
-			trainer_id: appointment.trainer_id,
-			purchase_id: appointment.purchase_id,
-			group_lesson_id: appointment.group_lesson_id,
-			hour: appointment.hour,
-			date: appointment.date,
-			// Extended fields using relation data
-			room_name: roomName || appointment.pe_rooms?.name || '',
-			trainer_name: trainerName || appointment.pe_trainers?.name || '',
-			package_name: packageInfo?.name || '',
-			trainee_names: traineeNames,
-			trainee_count: traineeNames.length,
-			reschedule_left: purchase?.reschedule_left ?? 0,
-			has_last_session: hasLastSession,
-			appointment_trainees: appointmentTrainees
-		};
-	}
 
 	function openAppointmentDetails(appointment: AppointmentWithDetails) {
 		selectedAppointment = appointment;
@@ -317,73 +271,103 @@
 		return currentWeekStart().getTime() === now.getTime();
 	});
 
-	// Build schedule grid for selected room or trainer
-	const scheduleGrid = $derived(() => {
-		const grid: ScheduleGrid = {};
+	// Slot data provider for Schedule component
+	function getSlotData(day: DayOfWeek, hour: number, dateString: string): ScheduleSlot {
+		const isPast = isSlotInPast(day, hour);
+		const isWithin23Hours = isSlotWithin23Hours(day, hour);
+		const isRescheduleRestricted = rescheduleMode && isWithin23Hours;
 
-		if (viewMode === 'room') {
-			const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
-			if (!selectedRoom) return grid;
+		// Find appointment for this slot
+		const appointment = appointments.find((apt) => {
+			if (viewMode === 'room') {
+				return apt.room_id === selectedRoomId && apt.date === dateString && apt.hour === hour;
+			} else {
+				return apt.trainer_id === selectedTrainerId && apt.date === dateString && apt.hour === hour;
+			}
+		});
 
-			grid[selectedRoom.id] = {
-				room_name: selectedRoom.name || '',
-				slots: {}
+		if (appointment) {
+			const appointmentDetails = createAppointmentDetails(
+				appointment,
+				viewMode === 'room' ? undefined : appointment.pe_rooms?.name,
+				viewMode === 'trainer' ? undefined : appointment.pe_trainers?.name
+			);
+			const isBeingRescheduled =
+				rescheduleMode && selectedAppointment && appointment.id === selectedAppointment.id;
+
+			return {
+				variant: 'appointment',
+				day,
+				hour,
+				date: dateString,
+				title:
+					viewMode === 'room'
+						? appointmentDetails.trainer_name || ''
+						: appointmentDetails.room_name || '',
+				subtitle: appointmentDetails.package_name || '',
+				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
+				color: isBeingRescheduled ? 'warning' : viewMode === 'room' ? 'primary' : 'info',
+				clickable: !rescheduleMode,
+				data: appointmentDetails
 			};
-
-			DAYS_OF_WEEK.forEach((day) => {
-				grid[selectedRoom.id].slots[day] = {};
-
-				SCHEDULE_HOURS.forEach((hour) => {
-					const dateString = calculateDateForDayHour(day);
-					const appointment = appointments.find(
-						(apt) => apt.room_id === selectedRoom.id && apt.date === dateString && apt.hour === hour
-					);
-
-					grid[selectedRoom.id].slots[day][hour] = {
-						room_id: selectedRoom.id,
-						room_name: selectedRoom.name || '',
-						hour,
-						is_available: true,
-						appointment: appointment
-							? createAppointmentDetails(appointment, selectedRoom.name)
-							: undefined
-					};
-				});
-			});
+		} else if (isPast) {
+			return {
+				variant: 'empty',
+				day,
+				hour,
+				date: dateString,
+				label: '-'
+			};
+		} else if (rescheduleMode) {
+			const canSelectForReschedule = !isPast && !isRescheduleRestricted;
+			if (canSelectForReschedule) {
+				return {
+					variant: 'available',
+					day,
+					hour,
+					date: dateString,
+					label: 'Seç',
+					clickable: true,
+					data: { roomId: viewMode === 'room' ? selectedRoomId : selectedTrainerId, day, hour }
+				};
+			} else if (isRescheduleRestricted) {
+				return {
+					variant: 'disabled',
+					day,
+					hour,
+					date: dateString,
+					label: '23s',
+					reason: 'Randevuya 23 saatten az kaldı'
+				};
+			} else {
+				return {
+					variant: 'empty',
+					day,
+					hour,
+					date: dateString,
+					label: 'Müsait'
+				};
+			}
 		} else {
-			const selectedTrainer = trainers.find((t) => t.id === selectedTrainerId);
-			if (!selectedTrainer) return grid;
-
-			grid[selectedTrainer.id] = {
-				room_name: selectedTrainer.name || '',
-				slots: {}
+			return {
+				variant: 'empty',
+				day,
+				hour,
+				date: dateString,
+				label: 'Müsait'
 			};
-
-			DAYS_OF_WEEK.forEach((day) => {
-				grid[selectedTrainer.id].slots[day] = {};
-
-				SCHEDULE_HOURS.forEach((hour) => {
-					const dateString = calculateDateForDayHour(day);
-					const appointment = appointments.find(
-						(apt) =>
-							apt.trainer_id === selectedTrainer.id && apt.date === dateString && apt.hour === hour
-					);
-
-					grid[selectedTrainer.id].slots[day][hour] = {
-						room_id: selectedTrainer.id,
-						room_name: selectedTrainer.name || '',
-						hour,
-						is_available: true,
-						appointment: appointment
-							? createAppointmentDetails(appointment, undefined, selectedTrainer.name)
-							: undefined
-					};
-				});
-			});
 		}
+	}
 
-		return grid;
-	});
+	// Handle slot click
+	function handleScheduleSlotClick(slot: ScheduleSlot) {
+		if (slot.variant === 'appointment' && slot.data && !rescheduleMode) {
+			openAppointmentDetails(slot.data as AppointmentWithDetails);
+		} else if (slot.variant === 'available' && rescheduleMode && slot.data) {
+			const { roomId, day, hour } = slot.data as { roomId: string; day: DayOfWeek; hour: number };
+			handleRescheduleSlotClick(roomId, day, hour);
+		}
+	}
 </script>
 
 <div class="space-y-6">
@@ -524,161 +508,30 @@
 				? rooms.find((r) => r.id === selectedRoomId)
 				: trainers.find((t) => t.id === selectedTrainerId)}
 		{#if selectedEntity}
-			<div class="card bg-base-100 shadow-xl">
-				<div class="card-body">
-					<div class="mb-4 flex items-center justify-between">
-						<h2 class="card-title text-xl">
-							{#if viewMode === 'room'}
-								<span class="mr-2 badge badge-sm badge-primary">Oda</span>
-							{:else}
-								<span class="mr-2 badge badge-sm badge-info">Eğitmen</span>
-							{/if}
-							{selectedEntity.name}
-						</h2>
-
-						{#if rescheduleMode && selectedAppointment}
-							<div class="flex items-center gap-3">
-								<div class="alert alert-info px-3 py-2">
-									<div class="text-sm">
-										<strong>Erteleme Modu:</strong>
-										{selectedAppointment.trainer_name} - {selectedAppointment.package_name}
-									</div>
+			<Schedule
+				weekStart={currentWeekStart()}
+				entityName={selectedEntity.name || ''}
+				entityBadge={{
+					text: viewMode === 'room' ? 'Oda' : 'Eğitmen',
+					color: viewMode === 'room' ? 'primary' : 'info'
+				}}
+				{getSlotData}
+				onSlotClick={handleScheduleSlotClick}
+			>
+				{#snippet alertBanner()}
+					{#if rescheduleMode && selectedAppointment}
+						<div class="flex items-center gap-3">
+							<div class="alert alert-info px-3 py-2">
+								<div class="text-sm">
+									<strong>Erteleme Modu:</strong>
+									{selectedAppointment.trainer_name} - {selectedAppointment.package_name}
 								</div>
-								<button class="btn btn-sm btn-error" onclick={cancelReschedule}> İptal </button>
 							</div>
-						{/if}
-					</div>
-
-					<div class="overflow-x-auto">
-						<table class="table table-xs md:table-fixed">
-							<thead>
-								<tr>
-									<th class="sticky left-0 w-20 bg-base-100">Saat</th>
-									{#each DAYS_OF_WEEK as day (day)}
-										{@const dayDate = getDateForDayOfWeek(currentWeekStart(), day)}
-										<th class="min-w-28 text-center md:w-[calc((100%-5rem)/7)]">
-											<div class="text-xs text-base-content/60">{formatDayMonth(dayDate)}</div>
-											<div class="font-semibold">{DAY_NAMES[day]}</div>
-										</th>
-									{/each}
-								</tr>
-							</thead>
-							<tbody>
-								{#each SCHEDULE_HOURS as hour (hour)}
-									<tr>
-										<td class="sticky left-0 bg-base-100 text-sm font-semibold">
-											{getTimeRangeString(hour)}
-										</td>
-										{#each DAYS_OF_WEEK as day (day)}
-											{@const entityId = viewMode === 'room' ? selectedRoomId : selectedTrainerId}
-											{@const slot = scheduleGrid()[entityId]?.slots[day]?.[hour]}
-											<td class="p-1 text-center">
-												{#if true}
-													{@const isPast = isSlotInPast(day, hour)}
-													{@const isWithin23Hours = isSlotWithin23Hours(day, hour)}
-													{@const isRescheduleRestricted = rescheduleMode && isWithin23Hours}
-													{@const canSelectForReschedule =
-														rescheduleMode &&
-														!isPast &&
-														!isRescheduleRestricted &&
-														!slot?.appointment}
-
-													{#if slot?.appointment}
-														{@const isBeingRescheduled =
-															rescheduleMode &&
-															selectedAppointment &&
-															slot.appointment.id === selectedAppointment.id}
-														<button
-															class="min-h-12 w-full rounded p-2 text-xs transition-colors {isBeingRescheduled
-																? 'border-2 border-dashed border-warning bg-warning/20 text-warning-content'
-																: ''} {rescheduleMode
-																? 'cursor-default'
-																: 'cursor-pointer hover:opacity-80'}"
-															class:bg-primary={viewMode === 'room' && !isBeingRescheduled}
-															class:text-primary-content={viewMode === 'room' &&
-																!isBeingRescheduled}
-															class:bg-info={viewMode === 'trainer' && !isBeingRescheduled}
-															class:text-info-content={viewMode === 'trainer' &&
-																!isBeingRescheduled}
-															onclick={() =>
-																slot.appointment &&
-																!rescheduleMode &&
-																openAppointmentDetails(slot.appointment)}
-														>
-															<div class="truncate font-semibold">
-																{#if viewMode === 'room'}
-																	{slot.appointment.trainer_name}
-																{:else}
-																	{slot.appointment.room_name}
-																{/if}
-															</div>
-															{#if slot.appointment.package_name}
-																<div class="truncate text-xs text-primary-content/70">
-																	{slot.appointment.package_name}
-																</div>
-															{/if}
-															{#if isLastSessionAndExtendable(slot.appointment)}
-																<div
-																	class="flex items-center justify-center gap-1 text-xs font-semibold"
-																>
-																	<ClockAlert size={12} />
-																	<span>Son ders</span>
-																</div>
-															{/if}
-														</button>
-													{:else if isPast}
-														<div
-															class="flex min-h-12 items-center justify-center rounded bg-base-300 p-2 text-base-content/40"
-														>
-															<span class="text-xs">-</span>
-														</div>
-													{:else if slot?.is_available}
-														{#if rescheduleMode}
-															{#if canSelectForReschedule}
-																<button
-																	class="group flex min-h-12 w-full cursor-pointer items-center justify-center rounded bg-success/20 p-2 transition-colors hover:bg-success/30"
-																	onclick={() => handleRescheduleSlotClick(entityId, day, hour)}
-																>
-																	<span class="text-xs text-success">Seç</span>
-																	<!-- Plus button removed - use /new-assignment for appointment creation -->
-																</button>
-															{:else if isRescheduleRestricted}
-																<div
-																	class="flex min-h-12 items-center justify-center rounded bg-warning/20 p-2 text-warning"
-																>
-																	<span class="text-xs">23s</span>
-																</div>
-															{:else}
-																<div
-																	class="flex min-h-12 items-center justify-center rounded bg-base-200 p-2 text-base-content/40"
-																>
-																	<span class="text-xs">Müsait</span>
-																</div>
-															{/if}
-														{:else}
-															<div
-																class="flex min-h-12 items-center justify-center rounded bg-base-200 p-2 text-base-content/40"
-															>
-																<span class="text-xs">Müsait</span>
-															</div>
-														{/if}
-													{:else}
-														<div
-															class="flex min-h-12 items-center justify-center rounded bg-error/20 p-2 text-error"
-														>
-															<span class="text-xs">Kapalı</span>
-														</div>
-													{/if}
-												{/if}
-											</td>
-										{/each}
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				</div>
-			</div>
+							<button class="btn btn-sm btn-error" onclick={cancelReschedule}> İptal </button>
+						</div>
+					{/if}
+				{/snippet}
+			</Schedule>
 		{/if}
 	{/if}
 </div>

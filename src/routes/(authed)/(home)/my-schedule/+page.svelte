@@ -5,22 +5,23 @@
 		DayOfWeek,
 		AppointmentWithDetails
 	} from '$lib/types/Schedule';
-	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
+	import { DAY_NAMES, getTimeRangeString } from '$lib/types/Schedule';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import Modal from '$lib/components/modal.svelte';
+	import Schedule from '$lib/components/schedule.svelte';
+	import type { ScheduleSlot } from '$lib/components/schedule.types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDateForDayOfWeek,
-		formatDayMonth,
 		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
+	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
 
 	let { data }: { data: PageData } = $props();
 
@@ -39,47 +40,41 @@
 	let showAppointmentDetailsModal = $state(false);
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 
-	// Convert AppointmentWithRelations to AppointmentWithDetails
-	function createAppointmentDetails(apt: AppointmentWithRelations): AppointmentWithDetails {
-		const purchase = apt.pe_purchases;
-		const groupLesson = apt.pe_group_lessons;
-		const packageInfo = purchase?.pe_packages || groupLesson?.pe_packages;
+	// Slot data provider for Schedule component
+	function getSlotData(day: DayOfWeek, hour: number, dateString: string): ScheduleSlot {
+		const appointment = appointments.find((apt) => apt.date === dateString && apt.hour === hour);
 
-		// Get trainee information from appointment_trainees
-		const appointmentTrainees = apt.pe_appointment_trainees || [];
-		const traineeNames = appointmentTrainees
-			.map((at) => at.pe_trainees?.name || '')
-			.filter(Boolean);
-
-		// Check if any trainee has their last session
-		const hasLastSession = appointmentTrainees.some(
-			(at) => at.session_number === at.total_sessions && at.total_sessions !== null
-		);
-
-		return {
-			// Database fields
-			id: apt.id,
-			room_id: apt.room_id,
-			trainer_id: apt.trainer_id,
-			purchase_id: apt.purchase_id,
-			group_lesson_id: apt.group_lesson_id,
-			hour: apt.hour,
-			date: apt.date,
-			// Extended fields
-			room_name: apt.pe_rooms?.name || '',
-			trainer_name: apt.pe_trainers?.name || '',
-			package_name: packageInfo?.name || '',
-			trainee_names: traineeNames,
-			trainee_count: traineeNames.length,
-			reschedule_left: purchase?.reschedule_left ?? 0,
-			has_last_session: hasLastSession,
-			appointment_trainees: appointmentTrainees
-		};
+		if (appointment) {
+			const appointmentDetails = createAppointmentDetails(appointment);
+			return {
+				variant: 'appointment',
+				day,
+				hour,
+				date: dateString,
+				title: appointmentDetails.room_name || '',
+				subtitle: appointmentDetails.package_name || '',
+				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
+				color: 'info',
+				clickable: true,
+				data: appointmentDetails
+			};
+		} else {
+			return {
+				variant: 'empty',
+				day,
+				hour,
+				date: dateString,
+				label: '-'
+			};
+		}
 	}
 
-	function openAppointmentDetails(apt: AppointmentWithRelations) {
-		selectedAppointment = createAppointmentDetails(apt);
-		showAppointmentDetailsModal = true;
+	// Handle slot click
+	function handleScheduleSlotClick(slot: ScheduleSlot) {
+		if (slot.variant === 'appointment' && slot.data) {
+			selectedAppointment = slot.data as AppointmentWithDetails;
+			showAppointmentDetailsModal = true;
+		}
 	}
 
 	function navigateToWeek(date: Date) {
@@ -197,77 +192,16 @@
 	</div>
 
 	<!-- Schedule Grid -->
-	<div class="card bg-base-100 shadow-xl">
-		<div class="card-body">
-			<h2 class="card-title mb-4 text-xl">
-				<span class="mr-2 badge badge-sm badge-info">Eğitmen</span>
-				{trainerName}
-			</h2>
-
-			<div class="overflow-x-auto">
-				<table class="table table-xs md:table-fixed">
-					<thead>
-						<tr>
-							<th class="sticky left-0 w-20 bg-base-100">Saat</th>
-							{#each DAYS_OF_WEEK as day (day)}
-								{@const dayDate = getDateForDayOfWeek(currentWeekStart(), day)}
-								<th class="min-w-28 text-center md:w-[calc((100%-5rem)/7)]">
-									<div class="text-xs text-base-content/60">{formatDayMonth(dayDate)}</div>
-									<div class="font-semibold">{DAY_NAMES[day]}</div>
-								</th>
-							{/each}
-						</tr>
-					</thead>
-					<tbody>
-						{#each SCHEDULE_HOURS as hour (hour)}
-							<tr>
-								<td class="sticky left-0 bg-base-100 text-sm font-semibold">
-									{getTimeRangeString(hour)}
-								</td>
-								{#each DAYS_OF_WEEK as day (day)}
-									{@const dayDate = getDateForDayOfWeek(currentWeekStart(), day)}
-									{@const dateString = formatDateParam(dayDate)}
-									{@const appointment = appointments.find(
-										(apt) => apt.date === dateString && apt.hour === hour
-									)}
-									<td class="p-1 text-center">
-										{#if appointment}
-											{@const appointmentDetails = createAppointmentDetails(appointment)}
-											<button
-												class="min-h-12 w-full rounded bg-info p-2 text-xs text-info-content transition-colors hover:opacity-80"
-												onclick={() => openAppointmentDetails(appointment)}
-											>
-												<div class="truncate font-semibold">
-													{appointmentDetails.room_name}
-												</div>
-												{#if appointmentDetails.package_name}
-													<div class="truncate text-xs text-info-content/70">
-														{appointmentDetails.package_name}
-													</div>
-												{/if}
-												{#if appointmentDetails.has_last_session}
-													<div class="flex items-center justify-center gap-1 text-xs font-semibold">
-														<ClockAlert size={12} />
-														<span>Son ders</span>
-													</div>
-												{/if}
-											</button>
-										{:else}
-											<div
-												class="flex min-h-12 items-center justify-center rounded bg-base-200 p-2 text-base-content/40"
-											>
-												<span class="text-xs">-</span>
-											</div>
-										{/if}
-									</td>
-								{/each}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		</div>
-	</div>
+	<Schedule
+		weekStart={currentWeekStart()}
+		entityName={trainerName || ''}
+		entityBadge={{
+			text: 'Eğitmen',
+			color: 'info'
+		}}
+		{getSlotData}
+		onSlotClick={handleScheduleSlotClick}
+	/>
 </div>
 
 <!-- Appointment Details Modal -->
