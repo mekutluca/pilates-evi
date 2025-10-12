@@ -212,13 +212,16 @@
 		}
 	}
 
-	// Week navigation functions
-	function currentWeekStart(): Date {
-		return getWeekStart(new Date(assignmentForm.start_date || getCurrentWeekMonday()));
-	}
+	// Week navigation - reactive to start_date changes
+	const currentWeekStart = $derived.by(() => {
+		// In extension mode, use the extension start date
+		// Otherwise use the form's start_date or current week
+		const startDate = assignmentForm.start_date || getCurrentWeekMonday();
+		return getWeekStart(new Date(startDate));
+	});
 
 	async function goToPreviousWeek() {
-		const currentWeek = currentWeekStart();
+		const currentWeek = currentWeekStart;
 		const newWeekStart = new SvelteDate(currentWeek.getTime());
 		newWeekStart.setDate(newWeekStart.getDate() - 7);
 		assignmentForm.start_date = formatDateParam(newWeekStart);
@@ -226,7 +229,7 @@
 	}
 
 	async function goToNextWeek() {
-		const currentWeek = currentWeekStart();
+		const currentWeek = currentWeekStart;
 		const newWeekStart = new SvelteDate(currentWeek.getTime());
 		newWeekStart.setDate(newWeekStart.getDate() + 7);
 		assignmentForm.start_date = formatDateParam(newWeekStart);
@@ -255,7 +258,7 @@
 	// Check if we're viewing the current week
 	const isCurrentWeek = $derived(() => {
 		const now = getWeekStart(new Date());
-		return currentWeekStart().getTime() === now.getTime();
+		return currentWeekStart.getTime() === now.getTime();
 	});
 
 	// Handle click outside to close date picker
@@ -469,7 +472,7 @@
 			selectedTimeSlots.splice(existingIndex, 1);
 		} else {
 			// Calculate the actual date for this day in the current week
-			const weekStart = currentWeekStart();
+			const weekStart = currentWeekStart;
 			const slotDate = getDateForDayOfWeek(weekStart, day);
 			const dateString = formatDateParam(slotDate);
 
@@ -793,8 +796,8 @@
 							Ders Seçimi
 						</h2>
 
+					{#if packages.length === 0}
 						<!-- Package Selection -->
-						{#if packages.length === 0}
 							<!-- Empty state when no packages exist -->
 							<div class="flex flex-col items-center justify-center py-16 text-center">
 								<Dumbbell class="mb-4 h-16 w-16 text-base-content/30" />
@@ -810,6 +813,7 @@
 								</a>
 							</div>
 						{:else}
+							<!-- Normal Mode - Show all packages -->
 							<div class="space-y-6">
 								<!-- Private Packages -->
 								{#if groupedPackages().private.length > 0}
@@ -1068,7 +1072,9 @@
 
 								<div class="form-control max-w-md">
 									<label class="label" for="package-count">
-										<span class="label-text font-medium">Kaç Paket Oluşturulacak?</span>
+										<span class="label-text font-medium">
+											Kaç Paket Oluşturulacak?
+										</span>
 									</label>
 									<input
 										id="package-count"
@@ -1190,7 +1196,7 @@
 												onclick={toggleDatePicker}
 												type="button"
 											>
-												{formatWeekRange(currentWeekStart())}
+												{formatWeekRange(currentWeekStart)}
 											</button>
 
 											{#if showDatePicker}
@@ -1201,7 +1207,7 @@
 													<input
 														type="date"
 														class="input-bordered input input-sm w-full"
-														value={formatDateParam(currentWeekStart())}
+														value={formatDateParam(currentWeekStart)}
 														onchange={handleDateSelect}
 														min={new Date().toISOString().split('T')[0]}
 													/>
@@ -1236,7 +1242,7 @@
 									{@const selectedRoom = rooms.find((r) => r.id === assignmentForm.room_id)}
 									{#if selectedRoom}
 										<Schedule
-											weekStart={currentWeekStart()}
+											weekStart={currentWeekStart}
 											entityName={selectedRoom.name || ''}
 											entityBadge={{
 												text: 'Oda',

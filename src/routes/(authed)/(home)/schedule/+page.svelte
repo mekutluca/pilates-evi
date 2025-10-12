@@ -6,6 +6,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
+	import Plus from '@lucide/svelte/icons/plus';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -550,21 +551,21 @@
 	{#snippet header()}
 		<div class="flex items-center justify-between">
 			<h3 class="text-lg font-bold">Randevu Detayları</h3>
-			{#if selectedAppointment && isPrivatePackage(selectedAppointment)}
-				<button
-					type="button"
+			{#if selectedAppointment && selectedAppointment.purchase_id}
+				<a
+					href="/extend?purchase_id={selectedAppointment.purchase_id}"
 					class="btn btn-sm btn-warning"
-					onclick={() => openExtensionModal(selectedAppointment!)}
 				>
-					Paketi uzat
-				</button>
+					<Plus size={16} />
+					Paketi Uzat
+				</a>
 			{/if}
 		</div>
 	{/snippet}
 	{#if selectedAppointment}
 		<div class="space-y-4">
-			<!-- Extension Alert Strip -->
-			{#if isLastSessionAndExtendable(selectedAppointment)}
+			<!-- Extension Alert Strip - Only for private lessons -->
+			{#if isLastSessionAndExtendable(selectedAppointment) && selectedAppointment.purchase_id}
 				<div class="alert alert-warning p-3">
 					<div class="flex items-center gap-2">
 						<ClockAlert size={16} />
@@ -573,52 +574,75 @@
 				</div>
 			{/if}
 
-			<!-- Time and Room Info -->
-			<div class="card bg-base-200">
-				<div class="card-body p-4">
-					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
-						<div>
-							<strong>Gün:</strong>
+			<div class="space-y-3">
+				<!-- Room -->
+				<div>
+					<div class="text-xs text-base-content/60">Oda</div>
+					<div class="font-medium">{selectedAppointment.room_name}</div>
+				</div>
+
+				<!-- Day & Time -->
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<div class="text-xs text-base-content/60">Gün</div>
+						<div class="font-medium">
 							{selectedAppointment.date
 								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
 								: '-'}
 						</div>
-						<div>
-							<strong>Saat:</strong>
+					</div>
+					<div>
+						<div class="text-xs text-base-content/60">Saat</div>
+						<div class="font-medium">
 							{selectedAppointment.hour !== null
 								? getTimeRangeString(selectedAppointment.hour)
 								: '-'}
 						</div>
 					</div>
 				</div>
-			</div>
 
-			<!-- Trainer Info -->
-			<div>
-				<h4 class="mb-2 text-base font-semibold">Eğitmen</h4>
-				<div class="badge badge-info">{selectedAppointment.trainer_name}</div>
-			</div>
-
-			<!-- Package Info -->
-			<div>
-				<h4 class="mb-2 text-base font-semibold">Ders</h4>
-				<div class="space-y-2">
-					<div class="badge badge-accent">
-						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
-					</div>
+				<!-- Trainer -->
+				<div>
+					<div class="text-xs text-base-content/60">Eğitmen</div>
+					<div class="font-medium">{selectedAppointment.trainer_name}</div>
 				</div>
-			</div>
 
-			<!-- Trainees -->
-			<div>
-				<h4 class="mb-2 text-base font-semibold">
-					Öğrenciler ({selectedAppointment.trainee_count})
-				</h4>
-				<div class="flex flex-wrap gap-2">
-					{#each selectedAppointment.trainee_names || [] as traineeName, index (traineeName + index)}
-						<div class="badge badge-success">{traineeName}</div>
-					{/each}
+				<!-- Package -->
+				<div>
+					<div class="text-xs text-base-content/60">Ders</div>
+					<div class="font-medium">{selectedAppointment.package_name || 'Ders Bilgisi Yok'}</div>
+				</div>
+
+				<!-- Trainees -->
+				<div>
+					<div class="text-xs text-base-content/60">
+						Öğrenciler ({selectedAppointment.trainee_count})
+					</div>
+					<div class="space-y-2">
+						{#each selectedAppointment.appointment_trainees || [] as trainee (trainee.id)}
+							{@const isLastLesson =
+								trainee.session_number === trainee.total_sessions &&
+								trainee.total_sessions !== null}
+							{@const isGroupLesson = selectedAppointment.group_lesson_id !== null}
+							<div class="flex items-center justify-between gap-2">
+								<div class="flex-1 font-medium">
+									{trainee.pe_trainees?.name || '-'}
+									{#if isLastLesson}
+										<span class="ml-2 text-xs text-warning">(Son ders)</span>
+									{/if}
+								</div>
+								{#if isGroupLesson && trainee.purchase_id}
+									<a
+										href="/extend?purchase_id={trainee.purchase_id}"
+										class="btn flex-shrink-0 btn-xs btn-warning"
+									>
+										<Plus size={14} />
+										Uzat
+									</a>
+								{/if}
+							</div>
+						{/each}
+					</div>
 				</div>
 			</div>
 		</div>

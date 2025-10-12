@@ -20,7 +20,9 @@ export interface AppointmentTraineeRelation {
 	id: string;
 	session_number: number | null;
 	total_sessions: number | null;
+	purchase_id: string | null;
 	pe_trainees: { id: string; name: string } | null;
+	pe_purchases: { successor_id: string | null } | null;
 }
 
 // Time slot pattern for schedule (now stored as JSON in pe_purchases)
@@ -43,6 +45,7 @@ export interface PackageInfo {
 export interface PurchaseRelation {
 	id: string;
 	reschedule_left: number | null;
+	successor_id?: string | null;
 	pe_packages?: PackageInfo | null;
 }
 

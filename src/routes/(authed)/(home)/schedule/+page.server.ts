@@ -47,6 +47,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			pe_purchases(
 				id,
 				reschedule_left,
+				successor_id,
 				pe_packages(id, name, package_type, weeks_duration, lessons_per_week)
 			),
 			pe_group_lessons(
@@ -57,7 +58,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 				id,
 				session_number,
 				total_sessions,
-				pe_trainees(id, name)
+				purchase_id,
+				pe_trainees(id, name),
+				pe_purchases(successor_id)
 			)
 		`
 		)
