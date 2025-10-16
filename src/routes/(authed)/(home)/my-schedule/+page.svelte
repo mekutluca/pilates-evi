@@ -19,7 +19,8 @@
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDayOfWeekFromDate
+		getDayOfWeekFromDate,
+		formatDayMonth
 	} from '$lib/utils/date-utils';
 	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
 
@@ -217,8 +218,8 @@
 	{/snippet}
 	{#if selectedAppointment}
 		<div class="space-y-4">
-			<!-- Extension Alert Strip -->
-			{#if selectedAppointment.has_last_session}
+			<!-- Extension Alert Strip - Only for private lessons with last session -->
+			{#if selectedAppointment.has_last_session && selectedAppointment.purchase_id}
 				<div class="alert alert-warning p-3">
 					<div class="flex items-center gap-2">
 						<ClockAlert size={16} />
@@ -227,46 +228,66 @@
 				</div>
 			{/if}
 
-			<!-- Time and Room Info -->
-			<div class="card bg-base-200">
-				<div class="card-body p-4">
-					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
-						<div>
-							<strong>Gün:</strong>
+			<div class="space-y-3">
+				<!-- Room -->
+				<div>
+					<div class="text-xs text-base-content/60">Oda</div>
+					<div class="font-medium">{selectedAppointment.room_name}</div>
+				</div>
+
+				<!-- Day & Time -->
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<div class="text-xs text-base-content/60">Gün</div>
+						<div class="font-medium">
 							{selectedAppointment.date
 								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
 								: '-'}
 						</div>
-						<div>
-							<strong>Saat:</strong>
+					</div>
+					<div>
+						<div class="text-xs text-base-content/60">Saat</div>
+						<div class="font-medium">
 							{selectedAppointment.hour !== null
 								? getTimeRangeString(selectedAppointment.hour)
 								: '-'}
 						</div>
 					</div>
 				</div>
-			</div>
 
-			<!-- Package Info -->
-			<div>
-				<h4 class="mb-2 text-base font-semibold">Ders</h4>
-				<div class="space-y-2">
-					<div class="badge badge-secondary">
-						{selectedAppointment.package_name || 'Ders Bilgisi Yok'}
-					</div>
+				<!-- Trainer -->
+				<div>
+					<div class="text-xs text-base-content/60">Eğitmen</div>
+					<div class="font-medium">{selectedAppointment.trainer_name}</div>
 				</div>
-			</div>
 
-			<!-- Trainees -->
-			<div>
-				<h4 class="mb-2 text-base font-semibold">
-					Öğrenciler ({selectedAppointment.trainee_count})
-				</h4>
-				<div class="flex flex-wrap gap-2">
-					{#each selectedAppointment.trainee_names || [] as traineeName, index (traineeName + index)}
-						<div class="badge badge-success">{traineeName}</div>
-					{/each}
+				<!-- Package -->
+				<div>
+					<div class="text-xs text-base-content/60">Ders</div>
+					<div class="font-medium">{selectedAppointment.package_name || 'Ders Bilgisi Yok'}</div>
+				</div>
+
+				<!-- Trainees -->
+				<div>
+					<div class="text-xs text-base-content/60">
+						Öğrenciler ({selectedAppointment.trainee_count})
+					</div>
+					<div class="space-y-2">
+						{#each selectedAppointment.appointment_trainees || [] as trainee (trainee.id)}
+							{@const isLastLesson =
+								trainee.session_number === trainee.total_sessions &&
+								trainee.total_sessions !== null &&
+								!trainee.pe_purchases?.successor_id}
+							<div class="flex items-center justify-between gap-2">
+								<div class="flex-1 font-medium">
+									{trainee.pe_trainees?.name || '-'}
+									{#if isLastLesson}
+										<span class="ml-2 text-xs text-warning">(Son ders)</span>
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
 				</div>
 			</div>
 		</div>
