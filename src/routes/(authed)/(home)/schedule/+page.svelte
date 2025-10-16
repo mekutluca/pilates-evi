@@ -215,11 +215,6 @@
 			return false;
 		}
 
-		// Check if the package group has reschedules remaining
-		if (!appointment.purchase_id || (appointment.reschedule_left ?? 0) <= 0) {
-			return false; // No reschedules left
-		}
-
 		// Calculate time until appointment
 		const now = new SvelteDate();
 		let appointmentDateTime: SvelteDate;
@@ -234,9 +229,14 @@
 
 		const hoursUntil = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-		// Rule 3: Admin can reschedule any future appointment if reschedules are available
+		// Rule 2: Admin can reschedule any future appointment (no reschedule limit check)
 		if (data.userRole === 'admin') {
 			return hoursUntil > 0;
+		}
+
+		// Rule 3: For non-admin users, check if the package has reschedules remaining
+		if (!appointment.purchase_id || (appointment.reschedule_left ?? 0) <= 0) {
+			return false; // No reschedules left
 		}
 
 		// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
@@ -524,7 +524,7 @@
 						<div class="flex items-center gap-3">
 							<div class="alert alert-info px-3 py-2">
 								<div class="text-sm">
-									<strong>Erteleme Modu:</strong>
+									<strong>Zaman Değiştirme Modu:</strong>
 									{selectedAppointment.trainer_name} - {selectedAppointment.package_name}
 								</div>
 							</div>
@@ -656,9 +656,9 @@
 				onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
 			>
 				{#if (selectedAppointment.reschedule_left ?? 0) >= 999}
-					Ertele
+					Zamanını Değiştir
 				{:else}
-					Ertele ({selectedAppointment.reschedule_left} kaldı)
+					Zamanını Değiştir ({selectedAppointment.reschedule_left} kaldı)
 				{/if}
 			</button>
 		{/if}
@@ -678,7 +678,7 @@
 <!-- Reschedule Confirmation Modal -->
 <Modal
 	bind:open={showRescheduleConfirmation}
-	title="Randevuyu Ertele"
+	title="Randevu Zamanını Değiştir"
 	size="lg"
 	onClose={() => {
 		selectedRescheduleSlot = null;
@@ -804,11 +804,11 @@
 				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
 
 				<fieldset class="fieldset">
-					<legend class="fieldset-legend">Erteleme Sebebi (İsteğe bağlı)</legend>
+					<legend class="fieldset-legend">Değişiklik Sebebi (İsteğe bağlı)</legend>
 					<textarea
 						name="reason"
 						class="textarea-bordered textarea w-full"
-						placeholder="Randevu erteleme sebebini açıklayın..."
+						placeholder="Randevu değişikliği sebebini açıklayın..."
 						rows="2"
 					></textarea>
 				</fieldset>

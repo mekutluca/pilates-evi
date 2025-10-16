@@ -142,34 +142,37 @@ export const actions: Actions = {
 		if (hoursUntil < 0) {
 			return fail(400, {
 				success: false,
-				message: 'Başlamış olan randevular ertelenemez'
+				message: 'Başlamış olan randevuların vakti değiştirilemez'
 			});
 		}
 
-		// Check if the purchase has reschedules remaining
+		// Get purchase and reschedule information (needed for all roles)
 		const purchase = currentAppointment.pe_purchases;
 		const rescheduleLeft = purchase?.reschedule_left || 0;
 
-		// Check if reschedules are allowed and if there are reschedules remaining
-		// Note: reschedule_left of 999 indicates unlimited reschedules (when reschedule_limit is null)
-		if (rescheduleLeft <= 0) {
-			return fail(400, {
-				success: false,
-				message: 'Bu satın alma için erteleme hakkı kalmamış'
-			});
-		}
-
-		// Rule 3: Admin can reschedule any future appointment if reschedules are available
+		// Rule 2: Admin can reschedule any future appointment (no reschedule limit check)
 		if (userRole === 'admin') {
-			// Already checked hoursUntil > 0 and rescheduleLeft > 0 above, so admin can proceed
+			// Admin can proceed without checking reschedule limits
 		}
-		// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
-		else if (userRole === 'coordinator') {
-			if (hoursUntil < 23) {
+		// Rule 3: For non-admin users, check reschedule permissions and limits
+		else {
+			// Check if reschedules are allowed and if there are reschedules remaining
+			// Note: reschedule_left of 999 indicates unlimited reschedules (when reschedule_limit is null)
+			if (rescheduleLeft <= 0) {
 				return fail(400, {
 					success: false,
-					message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
+					message: 'Bu satın alma için randevu değiştirme hakkı kalmamış'
 				});
+			}
+
+			// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
+			if (userRole === 'coordinator') {
+				if (hoursUntil < 23) {
+					return fail(400, {
+						success: false,
+						message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
+					});
+				}
 			}
 		}
 
@@ -230,298 +233,27 @@ export const actions: Actions = {
 			});
 		}
 
-		// Decrement reschedule_left count, but only if it's not unlimited (999)
-		// For unlimited reschedules, keep the count at 999
-		const newRescheduleLeft = rescheduleLeft >= 999 ? 999 : Math.max(0, rescheduleLeft - 1);
+		// Decrement reschedule_left count, but only if:
+		// 1. Purchase exists
+		// 2. User is not an admin (admins don't consume reschedule credits)
+		// 3. Reschedule count is not unlimited (999)
+		if (purchase && userRole !== 'admin') {
+			const newRescheduleLeft = rescheduleLeft >= 999 ? 999 : Math.max(0, rescheduleLeft - 1);
 
-		const { error: decrementError } = await supabase
-			.from('pe_purchases')
-			.update({
-				reschedule_left: newRescheduleLeft
-			})
-			.eq('id', purchase.id)
-			.gt('reschedule_left', 0); // Only update if reschedule_left is greater than 0
-
-		if (decrementError) {
-			console.error('Error decrementing reschedule count:', decrementError);
-			// Don't fail the request if decrement fails, just log it
-		}
-
-		return { success: true, message: 'Randevu başarıyla ertelendi' };
-	}
-
-	// TODO: Implement extendPackage action for new schema when extensions are ready
-	/*
-	extendPackage: async ({ request, locals: { supabase, user } }) => {
-		if (!user) {
-			return fail(401, { success: false, message: 'Unauthorized' });
-		}
-
-		const formData = await request.formData();
-
-		try {
-			const purchaseId = parseInt(getRequiredFormDataString(formData, 'purchase_id'));
-			const packageCount = parseInt(getRequiredFormDataString(formData, 'package_count'));
-
-			if (packageCount < 1 || packageCount > 20) {
-				return fail(400, {
-					success: false,
-					message: 'Paket sayısı 1 ile 20 arasında olmalıdır'
-				});
-			}
-
-			// Get original purchase data
-			const { data: originalPurchase, error: fetchError } = await supabase
+			const { error: decrementError } = await supabase
 				.from('pe_purchases')
-				.select(
-					'*, pe_packages!inner(package_type, reschedule_limit, reschedulable, weeks_duration)'
-				)
-				.eq('id', purchaseId)
-				.single();
+				.update({
+					reschedule_left: newRescheduleLeft
+				})
+				.eq('id', purchase.id)
+				.gt('reschedule_left', 0); // Only update if reschedule_left is greater than 0
 
-			if (fetchError || !originalPurchase) {
-				return fail(400, {
-					success: false,
-					message: 'Satın alma bulunamadı'
-				});
+			if (decrementError) {
+				console.error('Error decrementing reschedule count:', decrementError);
+				// Don't fail the request if decrement fails, just log it
 			}
-
-			// Only allow extending private packages
-			if (originalPurchase.pe_packages.package_type !== 'private') {
-				return fail(400, {
-					success: false,
-					message: 'Sadece özel paketler uzatılabilir'
-				});
-			}
-
-			// Check if this purchase has already been extended (has a successor)
-			if (originalPurchase.successor_id !== null) {
-				return fail(400, {
-					success: false,
-					message: 'Bu satın alma zaten uzatılmış. Uzatma işlemi sadece en son pakete yapılabilir'
-				});
-			}
-
-			// Get the package duration
-			const packageWeeksDuration = originalPurchase.pe_packages.weeks_duration;
-			if (!packageWeeksDuration) {
-				return fail(400, {
-					success: false,
-					message: 'Paket süre bilgisi bulunamadı'
-				});
-			}
-
-			// Check for conflicts before creating extensions
-			const roomId = originalPurchase.room_id;
-			const trainerId = originalPurchase.trainer_id;
-			const timeSlots = originalPurchase.time_slots as TimeSlotPattern[];
-
-			// Calculate starting date for extensions
-			const originalEndDate = new Date(originalPurchase.end_date!);
-
-			// Check each package extension for conflicts
-			for (let packageIndex = 0; packageIndex < packageCount; packageIndex++) {
-				const packageStartDate = new Date(originalEndDate);
-				packageStartDate.setDate(
-					originalEndDate.getDate() + 1 + packageIndex * packageWeeksDuration * 7
-				);
-
-				// Check each time slot for each week in this package
-				for (const slot of timeSlots) {
-					for (let week = 0; week < packageWeeksDuration; week++) {
-						const appointmentDate = new Date(packageStartDate);
-						appointmentDate.setDate(packageStartDate.getDate() + week * 7);
-
-						// Calculate the actual date for this day of week
-						const dayNames = [
-							'sunday',
-							'monday',
-							'tuesday',
-							'wednesday',
-							'thursday',
-							'friday',
-							'saturday'
-						];
-						const targetDayIndex = dayNames.indexOf(slot.day);
-						const currentDayIndex = appointmentDate.getDay();
-						const daysToAdd = (targetDayIndex - currentDayIndex + 7) % 7;
-
-						appointmentDate.setDate(appointmentDate.getDate() + daysToAdd);
-
-						// Check for conflicts with existing appointments
-						const { data: conflictingAppointment } = await supabase
-							.from('pe_appointments')
-							.select('id, pe_purchases!inner(room_id, trainer_id)')
-							.or(`pe_purchases.room_id.eq.${roomId},pe_purchases.trainer_id.eq.${trainerId}`)
-							.eq('appointment_date', appointmentDate.toISOString().split('T')[0])
-							.eq('hour', slot.hour)
-							.eq('status', 'scheduled')
-							.maybeSingle();
-
-						if (conflictingAppointment) {
-							const dateStr = appointmentDate.toLocaleDateString('tr-TR');
-							const dayNames_TR = [
-								'Pazar',
-								'Pazartesi',
-								'Salı',
-								'Çarşamba',
-								'Perşembe',
-								'Cuma',
-								'Cumartesi'
-							];
-							const dayName = dayNames_TR[appointmentDate.getDay()];
-
-							return fail(400, {
-								success: false,
-								message: `${dateStr} (${dayName}) tarihindeki ${slot.hour}:00 zaman dilimi seçilen oda veya eğitmen için zaten dolu. Paket ${packageIndex + 1} oluşturulamaz.`
-							});
-						}
-					}
-				}
-			}
-
-			// Create multiple package group entries (conflicts already checked above)
-			const createdPackageGroups = [];
-			let previousPackageGroupId = purchaseId;
-
-			for (let i = 0; i < packageCount; i++) {
-				const extensionStartDate = new Date(originalEndDate);
-				extensionStartDate.setDate(originalEndDate.getDate() + 1 + i * packageWeeksDuration * 7);
-
-				const extensionEndDate = new Date(extensionStartDate);
-				extensionEndDate.setDate(extensionStartDate.getDate() + packageWeeksDuration * 7 - 1);
-
-				const extensionAppointmentsUntil = new Date(extensionEndDate);
-
-				// Create new purchase entry
-				const { data: extensionPurchase, error: extensionError } = await supabase
-					.from('pe_purchases')
-					.insert({
-						package_id: originalPurchase.package_id,
-						reschedule_left: originalPurchase.pe_packages.reschedulable
-							? (originalPurchase.pe_packages.reschedule_limit ?? 999)
-							: 0,
-						start_date: extensionStartDate.toISOString().split('T')[0],
-						end_date: extensionEndDate.toISOString().split('T')[0],
-						appointments_created_until: extensionAppointmentsUntil.toISOString().split('T')[0],
-						time_slots: originalPurchase.time_slots,
-						room_id: originalPurchase.room_id,
-						trainer_id: originalPurchase.trainer_id
-					})
-					.select('id')
-					.single();
-
-				if (extensionError) {
-					// Rollback: delete any previously created purchases
-					for (const createdGroup of createdPackageGroups) {
-						await supabase.from('pe_purchases').delete().eq('id', createdGroup.id);
-					}
-					return fail(500, {
-						success: false,
-						message: 'Uzatma işlemi sırasında hata oluştu: ' + extensionError.message
-					});
-				}
-
-				createdPackageGroups.push(extensionPurchase);
-
-				// Update the predecessor's successor_id to point to this new purchase
-				const { error: updateSuccessorError } = await supabase
-					.from('pe_purchases')
-					.update({ successor_id: extensionPurchase.id })
-					.eq('id', previousPackageGroupId);
-
-				if (updateSuccessorError) {
-					console.error('Error updating successor_id:', updateSuccessorError);
-					// Don't fail the request if successor update fails, just log it
-				}
-
-				// Set this purchase as the predecessor for the next iteration
-				previousPackageGroupId = extensionPurchase.id;
-			}
-
-			// Create appointments for all extension packages
-			const allAppointments = [];
-
-			for (let packageIndex = 0; packageIndex < createdPackageGroups.length; packageIndex++) {
-				const extensionPurchase = createdPackageGroups[packageIndex];
-
-				// Generate a unique series_id for this extension package
-				const extensionSeriesId = randomUUID();
-
-				// Calculate start date for this package
-				const packageStartDate = new Date(originalEndDate);
-				packageStartDate.setDate(
-					originalEndDate.getDate() + 1 + packageIndex * packageWeeksDuration * 7
-				);
-
-				// Calculate total sessions for this extension package (weeks × lessons per week)
-				const totalSessionsInExtension = packageWeeksDuration * timeSlots.length;
-				const extensionAppointments = [];
-				let sessionCounter = 1;
-
-				// Create appointments week by week, then slot by slot within each week
-				for (let week = 0; week < packageWeeksDuration; week++) {
-					for (const slot of timeSlots) {
-						const appointmentDate = new Date(packageStartDate);
-						appointmentDate.setDate(packageStartDate.getDate() + week * 7);
-
-						// Calculate the actual date for this day of the week
-						const dayNames = [
-							'sunday',
-							'monday',
-							'tuesday',
-							'wednesday',
-							'thursday',
-							'friday',
-							'saturday'
-						];
-						const targetDayIndex = dayNames.indexOf(slot.day);
-						const currentDayIndex = appointmentDate.getDay();
-						const daysToAdd = (targetDayIndex - currentDayIndex + 7) % 7;
-
-						appointmentDate.setDate(appointmentDate.getDate() + daysToAdd);
-
-						extensionAppointments.push({
-							purchase_id: extensionPurchase.id,
-							hour: slot.hour,
-							appointment_date: appointmentDate.toISOString().split('T')[0],
-							series_id: extensionSeriesId,
-							session_number: sessionCounter++,
-							total_sessions: totalSessionsInExtension,
-							status: 'scheduled'
-						});
-					}
-				}
-
-				allAppointments.push(...extensionAppointments);
-			}
-
-			// Insert all extension appointments
-			const { error: appointmentsError } = await supabase
-				.from('pe_appointments')
-				.insert(allAppointments);
-
-			if (appointmentsError) {
-				// Rollback: delete all created purchases
-				for (const createdGroup of createdPackageGroups) {
-					await supabase.from('pe_purchases').delete().eq('id', createdGroup.id);
-				}
-				return fail(500, {
-					success: false,
-					message: 'Randevular oluşturulurken hata oluştu: ' + appointmentsError.message
-				});
-			}
-
-			return {
-				success: true,
-				message: `Paket başarıyla ${packageCount} kez uzatıldı`
-			};
-		} catch (err) {
-			return fail(400, {
-				success: false,
-				message: err instanceof Error ? err.message : 'Geçersiz form verisi'
-			});
 		}
+
+		return { success: true, message: 'Randevu vakti başarıyla değiştirildi' };
 	}
-	*/
 };

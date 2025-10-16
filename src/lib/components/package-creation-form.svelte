@@ -257,7 +257,7 @@
 									<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10">
 										<CalendarSync class="h-4 w-4 text-warning" />
 									</div>
-									<h3 class="text-sm font-semibold">Erteleme Ayarları</h3>
+									<h3 class="text-sm font-semibold">Randevu Değiştirme Ayarları</h3>
 								</div>
 								<div class="divider m-0"></div>
 
@@ -272,15 +272,15 @@
 												bind:checked={reschedulable}
 											/>
 											<div class="flex-1">
-												<div class="text-sm font-medium">Erteleme İzni</div>
-												<div class="text-xs text-base-content/60">Dersler ertelenebilir</div>
+												<div class="text-sm font-medium">Randevu Değiştirme İzni</div>
+												<div class="text-xs text-base-content/60">Derslerin zamanı değiştirilebilir</div>
 											</div>
 										</label>
 									</div>
 
 									{#if showRescheduleLimit}
 										<div class="rounded-lg bg-base-200 p-2">
-											<div class="mb-2 text-xs text-base-content/70">Erteleme Limiti</div>
+											<div class="mb-2 text-xs text-base-content/70">Değiştirme Limiti</div>
 											<div class="flex items-center gap-2">
 												<input
 													type="number"
