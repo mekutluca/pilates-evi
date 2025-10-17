@@ -29,7 +29,11 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Geçerli bir email adresi girin' });
 		}
 
+		// Generate a UUID for the new trainee
+		const traineeId = crypto.randomUUID();
+
 		const { error: createError } = await supabase.from('pe_trainees').insert({
+			id: traineeId,
 			name,
 			email,
 			phone,
