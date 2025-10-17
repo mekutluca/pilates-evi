@@ -162,16 +162,16 @@ export const actions: Actions = {
 
 		if (updateError) {
 			console.error('Error updating trainee:', updateError);
-			return fail(500, { message: 'Öğrenci güncellenirken hata oluştu' });
+			return fail(500, { success: false, message: 'Öğrenci güncellenirken hata oluştu' });
 		}
 
-		return { success: true };
+		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},
 
 	archiveTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
 		// Check permissions - only admin and coordinator can archive trainees
 		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
 		}
 
 		const traineeId = params.id;
@@ -187,7 +187,7 @@ export const actions: Actions = {
 
 		if (archiveError) {
 			console.error('Error archiving trainee:', archiveError);
-			return fail(500, { message: 'Öğrenci arşivlenirken hata oluştu' });
+			return fail(500, { success: false, message: 'Öğrenci arşivlenirken hata oluştu' });
 		}
 
 		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
@@ -196,7 +196,7 @@ export const actions: Actions = {
 	restoreTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
 		// Check permissions - only admin and coordinator can restore trainees
 		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
 		}
 
 		const traineeId = params.id;
@@ -212,7 +212,7 @@ export const actions: Actions = {
 
 		if (restoreError) {
 			console.error('Error restoring trainee:', restoreError);
-			return fail(500, { message: 'Öğrenci geri yüklenirken hata oluştu' });
+			return fail(500, { success: false, message: 'Öğrenci geri yüklenirken hata oluştu' });
 		}
 
 		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
