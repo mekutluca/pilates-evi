@@ -24,6 +24,7 @@
 	} from '$lib/utils/date-utils';
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/components/schedule.types';
+	import DatePicker from '$lib/components/date-picker.svelte';
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
@@ -242,10 +243,8 @@
 		await reloadAppointments();
 	}
 
-	async function handleDateSelect(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const selectedDate = new Date(target.value);
-		const weekStart = getWeekStart(selectedDate);
+	async function handleDateSelect(date: Date) {
+		const weekStart = getWeekStart(date);
 		assignmentForm.start_date = formatDateParam(weekStart);
 		showDatePicker = false;
 		await reloadAppointments();
@@ -1201,23 +1200,13 @@
 
 											{#if showDatePicker}
 												<div
-													class="absolute top-full left-1/2 z-50 mt-2 min-w-56 -translate-x-1/2 transform rounded-lg border border-base-300 bg-base-100 p-4 shadow-lg"
+													class="absolute top-full left-1/2 z-50 mt-2 -translate-x-1/2 transform"
 												>
-													<div class="mb-2 text-sm text-base-content/70">Tarih seçin:</div>
-													<input
-														type="date"
-														class="input-bordered input input-sm w-full"
-														value={formatDateParam(currentWeekStart)}
-														onchange={handleDateSelect}
-														min={new Date().toISOString().split('T')[0]}
+													<DatePicker
+														value={currentWeekStart}
+														onDateSelect={handleDateSelect}
+														onClose={() => (showDatePicker = false)}
 													/>
-													<button
-														class="btn mt-2 w-full btn-ghost btn-xs"
-														onclick={() => (showDatePicker = false)}
-														type="button"
-													>
-														İptal
-													</button>
 												</div>
 											{/if}
 

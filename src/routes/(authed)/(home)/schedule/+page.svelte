@@ -31,6 +31,7 @@
 	import Modal from '$lib/components/modal.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/components/schedule.types';
+	import DatePicker from '$lib/components/date-picker.svelte';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
@@ -106,22 +107,8 @@
 		navigateToWeek(getWeekStart(new Date()));
 	}
 
-	function handleDateSelect(event: Event) {
-		const target = event.target as HTMLInputElement;
-		// If the value is empty (cleared), default to current week
-		if (!target.value) {
-			goToCurrentWeek();
-			showDatePicker = false;
-			return;
-		}
-		const selectedDate = new Date(target.value);
-		// Check if the date is valid
-		if (isNaN(selectedDate.getTime())) {
-			goToCurrentWeek();
-			showDatePicker = false;
-			return;
-		}
-		const weekStart = getWeekStart(selectedDate);
+	function handleDateSelect(date: Date) {
+		const weekStart = getWeekStart(date);
 		navigateToWeek(weekStart);
 		showDatePicker = false;
 	}
@@ -479,33 +466,12 @@
 					</button>
 
 					{#if showDatePicker}
-						<div
-							class="absolute top-full left-1/2 z-50 mt-2 min-w-56 -translate-x-1/2 transform rounded-lg border border-base-300 bg-base-100 p-4 shadow-lg"
-						>
-							<div class="mb-2 text-sm text-base-content/70">Tarih seçin:</div>
-							<input
-								type="date"
-								class="input-bordered input w-full"
-								value={formatDateParam(currentWeekStart())}
-								onchange={handleDateSelect}
+						<div class="absolute top-full left-1/2 z-50 mt-2 -translate-x-1/2 transform">
+							<DatePicker
+								value={currentWeekStart()}
+								onDateSelect={handleDateSelect}
+								onClose={() => (showDatePicker = false)}
 							/>
-							<div class="mt-2 flex gap-2">
-								<button
-									class="btn flex-1 btn-ghost btn-sm"
-									onclick={() => {
-										goToCurrentWeek();
-										showDatePicker = false;
-									}}
-								>
-									Bugün
-								</button>
-								<button
-									class="btn flex-1 btn-ghost btn-sm"
-									onclick={() => (showDatePicker = false)}
-								>
-									İptal
-								</button>
-							</div>
 						</div>
 					{/if}
 
