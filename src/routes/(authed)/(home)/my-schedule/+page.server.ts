@@ -20,7 +20,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 	// Get week parameter from URL or default to current week
 	const weekParam = url.searchParams.get('week');
-	const currentDate = weekParam ? new Date(weekParam) : new Date();
+	let currentDate = weekParam ? new Date(weekParam) : new Date();
+
+	// If the date is invalid (e.g., from cleared date picker), default to current date
+	if (isNaN(currentDate.getTime())) {
+		currentDate = new Date();
+	}
 
 	// Calculate start and end of the week (Monday to Sunday)
 	const weekStart = new Date(currentDate);

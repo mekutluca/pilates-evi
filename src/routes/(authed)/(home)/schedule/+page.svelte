@@ -108,7 +108,19 @@
 
 	function handleDateSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
+		// If the value is empty (cleared), default to current week
+		if (!target.value) {
+			goToCurrentWeek();
+			showDatePicker = false;
+			return;
+		}
 		const selectedDate = new Date(target.value);
+		// Check if the date is valid
+		if (isNaN(selectedDate.getTime())) {
+			goToCurrentWeek();
+			showDatePicker = false;
+			return;
+		}
 		const weekStart = getWeekStart(selectedDate);
 		navigateToWeek(weekStart);
 		showDatePicker = false;
@@ -477,12 +489,23 @@
 								value={formatDateParam(currentWeekStart())}
 								onchange={handleDateSelect}
 							/>
-							<button
-								class="btn mt-2 w-full btn-ghost btn-sm"
-								onclick={() => (showDatePicker = false)}
-							>
-								İptal
-							</button>
+							<div class="mt-2 flex gap-2">
+								<button
+									class="btn flex-1 btn-ghost btn-sm"
+									onclick={() => {
+										goToCurrentWeek();
+										showDatePicker = false;
+									}}
+								>
+									Bugün
+								</button>
+								<button
+									class="btn flex-1 btn-ghost btn-sm"
+									onclick={() => (showDatePicker = false)}
+								>
+									İptal
+								</button>
+							</div>
 						</div>
 					{/if}
 

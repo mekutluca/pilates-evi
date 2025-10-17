@@ -131,6 +131,10 @@ export const load: PageServerLoad = async ({
 	// If we have package details, fetch appointments for the specific date range and room/trainer
 	if (packageId && roomId && trainerId && startDateParam && weeksDuration) {
 		const start = new Date(startDateParam);
+		// Validate the start date
+		if (isNaN(start.getTime())) {
+			throw error(400, 'Geçersiz başlangıç tarihi');
+		}
 		const end = new Date(start);
 		end.setDate(start.getDate() + parseInt(weeksDuration) * 7);
 
@@ -158,6 +162,10 @@ export const load: PageServerLoad = async ({
 		// If we have room, trainer and start date but not weeks_duration, load with a default range
 		// This handles navigation state where duration hasn't been calculated yet
 		const start = new Date(startDateParam);
+		// Validate the start date
+		if (isNaN(start.getTime())) {
+			throw error(400, 'Geçersiz başlangıç tarihi');
+		}
 		const end = new Date(start);
 		end.setDate(start.getDate() + 52 * 7); // Default to 1 year
 
