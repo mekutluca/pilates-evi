@@ -104,10 +104,9 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
-		// Disable the user account
+		// Ban the user account for 100 years (effectively indefinite)
 		const { error: disableError } = await admin.auth.admin.updateUserById(trainerId, {
-			ban_duration: 'none', // Indefinite ban
-			user_metadata: { banned: true }
+			ban_duration: '876000h' // 100 years
 		});
 
 		if (disableError) {
@@ -143,10 +142,9 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
-		// Re-enable the user account
+		// Unban the user account
 		const { error: enableError } = await admin.auth.admin.updateUserById(trainerId, {
-			ban_duration: '0s', // Remove ban
-			user_metadata: { banned: false }
+			ban_duration: 'none' // Remove ban
 		});
 
 		if (enableError) {
