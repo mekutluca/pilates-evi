@@ -20,6 +20,7 @@
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { validation } from '$lib/utils/validation';
 
 	let { data } = $props();
 	let { trainee, groupMemberships } = $derived(data);
@@ -198,6 +199,8 @@
 										id="email"
 										class="input-bordered input w-full"
 										value={trainee.email || ''}
+										pattern={validation.email.pattern}
+										title={validation.email.title}
 									/>
 								</div>
 
@@ -211,6 +214,9 @@
 										id="phone"
 										class="input-bordered input w-full"
 										value={trainee.phone}
+										pattern={validation.phone.pattern}
+										title={validation.phone.title}
+										maxlength={validation.phone.maxlength}
 										required
 									/>
 								</div>
@@ -237,7 +243,7 @@
 								<div>
 									<p class="text-xs text-base-content/70">Telefon</p>
 									<a
-										href="tel:{trainee.phone}"
+										href="tel:+90{trainee.phone}"
 										class="font-medium transition-colors hover:text-success"
 									>
 										{trainee.phone}

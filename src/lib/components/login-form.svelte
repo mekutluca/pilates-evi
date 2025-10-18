@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import Modal from './modal.svelte';
+	import { validation } from '$lib/utils/validation';
 
 	let {
 		class: className = '',
@@ -81,7 +82,16 @@
 		{#if formType === 'login' || formType === 'forgot-password'}
 			<fieldset class="fieldset">
 				<legend class="fieldset-legend">Email</legend>
-				<input class="input" id="email" type="email" placeholder="" required bind:value={email} />
+				<input
+					class="input"
+					id="email"
+					type="email"
+					placeholder=""
+					pattern={validation.email.pattern}
+					title={validation.email.title}
+					required
+					bind:value={email}
+				/>
 			</fieldset>
 		{/if}
 		{#if formType === 'login' || formType === 'reset-password'}

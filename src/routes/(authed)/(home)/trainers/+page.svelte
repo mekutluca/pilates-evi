@@ -16,6 +16,7 @@
 	import type { ActionItem } from '$lib/types/ActionItem';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import { validation } from '$lib/utils/validation';
 
 	let { data } = $props();
 	let { trainers: initialTrainers, userRole } = $derived(data);
@@ -102,7 +103,7 @@
 			key: 'phone',
 			title: 'Telefon',
 			render: (trainer: Trainer) =>
-				`<a href="tel:${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
+				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
 		},
 		{
 			key: 'active_appointments',
@@ -238,6 +239,9 @@
 				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
+				pattern={validation.phone.pattern}
+				title={validation.phone.title}
+				maxlength={validation.phone.maxlength}
 				required
 			/>
 		</fieldset>
@@ -250,6 +254,8 @@
 				class="input w-full"
 				bind:value={email}
 				placeholder="ornek@email.com"
+				pattern={validation.email.pattern}
+				title={validation.email.title}
 				required
 			/>
 		</fieldset>
@@ -327,7 +333,10 @@
 				name="phone"
 				class="input w-full"
 				bind:value={phone}
-				placeholder="05xx xxx xx xx"
+				placeholder="5xx xxx xx xx"
+				pattern={validation.phone.pattern}
+				title={validation.phone.title}
+				maxlength={validation.phone.maxlength}
 				required
 			/>
 		</fieldset>

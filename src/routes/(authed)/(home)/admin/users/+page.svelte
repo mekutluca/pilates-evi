@@ -13,6 +13,7 @@
 	import type { ActionItem } from '$lib/types/ActionItem.js';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import { validation } from '$lib/utils/validation';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -215,7 +216,15 @@
 
 		<fieldset class="fieldset">
 			<legend class="fieldset-legend">Email</legend>
-			<input type="email" name="email" class="input w-full" bind:value={email} required />
+			<input
+				type="email"
+				name="email"
+				class="input w-full"
+				bind:value={email}
+				pattern={validation.email.pattern}
+				title={validation.email.title}
+				required
+			/>
 		</fieldset>
 
 		<fieldset class="fieldset">
