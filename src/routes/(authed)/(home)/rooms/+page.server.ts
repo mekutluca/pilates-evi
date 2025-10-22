@@ -68,6 +68,30 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const roomId = getRequiredFormDataString(formData, 'roomId');
 
+		// Check if room has future appointments
+		const today = new Date().toISOString().split('T')[0];
+		const { data: futureAppointments, error: checkError } = await supabase
+			.from('pe_appointments')
+			.select('id')
+			.eq('room_id', roomId)
+			.gte('date', today)
+			.limit(1);
+
+		if (checkError) {
+			return fail(500, {
+				success: false,
+				message: 'Gelecek randevular kontrol edilirken hata: ' + checkError.message
+			});
+		}
+
+		if (futureAppointments && futureAppointments.length > 0) {
+			return fail(400, {
+				success: false,
+				message:
+					'Bu odanın gelecek randevuları var. Odayı arşivlemeden önce randevuları başka bir odaya aktarmalısınız.'
+			});
+		}
+
 		const { error: archiveError } = await supabase
 			.from('pe_rooms')
 			.update({ is_active: false })

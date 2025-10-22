@@ -104,6 +104,30 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
+		// Check if trainer has future appointments
+		const today = new Date().toISOString().split('T')[0];
+		const { data: futureAppointments, error: checkError } = await supabase
+			.from('pe_appointments')
+			.select('id')
+			.eq('trainer_id', trainerId)
+			.gte('date', today)
+			.limit(1);
+
+		if (checkError) {
+			return fail(500, {
+				success: false,
+				message: 'Gelecek randevular kontrol edilirken hata: ' + checkError.message
+			});
+		}
+
+		if (futureAppointments && futureAppointments.length > 0) {
+			return fail(400, {
+				success: false,
+				message:
+					'Bu eğitmenin gelecek randevuları var. Eğitmeni arşivlemeden önce randevuları başka bir eğitmene aktarmalısınız.'
+			});
+		}
+
 		// Ban the user account for 100 years (effectively indefinite)
 		const { error: disableError } = await admin.auth.admin.updateUserById(trainerId, {
 			ban_duration: '876000h' // 100 years
