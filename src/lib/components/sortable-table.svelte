@@ -23,6 +23,7 @@
 		actions?: ActionItem[] | ((item: T) => ActionItem[]);
 		actionsTitle?: string;
 		onRowClick?: (item: T) => void;
+		itemsPerPage?: number;
 	}
 
 	let {
@@ -34,11 +35,13 @@
 		defaultSortOrder = 'asc',
 		actions = [],
 		actionsTitle = 'İşlemler',
-		onRowClick
+		onRowClick,
+		itemsPerPage = 10
 	}: Props = $props();
 
 	let sortKey = $state(defaultSortKey);
 	let sortOrder = $state<'asc' | 'desc'>(defaultSortOrder);
+	let currentPage = $state(1);
 
 	const filteredAndSortedData = $derived(() => {
 		if (!data || !Array.isArray(data)) {
@@ -88,6 +91,13 @@
 		}
 	});
 
+	const totalPages = $derived(Math.ceil(filteredAndSortedData().length / itemsPerPage));
+	const paginatedData = $derived(() => {
+		const startIndex = (currentPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		return filteredAndSortedData().slice(startIndex, endIndex);
+	});
+
 	function getPropertyValue(obj: T, path: string): string | number {
 		try {
 			if (!obj || !path) return '';
@@ -122,7 +132,48 @@
 			sortKey = columnKey;
 			sortOrder = 'asc';
 		}
+		currentPage = 1;
 	}
+
+	function goToPage(page: number) {
+		if (page >= 1 && page <= totalPages) {
+			currentPage = page;
+		}
+	}
+
+	function getPageNumbers(): (number | string)[] {
+		if (totalPages <= 7) {
+			return Array.from({ length: totalPages }, (_, i) => i + 1);
+		}
+
+		const pages: (number | string)[] = [1];
+
+		if (currentPage > 3) {
+			pages.push('...');
+		}
+
+		const startPage = Math.max(2, currentPage - 1);
+		const endPage = Math.min(totalPages - 1, currentPage + 1);
+
+		for (let i = startPage; i <= endPage; i++) {
+			pages.push(i);
+		}
+
+		if (currentPage < totalPages - 2) {
+			pages.push('...');
+		}
+
+		if (totalPages > 1) {
+			pages.push(totalPages);
+		}
+
+		return pages;
+	}
+
+	$effect(() => {
+		searchTerm;
+		currentPage = 1;
+	});
 
 	function getSortIcon(columnKey: string) {
 		if (sortKey !== columnKey) return null;
@@ -175,7 +226,8 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredAndSortedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
+						{#each paginatedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
+							{@const globalIndex = (currentPage - 1) * itemsPerPage + index}
 							<tr
 								class={onRowClick ? 'cursor-pointer transition-colors hover:bg-base-200' : ''}
 								onclick={() => onRowClick?.(item)}
@@ -184,12 +236,12 @@
 									<td class={column.class || ''}>
 										{#if column.renderComponent}
 											{@const Component = column.renderComponent}
-											<Component {item} {index} />
+											<Component {item} index={globalIndex} />
 										{:else if column.render}
 											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-											{@html getColumnValue(item, column, index)}
+											{@html getColumnValue(item, column, globalIndex)}
 										{:else}
-											{getColumnValue(item, column, index)}
+											{getColumnValue(item, column, globalIndex)}
 										{/if}
 									</td>
 								{/each}
@@ -217,6 +269,45 @@
 					</tbody>
 				</table>
 			</div>
+
+			{#if totalPages > 1}
+				<div class="mt-4 flex items-center justify-center gap-2">
+					<div class="join">
+						<button
+							class="join-item btn btn-sm"
+							onclick={() => goToPage(currentPage - 1)}
+							disabled={currentPage === 1}
+						>
+							«
+						</button>
+
+						{#each getPageNumbers() as page}
+							{#if page === '...'}
+								<button class="join-item btn btn-sm btn-disabled">...</button>
+							{:else}
+								<button
+									class="join-item btn btn-sm {currentPage === page ? 'btn-active' : ''}"
+									onclick={() => goToPage(page as number)}
+								>
+									{page}
+								</button>
+							{/if}
+						{/each}
+
+						<button
+							class="join-item btn btn-sm"
+							onclick={() => goToPage(currentPage + 1)}
+							disabled={currentPage === totalPages}
+						>
+							»
+						</button>
+					</div>
+				</div>
+
+				<div class="mt-2 text-center text-sm text-base-content/60">
+					Sayfa {currentPage} / {totalPages} (Toplam {filteredAndSortedData().length} kayıt)
+				</div>
+			{/if}
 		{/if}
 	</div>
 </div>

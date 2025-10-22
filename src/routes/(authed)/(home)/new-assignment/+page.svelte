@@ -145,6 +145,8 @@
 	// Step 3/4 state (Trainee selection - step number varies based on package type)
 	let selectedTrainees = $state<string[]>([]);
 	let traineeSearchTerm = $state('');
+	let traineeCurrentPage = $state(1);
+	const traineesPerPage = 12;
 
 	// Week navigation state
 	let showDatePicker = $state(false);
@@ -690,6 +692,20 @@
 		)
 	);
 
+	// Pagination for trainees
+	const traineeTotalPages = $derived(Math.ceil(filteredTrainees.length / traineesPerPage));
+	const paginatedTrainees = $derived(() => {
+		const startIndex = (traineeCurrentPage - 1) * traineesPerPage;
+		const endIndex = startIndex + traineesPerPage;
+		return filteredTrainees.slice(startIndex, endIndex);
+	});
+
+	// Reset page when search term changes
+	$effect(() => {
+		traineeSearchTerm;
+		traineeCurrentPage = 1;
+	});
+
 	// Trainee selection for step 3
 	function toggleTrainee(traineeId: string, event?: Event) {
 		// Don't allow toggling existing group lesson trainees
@@ -725,6 +741,42 @@
 	// Helper to get available capacity for new trainees
 	function getAvailableCapacity(): number {
 		return selectedPackage ? selectedPackage.max_capacity - getExistingTraineeCount() : 0;
+	}
+
+	// Trainee pagination functions
+	function goToTraineePage(page: number) {
+		if (page >= 1 && page <= traineeTotalPages) {
+			traineeCurrentPage = page;
+		}
+	}
+
+	function getTraineePageNumbers(): (number | string)[] {
+		if (traineeTotalPages <= 7) {
+			return Array.from({ length: traineeTotalPages }, (_, i) => i + 1);
+		}
+
+		const pages: (number | string)[] = [1];
+
+		if (traineeCurrentPage > 3) {
+			pages.push('...');
+		}
+
+		const startPage = Math.max(2, traineeCurrentPage - 1);
+		const endPage = Math.min(traineeTotalPages - 1, traineeCurrentPage + 1);
+
+		for (let i = startPage; i <= endPage; i++) {
+			pages.push(i);
+		}
+
+		if (traineeCurrentPage < traineeTotalPages - 2) {
+			pages.push('...');
+		}
+
+		if (traineeTotalPages > 1) {
+			pages.push(traineeTotalPages);
+		}
+
+		return pages;
 	}
 </script>
 
@@ -1297,7 +1349,7 @@
 
 								<!-- Trainee List -->
 								<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-									{#each filteredTrainees as trainee (trainee.id)}
+									{#each paginatedTrainees() as trainee (trainee.id)}
 										{@const isExisting = isTraineeInExistingGroupLesson(trainee.id)}
 										{@const isSelected = selectedTrainees.includes(trainee.id)}
 										<div
@@ -1358,6 +1410,50 @@
 								{#if traineeSearchTerm && filteredTrainees.length === 0}
 									<div class="py-8 text-center text-base-content/60">
 										Arama kriteriyle eşleşen öğrenci bulunamadı
+									</div>
+								{/if}
+
+								{#if traineeTotalPages > 1}
+									<div class="mt-6 flex items-center justify-center gap-2">
+										<div class="join">
+											<button
+												class="join-item btn btn-sm"
+												onclick={() => goToTraineePage(traineeCurrentPage - 1)}
+												disabled={traineeCurrentPage === 1}
+												type="button"
+											>
+												«
+											</button>
+
+											{#each getTraineePageNumbers() as page}
+												{#if page === '...'}
+													<button class="join-item btn btn-sm btn-disabled" type="button">...</button>
+												{:else}
+													<button
+														class="join-item btn btn-sm {traineeCurrentPage === page
+															? 'btn-active'
+															: ''}"
+														onclick={() => goToTraineePage(page as number)}
+														type="button"
+													>
+														{page}
+													</button>
+												{/if}
+											{/each}
+
+											<button
+												class="join-item btn btn-sm"
+												onclick={() => goToTraineePage(traineeCurrentPage + 1)}
+												disabled={traineeCurrentPage === traineeTotalPages}
+												type="button"
+											>
+												»
+											</button>
+										</div>
+									</div>
+
+									<div class="mt-2 text-center text-sm text-base-content/60">
+										Sayfa {traineeCurrentPage} / {traineeTotalPages} (Toplam {filteredTrainees.length} öğrenci)
 									</div>
 								{/if}
 							</div>
