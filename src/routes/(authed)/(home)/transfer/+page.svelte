@@ -183,7 +183,7 @@
 			const result = await response.json();
 
 			if (result.type === 'redirect' || result.type === 'success') {
-				toast.success('Aktarma başarıyla tamamlandı');
+				toast.success('Değişiklik başarıyla tamamlandı');
 				goto(result.location || '/schedule');
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || 'Bir hata oluştu');
@@ -240,7 +240,7 @@
 					{:else}
 						<ArrowLeftRight class="h-4 w-4" />
 					{/if}
-					Aktarmayı Onayla
+					Değişikliği Onayla
 				</button>
 			</div>
 		</div>

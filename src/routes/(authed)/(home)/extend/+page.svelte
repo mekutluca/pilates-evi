@@ -230,7 +230,7 @@
 					Mevcut paketi uzatın ve randevuları otomatik oluşturun
 				</p>
 			</div>
-			<button class="btn btn-warning" disabled={!canSubmit || isSubmitting} onclick={handleSubmit}>
+			<button class="btn btn-warning" disabled={!canSubmit() || isSubmitting} onclick={handleSubmit}>
 				{#if isSubmitting}
 					<LoaderCircle class="h-4 w-4 animate-spin" />
 				{:else}

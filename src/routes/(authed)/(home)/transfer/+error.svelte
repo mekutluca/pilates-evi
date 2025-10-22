@@ -18,7 +18,7 @@
 					Randevu seçilmedi.
 				</p>
 				<p class="mt-2 text-sm text-base-content/60">
-					Lütfen Takvim sayfasından değişiklik yapmak istediğiniz randevuyu seçin.
+					Lütfen Haftalık Program sayfasından değişiklik yapmak istediğiniz randevuyu seçin.
 				</p>
 			{:else if errorStatus === 400 && errorMessage === 'Geçmiş randevular değiştirilemez'}
 				<p class="text-base-content/80">
@@ -48,7 +48,7 @@
 		<div class="pt-8">
 			<a href="/schedule" class="btn btn-warning">
 				<ArrowLeft class="h-4 w-4" />
-				Takvime Dön
+				Haftalık Programa Dön
 			</a>
 		</div>
 	</div>
