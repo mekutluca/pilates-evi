@@ -50,6 +50,22 @@ export function safeGetRequiredFormDataString(
  * @param result - The action result
  * @returns The error message or a default message
  */
-export function getActionErrorMessage(result: { data?: { message?: string | null } }): string {
+export function getActionErrorMessage(result: {
+	data?: { message?: string | null } | string;
+}): string {
+	// Handle case where result.data is a string (can happen with serialization issues)
+	if (typeof result.data === 'string') {
+		try {
+			// Try to parse it as JSON
+			const parsedData = JSON.parse(result.data);
+			// Handle both object format and array format
+			return parsedData.message || parsedData[2] || result.data;
+		} catch {
+			// If parsing fails, return the string as-is
+			return result.data;
+		}
+	}
+
+	// Handle normal object case
 	return result.data?.message || 'Bir hata oluştu';
 }

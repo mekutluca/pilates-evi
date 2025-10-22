@@ -7,6 +7,7 @@ import Medal from '@lucide/svelte/icons/medal';
 import Calendar from '@lucide/svelte/icons/calendar';
 import Dumbbell from '@lucide/svelte/icons/dumbbell';
 import Plus from '@lucide/svelte/icons/plus';
+import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 
 export interface Route {
 	href: string;
@@ -42,6 +43,13 @@ export const allRoutes: Route[] = [
 		href: '/new-assignment',
 		label: 'Yeni Kayıt',
 		icon: Plus,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Genel'
+	},
+	{
+		href: '/transfer',
+		label: 'Randevu Değiştir',
+		icon: ArrowLeftRight,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Genel'
 	},

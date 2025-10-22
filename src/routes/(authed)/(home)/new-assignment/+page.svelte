@@ -22,6 +22,7 @@
 		formatDateParam,
 		getDateForDayOfWeek
 	} from '$lib/utils/date-utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/components/schedule.types';
 	import DatePicker from '$lib/components/date-picker.svelte';
@@ -405,12 +406,18 @@
 			if (result.type === 'success') {
 				toast.success(result.data?.message || 'Kayıt tamamlandı');
 				goto('/schedule');
+			} else if (result.type === 'failure') {
+				toast.error(getActionErrorMessage(result));
+				console.error('Assignment creation failed:', result);
 			} else {
-				toast.error(result.data?.message || 'Bir hata oluştu');
+				// Catch-all for unexpected response types
+				toast.error('Bir hata oluştu');
+				console.error('Unexpected result type:', result);
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
 			toast.error(`Bir hata oluştu: ${errorMessage}`);
+			console.error('Assignment creation error:', error);
 		} finally {
 			formLoading = false;
 		}

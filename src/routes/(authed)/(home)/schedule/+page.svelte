@@ -7,6 +7,7 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import Plus from '@lucide/svelte/icons/plus';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -638,6 +639,15 @@
 	{/if}
 
 	<div class="modal-action">
+		{#if selectedAppointment && (data.userRole === 'admin' || data.userRole === 'coordinator') && !isAppointmentInPast(selectedAppointment)}
+			<a
+				href="/transfer?appointment_id={selectedAppointment.id}"
+				class="btn btn-warning"
+			>
+				<ArrowLeftRight size={16} />
+				Değiştir
+			</a>
+		{/if}
 		{#if selectedAppointment && canRescheduleAppointment(selectedAppointment)}
 			<button
 				type="button"

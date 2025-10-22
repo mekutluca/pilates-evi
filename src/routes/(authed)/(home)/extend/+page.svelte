@@ -10,6 +10,7 @@
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
 	import { getDateForDayOfWeek, getWeekStart } from '$lib/utils/date-utils';
+	import { getActionErrorMessage } from '$lib/utils/form-utils';
 
 	let { data } = $props();
 	let { purchaseInfo, suggestedStartDate, lastAppointmentDate, purchaseChain } = $derived(data);
@@ -191,9 +192,11 @@
 				toast.success(result.data?.message || 'Uzatma başarıyla oluşturuldu');
 				goto('/schedule');
 			} else if (result.type === 'failure') {
-				toast.error(result.data?.message || 'Bir hata oluştu');
+				toast.error(getActionErrorMessage(result));
+				console.error('Extension failed:', result);
 			} else {
 				toast.error('Beklenmeyen bir hata oluştu');
+				console.error('Unexpected result type:', result);
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
