@@ -196,7 +196,7 @@
 		<!-- Mobile drawer -->
 		<div class="drawer lg:hidden">
 			<input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
-			<div class="drawer-content flex flex-col overflow-auto">
+			<div class="drawer-content flex flex-col overflow-auto bg-base-200">
 				{@render children()}
 			</div>
 			<div class="drawer-side">
@@ -240,7 +240,7 @@
 		</div>
 
 		<!-- Desktop scrollable content area -->
-		<div class="hidden flex-1 overflow-auto lg:block">
+		<div class="hidden flex-1 overflow-auto bg-base-200 lg:block">
 			{@render children()}
 		</div>
 	</div>

@@ -728,7 +728,7 @@
 	}
 </script>
 
-<div class="min-h-screen bg-base-200 p-4">
+<div class="p-4">
 	<div class="mx-auto max-w-6xl">
 		<!-- Header -->
 		<div class="mb-6">

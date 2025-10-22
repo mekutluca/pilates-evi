@@ -217,7 +217,7 @@
 	}
 </script>
 
-<div class="min-h-screen bg-base-200 p-4">
+<div class="p-4">
 	<div class="mx-auto max-w-7xl">
 		<!-- Header with Submit Button -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
