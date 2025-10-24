@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
 	import { getDateForDayOfWeek, formatDayMonth } from '$lib/utils/date-utils';
+	import { cn } from '$lib/utils';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import type { ScheduleSlot } from './schedule.types';
 	import type { DayOfWeek } from '$lib/types/Schedule';
@@ -152,18 +153,44 @@
 										</button>
 									{:else if slot.variant === 'available'}
 										{#if slot.clickable && !slot.disabled}
-											{@const isSelected = slot.label === 'Seçili'}
-											<button
-												class="group flex min-h-12 w-full cursor-pointer items-center justify-center rounded p-2 transition-colors {isSelected
-													? 'border-2 border-success bg-success'
-													: 'bg-success/20 hover:bg-success/30'}"
-												onclick={() => handleSlotClick(slot)}
-											>
-												<span
-													class="text-xs font-medium {isSelected
-														? 'text-success-content'
-														: 'text-success'}"
-												>
+											{@const isSelected = slot.label?.includes('Seçili')}
+											{@const color = slot.color || 'success'}
+											{@const buttonClass = cn(
+												'group flex min-h-12 w-full cursor-pointer items-center justify-center rounded p-2 transition-colors',
+												isSelected && color === 'primary' && 'border-2 border-primary bg-primary',
+												isSelected && color === 'secondary' && 'border-2 border-secondary bg-secondary',
+												isSelected && color === 'accent' && 'border-2 border-accent bg-accent',
+												isSelected && color === 'info' && 'border-2 border-info bg-info',
+												isSelected && color === 'success' && 'border-2 border-success bg-success',
+												isSelected && color === 'warning' && 'border-2 border-warning bg-warning',
+												isSelected && color === 'error' && 'border-2 border-error bg-error',
+												!isSelected && color === 'primary' && 'bg-primary/20 hover:bg-primary/30',
+												!isSelected && color === 'secondary' && 'bg-secondary/20 hover:bg-secondary/30',
+												!isSelected && color === 'accent' && 'bg-accent/20 hover:bg-accent/30',
+												!isSelected && color === 'info' && 'bg-info/20 hover:bg-info/30',
+												!isSelected && color === 'success' && 'bg-success/20 hover:bg-success/30',
+												!isSelected && color === 'warning' && 'bg-warning/20 hover:bg-warning/30',
+												!isSelected && color === 'error' && 'bg-error/20 hover:bg-error/30'
+											)}
+											{@const textClass = cn(
+												'text-xs font-medium',
+												isSelected && color === 'primary' && 'text-primary-content',
+												isSelected && color === 'secondary' && 'text-secondary-content',
+												isSelected && color === 'accent' && 'text-accent-content',
+												isSelected && color === 'info' && 'text-info-content',
+												isSelected && color === 'success' && 'text-success-content',
+												isSelected && color === 'warning' && 'text-warning-content',
+												isSelected && color === 'error' && 'text-error-content',
+												!isSelected && color === 'primary' && 'text-primary',
+												!isSelected && color === 'secondary' && 'text-secondary',
+												!isSelected && color === 'accent' && 'text-accent',
+												!isSelected && color === 'info' && 'text-info',
+												!isSelected && color === 'success' && 'text-success',
+												!isSelected && color === 'warning' && 'text-warning',
+												!isSelected && color === 'error' && 'text-error'
+											)}
+											<button class={buttonClass} onclick={() => handleSlotClick(slot)}>
+												<span class={textClass}>
 													{slot.label || 'Seç'}
 												</span>
 											</button>

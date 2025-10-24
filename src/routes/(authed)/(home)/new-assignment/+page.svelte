@@ -549,10 +549,7 @@
 			return false;
 		}
 
-		// Past slots are considered unavailable for selection
-		if (isSlotInPast(_entityId, day, hour)) {
-			return false;
-		}
+		// Past slots are now considered available for selection (removed restriction)
 
 		// Calculate all the dates this slot would occur on for the assignment duration
 		const startDate = new Date(assignmentForm.start_date);
@@ -612,14 +609,17 @@
 		const isAvailable = isSlotAvailable(assignmentForm.room_id, day, hour);
 		const isSelected = scheduleSelectedSlots.some((slot) => slot.day === day && slot.hour === hour);
 
+		// Check if room and trainer are selected (required to check availability)
+		const hasRoomAndTrainer =
+			assignmentForm.room_id.length > 0 && assignmentForm.trainer_id.length > 0;
+
 		// Find existing appointment in this slot
 		const appointment = appointments.find((apt) => {
 			return apt.room_id === assignmentForm.room_id && apt.date === dateString && apt.hour === hour;
 		});
 
 		if (appointment) {
-			// Note: appointments in new-assignment don't have relations loaded
-			// They're just used to show conflicts, so we show minimal info
+			// Appointment exists in this specific slot
 			return {
 				variant: 'appointment',
 				day,
@@ -630,42 +630,43 @@
 				color: 'error',
 				clickable: false
 			};
-		} else if (isPast) {
-			return {
-				variant: 'empty',
-				day,
-				hour,
-				date: dateString,
-				label: '-'
-			};
 		} else if (isSelected) {
+			// Selected slot - show with different styling for past dates
 			return {
 				variant: 'available',
 				day,
 				hour,
 				date: dateString,
-				label: 'Seçili',
-				clickable: true
+				label: isPast ? 'Seçili (Geçmiş)' : 'Seçili',
+				clickable: true,
+				...(isPast && { color: 'warning' as const }) // Use warning color for past selected slots
 			};
 		} else if (isAvailable && canSelectSlot()) {
+			// Available slot - show with different styling for past dates
 			return {
 				variant: 'available',
 				day,
 				hour,
 				date: dateString,
-				label: 'Seç',
-				clickable: true
+				label: isPast ? 'Seç (Geçmiş)' : 'Seç',
+				clickable: true,
+				...(isPast && { color: 'warning' as const }) // Use warning color for past available slots
 			};
-		} else if (isAvailable && !canSelectSlot()) {
+		} else if (hasRoomAndTrainer && !isAvailable) {
+			// Room and trainer are selected but slot is not available due to conflict
+			// Show as "Dolu" instead of "-" for clarity in new-assignment screen
 			return {
-				variant: 'available',
+				variant: 'appointment',
 				day,
 				hour,
 				date: dateString,
-				label: '-',
-				disabled: true
+				title: 'Dolu',
+				subtitle: '',
+				color: 'error',
+				clickable: false
 			};
 		} else {
+			// No room/trainer selected yet, or other unavailable state
 			return {
 				variant: 'empty',
 				day,

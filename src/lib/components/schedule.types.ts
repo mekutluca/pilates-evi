@@ -39,6 +39,7 @@ export interface AvailableSlot extends BaseSlotData {
 	label?: string; // Optional label like "Seç" or "Müsait"
 	clickable?: boolean;
 	disabled?: boolean; // For slots that are available but can't be selected
+	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
 	data?: RescheduleSlotData; // Data for reschedule slot selection
 }
 
