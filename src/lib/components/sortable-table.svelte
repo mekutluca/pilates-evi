@@ -42,6 +42,7 @@
 	let sortKey = $state(defaultSortKey);
 	let sortOrder = $state<'asc' | 'desc'>(defaultSortOrder);
 	let currentPage = $state(1);
+	let pageSize = $state(itemsPerPage);
 
 	const filteredAndSortedData = $derived(() => {
 		if (!data || !Array.isArray(data)) {
@@ -91,10 +92,10 @@
 		}
 	});
 
-	const totalPages = $derived(Math.ceil(filteredAndSortedData().length / itemsPerPage));
+	const totalPages = $derived(Math.ceil(filteredAndSortedData().length / pageSize));
 	const paginatedData = $derived(() => {
-		const startIndex = (currentPage - 1) * itemsPerPage;
-		const endIndex = startIndex + itemsPerPage;
+		const startIndex = (currentPage - 1) * pageSize;
+		const endIndex = startIndex + pageSize;
 		return filteredAndSortedData().slice(startIndex, endIndex);
 	});
 
@@ -183,6 +184,11 @@
 	function isColumnSortable(column: Column): boolean {
 		return column.sortable !== false;
 	}
+
+	function handlePageSizeChange(newSize: number) {
+		pageSize = newSize;
+		currentPage = 1;
+	}
 </script>
 
 <div class="card bg-base-100 shadow">
@@ -227,7 +233,7 @@
 					</thead>
 					<tbody>
 						{#each paginatedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
-							{@const globalIndex = (currentPage - 1) * itemsPerPage + index}
+							{@const globalIndex = (currentPage - 1) * pageSize + index}
 							<tr
 								class={onRowClick ? 'cursor-pointer transition-colors hover:bg-base-200' : ''}
 								onclick={() => onRowClick?.(item)}
@@ -270,8 +276,12 @@
 				</table>
 			</div>
 
-			{#if totalPages > 1}
-				<div class="mt-4 flex items-center justify-center gap-2">
+			<div class="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+				<div class="text-sm text-base-content/60">
+					Toplam {filteredAndSortedData().length} kayıt
+				</div>
+
+				{#if totalPages > 1}
 					<div class="join">
 						<button
 							class="join-item btn btn-sm"
@@ -302,12 +312,28 @@
 							»
 						</button>
 					</div>
-				</div>
+				{/if}
 
-				<div class="mt-2 text-center text-sm text-base-content/60">
-					Sayfa {currentPage} / {totalPages} (Toplam {filteredAndSortedData().length} kayıt)
+				<div class="flex items-center gap-2">
+					{#if totalPages > 1}
+						<span class="text-sm text-base-content/60">
+							Sayfa {currentPage} / {totalPages}
+						</span>
+						<span class="text-base-content/40">•</span>
+					{/if}
+					<span class="text-sm text-base-content/70">Sayfa başına:</span>
+					<select
+						class="select select-sm select-bordered w-20"
+						bind:value={pageSize}
+						onchange={() => handlePageSizeChange(pageSize)}
+					>
+						<option value={10}>10</option>
+						<option value={25}>25</option>
+						<option value={50}>50</option>
+						<option value={100}>100</option>
+					</select>
 				</div>
-			{/if}
+			</div>
 		{/if}
 	</div>
 </div>
