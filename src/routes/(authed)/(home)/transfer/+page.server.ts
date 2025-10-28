@@ -4,6 +4,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type { AppointmentWithDetails } from '$lib/types/Transfer';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
+import { addWeeksToDate, getDayOfWeekFromDate, buildAppointmentSlots } from '$lib/utils/date-utils';
+import type { DayOfWeek } from '$lib/types/Schedule';
 
 const APPOINTMENT_SELECT_QUERY = `
 	*,
@@ -81,7 +83,9 @@ async function getFutureAppointmentsByPurchase(
 		.from('pe_appointments')
 		.select(APPOINTMENT_SELECT_QUERY)
 		.eq('purchase_id', purchaseId)
-		.or(`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`);
+		.or(
+			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
+		);
 
 	let allAppointments = (appointments || []) as AppointmentWithDetails[];
 
@@ -112,7 +116,9 @@ async function getFutureAppointmentsByGroupLesson(
 		.from('pe_appointments')
 		.select(APPOINTMENT_SELECT_QUERY)
 		.eq('group_lesson_id', groupLessonId)
-		.or(`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`);
+		.or(
+			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
+		);
 
 	return (appointments || []) as AppointmentWithDetails[];
 }
@@ -155,7 +161,11 @@ async function hasConflict(
 	return { roomConflict, trainerConflict };
 }
 
-export const load: PageServerLoad = async ({ url, locals: { supabase, user, userRole }, parent }) => {
+export const load: PageServerLoad = async ({
+	url,
+	locals: { supabase, user, userRole },
+	parent
+}) => {
 	// Verify permissions
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
@@ -259,7 +269,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, user, user
 		appointment: appointment as AppointmentWithDetails,
 		rooms: rooms.filter((r) => r.is_active),
 		trainers: trainers.filter((t) => t.is_active),
-		futureAppointments: futureAppointments.map(a => ({
+		futureAppointments: futureAppointments.map((a) => ({
 			id: a.id,
 			date: a.date,
 			hour: a.hour,
@@ -267,7 +277,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, user, user
 			trainer_name: a.pe_trainers?.name || null
 		})),
 		futureAppointmentCount: futureAppointments.length,
-		allFromNowAppointments: allFromNowAppointments.map(a => ({
+		allFromNowAppointments: allFromNowAppointments.map((a) => ({
 			id: a.id,
 			date: a.date,
 			hour: a.hour,
@@ -405,6 +415,389 @@ export const actions: Actions = {
 				success: false,
 				message: 'Aktarma sırasında hata oluştu: ' + updateError.message
 			});
+		}
+
+		// Redirect to schedule
+		throw redirect(303, '/schedule');
+	},
+
+	shift_by_time: async ({ request, locals: { supabase, user, userRole } }) => {
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { success: false, message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
+		const scope = getRequiredFormDataString(formData, 'scope');
+		const weeks = Number(getRequiredFormDataString(formData, 'weeks'));
+
+		// Validation
+		if (weeks === 0) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırma süresi sıfırdan farklı olmalı'
+			});
+		}
+
+		if (weeks < -52 || weeks > 52) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırma süresi -52 ile 52 hafta arasında olmalı'
+			});
+		}
+
+		// Get the appointment
+		const { data: appointment } = await supabase
+			.from('pe_appointments')
+			.select('purchase_id, group_lesson_id, room_id, trainer_id')
+			.eq('id', appointmentId)
+			.single();
+
+		if (!appointment) {
+			return fail(404, { success: false, message: 'Randevu bulunamadı' });
+		}
+
+		// Get appointments to shift
+		let appointmentsToShift: AppointmentWithDetails[] = [];
+
+		if (scope === 'single') {
+			const { data: singleAppt } = await supabase
+				.from('pe_appointments')
+				.select(APPOINTMENT_SELECT_QUERY)
+				.eq('id', appointmentId)
+				.single();
+
+			if (singleAppt) {
+				appointmentsToShift = [singleAppt as AppointmentWithDetails];
+			}
+		} else if (scope === 'from_selected') {
+			if (appointment.purchase_id) {
+				appointmentsToShift = await getFutureAppointmentsByPurchase(
+					supabase,
+					appointmentId,
+					appointment.purchase_id
+				);
+			} else if (appointment.group_lesson_id) {
+				appointmentsToShift = await getFutureAppointmentsByGroupLesson(
+					supabase,
+					appointmentId,
+					appointment.group_lesson_id
+				);
+			}
+		} else if (scope === 'all_from_now') {
+			const today = new Date().toISOString().split('T')[0];
+
+			if (appointment.purchase_id) {
+				const purchaseChain = await getPurchaseSuccessorChain(supabase, appointment.purchase_id);
+				const { data: chainAppts } = await supabase
+					.from('pe_appointments')
+					.select(APPOINTMENT_SELECT_QUERY)
+					.in('purchase_id', purchaseChain)
+					.gte('date', today);
+
+				if (chainAppts) {
+					appointmentsToShift = chainAppts as AppointmentWithDetails[];
+				}
+			} else if (appointment.group_lesson_id) {
+				const { data: groupAppts } = await supabase
+					.from('pe_appointments')
+					.select(APPOINTMENT_SELECT_QUERY)
+					.eq('group_lesson_id', appointment.group_lesson_id)
+					.gte('date', today);
+
+				if (groupAppts) {
+					appointmentsToShift = groupAppts as AppointmentWithDetails[];
+				}
+			}
+		}
+
+		// Final conflict check
+		// Get all appointment IDs in the series that will be shifted (to exclude from conflicts)
+		const appointmentIdsInSeries = new Set(appointmentsToShift.map((a) => a.id));
+
+		const conflicts = [];
+		for (const apt of appointmentsToShift) {
+			if (!apt.date || apt.hour === null) continue;
+
+			const newDate = addWeeksToDate(apt.date, weeks);
+			let roomConflict = false;
+			let trainerConflict = false;
+
+			// Check room conflict
+			if (apt.room_id) {
+				const { data } = await supabase
+					.from('pe_appointments')
+					.select('id')
+					.eq('room_id', apt.room_id)
+					.eq('date', newDate)
+					.eq('hour', apt.hour)
+					.neq('id', apt.id);
+
+				// Check if any conflicts are NOT in the same series
+				if (data && data.length > 0) {
+					roomConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
+				}
+			}
+
+			// Check trainer conflict
+			if (apt.trainer_id) {
+				const { data } = await supabase
+					.from('pe_appointments')
+					.select('id')
+					.eq('trainer_id', apt.trainer_id)
+					.eq('date', newDate)
+					.eq('hour', apt.hour)
+					.neq('id', apt.id);
+
+				// Check if any conflicts are NOT in the same series
+				if (data && data.length > 0) {
+					trainerConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
+				}
+			}
+
+			if (roomConflict || trainerConflict) {
+				conflicts.push({ date: newDate, hour: apt.hour, roomConflict, trainerConflict });
+			}
+		}
+
+		if (conflicts.length > 0) {
+			return fail(400, {
+				success: false,
+				message: `${conflicts.length} çakışma tespit edildi. Lütfen önce çakışmaları kontrol edin.`,
+				conflicts
+			});
+		}
+
+		// Perform the shift - update each appointment's date
+		for (const apt of appointmentsToShift) {
+			if (apt.date) {
+				const newDate = addWeeksToDate(apt.date, weeks);
+				const { error: updateError } = await supabase
+					.from('pe_appointments')
+					.update({ date: newDate })
+					.eq('id', apt.id);
+
+				if (updateError) {
+					return fail(500, {
+						success: false,
+						message: 'Kaydırma sırasında hata oluştu: ' + updateError.message
+					});
+				}
+			}
+		}
+
+		// Redirect to schedule
+		throw redirect(303, '/schedule');
+	},
+
+	shift_by_slot: async ({ request, locals: { supabase, user, userRole } }) => {
+		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+			return fail(403, { success: false, message: 'Unauthorized' });
+		}
+
+		const formData = await request.formData();
+		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
+		const scope = getRequiredFormDataString(formData, 'scope');
+		const slots = Number(getRequiredFormDataString(formData, 'slots'));
+
+		// Validation
+		if (slots <= 0) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırma sayısı pozitif olmalı'
+			});
+		}
+
+		if (slots > 20) {
+			return fail(400, {
+				success: false,
+				message: "Kaydırma sayısı 20'den fazla olamaz"
+			});
+		}
+
+		// Get the appointment
+		const { data: appointment } = await supabase
+			.from('pe_appointments')
+			.select('purchase_id, group_lesson_id, room_id, trainer_id')
+			.eq('id', appointmentId)
+			.single();
+
+		if (!appointment) {
+			return fail(404, { success: false, message: 'Randevu bulunamadı' });
+		}
+
+		// Get appointments to shift (must be from_selected scope for slot shifting)
+		let appointmentsToShift: AppointmentWithDetails[] = [];
+
+		if (scope === 'from_selected') {
+			if (appointment.purchase_id) {
+				appointmentsToShift = await getFutureAppointmentsByPurchase(
+					supabase,
+					appointmentId,
+					appointment.purchase_id
+				);
+			} else if (appointment.group_lesson_id) {
+				appointmentsToShift = await getFutureAppointmentsByGroupLesson(
+					supabase,
+					appointmentId,
+					appointment.group_lesson_id
+				);
+			}
+		} else {
+			return fail(400, {
+				success: false,
+				message:
+					'Tekli kaydırma sadece "Seçilen ve sonraki tüm randevular" kapsamında kullanılabilir'
+			});
+		}
+
+		// Filter valid appointments
+		const validAppointments = appointmentsToShift.filter((a) => a.date && a.hour !== null);
+
+		if (validAppointments.length === 0) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırılacak geçerli randevu bulunamadı'
+			});
+		}
+
+		// Extract the time slot pattern (day of week + hour) from existing appointments
+		const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
+		const seenSlots = new Set<string>();
+
+		for (const apt of validAppointments) {
+			if (!apt.date || apt.hour === null) continue;
+			const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+			const slotKey = `${day}-${apt.hour}`;
+
+			if (!seenSlots.has(slotKey)) {
+				seenSlots.add(slotKey);
+				timeSlots.push({ day, hour: apt.hour });
+			}
+		}
+
+		// Sort time slots by day of week and hour to ensure consistent ordering
+		const dayOrder = {
+			sunday: 0,
+			monday: 1,
+			tuesday: 2,
+			wednesday: 3,
+			thursday: 4,
+			friday: 5,
+			saturday: 6
+		};
+		timeSlots.sort((a, b) => {
+			const dayDiff = dayOrder[a.day] - dayOrder[b.day];
+			if (dayDiff !== 0) return dayDiff;
+			return a.hour - b.hour;
+		});
+
+		// Build slots: existing + enough new ones to cover the shift
+		const firstAppointmentDate = new Date(validAppointments[0].date!);
+		const totalSlotsNeeded = validAppointments.length + slots;
+		const allSlots = buildAppointmentSlots(timeSlots, firstAppointmentDate, totalSlotsNeeded);
+
+		// Create a map of new dates for each appointment
+		// Each appointment shifts to the slot N positions ahead
+		const shiftMap: Array<{ id: number; newDate: string; newHour: number }> = [];
+
+		for (let i = 0; i < validAppointments.length; i++) {
+			const currentAppt = validAppointments[i];
+			const targetIndex = i + slots;
+			const targetSlot = allSlots[targetIndex];
+
+			if (targetSlot && currentAppt.hour !== null) {
+				shiftMap.push({
+					id: currentAppt.id,
+					newDate: targetSlot.date,
+					newHour: targetSlot.hour
+				});
+			}
+		}
+
+		if (shiftMap.length === 0) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırılacak randevu bulunamadı.'
+			});
+		}
+
+		// Get all appointment IDs in the series (to exclude from conflicts)
+		const appointmentIdsInSeries = new Set(validAppointments.map((a) => a.id));
+
+		// Final conflict check
+		const conflicts = [];
+		for (const shift of shiftMap) {
+			const originalAppt = validAppointments.find((a) => a.id === shift.id);
+			if (!originalAppt) continue;
+
+			let roomConflict = false;
+			let trainerConflict = false;
+
+			// Check room conflict
+			if (originalAppt.room_id) {
+				const { data } = await supabase
+					.from('pe_appointments')
+					.select('id')
+					.eq('room_id', originalAppt.room_id)
+					.eq('date', shift.newDate)
+					.eq('hour', shift.newHour)
+					.neq('id', shift.id);
+
+				// Check if any conflicts are NOT in the same series
+				if (data && data.length > 0) {
+					roomConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
+				}
+			}
+
+			// Check trainer conflict
+			if (originalAppt.trainer_id) {
+				const { data } = await supabase
+					.from('pe_appointments')
+					.select('id')
+					.eq('trainer_id', originalAppt.trainer_id)
+					.eq('date', shift.newDate)
+					.eq('hour', shift.newHour)
+					.neq('id', shift.id);
+
+				// Check if any conflicts are NOT in the same series
+				if (data && data.length > 0) {
+					trainerConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
+				}
+			}
+
+			if (roomConflict || trainerConflict) {
+				conflicts.push({ date: shift.newDate, hour: shift.newHour, roomConflict, trainerConflict });
+			}
+		}
+
+		if (conflicts.length > 0) {
+			return fail(400, {
+				success: false,
+				message: `${conflicts.length} çakışma tespit edildi. Lütfen önce çakışmaları kontrol edin.`,
+				conflicts
+			});
+		}
+
+		// Perform the shift - update each appointment's date and hour
+		// We need to do this in the correct order to avoid conflicts within the series
+		// We'll use a temporary update approach or do it in reverse order
+
+		// Sort in reverse order (from last to first) to avoid overwriting
+		const sortedShiftMap = [...shiftMap].reverse();
+
+		for (const shift of sortedShiftMap) {
+			const { error: updateError } = await supabase
+				.from('pe_appointments')
+				.update({ date: shift.newDate, hour: shift.newHour })
+				.eq('id', shift.id);
+
+			if (updateError) {
+				return fail(500, {
+					success: false,
+					message: 'Kaydırma sırasında hata oluştu: ' + updateError.message
+				});
+			}
 		}
 
 		// Redirect to schedule

@@ -146,6 +146,18 @@ export function formatDisplayDate(dateString: string | null): string {
 }
 
 /**
+ * Adds weeks to a date string and returns the result as YYYY-MM-DD
+ * @param dateString - The date string in YYYY-MM-DD format
+ * @param weeks - Number of weeks to add (can be negative)
+ * @returns New date string in YYYY-MM-DD format
+ */
+export function addWeeksToDate(dateString: string, weeks: number): string {
+	const date = new Date(dateString);
+	date.setDate(date.getDate() + weeks * 7);
+	return date.toISOString().split('T')[0];
+}
+
+/**
  * Calculates end date based on start date and duration in weeks
  * @param startDate - The start date string
  * @param weeksDuration - Duration in weeks
@@ -157,9 +169,81 @@ export function calculatePackageEndDate(
 ): string {
 	if (!startDate || !weeksDuration) return 'Belirsiz';
 
-	const start = new Date(startDate);
-	const end = new Date(start);
-	end.setDate(start.getDate() + weeksDuration * 7);
+	const endDateString = addWeeksToDate(startDate, weeksDuration);
+	return formatDisplayDate(endDateString);
+}
 
-	return formatDisplayDate(end.toISOString());
+/**
+ * Builds appointment slots based on a repeating time slot pattern
+ * Used for both package extension and slot-based appointment shifting
+ * @param timeSlots - Array of time slot patterns (day of week + hour)
+ * @param startDate - The first appointment date
+ * @param totalSlots - Total number of slots to generate
+ * @returns Array of appointment slots with date and hour
+ */
+export function buildAppointmentSlots(
+	timeSlots: Array<{ day: string; hour: number }>,
+	startDate: Date,
+	totalSlots: number
+): Array<{ date: string; hour: number }> {
+	const slots: Array<{ date: string; hour: number }> = [];
+
+	// Find which slot in the pattern corresponds to the start date
+	const startDayOfWeek = getDayOfWeekFromDate(startDate.toISOString().split('T')[0]);
+
+	// Find the starting slot index in the pattern
+	let startSlotIndex = timeSlots.findIndex((slot) => slot.day === startDayOfWeek);
+	if (startSlotIndex === -1) startSlotIndex = 0;
+
+	// Start from the week containing the start date
+	const currentWeekStart = new Date(startDate);
+	currentWeekStart.setDate(startDate.getDate() - startDate.getDay()); // Go to Sunday of this week
+
+	let slotsGenerated = 0;
+	let weekNum = 0;
+	let slotIndexInPattern = startSlotIndex;
+
+	while (slotsGenerated < totalSlots) {
+		const slot = timeSlots[slotIndexInPattern];
+
+		const dayMapping: Record<string, number> = {
+			sunday: 0,
+			monday: 1,
+			tuesday: 2,
+			wednesday: 3,
+			thursday: 4,
+			friday: 5,
+			saturday: 6
+		};
+		const dayIndex = dayMapping[slot.day] ?? 0;
+
+		const slotDate = new Date(currentWeekStart);
+		slotDate.setDate(currentWeekStart.getDate() + weekNum * 7 + dayIndex);
+
+		// Only include if this date is at or after the start date
+		if (
+			slotsGenerated > 0 ||
+			slotDate.toISOString().split('T')[0] === startDate.toISOString().split('T')[0]
+		) {
+			const year = slotDate.getFullYear();
+			const month = String(slotDate.getMonth() + 1).padStart(2, '0');
+			const day = String(slotDate.getDate()).padStart(2, '0');
+			const dateString = `${year}-${month}-${day}`;
+
+			slots.push({
+				date: dateString,
+				hour: slot.hour
+			});
+			slotsGenerated++;
+		}
+
+		// Move to next slot in pattern
+		slotIndexInPattern++;
+		if (slotIndexInPattern >= timeSlots.length) {
+			slotIndexInPattern = 0;
+			weekNum++;
+		}
+	}
+
+	return slots;
 }

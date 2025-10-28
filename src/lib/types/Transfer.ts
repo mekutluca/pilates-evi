@@ -1,5 +1,9 @@
 export type TransferScope = 'single' | 'from_selected' | 'all_from_now';
 
+export type TransferOperation = 'transfer' | 'shift';
+
+export type ShiftMode = 'by_time' | 'by_slot';
+
 export type TransferConflict = {
 	appointmentId: number;
 	date: string | null;
@@ -27,7 +31,10 @@ export type AppointmentWithDetails = {
 	pe_rooms: { id: string; name: string } | null;
 	pe_trainers: { id: string; name: string } | null;
 	pe_purchases: { id: string; pe_packages: { name: string; package_type: string } | null } | null;
-	pe_group_lessons: { id: string; pe_packages: { name: string; package_type: string } | null } | null;
+	pe_group_lessons: {
+		id: string;
+		pe_packages: { name: string; package_type: string } | null;
+	} | null;
 	pe_appointment_trainees: Array<{
 		id: number;
 		session_number: number | null;
