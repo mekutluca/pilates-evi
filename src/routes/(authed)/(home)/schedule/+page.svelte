@@ -8,6 +8,7 @@
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import Plus from '@lucide/svelte/icons/plus';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import CalendarArrowUp from '@lucide/svelte/icons/calendar-arrow-up';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -621,14 +622,24 @@
 										<span class="ml-2 text-xs text-warning">(Son ders)</span>
 									{/if}
 								</div>
-								{#if isGroupLesson && trainee.purchase_id}
-									<a
-										href="/extend?purchase_id={trainee.purchase_id}"
-										class="btn flex-shrink-0 btn-xs btn-warning"
-									>
-										<Plus size={14} />
-										Uzat
-									</a>
+								{#if isGroupLesson && trainee.purchase_id && trainee.pe_trainees?.id}
+									<div class="flex gap-1">
+										<a
+											href="/transfer?appointment_id={selectedAppointment.id}&trainee_id={trainee
+												.pe_trainees.id}"
+											class="btn flex-shrink-0 btn-xs btn-warning"
+										>
+											<CalendarArrowUp size={14} />
+											Kaydır
+										</a>
+										<a
+											href="/extend?purchase_id={trainee.purchase_id}"
+											class="btn flex-shrink-0 btn-xs btn-warning"
+										>
+											<Plus size={14} />
+											Uzat
+										</a>
+									</div>
 								{/if}
 							</div>
 						{/each}
@@ -640,10 +651,7 @@
 
 	<div class="modal-action">
 		{#if selectedAppointment && (data.userRole === 'admin' || data.userRole === 'coordinator') && !isAppointmentInPast(selectedAppointment)}
-			<a
-				href="/transfer?appointment_id={selectedAppointment.id}"
-				class="btn btn-warning"
-			>
+			<a href="/transfer?appointment_id={selectedAppointment.id}" class="btn btn-warning">
 				<ArrowLeftRight size={16} />
 				Değiştir
 			</a>

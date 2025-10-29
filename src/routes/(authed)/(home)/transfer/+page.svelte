@@ -26,10 +26,13 @@
 
 	const { data }: { data: PageData } = $props();
 
-	// Form state
-	let operation = $state<TransferOperation>('transfer');
+	// Trainee shift mode detection
+	const isTraineeShiftMode = $derived(!!data.traineeInfo);
+
+	// Form state - initialize based on trainee mode
+	let operation = $state<TransferOperation>(data.traineeInfo ? 'shift' : 'transfer');
 	let shiftMode = $state<ShiftMode>('by_time');
-	let scope = $state<TransferScope>('single');
+	let scope = $state<TransferScope>(data.traineeInfo ? 'from_selected' : 'single');
 	let selectedRoomId = $state('');
 	let selectedTrainerId = $state('');
 	let weeksToShift = $state(1);
@@ -128,6 +131,103 @@
 		}
 	}
 
+	async function checkTraineeCapacity(
+		validAppointments: Array<{ date: string; hour: number; id: number }>
+	) {
+		// Calculate target appointments based on shift mode
+		let targetAppointments: Array<{ date: string; hour: number; appointmentId: number }> = [];
+
+		if (isShiftByTimeMode) {
+			// Shift by weeks - target appointments are at shifted dates
+			targetAppointments = validAppointments.map((a) => ({
+				date: addWeeksToDate(a.date, weeksToShift),
+				hour: a.hour,
+				appointmentId: a.id
+			}));
+		} else if (isShiftBySlotMode) {
+			// Shift by slots - need to find target appointments N slots ahead
+			// For now, we'll get all group appointments and find the targets
+			const allGroupAppts = data.allFromNowAppointments
+				.filter((a) => a.date && a.hour !== null)
+				.sort((a, b) => {
+					const dateCompare = (a.date ?? '').localeCompare(b.date ?? '');
+					if (dateCompare !== 0) return dateCompare;
+					return (a.hour ?? 0) - (b.hour ?? 0);
+				});
+
+			targetAppointments = validAppointments
+				.map((a) => {
+					const currentIndex = allGroupAppts.findIndex((g) => g.id === a.id);
+					if (currentIndex === -1) return null;
+
+					const targetIndex = currentIndex + slotsToShift;
+					if (targetIndex >= allGroupAppts.length) return null;
+
+					const target = allGroupAppts[targetIndex];
+					return {
+						date: target.date!,
+						hour: target.hour!,
+						appointmentId: a.id
+					};
+				})
+				.filter((t): t is { date: string; hour: number; appointmentId: number } => t !== null);
+		}
+
+		if (targetAppointments.length === 0) {
+			untrack(() => {
+				hasChecked = true;
+				conflicts = [];
+				appointmentsChecked = 0;
+				checking = false;
+			});
+			return;
+		}
+
+		// Get package capacity from group lesson
+		const groupLesson = data.appointment.pe_group_lessons;
+		const maxCapacity = groupLesson?.pe_packages?.max_capacity || 10;
+
+		// Check capacity for each target appointment
+		const minDate = targetAppointments[0].date;
+		const maxDate = targetAppointments[targetAppointments.length - 1].date;
+
+		const response = await fetch(
+			`/api/check-group-capacity?room_id=${data.appointment.room_id}&trainer_id=${data.appointment.trainer_id}&start_date=${minDate}&end_date=${maxDate}&max_capacity=${maxCapacity}`
+		);
+
+		if (!response.ok) {
+			throw new Error('Failed to check capacity');
+		}
+
+		const result = await response.json();
+		const capacityIssues = result.capacityIssues || [];
+
+		// Map capacity issues to conflicts
+		const foundConflicts: TransferConflict[] = [];
+		for (const target of targetAppointments) {
+			const issue = capacityIssues.find(
+				(i: { date: string; hour: number }) => i.date === target.date && i.hour === target.hour
+			);
+
+			if (issue) {
+				foundConflicts.push({
+					appointmentId: target.appointmentId,
+					date: target.date,
+					hour: target.hour,
+					roomConflict: false, // Not relevant for capacity
+					trainerConflict: false // Not relevant for capacity
+				});
+			}
+		}
+
+		untrack(() => {
+			hasChecked = true;
+			conflicts = foundConflicts;
+			appointmentsChecked = validAppointments.length;
+			checking = false;
+		});
+	}
+
 	async function checkConflicts() {
 		untrack(() => {
 			checking = true;
@@ -145,6 +245,12 @@
 					conflicts = [];
 					appointmentsChecked = 0;
 				});
+				return;
+			}
+
+			// For trainee shift mode, check capacity instead of time conflicts
+			if (isTraineeShiftMode) {
+				await checkTraineeCapacity(validAppointments);
 				return;
 			}
 
@@ -290,7 +396,22 @@
 			let actionName = 'transfer';
 			let successMessage = 'Değişiklik başarıyla tamamlandı';
 
-			if (isShiftByTimeMode) {
+			// Trainee shift mode
+			if (isTraineeShiftMode && data.traineeInfo) {
+				formData.append('trainee_id', data.traineeInfo.id);
+
+				if (isShiftByTimeMode) {
+					actionName = 'shift_trainee_by_time';
+					formData.append('weeks', weeksToShift.toString());
+					successMessage = `${data.traineeInfo.name} başarıyla kaydırıldı`;
+				} else if (isShiftBySlotMode) {
+					actionName = 'shift_trainee_by_slot';
+					formData.append('slots', slotsToShift.toString());
+					successMessage = `${data.traineeInfo.name} başarıyla kaydırıldı`;
+				}
+			}
+			// Regular shift mode
+			else if (isShiftByTimeMode) {
 				actionName = 'shift_by_time';
 				formData.append('weeks', weeksToShift.toString());
 				successMessage = 'Zamana göre kaydırma başarıyla tamamlandı';
@@ -298,7 +419,9 @@
 				actionName = 'shift_by_slot';
 				formData.append('slots', slotsToShift.toString());
 				successMessage = 'Tekli kaydırma başarıyla tamamlandı';
-			} else {
+			}
+			// Transfer mode
+			else {
 				formData.append('new_room_id', selectedRoomId);
 				formData.append('new_trainer_id', selectedTrainerId);
 				formData.append('change_room', hasRoomSelected.toString());
@@ -387,6 +510,19 @@
 			<!-- Column 1: Transfer Settings -->
 			<div class="card bg-base-100 shadow-xl">
 				<div class="card-body">
+					<!-- Trainee Shift Mode Alert -->
+					{#if isTraineeShiftMode}
+						<div class="mb-4 alert alert-info">
+							<Package class="h-5 w-5" />
+							<div>
+								<h3 class="font-bold">Öğrenci Kaydırma Modu</h3>
+								<div class="text-sm">
+									<strong>{data.traineeInfo?.name}</strong> kaydırılıyor
+								</div>
+							</div>
+						</div>
+					{/if}
+
 					<h2 class="card-title text-lg">
 						<Calendar class="h-5 w-5 text-warning" />
 						İşlem Tipi
@@ -394,24 +530,26 @@
 
 					<!-- Operation Selection -->
 					<div class="space-y-2">
-						<div class="form-control">
-							<label class="label cursor-pointer justify-start gap-3">
-								<input
-									type="radio"
-									name="operation"
-									class="radio radio-warning"
-									value="transfer"
-									checked={operation === 'transfer'}
-									onchange={() => (operation = 'transfer')}
-								/>
-								<div class="flex flex-col">
-									<span class="text-sm text-base-content">Oda/Eğitmen Değiştir</span>
-									<span class="text-xs text-base-content/60"
-										>Randevuyu farklı oda veya eğitmene aktar</span
-									>
-								</div>
-							</label>
-						</div>
+						{#if !isTraineeShiftMode}
+							<div class="form-control">
+								<label class="label cursor-pointer justify-start gap-3">
+									<input
+										type="radio"
+										name="operation"
+										class="radio radio-warning"
+										value="transfer"
+										checked={operation === 'transfer'}
+										onchange={() => (operation = 'transfer')}
+									/>
+									<div class="flex flex-col">
+										<span class="text-sm text-base-content">Oda/Eğitmen Değiştir</span>
+										<span class="text-xs text-base-content/60"
+											>Randevuyu farklı oda veya eğitmene aktar</span
+										>
+									</div>
+								</label>
+							</div>
+						{/if}
 
 						<div class="form-control">
 							<label class="label cursor-pointer justify-start gap-3">
@@ -422,9 +560,12 @@
 									value="shift"
 									checked={operation === 'shift'}
 									onchange={() => (operation = 'shift')}
+									disabled={isTraineeShiftMode}
 								/>
 								<div class="flex flex-col">
-									<span class="text-sm text-base-content">Tarih Kaydır</span>
+									<span class="text-sm text-base-content"
+										>Tarih Kaydır {isTraineeShiftMode ? '(Otomatik seçili)' : ''}</span
+									>
 									<span class="text-xs text-base-content/60">Randevuları ileri kaydır</span>
 								</div>
 							</label>
