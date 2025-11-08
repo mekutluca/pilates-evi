@@ -58,7 +58,13 @@
 							{#each stats.purchasesThisWeek as purchase (purchase.id + purchase.trainee?.id)}
 								<li class="list-row items-center gap-3 rounded-lg bg-base-200 p-3">
 									<div class="flex-1">
-										<p class="font-medium">{purchase.trainee?.name || 'Bilinmeyen Öğrenci'}</p>
+										{#if purchase.trainee?.id}
+											<a href="/trainees/{purchase.trainee.id}" class="font-medium hover:underline">
+												{purchase.trainee.name}
+											</a>
+										{:else}
+											<p class="font-medium">Bilinmeyen Öğrenci</p>
+										{/if}
 										<p class="text-sm text-base-content/70">
 											{formatDisplayDate(purchase.created_at)}
 										</p>
