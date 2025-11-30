@@ -14,30 +14,22 @@
 
 		<div class="mt-6">
 			{#if errorStatus === 400 && errorMessage === 'Randevu ID gerekli'}
-				<p class="text-base-content/80">
-					Randevu seçilmedi.
-				</p>
+				<p class="text-base-content/80">Randevu seçilmedi.</p>
 				<p class="mt-2 text-sm text-base-content/60">
 					Lütfen Haftalık Program sayfasından değişiklik yapmak istediğiniz randevuyu seçin.
 				</p>
 			{:else if errorStatus === 400 && errorMessage === 'Geçmiş randevular değiştirilemez'}
-				<p class="text-base-content/80">
-					Geçmiş randevular değiştirilemez.
-				</p>
+				<p class="text-base-content/80">Geçmiş randevular değiştirilemez.</p>
 				<p class="mt-2 text-sm text-base-content/60">
 					Sadece gelecek tarihli randevular değiştirilebilir.
 				</p>
 			{:else if errorStatus === 404}
-				<p class="text-base-content/80">
-					Seçilen randevu bulunamadı.
-				</p>
+				<p class="text-base-content/80">Seçilen randevu bulunamadı.</p>
 				<p class="mt-2 text-sm text-base-content/60">
 					Randevu silinmiş veya değiştirilmiş olabilir.
 				</p>
 			{:else if errorStatus === 403}
-				<p class="text-base-content/80">
-					Bu sayfaya erişim yetkiniz bulunmuyor.
-				</p>
+				<p class="text-base-content/80">Bu sayfaya erişim yetkiniz bulunmuyor.</p>
 			{:else}
 				<p class="text-base-content/80">
 					{errorMessage}

@@ -13,7 +13,12 @@
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Dumbbell from '@lucide/svelte/icons/dumbbell';
-	import type { SelectedTimeSlot, ExistingGroupLesson, PackagePurchaseForm } from '$lib/types';
+	import type {
+		SelectedTimeSlot,
+		PackagePurchaseForm,
+		AvailableGroupTimeslot,
+		SelectedGroupTimeslot
+	} from '$lib/types';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
 	import {
@@ -29,12 +34,40 @@
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
-	let existingGroupLessons = $derived<ExistingGroupLesson[]>(
-		(data as { existingGroupLessons?: ExistingGroupLesson[] }).existingGroupLessons ?? []
-	);
-	let existingGroupLessonTrainees = $derived<string[]>(
-		(data as { existingGroupLessonTrainees?: string[] }).existingGroupLessonTrainees ?? []
-	);
+	let existingGroupLessonTrainees = $derived(data.existingGroupLessonTrainees ?? []);
+	let availableGroupTimeslots = $derived(data.availableGroupTimeslots ?? []);
+
+	// Group timeslots by day and sort by hour within each day
+	const DAY_ORDER: Record<string, number> = {
+		monday: 1,
+		tuesday: 2,
+		wednesday: 3,
+		thursday: 4,
+		friday: 5,
+		saturday: 6,
+		sunday: 7
+	};
+
+	let groupedTimeslots = $derived(() => {
+		const grouped: Record<string, AvailableGroupTimeslot[]> = {};
+
+		for (const ts of availableGroupTimeslots) {
+			if (!grouped[ts.day]) {
+				grouped[ts.day] = [];
+			}
+			grouped[ts.day].push(ts);
+		}
+
+		// Sort hours within each day
+		for (const day in grouped) {
+			grouped[day].sort((a, b) => a.hour - b.hour);
+		}
+
+		// Sort days and return as array of [day, timeslots]
+		return Object.entries(grouped).sort(
+			([dayA], [dayB]) => (DAY_ORDER[dayA] || 99) - (DAY_ORDER[dayB] || 99)
+		);
+	});
 
 	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
@@ -121,6 +154,8 @@
 	// Step 2 state (Group lesson selection - only for group packages)
 	let selectedGroupLessonId = $state<string | null>(null);
 	let createNewGroupLesson = $state(false);
+	let selectedGroupTimeslots = $state<SelectedGroupTimeslot[]>([]);
+	let joinExistingTimeslots = $state(false); // Flag to indicate joining existing timeslots
 
 	// Navigation flow tracking
 	let navigationPath = $state<number[]>([1]); // Track the actual path taken
@@ -167,8 +202,11 @@
 			if (createNewGroupLesson) {
 				// New group: 1 → 2 → 4 → 5 (skip step 3)
 				return [1, 2, 4, 5];
+			} else if (joinExistingTimeslots && selectedGroupTimeslots.length > 0) {
+				// Joining existing timeslots: 1 → 2 → 3 → 5 (skip step 4)
+				return [1, 2, 3, 5];
 			} else if (selectedGroupLessonId) {
-				// Existing group: 1 → 2 → 3 → 5 (skip step 4)
+				// Existing group (legacy): 1 → 2 → 3 → 5 (skip step 4)
 				return [1, 2, 3, 5];
 			} else {
 				// Not yet decided on step 2
@@ -328,9 +366,17 @@
 		// This is only called for group packages
 		if (!selectedPackage || selectedPackage.package_type !== 'group') return;
 
-		if (!createNewGroupLesson && !selectedGroupLessonId) {
+		if (!createNewGroupLesson && !joinExistingTimeslots && !selectedGroupLessonId) {
 			toast.error('Program seçimi gereklidir');
 			return;
+		}
+
+		// Validate timeslot selection if joining existing timeslots
+		if (joinExistingTimeslots) {
+			if (selectedGroupTimeslots.length !== selectedPackage.lessons_per_week) {
+				toast.error(`${selectedPackage.lessons_per_week} zaman dilimi seçmelisiniz`);
+				return;
+			}
 		}
 
 		// Reload appointments for the selected option
@@ -338,7 +384,7 @@
 
 		// Use smart navigation - it will automatically go to the correct next step
 		// New group: goes to step 4 (resource/time)
-		// Existing group: goes to step 3 (duration)
+		// Existing timeslots or group: goes to step 3 (duration)
 		nextStep();
 	}
 
@@ -384,10 +430,16 @@
 
 		assignmentForm.trainee_ids = selectedTrainees;
 
-		// Set group_lesson_id if an existing group lesson was selected
+		// Set group_lesson_id if an existing group lesson was selected (legacy flow)
 		if (selectedGroupLessonId) {
 			assignmentForm.group_lesson_id = selectedGroupLessonId;
 			// Include duration_weeks for joining existing group lessons
+			assignmentForm.duration_weeks = assignmentWeeks;
+		}
+
+		// Set selected_group_timeslots if joining specific timeslots from existing groups
+		if (joinExistingTimeslots && selectedGroupTimeslots.length > 0) {
+			assignmentForm.selected_group_timeslots = selectedGroupTimeslots;
 			assignmentForm.duration_weeks = assignmentWeeks;
 		}
 
@@ -435,7 +487,12 @@
 				return assignmentForm.package_id.length > 0;
 			case 2:
 				// Step 2: Group lesson selection (only for group packages)
-				return createNewGroupLesson || selectedGroupLessonId !== null;
+				// Can proceed if creating new group, or selected enough timeslots from existing groups
+				if (createNewGroupLesson) return true;
+				if (joinExistingTimeslots && selectedPackage) {
+					return selectedGroupTimeslots.length === selectedPackage.lessons_per_week;
+				}
+				return selectedGroupLessonId !== null;
 			case 3:
 				// Step 3: Duration selection (for private & existing group)
 				if (isGroupPackage) {
@@ -744,6 +801,57 @@
 		return selectedPackage ? selectedPackage.max_capacity - getExistingTraineeCount() : 0;
 	}
 
+	// Toggle group timeslot selection
+	function toggleGroupTimeslot(timeslot: AvailableGroupTimeslot) {
+		if (!selectedPackage) return;
+
+		const isFull = timeslot.current_capacity >= timeslot.max_capacity;
+		const isSelected = selectedGroupTimeslots.some(
+			(t) =>
+				t.group_lesson_id === timeslot.group_lesson_id &&
+				t.day === timeslot.day &&
+				t.hour === timeslot.hour
+		);
+		const canSelect = !isFull || isSelected;
+
+		if (!canSelect) return;
+
+		// When selecting timeslots, automatically switch to joinExistingTimeslots mode
+		if (!joinExistingTimeslots) {
+			joinExistingTimeslots = true;
+			createNewGroupLesson = false;
+			selectedGroupLessonId = null;
+		}
+
+		if (isSelected) {
+			// Remove from selection
+			selectedGroupTimeslots = selectedGroupTimeslots.filter(
+				(t) =>
+					!(
+						t.group_lesson_id === timeslot.group_lesson_id &&
+						t.day === timeslot.day &&
+						t.hour === timeslot.hour
+					)
+			);
+			// If no timeslots selected, reset the mode
+			if (selectedGroupTimeslots.length === 0) {
+				joinExistingTimeslots = false;
+			}
+		} else if (selectedGroupTimeslots.length < selectedPackage.lessons_per_week) {
+			// Add to selection
+			selectedGroupTimeslots = [
+				...selectedGroupTimeslots,
+				{
+					group_lesson_id: timeslot.group_lesson_id,
+					day: timeslot.day,
+					hour: timeslot.hour
+				}
+			];
+		} else {
+			toast.warning(`Maksimum ${selectedPackage.lessons_per_week} zaman dilimi seçebilirsiniz`);
+		}
+	}
+
 	// Trainee pagination functions
 	function goToTraineePage(page: number) {
 		if (page >= 1 && page <= traineeTotalPages) {
@@ -855,8 +963,8 @@
 							Ders Seçimi
 						</h2>
 
-					{#if packages.length === 0}
-						<!-- Package Selection -->
+						{#if packages.length === 0}
+							<!-- Package Selection -->
 							<!-- Empty state when no packages exist -->
 							<div class="flex flex-col items-center justify-center py-16 text-center">
 								<Dumbbell class="mb-4 h-16 w-16 text-base-content/30" />
@@ -977,7 +1085,7 @@
 						</h2>
 
 						<div class="space-y-4">
-							<!-- Create New Purchase Option -->
+							<!-- Create New Group Option -->
 							<label class="cursor-pointer">
 								<div
 									class="card border transition-all duration-200 hover:shadow-lg {createNewGroupLesson
@@ -992,8 +1100,9 @@
 												checked={createNewGroupLesson}
 												onchange={async () => {
 													createNewGroupLesson = true;
+													joinExistingTimeslots = false;
 													selectedGroupLessonId = null;
-													// Clear existing purchase trainees data
+													selectedGroupTimeslots = [];
 													await reloadAppointments();
 												}}
 											/>
@@ -1008,95 +1117,93 @@
 								</div>
 							</label>
 
-							<!-- Existing Purchase Series -->
-							{#if existingGroupLessons && existingGroupLessons.length > 0 && selectedPackage}
-								{@const packageSeries = existingGroupLessons.filter(
-									(series) => series.package_id === selectedPackage.id
-								)}
-								<div class="space-y-3 pt-4">
-									<h4 class="font-medium text-base-content">Mevcut Ders Programları</h4>
-									{#if packageSeries.length > 0}
-										<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-											{#each packageSeries as groupLesson (groupLesson.group_lesson_id)}
-												<label class="cursor-pointer">
-													<div
-														class="card border-2 transition-all duration-200 hover:shadow-lg {selectedGroupLessonId ===
-														groupLesson.group_lesson_id
-															? 'border-accent bg-accent/5 shadow-lg ring-2 ring-accent/20'
-															: 'border-base-300 hover:border-accent/50 hover:shadow-md'}"
-													>
-														<div class="card-body p-4">
-															<div class="flex items-start gap-3">
-																<input
-																	type="radio"
-																	class="radio mt-1 radio-accent"
-																	checked={selectedGroupLessonId === groupLesson.group_lesson_id}
-																	onchange={async () => {
-																		selectedGroupLessonId = groupLesson.group_lesson_id;
-																		createNewGroupLesson = false;
-																		// Reload to get existing trainees for this purchase
-																		await reloadAppointments();
-																	}}
-																/>
-																<div class="flex-1 space-y-3">
-																	<!-- Location & Trainer Info -->
-																	<div class="flex flex-wrap gap-4 text-sm">
-																		<div class="flex items-center gap-1.5">
-																			<span class="text-base-content/70">Oda:</span>
-																			<span class="font-medium">{groupLesson.room_name}</span>
+							<!-- Available Timeslots from Existing Groups -->
+							{#if availableGroupTimeslots && availableGroupTimeslots.length > 0 && selectedPackage}
+								<div class="space-y-4 pt-4">
+									<div class="flex items-center justify-between">
+										<h4 class="font-medium text-base-content">Mevcut Zaman Dilimleri</h4>
+										<div class="text-sm text-base-content/60">
+											{selectedGroupTimeslots.length} / {selectedPackage.lessons_per_week} seçildi
+										</div>
+									</div>
+
+									<div class="rounded-lg border border-base-300 bg-base-100 p-4">
+										<div class="text-sm text-base-content/70">
+											Aşağıdaki mevcut zaman dilimlerinden <strong
+												>{selectedPackage.lessons_per_week}</strong
+											> tane seçin.
+										</div>
+									</div>
+
+									<!-- Grouped by day -->
+									<div class="space-y-6">
+										{#each groupedTimeslots() as [day, timeslots] (day)}
+											{@const dayName = DAY_NAMES[day as DayOfWeek]}
+											<div class="space-y-3">
+												<h5 class="border-b border-base-200 pb-2 font-medium text-base-content/80">
+													{dayName}
+												</h5>
+												<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+													{#each timeslots as timeslot (`${timeslot.group_lesson_id}-${timeslot.day}-${timeslot.hour}`)}
+														{@const isSelected = selectedGroupTimeslots.some(
+															(t) =>
+																t.group_lesson_id === timeslot.group_lesson_id &&
+																t.day === timeslot.day &&
+																t.hour === timeslot.hour
+														)}
+														{@const isFull = timeslot.current_capacity >= timeslot.max_capacity}
+														{@const canSelect = !isFull || isSelected}
+														<div
+															class="cursor-pointer {isFull && !isSelected
+																? 'cursor-not-allowed'
+																: ''}"
+															role="button"
+															tabindex="0"
+															onclick={() => toggleGroupTimeslot(timeslot)}
+															onkeydown={(event) => {
+																if (event.key === 'Enter' || event.key === ' ') {
+																	event.preventDefault();
+																	toggleGroupTimeslot(timeslot);
+																}
+															}}
+														>
+															<div
+																class="rounded-lg border transition-colors {isFull && !isSelected
+																	? 'border-base-200 opacity-50'
+																	: isSelected
+																		? 'border-base-content/30 bg-base-200/50'
+																		: 'border-base-200 hover:border-base-300'}"
+															>
+																<div class="flex items-center gap-3 px-3 py-2">
+																	<input
+																		type="checkbox"
+																		class="pointer-events-none checkbox checkbox-sm"
+																		checked={isSelected}
+																		disabled={isFull && !isSelected}
+																		readonly
+																	/>
+																	<div class="min-w-0 flex-1">
+																		<div class="text-sm font-medium">
+																			{timeslot.hour}:00
+																			{#if isFull}
+																				<span class="ml-2 badge badge-xs badge-error">Dolu</span>
+																			{/if}
 																		</div>
-																		<div class="flex items-center gap-1.5">
-																			<span class="text-base-content/70">Eğitmen:</span>
-																			<span class="font-medium">{groupLesson.trainer_name}</span>
+																		<div class="text-xs text-base-content/50">
+																			{timeslot.room_name} • {timeslot.trainer_name}
 																		</div>
 																	</div>
-
-																	<!-- Schedule Information -->
-																	<div class="space-y-2">
-																		<div class="text-sm">
-																			<span class="text-base-content/70">Ders Saatleri:</span>
-																		</div>
-																		<div class="flex flex-wrap gap-2">
-																			{#each groupLesson.day_time_combinations || [] as combo (combo.day)}
-																				{@const dayName = DAY_NAMES[combo.day as DayOfWeek]}
-																				{#each combo.hours as hour (hour)}
-																					<span class="badge badge-sm px-2 py-1 badge-secondary">
-																						{dayName}
-																						{hour}:00
-																					</span>
-																				{/each}
-																			{/each}
-																		</div>
-																	</div>
-
-																	<!-- Capacity Information -->
-																	<div
-																		class="flex items-center justify-between border-t border-base-200 pt-2"
-																	>
-																		<div class="flex items-center gap-2">
-																			<span class="text-sm text-base-content/70">Kapasite:</span>
-																		</div>
-																		<div class="flex items-center gap-2">
-																			<span class="text-sm font-semibold text-success">
-																				{groupLesson.current_capacity}
-																			</span>
-																			<span class="text-xs text-base-content/50">/</span>
-																			<span class="text-sm text-base-content/70">
-																				{groupLesson.max_capacity}
-																			</span>
-																			<span class="text-xs text-base-content/50">öğrenci</span>
-																		</div>
+																	<div class="text-xs text-base-content/40">
+																		{timeslot.current_capacity}/{timeslot.max_capacity}
 																	</div>
 																</div>
 															</div>
 														</div>
-													</div>
-												</label>
-											{/each}
-										</div>
-									{:else}
-										<div class="text-sm text-base-content/60">Henüz grup dersi bulunmuyor.</div>
-									{/if}
+													{/each}
+												</div>
+											</div>
+										{/each}
+									</div>
 								</div>
 							{:else}
 								<div class="space-y-3 pt-4">
@@ -1131,9 +1238,7 @@
 
 								<div class="form-control max-w-md">
 									<label class="label" for="package-count">
-										<span class="label-text font-medium">
-											Kaç Paket Oluşturulacak?
-										</span>
+										<span class="label-text font-medium"> Kaç Paket Oluşturulacak? </span>
 									</label>
 									<input
 										id="package-count"
@@ -1418,7 +1523,7 @@
 									<div class="mt-6 flex items-center justify-center gap-2">
 										<div class="join">
 											<button
-												class="join-item btn btn-sm"
+												class="btn join-item btn-sm"
 												onclick={() => goToTraineePage(traineeCurrentPage - 1)}
 												disabled={traineeCurrentPage === 1}
 												type="button"
@@ -1428,10 +1533,12 @@
 
 											{#each getTraineePageNumbers() as page}
 												{#if page === '...'}
-													<button class="join-item btn btn-sm btn-disabled" type="button">...</button>
+													<button class="btn-disabled btn join-item btn-sm" type="button"
+														>...</button
+													>
 												{:else}
 													<button
-														class="join-item btn btn-sm {traineeCurrentPage === page
+														class="btn join-item btn-sm {traineeCurrentPage === page
 															? 'btn-active'
 															: ''}"
 														onclick={() => goToTraineePage(page as number)}
@@ -1443,7 +1550,7 @@
 											{/each}
 
 											<button
-												class="join-item btn btn-sm"
+												class="btn join-item btn-sm"
 												onclick={() => goToTraineePage(traineeCurrentPage + 1)}
 												disabled={traineeCurrentPage === traineeTotalPages}
 												type="button"
@@ -1454,7 +1561,8 @@
 									</div>
 
 									<div class="mt-2 text-center text-sm text-base-content/60">
-										Sayfa {traineeCurrentPage} / {traineeTotalPages} (Toplam {filteredTrainees.length} öğrenci)
+										Sayfa {traineeCurrentPage} / {traineeTotalPages} (Toplam {filteredTrainees.length}
+										öğrenci)
 									</div>
 								{/if}
 							</div>

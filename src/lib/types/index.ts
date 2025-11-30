@@ -140,12 +140,20 @@ export interface PackagePurchaseForm {
 	purchase_id?: string;
 	group_lesson_id?: string;
 	duration_weeks?: number; // For joining existing group lessons
+	selected_group_timeslots?: SelectedGroupTimeslot[]; // For selecting specific timeslots from existing groups
 }
 
 export interface SelectedTimeSlot {
 	day: string;
 	hour: number;
 	date?: string; // The actual date for this slot (YYYY-MM-DD format)
+}
+
+// Type for selecting a specific timeslot from an existing group lesson
+export interface SelectedGroupTimeslot {
+	group_lesson_id: string;
+	day: string;
+	hour: number;
 }
 
 // Type for existing group lessons returned from server
@@ -162,4 +170,17 @@ export interface ExistingGroupLesson {
 		day: string;
 		hours: number[];
 	}>;
+}
+
+// Type for available timeslots from existing group lessons (with per-timeslot capacity)
+export interface AvailableGroupTimeslot {
+	group_lesson_id: string;
+	room_id: string;
+	room_name: string;
+	trainer_id: string;
+	trainer_name: string;
+	day: string;
+	hour: number;
+	max_capacity: number;
+	current_capacity: number; // Number of trainees currently assigned to this specific timeslot
 }

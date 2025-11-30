@@ -1,9 +1,26 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type { DayOfWeek } from '$lib/types/Schedule';
-import type { PackagePurchaseForm, ExistingGroupLesson, Appointment } from '$lib/types';
+import type {
+	PackagePurchaseForm,
+	ExistingGroupLesson,
+	Appointment,
+	AvailableGroupTimeslot
+} from '$lib/types';
 import { randomUUID } from 'crypto';
-import { getDateForDayOfWeek } from '$lib/utils/date-utils';
+
+// Type for group lesson query result with joined tables
+interface GroupLessonQueryResult {
+	id: string;
+	package_id: string | null;
+	start_date: string | null;
+	end_date: string | null;
+	room_id: string | null;
+	trainer_id: string | null;
+	timeslots: Array<{ day: string; hours: number[] }> | null;
+	pe_packages: { id: string; name: string; max_capacity: number } | null;
+	pe_rooms: { id: string; name: string } | null;
+	pe_trainers: { id: string; name: string } | null;
+}
 
 export const load: PageServerLoad = async ({
 	locals: { supabase, user, userRole },
@@ -31,6 +48,7 @@ export const load: PageServerLoad = async ({
 	let appointments: Appointment[] = [];
 	let existingGroupLessons: ExistingGroupLesson[] = [];
 	let existingGroupLessonTrainees: string[] = [];
+	let availableGroupTimeslots: AvailableGroupTimeslot[] = [];
 
 	// Fetch existing group lessons for the selected package (if viewing group packages)
 	if (packageId) {
@@ -56,8 +74,11 @@ export const load: PageServerLoad = async ({
 		if (groupLessonsError) {
 			console.error('Error loading group lessons:', groupLessonsError);
 		} else if (groupLessons && groupLessons.length > 0) {
+			// Cast to proper type for joined query results
+			const typedGroupLessons = groupLessons as GroupLessonQueryResult[];
+
 			// Transform group lessons into the format expected by the UI
-			existingGroupLessons = groupLessons.map((gl) => {
+			existingGroupLessons = typedGroupLessons.map((gl) => {
 				// Parse timeslots JSON to get day_time_combinations
 				const timeslots = gl.timeslots || [];
 				const day_time_combinations = Array.isArray(timeslots) ? timeslots : [];
@@ -66,10 +87,10 @@ export const load: PageServerLoad = async ({
 					group_lesson_id: gl.id,
 					package_id: gl.package_id || '',
 					room_id: gl.room_id || '',
-					room_name: (gl as any).pe_rooms?.name || '',
+					room_name: gl.pe_rooms?.name || '',
 					trainer_id: gl.trainer_id || '',
-					trainer_name: (gl as any).pe_trainers?.name || '',
-					max_capacity: (gl as any).pe_packages?.max_capacity || 0,
+					trainer_name: gl.pe_trainers?.name || '',
+					max_capacity: gl.pe_packages?.max_capacity || 0,
 					current_capacity: 0, // Will be calculated below with appointment_trainees
 					day_time_combinations
 				};
@@ -95,6 +116,59 @@ export const load: PageServerLoad = async ({
 						// Get unique trainee IDs for this group lesson
 						const uniqueTrainees = new Set(appointmentTrainees.map((at) => at.trainee_id));
 						groupLesson.current_capacity = uniqueTrainees.size;
+					}
+				}
+			}
+
+			// Build available timeslots with per-timeslot capacity
+			// Get tomorrow's date for filtering future appointments
+			const tomorrow = new Date();
+			tomorrow.setDate(tomorrow.getDate() + 1);
+			const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+			for (const gl of typedGroupLessons) {
+				const timeslots = gl.timeslots || [];
+				const maxCapacity = gl.pe_packages?.max_capacity || 0;
+
+				for (const timeslot of timeslots) {
+					for (const hour of timeslot.hours) {
+						// Get a sample of upcoming appointments for this specific day/hour combination
+						// to calculate current capacity for this timeslot
+						const { data: sampleAppointments, error: sampleError } = await supabase
+							.from('pe_appointments')
+							.select('id')
+							.eq('group_lesson_id', gl.id)
+							.eq('hour', hour)
+							.gte('date', tomorrowStr)
+							.limit(5); // Get a few upcoming appointments
+
+						let timeslotCapacity = 0;
+
+						if (!sampleError && sampleAppointments && sampleAppointments.length > 0) {
+							// Count unique trainees in these appointments
+							const appointmentIds = sampleAppointments.map((apt) => apt.id);
+							const { data: traineeData } = await supabase
+								.from('pe_appointment_trainees')
+								.select('trainee_id')
+								.in('appointment_id', appointmentIds);
+
+							if (traineeData) {
+								const uniqueTrainees = new Set(traineeData.map((t) => t.trainee_id));
+								timeslotCapacity = uniqueTrainees.size;
+							}
+						}
+
+						availableGroupTimeslots.push({
+							group_lesson_id: gl.id,
+							room_id: gl.room_id || '',
+							room_name: gl.pe_rooms?.name || '',
+							trainer_id: gl.trainer_id || '',
+							trainer_name: gl.pe_trainers?.name || '',
+							day: timeslot.day,
+							hour: hour,
+							max_capacity: maxCapacity,
+							current_capacity: timeslotCapacity
+						});
 					}
 				}
 			}
@@ -193,7 +267,8 @@ export const load: PageServerLoad = async ({
 		packages: packages || [],
 		appointments,
 		existingGroupLessons,
-		existingGroupLessonTrainees
+		existingGroupLessonTrainees,
+		availableGroupTimeslots
 	};
 };
 
@@ -251,12 +326,18 @@ export const actions: Actions = {
 
 		// Handle private vs group packages differently
 		const isCreatingNewGroupLesson =
-			packageData.package_type === 'group' && !assignmentForm.group_lesson_id;
+			packageData.package_type === 'group' &&
+			!assignmentForm.group_lesson_id &&
+			!assignmentForm.selected_group_timeslots?.length;
 		const isJoiningExistingGroupLesson =
 			packageData.package_type === 'group' && assignmentForm.group_lesson_id;
+		const isJoiningSelectedTimeslots =
+			packageData.package_type === 'group' &&
+			assignmentForm.selected_group_timeslots &&
+			assignmentForm.selected_group_timeslots.length > 0;
 
-		// Validate room, trainer, and time slots (NOT required for joining existing group)
-		if (!isJoiningExistingGroupLesson) {
+		// Validate room, trainer, and time slots (NOT required for joining existing group or selected timeslots)
+		if (!isJoiningExistingGroupLesson && !isJoiningSelectedTimeslots) {
 			if (
 				!assignmentForm.room_id ||
 				!assignmentForm.trainer_id ||
@@ -270,6 +351,16 @@ export const actions: Actions = {
 
 			// Validate lessons per week
 			if (assignmentForm.time_slots.length !== packageData.lessons_per_week) {
+				return fail(400, {
+					success: false,
+					message: `Bu paket için ${packageData.lessons_per_week} zaman dilimi seçmelisiniz`
+				});
+			}
+		}
+
+		// Validate selected timeslots for joining per-timeslot
+		if (isJoiningSelectedTimeslots) {
+			if (assignmentForm.selected_group_timeslots!.length !== packageData.lessons_per_week) {
 				return fail(400, {
 					success: false,
 					message: `Bu paket için ${packageData.lessons_per_week} zaman dilimi seçmelisiniz`
@@ -293,7 +384,7 @@ export const actions: Actions = {
 					message: `Maksimum ${packageData.max_capacity} öğrenci seçilebilir`
 				});
 			}
-		} else if (isJoiningExistingGroupLesson) {
+		} else if (isJoiningExistingGroupLesson || isJoiningSelectedTimeslots) {
 			if (assignmentForm.trainee_ids.length === 0) {
 				return fail(400, {
 					success: false,
@@ -576,7 +667,153 @@ export const actions: Actions = {
 			}
 
 			// STEP 6: Assign trainees to appointments
-			if (isJoiningExistingGroupLesson) {
+			if (isJoiningSelectedTimeslots) {
+				// For joining specific timeslots from different group lessons
+				const today = new Date().toISOString().split('T')[0];
+				const durationWeeks = assignmentForm.duration_weeks || 4;
+				const selectedTimeslots = assignmentForm.selected_group_timeslots!;
+
+				// Create team and purchase for each trainee
+				for (const traineeId of assignmentForm.trainee_ids) {
+					const teamId = randomUUID();
+
+					// Create team entry for this trainee
+					const { error: teamError } = await supabase.from('pe_teams').insert({
+						id: teamId,
+						trainee_id: traineeId
+					});
+
+					if (teamError) {
+						return fail(500, {
+							success: false,
+							message: `Öğrenci takımı oluşturulurken hata: ${teamError.message}`
+						});
+					}
+
+					// Create purchase for this trainee
+					const rescheduleLeft = packageData.reschedulable
+						? (packageData.reschedule_limit ?? 999)
+						: 0;
+
+					const { data: purchaseData, error: purchaseError } = await supabase
+						.from('pe_purchases')
+						.insert({
+							package_id: assignmentForm.package_id,
+							team_id: teamId,
+							reschedule_left: rescheduleLeft,
+							successor_id: null
+						})
+						.select('id')
+						.single();
+
+					if (purchaseError) {
+						return fail(500, {
+							success: false,
+							message: `Satın alma oluşturulurken hata: ${purchaseError.message}`
+						});
+					}
+
+					traineesPurchases.push({
+						traineeId,
+						purchaseId: purchaseData.id,
+						teamId
+					});
+				}
+
+				// Map day names to JS day numbers
+				const dayNameToNumber: Record<string, number> = {
+					sunday: 0,
+					monday: 1,
+					tuesday: 2,
+					wednesday: 3,
+					thursday: 4,
+					friday: 5,
+					saturday: 6
+				};
+
+				// For each trainee and their purchase, find matching appointments and assign
+				const appointmentTraineeInserts: Array<{
+					appointment_id: number;
+					trainee_id: string;
+					purchase_id: string;
+					session_number: number;
+					total_sessions: number;
+				}> = [];
+
+				const totalSessions = durationWeeks * packageData.lessons_per_week;
+
+				for (const { traineeId, purchaseId } of traineesPurchases) {
+					let sessionNumber = 0;
+
+					// For each selected timeslot, find upcoming appointments
+					for (const timeslot of selectedTimeslots) {
+						// Get upcoming appointments for this specific group lesson and timeslot
+						const { data: timeslotAppointments, error: timeslotError } = await supabase
+							.from('pe_appointments')
+							.select('id, date, hour')
+							.eq('group_lesson_id', timeslot.group_lesson_id)
+							.eq('hour', timeslot.hour)
+							.gte('date', today)
+							.order('date', { ascending: true })
+							.limit(durationWeeks * 2); // Get extra in case some don't match the day
+
+						if (timeslotError) {
+							return fail(500, {
+								success: false,
+								message: `Zaman dilimi randevuları alınırken hata: ${timeslotError.message}`
+							});
+						}
+
+						if (!timeslotAppointments || timeslotAppointments.length === 0) {
+							continue;
+						}
+
+						// Filter appointments to only those on the correct day of week
+						const targetDayNumber = dayNameToNumber[timeslot.day];
+						const matchingAppointments = timeslotAppointments.filter((apt) => {
+							const aptDate = new Date(apt.date);
+							return aptDate.getDay() === targetDayNumber;
+						});
+
+						// Take only the number of weeks we need
+						const appointmentsToAssign = matchingAppointments.slice(0, durationWeeks);
+
+						for (const apt of appointmentsToAssign) {
+							sessionNumber++;
+							appointmentTraineeInserts.push({
+								appointment_id: apt.id,
+								trainee_id: traineeId,
+								purchase_id: purchaseId,
+								session_number: sessionNumber,
+								total_sessions: totalSessions
+							});
+						}
+					}
+				}
+
+				if (appointmentTraineeInserts.length === 0) {
+					return fail(400, {
+						success: false,
+						message: 'Seçilen zaman dilimleri için uygun randevu bulunamadı'
+					});
+				}
+
+				const { error: traineeError } = await supabase
+					.from('pe_appointment_trainees')
+					.insert(appointmentTraineeInserts);
+
+				if (traineeError) {
+					return fail(500, {
+						success: false,
+						message: 'Öğrenciler randevulara eklenirken hata: ' + traineeError.message
+					});
+				}
+
+				return {
+					success: true,
+					message: `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${appointmentTraineeInserts.length / assignmentForm.trainee_ids.length} randevuya atandı.`
+				};
+			} else if (isJoiningExistingGroupLesson) {
 				// For joining existing group: get upcoming appointments and assign trainees
 				const today = new Date().toISOString().split('T')[0];
 

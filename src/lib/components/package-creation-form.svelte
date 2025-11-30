@@ -273,7 +273,9 @@
 											/>
 											<div class="flex-1">
 												<div class="text-sm font-medium">Randevu Değiştirme İzni</div>
-												<div class="text-xs text-base-content/60">Derslerin zamanı değiştirilebilir</div>
+												<div class="text-xs text-base-content/60">
+													Derslerin zamanı değiştirilebilir
+												</div>
 											</div>
 										</label>
 									</div>

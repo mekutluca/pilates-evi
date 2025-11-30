@@ -765,7 +765,8 @@ export const actions: Actions = {
 		};
 
 		const appointments: AppointmentInfo[] = [];
-		let groupLessonId: string | null = null;
+		// Track group_lesson_id for each timeslot (to support per-timeslot assignments from different groups)
+		const timeslotGroupLessons: Map<string, string> = new Map(); // key: "day-hour", value: group_lesson_id
 
 		if (traineeAppointments && traineeAppointments.length > 0) {
 			const typedAppointments = traineeAppointments as TraineeAppointmentData[];
@@ -779,8 +780,12 @@ export const actions: Actions = {
 						hour: t.pe_appointments.hour
 					});
 
-					if (!groupLessonId) {
-						groupLessonId = t.pe_appointments.group_lesson_id;
+					// Track which group lesson this timeslot belongs to
+					const aptDate = new Date(t.pe_appointments.date);
+					const dayOfWeek = aptDate.getDay();
+					const timeslotKey = `${dayOfWeek}-${t.pe_appointments.hour}`;
+					if (!timeslotGroupLessons.has(timeslotKey)) {
+						timeslotGroupLessons.set(timeslotKey, t.pe_appointments.group_lesson_id);
 					}
 				}
 			}
@@ -800,7 +805,7 @@ export const actions: Actions = {
 			});
 		}
 
-		if (!groupLessonId) {
+		if (timeslotGroupLessons.size === 0) {
 			return fail(404, {
 				success: false,
 				message: 'Grup dersi ID bulunamadı'
@@ -934,20 +939,29 @@ export const actions: Actions = {
 			});
 		}
 
-		// groupLessonId was already obtained earlier when fetching appointments
-
-		// Find matching appointments to join
+		// Find matching appointments to join using per-timeslot group lesson mapping
 		const appointmentTraineeInserts = [];
 		let totalSessionsJoined = 0;
 
 		for (let sessionNumber = 1; sessionNumber <= allAppointmentSlots.length; sessionNumber++) {
 			const slot = allAppointmentSlots[sessionNumber - 1];
 
-			// Find the appointment that matches this slot
+			// Determine which group lesson this slot belongs to
+			const slotDate = new Date(slot.date);
+			const slotDayOfWeek = slotDate.getDay();
+			const timeslotKey = `${slotDayOfWeek}-${slot.hour}`;
+			const slotGroupLessonId = timeslotGroupLessons.get(timeslotKey);
+
+			if (!slotGroupLessonId) {
+				// Skip if we don't have a mapping for this timeslot
+				continue;
+			}
+
+			// Find the appointment that matches this slot in the correct group lesson
 			const { data: matchingAppointment } = await supabase
 				.from('pe_appointments')
 				.select('id')
-				.eq('group_lesson_id', groupLessonId)
+				.eq('group_lesson_id', slotGroupLessonId)
 				.eq('date', slot.date)
 				.eq('hour', slot.hour)
 				.maybeSingle();

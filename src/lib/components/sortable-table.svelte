@@ -284,7 +284,7 @@
 				{#if totalPages > 1}
 					<div class="join">
 						<button
-							class="join-item btn btn-sm"
+							class="btn join-item btn-sm"
 							onclick={() => goToPage(currentPage - 1)}
 							disabled={currentPage === 1}
 						>
@@ -293,10 +293,10 @@
 
 						{#each getPageNumbers() as page}
 							{#if page === '...'}
-								<button class="join-item btn btn-sm btn-disabled">...</button>
+								<button class="btn-disabled btn join-item btn-sm">...</button>
 							{:else}
 								<button
-									class="join-item btn btn-sm {currentPage === page ? 'btn-active' : ''}"
+									class="btn join-item btn-sm {currentPage === page ? 'btn-active' : ''}"
 									onclick={() => goToPage(page as number)}
 								>
 									{page}
@@ -305,7 +305,7 @@
 						{/each}
 
 						<button
-							class="join-item btn btn-sm"
+							class="btn join-item btn-sm"
 							onclick={() => goToPage(currentPage + 1)}
 							disabled={currentPage === totalPages}
 						>
@@ -323,7 +323,7 @@
 					{/if}
 					<span class="text-sm text-base-content/70">Sayfa başına:</span>
 					<select
-						class="select select-sm select-bordered w-20"
+						class="select-bordered select w-20 select-sm"
 						bind:value={pageSize}
 						onchange={() => handlePageSizeChange(pageSize)}
 					>

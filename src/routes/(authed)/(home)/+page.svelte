@@ -21,10 +21,14 @@
 	<PageHeader title="Bu Hafta" subtitle={weekRange} />
 
 	<!-- Statistics Cards -->
-	<div class="stats stats-vertical shadow mb-6 bg-base-100 w-full md:stats-horizontal">
+	<div class="stats mb-6 w-full stats-vertical bg-base-100 shadow md:stats-horizontal">
 		<StatCard title="Randevular" value={stats.appointmentsCount} icon={Calendar} />
 		<StatCard title="Katılımcı Öğrenciler" value={stats.uniqueTraineesCount} icon={Users} />
-		<StatCard title="Yeni Satın Almalar" value={stats.purchasesThisWeek.length} icon={ShoppingCart} />
+		<StatCard
+			title="Yeni Satın Almalar"
+			value={stats.purchasesThisWeek.length}
+			icon={ShoppingCart}
+		/>
 		<StatCard
 			title="Son Dersi Olanlar"
 			value={stats.traineesWithLastLessons.length}
@@ -35,9 +39,9 @@
 	<!-- Content Grid -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 		<!-- Purchases This Week Card -->
-		<div class="card bg-base-100 shadow max-h-[50vh] flex flex-col">
-			<div class="card-body flex flex-col min-h-0">
-				<div class="flex items-center justify-between flex-shrink-0">
+		<div class="card flex max-h-[50vh] flex-col bg-base-100 shadow">
+			<div class="card-body flex min-h-0 flex-col">
+				<div class="flex flex-shrink-0 items-center justify-between">
 					<h3 class="card-title flex items-center gap-2 text-lg">
 						<ShoppingCart size={20} />
 						Bu Hafta Yapılan Satın Almalar
@@ -47,9 +51,9 @@
 					{/if}
 				</div>
 
-				<div class="flex-1 overflow-y-auto min-h-0">
+				<div class="min-h-0 flex-1 overflow-y-auto">
 					{#if stats.purchasesThisWeek.length === 0}
-						<div role="alert" class="alert alert-info alert-soft">
+						<div role="alert" class="alert-soft alert alert-info">
 							<Info class="h-6 w-6 shrink-0 stroke-current" />
 							<span>Bu hafta henüz satın alma yapılmadı.</span>
 						</div>
@@ -86,9 +90,9 @@
 		</div>
 
 		<!-- Trainees with Last Lessons Card -->
-		<div class="card bg-base-100 shadow max-h-[50vh] flex flex-col">
-			<div class="card-body flex flex-col min-h-0">
-				<div class="flex items-center justify-between flex-shrink-0">
+		<div class="card flex max-h-[50vh] flex-col bg-base-100 shadow">
+			<div class="card-body flex min-h-0 flex-col">
+				<div class="flex flex-shrink-0 items-center justify-between">
 					<h3 class="card-title flex items-center gap-2 text-lg">
 						<AlertCircle size={20} />
 						Son Dersi Yaklaşanlar
@@ -98,7 +102,7 @@
 					{/if}
 				</div>
 
-				<div class="flex-1 overflow-y-auto min-h-0">
+				<div class="min-h-0 flex-1 overflow-y-auto">
 					{#if stats.traineesWithLastLessons.length === 0}
 						<div class="flex flex-col items-center justify-center py-8">
 							<CheckCircle class="mb-3 h-12 w-12 text-success" />

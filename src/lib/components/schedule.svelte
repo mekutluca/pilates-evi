@@ -158,14 +158,18 @@
 											{@const buttonClass = cn(
 												'group flex min-h-12 w-full cursor-pointer items-center justify-center rounded p-2 transition-colors',
 												isSelected && color === 'primary' && 'border-2 border-primary bg-primary',
-												isSelected && color === 'secondary' && 'border-2 border-secondary bg-secondary',
+												isSelected &&
+													color === 'secondary' &&
+													'border-2 border-secondary bg-secondary',
 												isSelected && color === 'accent' && 'border-2 border-accent bg-accent',
 												isSelected && color === 'info' && 'border-2 border-info bg-info',
 												isSelected && color === 'success' && 'border-2 border-success bg-success',
 												isSelected && color === 'warning' && 'border-2 border-warning bg-warning',
 												isSelected && color === 'error' && 'border-2 border-error bg-error',
 												!isSelected && color === 'primary' && 'bg-primary/20 hover:bg-primary/30',
-												!isSelected && color === 'secondary' && 'bg-secondary/20 hover:bg-secondary/30',
+												!isSelected &&
+													color === 'secondary' &&
+													'bg-secondary/20 hover:bg-secondary/30',
 												!isSelected && color === 'accent' && 'bg-accent/20 hover:bg-accent/30',
 												!isSelected && color === 'info' && 'bg-info/20 hover:bg-info/30',
 												!isSelected && color === 'success' && 'bg-success/20 hover:bg-success/30',

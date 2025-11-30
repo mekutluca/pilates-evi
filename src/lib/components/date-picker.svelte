@@ -71,9 +71,7 @@
 	<div class="mb-3 flex items-center justify-between">
 		<span class="text-sm font-medium text-base-content/70">Tarih seçin:</span>
 		<div class="flex gap-2">
-			<button type="button" class="btn btn-ghost btn-xs" onclick={handleTodayClick}>
-				Bugün
-			</button>
+			<button type="button" class="btn btn-ghost btn-xs" onclick={handleTodayClick}> Bugün </button>
 			{#if onClose}
 				<button type="button" class="btn btn-ghost btn-xs" onclick={handleCancelClick}>
 					İptal
@@ -94,7 +92,7 @@
 		</calendar-date>
 	{:else}
 		<div class="flex h-64 items-center justify-center">
-			<span class="loading loading-spinner loading-md"></span>
+			<span class="loading loading-md loading-spinner"></span>
 		</div>
 	{/if}
 </div>
