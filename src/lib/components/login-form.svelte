@@ -39,9 +39,54 @@
 						: res.error.message)
 			);
 			inProgress = false;
-		} else {
-			goto('/');
+			return;
 		}
+
+		// Fetch user's active organizations (both membership and organization must be active)
+		const { data: userOrgs, error: orgsError } = await supabase
+			.from('pe_user_organizations')
+			.select('organization_id, role, pe_organizations!inner(id, name)')
+			.eq('user_id', res.data.user.id)
+			.eq('is_active', true)
+			.eq('pe_organizations.is_active', true);
+
+		if (orgsError) {
+			toast.error('Organizasyon bilgileri alınamadı: ' + orgsError.message);
+			inProgress = false;
+			return;
+		}
+
+		if (!userOrgs || userOrgs.length === 0) {
+			toast.error('Aktif bir organizasyona üye değilsiniz. Lütfen yönetici ile iletişime geçin.');
+			await supabase.auth.signOut();
+			inProgress = false;
+			return;
+		}
+
+		// Select the first active organization TODO: Implement organization picker
+		const selectedOrg = userOrgs[0];
+
+		const { error: rpcError } = await supabase.rpc('pe_switch_organization', {
+			p_org_id: selectedOrg.organization_id
+		});
+
+		if (rpcError) {
+			toast.error('Organizasyon seçilemedi: ' + rpcError.message);
+			inProgress = false;
+			return;
+		}
+
+		// This fetches a NEW JWT that contains the updated organization_id
+		const {
+			data: { session },
+			error: refreshError
+		} = await supabase.auth.refreshSession();
+
+		if (refreshError) {
+			toast.error('Error refreshing session: ' + refreshError.message);
+		}
+
+		goto('/');
 	}
 
 	function showModal() {
