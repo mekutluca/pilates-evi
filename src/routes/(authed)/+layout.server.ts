@@ -1,8 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import type { Role } from '$lib/types/Role';
 
-export const load: LayoutServerLoad = async ({ locals: { session, user } }) => {
+export const load: LayoutServerLoad = async ({ locals: { session, user, userRole } }) => {
 	if (!session) {
 		throw redirect(302, '/login');
 	}
@@ -10,6 +9,6 @@ export const load: LayoutServerLoad = async ({ locals: { session, user } }) => {
 	return {
 		session,
 		user,
-		userRole: user?.role?.replace('pe_', '') as Role
+		userRole
 	};
 };

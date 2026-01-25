@@ -2,7 +2,7 @@
 	import { cn } from '$lib/utils/class-utils';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import Modal from './modal.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -76,16 +76,14 @@
 			return;
 		}
 
-		// This fetches a NEW JWT that contains the updated organization_id
-		const {
-			data: { session },
-			error: refreshError
-		} = await supabase.auth.refreshSession();
-
+		// Refresh session to get a new JWT with updated organization claims
+		const { error: refreshError } = await supabase.auth.refreshSession();
 		if (refreshError) {
 			toast.error('Error refreshing session: ' + refreshError.message);
 		}
 
+		// Invalidate all load functions to ensure server gets fresh session
+		await invalidateAll();
 		goto('/');
 	}
 

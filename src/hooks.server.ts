@@ -74,8 +74,6 @@ const supabase: Handle = async ({ event, resolve }) => {
 		return { session, user };
 	};
 
-	event.locals.userRole = event.locals.user?.role?.replace('pe_', '') as Role;
-
 	return resolve(event, {
 		filterSerializedResponseHeaders(name) {
 			/**
@@ -91,26 +89,32 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	const { session, user } = await event.locals.safeGetSession();
 	event.locals.session = session;
 	event.locals.user = user;
-	event.locals.userRole = user?.role?.replace('pe_', '') as Role;
-	const userRole = event.locals.userRole;
 
-	if (!session && event.route.id?.startsWith('/(authed)')) {
-		redirect(303, '/login');
+	// Get user role from app_metadata (set by pe_switch_organization)
+	let userRole: Role | null = null;
+	if (user) {
+		const appMetadata = user.app_metadata as { organization_role?: string } | undefined;
+		const role = appMetadata?.organization_role?.replace('pe_', '');
+		userRole = role ? (role as Role) : null;
+	}
+	event.locals.userRole = userRole;
+
+	if (event.route.id?.startsWith('/(authed)')) {
+		if (!session) {
+			redirect(303, '/login');
+		}
+
+		// Role-based access control
+		const normalizedPathname = event.url.pathname.replace(/\/+$/, '') || '/';
+		const matchedRoute = allRoutes.find((route) => route.href === normalizedPathname);
+		if (matchedRoute && (!userRole || !matchedRoute.availableToRoles.includes(userRole))) {
+			await event.locals.supabase.auth.signOut();
+			redirect(303, '/login');
+		}
 	}
 
 	if (session && event.route.id?.startsWith('/(prelogin)')) {
 		redirect(303, '/');
-	}
-
-	// Role-based access control using route definitions
-	if (session) {
-		const normalizedPathname = event.url.pathname.replace(/\/+$/, '') || '/';
-		const matchedRoute = allRoutes.find((route) => route.href === normalizedPathname);
-		if (matchedRoute) {
-			if (!userRole || !matchedRoute.availableToRoles.includes(userRole)) {
-				redirect(303, '/');
-			}
-		}
 	}
 
 	return resolve(event);

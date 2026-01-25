@@ -117,7 +117,7 @@
 		};
 	});
 
-	function getAvailableRoutes(userRole: Role | undefined): Route[] {
+	function getAvailableRoutes(userRole: Role | null): Route[] {
 		if (!userRole) return [];
 		return allRoutes.filter((route) => route.availableToRoles.includes(userRole));
 	}
