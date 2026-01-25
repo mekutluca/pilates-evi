@@ -525,6 +525,28 @@
 				{/snippet}
 			</Schedule>
 		{/if}
+	{:else}
+		<div class="card bg-base-100 shadow-xl">
+			<div class="card-body items-center text-center">
+				{#if viewMode === 'room' && rooms.length === 0}
+					<h3 class="card-title">Henüz oda eklenmemiş</h3>
+					<p class="text-base-content/70">
+						Haftalık programı görüntülemek için önce bir oda eklemeniz gerekiyor.
+					</p>
+					<div class="card-actions mt-4">
+						<a href="/rooms" class="btn btn-primary">Oda Ekle</a>
+					</div>
+				{:else if viewMode === 'trainer' && trainers.length === 0}
+					<h3 class="card-title">Henüz eğitmen eklenmemiş</h3>
+					<p class="text-base-content/70">
+						Haftalık programı görüntülemek için önce bir eğitmen eklemeniz gerekiyor.
+					</p>
+					<div class="card-actions mt-4">
+						<a href="/trainers" class="btn btn-info">Eğitmen Ekle</a>
+					</div>
+				{/if}
+			</div>
+		</div>
 	{/if}
 </div>
 
