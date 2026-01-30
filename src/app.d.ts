@@ -11,6 +11,7 @@ declare global {
 			user: User | null;
 			admin: SupabaseClient<Database>;
 			userRole: Role | null;
+			organizationId: string | null;
 		}
 		interface PageData {
 			session: Session | null;

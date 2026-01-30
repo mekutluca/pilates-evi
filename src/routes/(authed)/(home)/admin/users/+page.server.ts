@@ -2,37 +2,45 @@ import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 
-export const load: PageServerLoad = async ({ locals: { admin, user, userRole } }) => {
+export const load: PageServerLoad = async ({
+	locals: { admin, user, userRole, organizationId }
+}) => {
 	// Ensure only admin users can access this page
 	if (!user || userRole !== 'admin') {
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
 
-	// Fetch users using Supabase admin API
-	const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({
-		page: 1,
-		perPage: 1000
-	});
+	if (!organizationId) {
+		throw error(400, 'Organizasyon bilgisi bulunamadı');
+	}
+
+	// Fetch users from pe_user_organizations for the current organization (admin and coordinator roles only)
+	const { data: orgUsers, error: usersError } = await admin
+		.from('pe_user_organizations')
+		.select('user_id, role, created_at')
+		.eq('organization_id', organizationId)
+		.eq('is_active', true)
+		.in('role', ['pe_admin', 'pe_coordinator']);
 
 	if (usersError) {
 		throw error(500, 'Kullanıcılar yüklenirken hata oluştu: ' + usersError.message);
 	}
 
-	// Transform the data to match our interface
-	const users = usersData.users
-		.filter((user) => user.role === 'pe_admin' || user.role === 'pe_coordinator')
-		.map((user) => {
-			// Strip the 'pe_' prefix from role for display
-			const displayRole = user.role?.replace('pe_', '') || 'coordinator';
+	// Fetch auth user details for each user
+	const users = await Promise.all(
+		(orgUsers || []).map(async (orgUser) => {
+			const { data: authUser } = await admin.auth.admin.getUserById(orgUser.user_id);
+			const displayRole = orgUser.role.replace('pe_', '');
 			return {
-				id: user.id,
-				email: user.email || '',
-				fullName: user.user_metadata?.fullName || '',
+				id: orgUser.user_id,
+				email: authUser?.user?.email || '',
+				fullName: authUser?.user?.user_metadata?.fullName || '',
 				role: displayRole,
-				created_at: user.created_at,
-				last_sign_in_at: user.last_sign_in_at
+				created_at: orgUser.created_at,
+				last_sign_in_at: authUser?.user?.last_sign_in_at
 			};
-		});
+		})
+	);
 
 	return {
 		users
@@ -40,12 +48,19 @@ export const load: PageServerLoad = async ({ locals: { admin, user, userRole } }
 };
 
 export const actions: Actions = {
-	createUser: async ({ request, locals: { admin, user, userRole } }) => {
+	createUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
 		// Ensure only admin users can perform this action
 		if (!user || userRole !== 'admin') {
 			return fail(403, {
 				success: false,
 				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
+			});
+		}
+
+		if (!organizationId) {
+			return fail(400, {
+				success: false,
+				message: 'Organizasyon bilgisi bulunamadı'
 			});
 		}
 
@@ -64,19 +79,34 @@ export const actions: Actions = {
 			});
 		}
 
-		// Create user using Supabase admin API (prefix role with 'pe_')
-		const { error: createError } = await admin.auth.admin.createUser({
+		// Create user using Supabase admin API
+		const { data: userData, error: createError } = await admin.auth.admin.createUser({
 			email,
 			password,
 			user_metadata: { fullName },
-			email_confirm: true,
+			email_confirm: true
+		});
+
+		if (createError || !userData.user) {
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı oluşturulurken hata: ' + createError?.message
+			});
+		}
+
+		// Add user to the organization with the specified role
+		const { error: orgUserError } = await admin.from('pe_user_organizations').insert({
+			user_id: userData.user.id,
+			organization_id: organizationId,
 			role: `pe_${role}`
 		});
 
-		if (createError) {
+		if (orgUserError) {
+			// If organization user creation fails, clean up the user account
+			await admin.auth.admin.deleteUser(userData.user.id);
 			return fail(500, {
 				success: false,
-				message: 'Kullanıcı oluşturulurken hata: ' + createError.message
+				message: 'Kullanıcı organizasyona eklenirken hata: ' + orgUserError.message
 			});
 		}
 
@@ -86,7 +116,7 @@ export const actions: Actions = {
 		};
 	},
 
-	updateUser: async ({ request, locals: { admin, user, userRole } }) => {
+	updateUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
 		// Ensure only admin users can perform this action
 		if (!user || userRole !== 'admin') {
 			return fail(403, {
@@ -95,14 +125,20 @@ export const actions: Actions = {
 			});
 		}
 
+		if (!organizationId) {
+			return fail(400, {
+				success: false,
+				message: 'Organizasyon bilgisi bulunamadı'
+			});
+		}
+
 		const formData = await request.formData();
 		const userId = formData.get('userId') as string;
-		const email = formData.get('email') as string;
 		const fullName = formData.get('fullName') as string;
 		const role = formData.get('role') as string;
 
 		// Validate required fields
-		if (!userId || !email || !fullName || !role) {
+		if (!userId || !fullName || !role) {
 			return fail(400, {
 				success: false,
 				message: 'Tüm alanlar gereklidir'
@@ -117,18 +153,29 @@ export const actions: Actions = {
 			});
 		}
 
-		// Update user using Supabase admin API (prefix role with 'pe_')
-		const updateData = {
-			user_metadata: { fullName },
-			role: `pe_${role}`
-		};
+		// Update user metadata in auth
+		const { error: updateAuthError } = await admin.auth.admin.updateUserById(userId, {
+			user_metadata: { fullName }
+		});
 
-		const { error: updateError } = await admin.auth.admin.updateUserById(userId, updateData);
-
-		if (updateError) {
+		if (updateAuthError) {
 			return fail(500, {
 				success: false,
-				message: 'Kullanıcı güncellenirken hata: ' + updateError.message
+				message: 'Kullanıcı bilgileri güncellenirken hata: ' + updateAuthError.message
+			});
+		}
+
+		// Update role in pe_user_organizations
+		const { error: updateRoleError } = await admin
+			.from('pe_user_organizations')
+			.update({ role: `pe_${role}` })
+			.eq('user_id', userId)
+			.eq('organization_id', organizationId);
+
+		if (updateRoleError) {
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı rolü güncellenirken hata: ' + updateRoleError.message
 			});
 		}
 

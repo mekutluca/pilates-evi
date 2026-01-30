@@ -90,14 +90,19 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.session = session;
 	event.locals.user = user;
 
-	// Get user role from app_metadata (set by pe_switch_organization)
+	// Get user role and organization from app_metadata (set by pe_switch_organization)
 	let userRole: Role | null = null;
+	let organizationId: string | null = null;
 	if (user) {
-		const appMetadata = user.app_metadata as { organization_role?: string } | undefined;
+		const appMetadata = user.app_metadata as
+			| { organization_role?: string; organization_id?: string }
+			| undefined;
 		const role = appMetadata?.organization_role?.replace('pe_', '');
 		userRole = role ? (role as Role) : null;
+		organizationId = appMetadata?.organization_id ?? null;
 	}
 	event.locals.userRole = userRole;
+	event.locals.organizationId = organizationId;
 
 	if (event.route.id?.startsWith('/(authed)')) {
 		if (!session) {

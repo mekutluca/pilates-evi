@@ -16,9 +16,16 @@ function validateUserPermission(user: User | null, userRole: Role | null) {
 }
 
 export const actions: Actions = {
-	createTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
+	createTrainer: async ({ request, locals: { supabase, admin, user, userRole, organizationId } }) => {
 		const permissionError = validateUserPermission(user, userRole);
 		if (permissionError) return permissionError;
+
+		if (!organizationId) {
+			return fail(400, {
+				success: false,
+				message: 'Organizasyon bilgisi bulunamadı'
+			});
+		}
 
 		const formData = await request.formData();
 
@@ -32,14 +39,29 @@ export const actions: Actions = {
 			email,
 			password,
 			user_metadata: { fullName: name },
-			email_confirm: true,
-			role: 'pe_trainer'
+			email_confirm: true
 		});
 
 		if (createUserError || !userData.user) {
 			return fail(500, {
 				success: false,
 				message: 'Kullanıcı hesabı oluşturulurken hata: ' + createUserError?.message
+			});
+		}
+
+		// Add user to the organization with trainer role
+		const { error: orgUserError } = await admin.from('pe_user_organizations').insert({
+			user_id: userData.user.id,
+			organization_id: organizationId,
+			role: 'pe_trainer'
+		});
+
+		if (orgUserError) {
+			// If organization user creation fails, clean up the user account
+			await admin.auth.admin.deleteUser(userData.user.id);
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı organizasyona eklenirken hata: ' + orgUserError.message
 			});
 		}
 
@@ -51,7 +73,8 @@ export const actions: Actions = {
 		});
 
 		if (createError) {
-			// If trainer creation fails, clean up the user account
+			// If trainer creation fails, clean up the user account and organization entry
+			await admin.from('pe_user_organizations').delete().eq('user_id', userData.user.id);
 			await admin.auth.admin.deleteUser(userData.user.id);
 			return fail(500, {
 				success: false,
