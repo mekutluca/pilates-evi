@@ -16,7 +16,10 @@ function validateUserPermission(user: User | null, userRole: Role | null) {
 }
 
 export const actions: Actions = {
-	createTrainer: async ({ request, locals: { supabase, admin, user, userRole, organizationId } }) => {
+	createTrainer: async ({
+		request,
+		locals: { supabase, admin, user, userRole, organizationId }
+	}) => {
 		const permissionError = validateUserPermission(user, userRole);
 		if (permissionError) return permissionError;
 

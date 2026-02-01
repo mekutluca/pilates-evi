@@ -20,8 +20,7 @@
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDayOfWeekFromDate,
-		formatDayMonth
+		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
 	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
 
@@ -30,7 +29,6 @@
 	// Extract data
 	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
 	let trainerName = $derived(data.trainerName);
-	let trainerId = $derived(data.trainerId);
 
 	// Week navigation state
 	let currentWeekStart = $derived(() => {
@@ -85,12 +83,14 @@
 	}
 
 	function goToPreviousWeek() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 		const newWeekStart = new Date(currentWeekStart().getTime());
 		newWeekStart.setDate(newWeekStart.getDate() - 7);
 		navigateToWeek(newWeekStart);
 	}
 
 	function goToNextWeek() {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 		const newWeekStart = new Date(currentWeekStart().getTime());
 		newWeekStart.setDate(newWeekStart.getDate() + 7);
 		navigateToWeek(newWeekStart);

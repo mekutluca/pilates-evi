@@ -259,7 +259,10 @@ export const load: PageServerLoad = async ({
 				throw error(404, 'Öğrenci kaydı bulunamadı');
 			}
 
-			// Get appointments where trainee is enrolled (from selected onwards)
+			// Get all purchases in the chain (current + all successors)
+			const purchaseChain = await getPurchaseSuccessorChain(supabase, traineeRecord.purchase_id);
+
+			// Get appointments where trainee is enrolled (from selected onwards, including extensions)
 			const { data: traineeAppts } = await supabase
 				.from('pe_appointment_trainees')
 				.select(
@@ -271,7 +274,7 @@ export const load: PageServerLoad = async ({
 				`
 				)
 				.eq('trainee_id', traineeId)
-				.eq('purchase_id', traineeRecord.purchase_id);
+				.in('purchase_id', purchaseChain);
 
 			if (traineeAppts) {
 				futureAppointments = (traineeAppts as TraineeApptResult[])
@@ -312,7 +315,7 @@ export const load: PageServerLoad = async ({
 			.gte('date', today);
 		allFromNowAppointments = (chainAppts || []) as AppointmentSummaryResult[];
 	} else if (appointment.group_lesson_id) {
-		// If trainee shift mode, get only trainee's enrolled appointments
+		// If trainee shift mode, get only trainee's enrolled appointments (including extensions)
 		if (traineeId) {
 			const { data: traineeRecord } = await supabase
 				.from('pe_appointment_trainees')
@@ -322,6 +325,9 @@ export const load: PageServerLoad = async ({
 				.single();
 
 			if (traineeRecord?.purchase_id) {
+				// Get all purchases in the chain (current + all successors)
+				const purchaseChain = await getPurchaseSuccessorChain(supabase, traineeRecord.purchase_id);
+
 				const { data: traineeAppts } = await supabase
 					.from('pe_appointment_trainees')
 					.select(
@@ -331,7 +337,7 @@ export const load: PageServerLoad = async ({
 					`
 					)
 					.eq('trainee_id', traineeId)
-					.eq('purchase_id', traineeRecord.purchase_id);
+					.in('purchase_id', purchaseChain);
 
 				if (traineeAppts) {
 					allFromNowAppointments = (traineeAppts as TraineeApptSummaryResult[])
@@ -943,15 +949,18 @@ export const actions: Actions = {
 			});
 		}
 
-		// Get all future appointment_trainee records for this trainee and purchase
+		// Get all future appointment_trainee records for this trainee and purchase chain (including extensions)
 		const refDate = currentRecord.pe_appointments.date;
 		const refHour = currentRecord.pe_appointments.hour;
+
+		// Get all purchases in the chain (current + all successors)
+		const purchaseChain = await getPurchaseSuccessorChain(supabase, currentRecord.purchase_id);
 
 		const { data: futureRecords } = await supabase
 			.from('pe_appointment_trainees')
 			.select('id, appointment_id, session_number, pe_appointments(date, hour)')
 			.eq('trainee_id', traineeId)
-			.eq('purchase_id', currentRecord.purchase_id);
+			.in('purchase_id', purchaseChain);
 
 		if (!futureRecords || futureRecords.length === 0) {
 			return fail(404, { success: false, message: 'Öğrenci randevuları bulunamadı' });
@@ -1056,11 +1065,42 @@ export const actions: Actions = {
 			});
 		}
 
-		// Get all group lesson appointments sorted by date/hour
+		// Get trainee's records for the purchase chain (including extensions)
+		const purchaseChain = await getPurchaseSuccessorChain(supabase, currentRecord.purchase_id);
+
+		const { data: traineeRecords } = await supabase
+			.from('pe_appointment_trainees')
+			.select('id, appointment_id, session_number, pe_appointments(id, date, hour)')
+			.eq('trainee_id', traineeId)
+			.in('purchase_id', purchaseChain);
+
+		if (!traineeRecords || traineeRecords.length === 0) {
+			return fail(404, { success: false, message: 'Öğrenci kayıtları bulunamadı' });
+		}
+
+		// Sort trainee's enrolled appointments by date/hour
+		const sortedTraineeAppts = traineeRecords
+			.filter((r) => r.pe_appointments?.date && r.pe_appointments?.hour !== null)
+			.sort((a, b) => {
+				const dateCompare = (a.pe_appointments?.date ?? '').localeCompare(
+					b.pe_appointments?.date ?? ''
+				);
+				if (dateCompare !== 0) return dateCompare;
+				return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
+			});
+
+		// Find the starting index (the selected appointment)
+		const startIndex = sortedTraineeAppts.findIndex((r) => r.pe_appointments?.id === appointmentId);
+		if (startIndex === -1) {
+			return fail(404, { success: false, message: 'Başlangıç randevusu bulunamadı' });
+		}
+
+		// Get all future group lesson appointments to find targets
 		const { data: allGroupAppts } = await supabase
 			.from('pe_appointments')
 			.select('id, date, hour')
 			.eq('group_lesson_id', groupLessonId)
+			.gte('date', sortedTraineeAppts[startIndex].pe_appointments?.date ?? '')
 			.order('date')
 			.order('hour');
 
@@ -1068,43 +1108,43 @@ export const actions: Actions = {
 			return fail(404, { success: false, message: 'Grup dersi randevuları bulunamadı' });
 		}
 
-		// Get trainee's records for this purchase
-		const { data: traineeRecords } = await supabase
-			.from('pe_appointment_trainees')
-			.select('id, appointment_id, session_number')
-			.eq('trainee_id', traineeId)
-			.eq('purchase_id', currentRecord.purchase_id);
-
-		if (!traineeRecords) {
-			return fail(404, { success: false, message: 'Öğrenci kayıtları bulunamadı' });
+		// Extract the trainee's timeslot pattern (day-of-week + hour combinations they're enrolled in)
+		const traineeTimeslots = new Set<string>();
+		for (const record of sortedTraineeAppts) {
+			if (record.pe_appointments?.date && record.pe_appointments?.hour !== null) {
+				const day = getDayOfWeekFromDate(record.pe_appointments.date);
+				traineeTimeslots.add(`${day}-${record.pe_appointments.hour}`);
+			}
 		}
 
-		// Find records from selected appointment onwards
-		const currentApptIndex = allGroupAppts.findIndex((a) => a.id === appointmentId);
-		if (currentApptIndex === -1) {
-			return fail(404, { success: false, message: 'Başlangıç randevusu bulunamadı' });
-		}
+		// Filter group appointments to only those matching trainee's timeslot pattern
+		const eligibleGroupAppts = allGroupAppts.filter((apt) => {
+			if (!apt.date || apt.hour === null) return false;
+			const day = getDayOfWeekFromDate(apt.date);
+			return traineeTimeslots.has(`${day}-${apt.hour}`);
+		});
 
-		// Create map of current appointment IDs to trainee records
-		const recordMap = new Map(traineeRecords.map((r) => [r.appointment_id, r]));
-
-		// Build shift map
+		// Build shift map: each appointment from start onwards shifts by N slots within eligible appointments
 		const shiftMap: Array<{ recordId: number; newAppointmentId: number }> = [];
 
-		for (let i = currentApptIndex; i < allGroupAppts.length; i++) {
-			const currentAppt = allGroupAppts[i];
-			const record = recordMap.get(currentAppt.id);
-			if (!record) continue; // Trainee not enrolled in this appointment
+		for (let i = startIndex; i < sortedTraineeAppts.length; i++) {
+			const record = sortedTraineeAppts[i];
+			const currentApptId = record.pe_appointments?.id;
+			if (!currentApptId) continue;
 
-			const targetIndex = i + slots;
-			if (targetIndex >= allGroupAppts.length) {
+			// Find current appointment's index in eligible group appointments
+			const currentEligibleIndex = eligibleGroupAppts.findIndex((a) => a.id === currentApptId);
+			if (currentEligibleIndex === -1) continue;
+
+			const targetIndex = currentEligibleIndex + slots;
+			if (targetIndex >= eligibleGroupAppts.length) {
 				return fail(400, {
 					success: false,
 					message: 'Hedef randevular mevcut grup dersi randevularını aşıyor'
 				});
 			}
 
-			const targetAppt = allGroupAppts[targetIndex];
+			const targetAppt = eligibleGroupAppts[targetIndex];
 			shiftMap.push({
 				recordId: record.id,
 				newAppointmentId: targetAppt.id

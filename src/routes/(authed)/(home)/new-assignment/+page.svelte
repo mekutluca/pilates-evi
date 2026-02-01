@@ -361,6 +361,44 @@
 		nextStep();
 	}
 
+	// Helper function to format lessons per week display
+	function formatLessonsPerWeek(pkg: {
+		min_lessons_per_week: number;
+		max_lessons_per_week: number;
+	}): string {
+		return pkg.min_lessons_per_week === pkg.max_lessons_per_week
+			? `${pkg.min_lessons_per_week} ders/hafta`
+			: `${pkg.min_lessons_per_week}-${pkg.max_lessons_per_week} ders/hafta`;
+	}
+
+	// Helper function to format selection counter
+	function formatSelectionCounter(
+		selected: number,
+		pkg: { min_lessons_per_week: number; max_lessons_per_week: number }
+	): string {
+		return pkg.min_lessons_per_week === pkg.max_lessons_per_week
+			? `${selected} / ${pkg.max_lessons_per_week}`
+			: `${selected} / ${pkg.min_lessons_per_week}-${pkg.max_lessons_per_week}`;
+	}
+
+	// Helper function to check if selection count is valid
+	function isValidSelectionCount(
+		selected: number,
+		pkg: { min_lessons_per_week: number; max_lessons_per_week: number }
+	): boolean {
+		return selected >= pkg.min_lessons_per_week && selected <= pkg.max_lessons_per_week;
+	}
+
+	// Helper function to get validation error message
+	function getTimeslotValidationError(pkg: {
+		min_lessons_per_week: number;
+		max_lessons_per_week: number;
+	}): string {
+		return pkg.min_lessons_per_week === pkg.max_lessons_per_week
+			? `${pkg.min_lessons_per_week} zaman dilimi seçmelisiniz`
+			: `${pkg.min_lessons_per_week} ile ${pkg.max_lessons_per_week} arası zaman dilimi seçmelisiniz`;
+	}
+
 	// Step 2: Purchase Selection (only for group packages)
 	async function handleStep2Submit() {
 		// This is only called for group packages
@@ -373,8 +411,8 @@
 
 		// Validate timeslot selection if joining existing timeslots
 		if (joinExistingTimeslots) {
-			if (selectedGroupTimeslots.length !== selectedPackage.lessons_per_week) {
-				toast.error(`${selectedPackage.lessons_per_week} zaman dilimi seçmelisiniz`);
+			if (!isValidSelectionCount(selectedGroupTimeslots.length, selectedPackage)) {
+				toast.error(getTimeslotValidationError(selectedPackage));
 				return;
 			}
 		}
@@ -388,7 +426,7 @@
 		nextStep();
 	}
 
-	// Step 2 (private packages) or Step 3 (group packages): Room, Trainer, and Time Slot Selection
+	// Step 4: Room, Trainer, and Time Slot Selection
 	function handleResourceTimeSubmit() {
 		if (!selectedPackage) return;
 
@@ -402,8 +440,17 @@
 			return;
 		}
 
-		if (selectedTimeSlots.length !== selectedPackage.lessons_per_week) {
-			toast.error(`${selectedPackage.lessons_per_week} zaman dilimi seçmelisiniz`);
+		// For new group lessons, require at least 1 timeslot (no max limit)
+		// For private packages, enforce min/max_lessons_per_week
+		const isNewGroupLesson = selectedPackage.package_type === 'group' && createNewGroupLesson;
+
+		if (isNewGroupLesson) {
+			if (selectedTimeSlots.length < 1) {
+				toast.error('En az bir zaman dilimi seçmelisiniz');
+				return;
+			}
+		} else if (!isValidSelectionCount(selectedTimeSlots.length, selectedPackage)) {
+			toast.error(getTimeslotValidationError(selectedPackage));
 			return;
 		}
 
@@ -490,7 +537,7 @@
 				// Can proceed if creating new group, or selected enough timeslots from existing groups
 				if (createNewGroupLesson) return true;
 				if (joinExistingTimeslots && selectedPackage) {
-					return selectedGroupTimeslots.length === selectedPackage.lessons_per_week;
+					return isValidSelectionCount(selectedGroupTimeslots.length, selectedPackage);
 				}
 				return selectedGroupLessonId !== null;
 			case 3:
@@ -500,15 +547,23 @@
 				} else {
 					return packageCount > 0;
 				}
-			case 4:
+			case 4: {
 				// Step 4: Resource & time selection (for all flows that reach here)
+				// For new group lessons, require at least 1 timeslot (no max limit)
+				// For private packages, enforce min/max_lessons_per_week
+				const isNewGroupLesson = selectedPackage?.package_type === 'group' && createNewGroupLesson;
+				const hasValidTimeslots = isNewGroupLesson
+					? selectedTimeSlots.length >= 1
+					: selectedPackage && isValidSelectionCount(selectedTimeSlots.length, selectedPackage);
+
 				return (
 					selectedPackage &&
 					assignmentForm.room_id.length > 0 &&
 					assignmentForm.trainer_id.length > 0 &&
 					assignmentForm.start_date !== '' &&
-					selectedTimeSlots.length === selectedPackage.lessons_per_week
+					hasValidTimeslots
 				);
+			}
 			case 5: {
 				// Step 5: Trainee selection
 				if (createNewGroupLesson) {
@@ -524,7 +579,7 @@
 		}
 	});
 
-	// Time slot management for step 2
+	// Time slot management for step 4
 	function handleScheduleSlotClick(_entityId: string, day: DayOfWeek, hour: number) {
 		if (!selectedPackage) return;
 
@@ -541,15 +596,26 @@
 			const slotDate = getDateForDayOfWeek(weekStart, day);
 			const dateString = formatDateParam(slotDate);
 
-			if (selectedTimeSlots.length < selectedPackage.lessons_per_week) {
-				// Add if not at capacity
+			// For new group lessons, allow unlimited timeslots (trainer can teach any number)
+			// For private packages, enforce max_lessons_per_week restriction
+			const isNewGroupLesson = selectedPackage.package_type === 'group' && createNewGroupLesson;
+
+			if (isNewGroupLesson) {
+				// No limit for new group lessons
+				selectedTimeSlots.push({
+					day: day,
+					hour: hour,
+					date: dateString
+				});
+			} else if (selectedTimeSlots.length < selectedPackage.max_lessons_per_week) {
+				// Add if not at max capacity
 				selectedTimeSlots.push({
 					day: day,
 					hour: hour,
 					date: dateString
 				});
 			} else {
-				// At capacity - replace oldest selection with new one
+				// At max capacity - replace oldest selection with new one
 				selectedTimeSlots.shift(); // Remove the first (oldest) selection
 				selectedTimeSlots.push({
 					day: day,
@@ -617,6 +683,7 @@
 		const slotDates: string[] = [];
 
 		for (let week = 0; week < weeksDuration; week++) {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 			const weekStart = new Date(startDate);
 			weekStart.setDate(startDate.getDate() + week * 7);
 			const slotDate = getDateForDayOfWeek(weekStart, day);
@@ -760,12 +827,13 @@
 
 	// Reset page when search term changes
 	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity
 		traineeSearchTerm;
 		traineeCurrentPage = 1;
 	});
 
 	// Trainee selection for step 3
-	function toggleTrainee(traineeId: string, event?: Event) {
+	function toggleTrainee(traineeId: string) {
 		// Don't allow toggling existing group lesson trainees
 		if (existingGroupLessonTrainees && existingGroupLessonTrainees.includes(traineeId)) {
 			toast.info('Bu öğrenci zaten programın üyesi');
@@ -837,7 +905,7 @@
 			if (selectedGroupTimeslots.length === 0) {
 				joinExistingTimeslots = false;
 			}
-		} else if (selectedGroupTimeslots.length < selectedPackage.lessons_per_week) {
+		} else if (selectedGroupTimeslots.length < selectedPackage.max_lessons_per_week) {
 			// Add to selection
 			selectedGroupTimeslots = [
 				...selectedGroupTimeslots,
@@ -848,7 +916,7 @@
 				}
 			];
 		} else {
-			toast.warning(`Maksimum ${selectedPackage.lessons_per_week} zaman dilimi seçebilirsiniz`);
+			toast.warning(`Maksimum ${selectedPackage.max_lessons_per_week} zaman dilimi seçebilirsiniz`);
 		}
 	}
 
@@ -1006,7 +1074,7 @@
 																<div class="flex-1">
 																	<div class="font-medium">{pkg.name}</div>
 																	<div class="mt-2 text-xs text-base-content/60">
-																		<div>{pkg.lessons_per_week} ders/hafta</div>
+																		<div>{formatLessonsPerWeek(pkg)}</div>
 																		<div>Max {pkg.max_capacity} kişi</div>
 																		<div>
 																			{#if pkg.package_type === 'group'}
@@ -1052,7 +1120,7 @@
 																<div class="flex-1">
 																	<div class="font-medium">{pkg.name}</div>
 																	<div class="mt-2 text-xs text-base-content/60">
-																		<div>{pkg.lessons_per_week} ders/hafta</div>
+																		<div>{formatLessonsPerWeek(pkg)}</div>
 																		<div>Max {pkg.max_capacity} kişi</div>
 																		<div>
 																			{#if pkg.package_type === 'group'}
@@ -1123,15 +1191,19 @@
 									<div class="flex items-center justify-between">
 										<h4 class="font-medium text-base-content">Mevcut Zaman Dilimleri</h4>
 										<div class="text-sm text-base-content/60">
-											{selectedGroupTimeslots.length} / {selectedPackage.lessons_per_week} seçildi
+											{formatSelectionCounter(selectedGroupTimeslots.length, selectedPackage)} seçildi
 										</div>
 									</div>
 
 									<div class="rounded-lg border border-base-300 bg-base-100 p-4">
 										<div class="text-sm text-base-content/70">
-											Aşağıdaki mevcut zaman dilimlerinden <strong
-												>{selectedPackage.lessons_per_week}</strong
-											> tane seçin.
+											Aşağıdaki mevcut zaman dilimlerinden
+											{#if selectedPackage.min_lessons_per_week === selectedPackage.max_lessons_per_week}
+												<strong>{selectedPackage.min_lessons_per_week}</strong> tane seçin.
+											{:else}
+												<strong>{selectedPackage.min_lessons_per_week}</strong> ile
+												<strong>{selectedPackage.max_lessons_per_week}</strong> arası seçin.
+											{/if}
 										</div>
 									</div>
 
@@ -1152,7 +1224,6 @@
 																t.hour === timeslot.hour
 														)}
 														{@const isFull = timeslot.current_capacity >= timeslot.max_capacity}
-														{@const canSelect = !isFull || isSelected}
 														<div
 															class="cursor-pointer {isFull && !isSelected
 																? 'cursor-not-allowed'
@@ -1227,12 +1298,9 @@
 								<div class="rounded-lg border border-base-300 bg-base-100 p-4">
 									<div class="text-sm text-base-content/70">
 										<strong>{selectedPackage.name}</strong> paketi
-										<strong>{selectedPackage.weeks_duration} hafta</strong> sürer ve haftada
-										<strong>{selectedPackage.lessons_per_week} ders</strong>
-										içerir (toplam
-										<strong
-											>{(selectedPackage.weeks_duration || 0) * selectedPackage.lessons_per_week} ders</strong
-										>).
+										<strong>{selectedPackage.weeks_duration} hafta</strong> sürer ve
+										<strong>{formatLessonsPerWeek(selectedPackage)}</strong>
+										içerir.
 									</div>
 								</div>
 
@@ -1251,7 +1319,6 @@
 									<div class="label">
 										<span class="label-text-alt text-base-content/60">
 											Toplam süre: <strong>{totalAssignmentWeeks()} hafta</strong>
-											({totalAssignmentWeeks() * selectedPackage.lessons_per_week} ders)
 										</span>
 									</div>
 								</div>
@@ -1296,7 +1363,12 @@
 							</h2>
 							{#if selectedPackage}
 								<div class="text-sm text-base-content/60">
-									{selectedTimeSlots.length} / {selectedPackage.lessons_per_week} zaman dilimi seçildi
+									{#if selectedPackage.package_type === 'group' && createNewGroupLesson}
+										{selectedTimeSlots.length} zaman dilimi seçildi
+									{:else}
+										{formatSelectionCounter(selectedTimeSlots.length, selectedPackage)} zaman dilimi
+										seçildi
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -1316,7 +1388,7 @@
 											value={assignmentForm.room_id}
 											onchange={handleRoomChange}
 										>
-											<option value={''} disabled>Oda seçiniz</option>
+											<option value="" disabled>Oda seçiniz</option>
 											{#each rooms as room (room.id)}
 												<option value={room.id}>
 													{room.name}
@@ -1336,7 +1408,7 @@
 											value={assignmentForm.trainer_id}
 											onchange={handleTrainerChange}
 										>
-											<option value={''} disabled>Eğitmen seçiniz</option>
+											<option value="" disabled>Eğitmen seçiniz</option>
 											{#each trainers as trainer (trainer.id)}
 												<option value={trainer.id}>
 													{trainer.name}
@@ -1462,11 +1534,11 @@
 											class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}"
 											role="button"
 											tabindex="0"
-											onclick={(event) => !isExisting && toggleTrainee(trainee.id, event)}
+											onclick={() => !isExisting && toggleTrainee(trainee.id)}
 											onkeydown={(event) =>
 												!isExisting &&
 												(event.key === 'Enter' || event.key === ' ') &&
-												toggleTrainee(trainee.id, event)}
+												toggleTrainee(trainee.id)}
 										>
 											<div
 												class="card border transition-colors {isExisting
@@ -1531,7 +1603,7 @@
 												«
 											</button>
 
-											{#each getTraineePageNumbers() as page}
+											{#each getTraineePageNumbers() as page, index (index)}
 												{#if page === '...'}
 													<button class="btn-disabled btn join-item btn-sm" type="button"
 														>...</button

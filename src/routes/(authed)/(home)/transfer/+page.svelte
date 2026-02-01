@@ -85,6 +85,7 @@
 
 	// Auto-check conflicts when selections change
 	$effect(() => {
+		/* eslint-disable @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity */
 		operation;
 		shiftMode;
 		scope;
@@ -92,6 +93,7 @@
 		selectedTrainerId;
 		weeksToShift;
 		slotsToShift;
+		/* eslint-enable @typescript-eslint/no-unused-expressions */
 
 		const bothSelected = untrack(() => hasBothSelected);
 		const shiftByTime = untrack(() => isShiftByTimeMode);
@@ -265,6 +267,7 @@
 			} else if (isShiftBySlotMode) {
 				// Extract the time slot pattern (day of week + hour) from existing appointments
 				const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 				const seenSlots = new Set<string>();
 
 				for (const apt of validAppointments) {

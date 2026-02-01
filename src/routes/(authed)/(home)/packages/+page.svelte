@@ -36,7 +36,8 @@
 	let editName = $state('');
 	let editDescription = $state('');
 	let editWeeksDuration = $state(1);
-	let editLessonsPerWeek = $state(1);
+	let editMinLessonsPerWeek = $state(1);
+	let editMaxLessonsPerWeek = $state(1);
 	let editMaxCapacity = $state(1);
 	let editPackageType = $state<'private' | 'group'>('private');
 	let editReschedulable = $state(true);
@@ -104,10 +105,12 @@
 			}
 		},
 		{
-			key: 'lessons_per_week',
+			key: 'min_lessons_per_week',
 			title: 'Haftalık Ders',
 			render: (pkg: PackageWithPurchases) => {
-				return `${pkg.lessons_per_week} ders/hafta`;
+				const min = pkg.min_lessons_per_week;
+				const max = pkg.max_lessons_per_week;
+				return min === max ? `${min} ders/hafta` : `${min}-${max} ders/hafta`;
 			}
 		},
 		{
@@ -125,7 +128,8 @@
 		editName = pkg.name;
 		editDescription = pkg.description || '';
 		editWeeksDuration = pkg.weeks_duration || 1;
-		editLessonsPerWeek = pkg.lessons_per_week || 1;
+		editMinLessonsPerWeek = pkg.min_lessons_per_week || 1;
+		editMaxLessonsPerWeek = pkg.max_lessons_per_week || 1;
 		editMaxCapacity = pkg.max_capacity || 1;
 		editPackageType = (pkg.package_type as 'private' | 'group') || 'private';
 		editReschedulable = pkg.reschedulable ?? true;
@@ -150,7 +154,8 @@
 		editName = '';
 		editDescription = '';
 		editWeeksDuration = 1;
-		editLessonsPerWeek = 1;
+		editMinLessonsPerWeek = 1;
+		editMaxLessonsPerWeek = 1;
 		editMaxCapacity = 1;
 		editPackageType = 'private';
 		editReschedulable = true;
@@ -166,11 +171,13 @@
 		form.action = '?/editPackage';
 		form.style.display = 'none';
 
-		// Create form data (excluding non-editable fields: weeks_duration, lessons_per_week, package_type)
+		// Create form data (excluding non-editable fields: weeks_duration, package_type)
 		const formFields = [
 			{ name: 'packageId', value: selectedPackage.id.toString() },
 			{ name: 'name', value: editName },
 			{ name: 'description', value: editDescription },
+			{ name: 'min_lessons_per_week', value: editMinLessonsPerWeek.toString() },
+			{ name: 'max_lessons_per_week', value: editMaxLessonsPerWeek.toString() },
 			{ name: 'max_capacity', value: editMaxCapacity.toString() },
 			{ name: 'reschedulable', value: editReschedulable.toString() },
 			{ name: 'reschedule_limit', value: editRescheduleLimit?.toString() || '' }
@@ -343,8 +350,8 @@
 				></textarea>
 			</div>
 
-			<!-- Duration and Lessons per week (Non-editable) -->
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<!-- Duration (Non-editable) and Lessons per week (Editable) -->
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 				<div
 					class="tooltip tooltip-top"
 					data-tip="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
@@ -363,21 +370,33 @@
 					/>
 				</div>
 
-				<div
-					class="tooltip tooltip-top"
-					data-tip="Bu değer değiştirilemez. Farklı ders sayısı için yeni ders oluşturun."
-				>
-					<label class="label" for="edit-lessons-per-week">
-						<span class="label-text font-medium">Haftalık Ders Sayısı</span>
-						<span class="label-text-alt text-warning">Değiştirilemez</span>
+				<div>
+					<label class="label" for="edit-min-lessons-per-week">
+						<span class="label-text font-medium">Min Haftalık Ders *</span>
 					</label>
 					<input
-						id="edit-lessons-per-week"
+						id="edit-min-lessons-per-week"
 						type="number"
 						class="input-bordered input w-full"
-						value={editLessonsPerWeek}
-						disabled
-						readonly
+						bind:value={editMinLessonsPerWeek}
+						min="1"
+						max="7"
+						required
+					/>
+				</div>
+
+				<div>
+					<label class="label" for="edit-max-lessons-per-week">
+						<span class="label-text font-medium">Max Haftalık Ders *</span>
+					</label>
+					<input
+						id="edit-max-lessons-per-week"
+						type="number"
+						class="input-bordered input w-full"
+						bind:value={editMaxLessonsPerWeek}
+						min="1"
+						max="7"
+						required
 					/>
 				</div>
 			</div>

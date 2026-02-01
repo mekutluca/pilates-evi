@@ -91,6 +91,17 @@ export function formatDateForDB(date: Date): string {
 }
 
 /**
+ * Parses a YYYY-MM-DD date string as a local date (not UTC)
+ * Use this instead of `new Date(dateString)` to avoid timezone issues
+ * @param dateString - The date string in YYYY-MM-DD format
+ * @returns Date object in local timezone at midnight
+ */
+export function parseLocalDate(dateString: string): Date {
+	const [year, month, day] = dateString.split('-').map(Number);
+	return new Date(year, month - 1, day);
+}
+
+/**
  * Gets the date for a specific day of the week within a given week
  * @param weekStart - The start date of the week (Monday)
  * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type { Purchase } from '$lib/types';
+import { parseLocalDate } from './date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
 
@@ -105,9 +106,7 @@ export async function getLastAppointmentDate(
 		.maybeSingle();
 
 	if (directData && directData.date) {
-		// Parse as local date to avoid timezone issues
-		const [year, month, day] = directData.date.split('-').map(Number);
-		return new Date(year, month - 1, day);
+		return parseLocalDate(directData.date);
 	}
 
 	// Try via pe_appointment_trainees (for group lessons)
@@ -119,10 +118,11 @@ export async function getLastAppointmentDate(
 		.limit(1)
 		.maybeSingle();
 
-	if (traineeData && (traineeData as any).pe_appointments?.date) {
-		const dateStr = (traineeData as any).pe_appointments.date;
-		const [year, month, day] = dateStr.split('-').map(Number);
-		return new Date(year, month - 1, day);
+	if (traineeData) {
+		const appointments = traineeData.pe_appointments as { date: string } | null;
+		if (appointments?.date) {
+			return parseLocalDate(appointments.date);
+		}
 	}
 
 	return null;
@@ -147,7 +147,7 @@ export async function getLastGroupLessonAppointmentDate(
 		return null;
 	}
 
-	return new Date(data.date);
+	return parseLocalDate(data.date);
 }
 
 /**

@@ -254,19 +254,6 @@
 		return appointment.has_last_session || false;
 	}
 
-	// TODO: Re-implement extension functions for new schema
-	function isPrivatePackage(appointment: AppointmentWithDetails): boolean {
-		// For now, check if appointment has a purchase_id (private lessons have purchases)
-		return appointment.purchase_id !== null && appointment.purchase_id !== undefined;
-	}
-
-	function openExtensionModal(appointment: AppointmentWithDetails) {
-		selectedAppointment = appointment;
-		showExtensionModal = true;
-		additionalPackages = 1;
-		extensionLoading = false;
-	}
-
 	// Check if we're viewing the current week
 	const isCurrentWeek = $derived(() => {
 		const now = getWeekStart(new Date());
@@ -533,7 +520,7 @@
 					<p class="text-base-content/70">
 						Haftalık programı görüntülemek için önce bir oda eklemeniz gerekiyor.
 					</p>
-					<div class="card-actions mt-4">
+					<div class="mt-4 card-actions">
 						<a href="/rooms" class="btn btn-primary">Oda Ekle</a>
 					</div>
 				{:else if viewMode === 'trainer' && trainers.length === 0}
@@ -541,7 +528,7 @@
 					<p class="text-base-content/70">
 						Haftalık programı görüntülemek için önce bir eğitmen eklemeniz gerekiyor.
 					</p>
-					<div class="card-actions mt-4">
+					<div class="mt-4 card-actions">
 						<a href="/trainers" class="btn btn-info">Eğitmen Ekle</a>
 					</div>
 				{/if}
@@ -635,7 +622,8 @@
 						{#each selectedAppointment.appointment_trainees || [] as trainee (trainee.id)}
 							{@const isLastLesson =
 								trainee.session_number === trainee.total_sessions &&
-								trainee.total_sessions !== null}
+								trainee.total_sessions !== null &&
+								!trainee.pe_purchases?.successor_id}
 							{@const isGroupLesson = selectedAppointment.group_lesson_id !== null}
 							<div class="flex items-center justify-between gap-2">
 								<div class="flex-1 font-medium">

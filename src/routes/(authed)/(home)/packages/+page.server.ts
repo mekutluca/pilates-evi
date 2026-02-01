@@ -35,13 +35,22 @@ export const actions: Actions = {
 		// Validate required fields
 		if (
 			!packageForm.name ||
-			!packageForm.lessons_per_week ||
+			!packageForm.min_lessons_per_week ||
+			!packageForm.max_lessons_per_week ||
 			!packageForm.max_capacity ||
 			!packageForm.package_type
 		) {
 			return fail(400, {
 				success: false,
 				message: 'Ders adı, tür, haftalık ders sayısı ve maksimum kapasite gereklidir'
+			});
+		}
+
+		// Validate min/max lessons per week
+		if (packageForm.min_lessons_per_week > packageForm.max_lessons_per_week) {
+			return fail(400, {
+				success: false,
+				message: 'Minimum haftalık ders sayısı maksimumdan büyük olamaz'
 			});
 		}
 
@@ -62,7 +71,8 @@ export const actions: Actions = {
 				name: packageForm.name,
 				description: packageForm.description || null,
 				weeks_duration: packageForm.weeks_duration,
-				lessons_per_week: packageForm.lessons_per_week,
+				min_lessons_per_week: packageForm.min_lessons_per_week,
+				max_lessons_per_week: packageForm.max_lessons_per_week,
 				max_capacity: packageForm.max_capacity,
 				package_type: packageForm.package_type,
 				reschedulable: packageForm.reschedulable,
@@ -100,11 +110,13 @@ export const actions: Actions = {
 		const packageId = formData.get('packageId') as string;
 		const name = formData.get('name') as string;
 		const description = formData.get('description') as string;
+		const minLessonsPerWeek = formData.get('min_lessons_per_week') as string;
+		const maxLessonsPerWeek = formData.get('max_lessons_per_week') as string;
 		const maxCapacity = formData.get('max_capacity') as string;
 		const reschedulable = formData.get('reschedulable') === 'true';
 		const rescheduleLimit = formData.get('reschedule_limit') as string;
 
-		if (!packageId || !name || !maxCapacity) {
+		if (!packageId || !name || !minLessonsPerWeek || !maxLessonsPerWeek || !maxCapacity) {
 			return fail(400, {
 				success: false,
 				message: 'Tüm gerekli alanlar doldurulmalıdır'
@@ -112,22 +124,41 @@ export const actions: Actions = {
 		}
 
 		// Validate numeric fields
+		const minLessonsNum = parseInt(minLessonsPerWeek);
+		const maxLessonsNum = parseInt(maxLessonsPerWeek);
 		const maxCapacityNum = parseInt(maxCapacity);
 		const rescheduleLimitNum = rescheduleLimit ? parseInt(rescheduleLimit) : null;
 
-		if (isNaN(maxCapacityNum)) {
+		if (isNaN(minLessonsNum) || isNaN(maxLessonsNum) || isNaN(maxCapacityNum)) {
 			return fail(400, {
 				success: false,
 				message: 'Sayısal alanlar geçerli olmalıdır'
 			});
 		}
 
-		// Update package (excluding weeks_duration, lessons_per_week, and trainee_type)
+		// Validate min/max lessons per week
+		if (minLessonsNum < 1 || minLessonsNum > 7 || maxLessonsNum < 1 || maxLessonsNum > 7) {
+			return fail(400, {
+				success: false,
+				message: 'Haftalık ders sayısı 1 ile 7 arasında olmalıdır'
+			});
+		}
+
+		if (minLessonsNum > maxLessonsNum) {
+			return fail(400, {
+				success: false,
+				message: 'Minimum haftalık ders sayısı maksimumdan büyük olamaz'
+			});
+		}
+
+		// Update package (excluding weeks_duration and package_type)
 		const { error: updateError } = await supabase
 			.from('pe_packages')
 			.update({
 				name,
 				description: description || null,
+				min_lessons_per_week: minLessonsNum,
+				max_lessons_per_week: maxLessonsNum,
 				max_capacity: maxCapacityNum,
 				reschedulable,
 				reschedule_limit: rescheduleLimitNum

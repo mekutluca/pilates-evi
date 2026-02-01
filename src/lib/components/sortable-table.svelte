@@ -172,6 +172,7 @@
 	}
 
 	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity
 		searchTerm;
 		currentPage = 1;
 	});
@@ -291,7 +292,7 @@
 							«
 						</button>
 
-						{#each getPageNumbers() as page}
+						{#each getPageNumbers() as page, index (index)}
 							{#if page === '...'}
 								<button class="btn-disabled btn join-item btn-sm">...</button>
 							{:else}

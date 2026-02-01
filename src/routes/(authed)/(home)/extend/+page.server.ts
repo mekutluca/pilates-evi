@@ -9,6 +9,7 @@ import {
 	getLastAppointmentDate,
 	calculateExtensionStartDate
 } from '$lib/utils/extension-utils';
+import { parseLocalDate } from '$lib/utils/date-utils';
 
 type AppointmentInfo = { room_id: string; trainer_id: string; date: string; hour: number };
 
@@ -158,7 +159,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 				name,
 				package_type,
 				weeks_duration,
-				lessons_per_week,
+				min_lessons_per_week,
+				max_lessons_per_week,
 				max_capacity
 			)
 		`
@@ -181,7 +183,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			name: string;
 			package_type: 'private' | 'group';
 			weeks_duration: number;
-			lessons_per_week: number;
+			min_lessons_per_week: number;
+			max_lessons_per_week: number;
 			max_capacity: number;
 		} | null;
 	};
@@ -254,7 +257,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	const seenSlots = new Set<string>();
 
 	for (const apt of appointments) {
-		const date = new Date(apt.date);
+		const date = parseLocalDate(apt.date);
 		const dayOfWeek = date.getDay();
 		const day = dayMap[dayOfWeek];
 		const slotKey = `${day}-${apt.hour}`;
@@ -275,7 +278,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		package_name: typedPurchase.pe_packages.name,
 		package_type: typedPurchase.pe_packages.package_type,
 		weeks_duration: typedPurchase.pe_packages.weeks_duration,
-		lessons_per_week: typedPurchase.pe_packages.lessons_per_week,
+		min_lessons_per_week: typedPurchase.pe_packages.min_lessons_per_week,
+		max_lessons_per_week: typedPurchase.pe_packages.max_lessons_per_week,
+		// Use actual time slots count for display (matches the original assignment)
+		lessons_per_week: timeSlots.length,
 		max_capacity: typedPurchase.pe_packages.max_capacity,
 		trainees,
 		room_id: appointments[0].room_id,
@@ -348,7 +354,8 @@ export const actions: Actions = {
 					id,
 					package_type,
 					weeks_duration,
-					lessons_per_week,
+					min_lessons_per_week,
+					max_lessons_per_week,
 					reschedulable,
 					reschedule_limit
 				)
@@ -373,7 +380,8 @@ export const actions: Actions = {
 				id: string;
 				package_type: 'private' | 'group';
 				weeks_duration: number;
-				lessons_per_week: number;
+				min_lessons_per_week: number;
+				max_lessons_per_week: number;
 				reschedulable: boolean;
 				reschedule_limit: number | null;
 			} | null;
@@ -420,7 +428,7 @@ export const actions: Actions = {
 		const seenSlots = new Set<string>();
 
 		for (const apt of appointments) {
-			const date = new Date(apt.date);
+			const date = parseLocalDate(apt.date);
 			const dayOfWeek = date.getDay();
 			const day = dayMap[dayOfWeek];
 			const slotKey = `${day}-${apt.hour}`;
@@ -599,7 +607,8 @@ export const actions: Actions = {
 			}
 
 			// Assign trainees to appointments
-			const totalSessions = numWeeks * packageInfo.lessons_per_week;
+			// Use actual time slots count for total sessions calculation
+			const totalSessions = numWeeks * timeSlots.length;
 			const appointmentTraineeInserts = [];
 
 			for (let sessionNumber = 1; sessionNumber <= createdAppointments.length; sessionNumber++) {
@@ -634,8 +643,7 @@ export const actions: Actions = {
 			if (isPrivate) {
 				// Get the last appointment date of this purchase and calculate next start
 				const lastSlotDate = purchaseSlots[purchaseSlots.length - 1].date;
-				const [year, month, day] = lastSlotDate.split('-').map(Number);
-				const lastDate = new Date(year, month - 1, day);
+				const lastDate = parseLocalDate(lastSlotDate);
 				currentStartDate = calculateExtensionStartDate(lastDate);
 			}
 		}
@@ -695,7 +703,8 @@ export const actions: Actions = {
 					id,
 					package_type,
 					weeks_duration,
-					lessons_per_week,
+					min_lessons_per_week,
+					max_lessons_per_week,
 					reschedulable,
 					reschedule_limit
 				)
@@ -720,7 +729,8 @@ export const actions: Actions = {
 				id: string;
 				package_type: 'private' | 'group';
 				weeks_duration: number;
-				lessons_per_week: number;
+				min_lessons_per_week: number;
+				max_lessons_per_week: number;
 				reschedulable: boolean;
 				reschedule_limit: number | null;
 			} | null;
@@ -781,7 +791,7 @@ export const actions: Actions = {
 					});
 
 					// Track which group lesson this timeslot belongs to
-					const aptDate = new Date(t.pe_appointments.date);
+					const aptDate = parseLocalDate(t.pe_appointments.date);
 					const dayOfWeek = aptDate.getDay();
 					const timeslotKey = `${dayOfWeek}-${t.pe_appointments.hour}`;
 					if (!timeslotGroupLessons.has(timeslotKey)) {
@@ -827,7 +837,7 @@ export const actions: Actions = {
 		const seenSlots = new Set<string>();
 
 		for (const apt of appointments) {
-			const date = new Date(apt.date);
+			const date = parseLocalDate(apt.date);
 			const dayOfWeek = date.getDay();
 			const day = dayMap[dayOfWeek];
 			const slotKey = `${day}-${apt.hour}`;
@@ -889,8 +899,13 @@ export const actions: Actions = {
 			return slots;
 		};
 
-		// Build all appointment slots
+		// Build all appointment slots and sort by date/hour for correct session numbering
 		const allAppointmentSlots = buildAppointmentSlots(currentStartDate, numWeeks);
+		allAppointmentSlots.sort((a, b) => {
+			const dateCompare = a.date.localeCompare(b.date);
+			if (dateCompare !== 0) return dateCompare;
+			return a.hour - b.hour;
+		});
 
 		// Get trainee from team (should be one trainee for group lesson extension)
 		const { data: teamMembers, error: teamError } = await supabase
@@ -947,7 +962,7 @@ export const actions: Actions = {
 			const slot = allAppointmentSlots[sessionNumber - 1];
 
 			// Determine which group lesson this slot belongs to
-			const slotDate = new Date(slot.date);
+			const slotDate = parseLocalDate(slot.date);
 			const slotDayOfWeek = slotDate.getDay();
 			const timeslotKey = `${slotDayOfWeek}-${slot.hour}`;
 			const slotGroupLessonId = timeslotGroupLessons.get(timeslotKey);

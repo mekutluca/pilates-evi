@@ -122,7 +122,8 @@ export interface CreatePackageForm {
 	name: string;
 	description?: string;
 	weeks_duration: number | null;
-	lessons_per_week: number;
+	min_lessons_per_week: number;
+	max_lessons_per_week: number;
 	max_capacity: number;
 	package_type: 'private' | 'group';
 	reschedulable: boolean;

@@ -39,20 +39,23 @@
 		// Get the Monday of the week containing the start date
 		const firstWeekMonday = getWeekStart(startDate);
 
-		for (let week = 0; week < totalWeeks(); week++) {
-			for (const slot of purchaseInfo.time_slots) {
-				// Calculate the Monday for this week (starting from first week's Monday)
-				const weekMonday = new Date(firstWeekMonday);
-				weekMonday.setDate(firstWeekMonday.getDate() + week * 7);
+		// For each timeslot, find its first valid date and generate totalWeeks appointments
+		for (const slot of purchaseInfo.time_slots) {
+			// Get the date for this slot's day in the first week
+			let firstSlotDate = getDateForDayOfWeek(firstWeekMonday, slot.day);
 
-				// Get the actual date for this day of the week
-				let slotDate = getDateForDayOfWeek(weekMonday, slot.day);
+			// If this date is before start date, move to next week
+			if (firstSlotDate < startDate) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
+				firstSlotDate = new Date(firstSlotDate);
+				firstSlotDate.setDate(firstSlotDate.getDate() + 7);
+			}
 
-				// For the first week only: if the slot date is before start date, move to next week
-				if (week === 0 && slotDate < startDate) {
-					slotDate = new Date(slotDate);
-					slotDate.setDate(slotDate.getDate() + 7);
-				}
+			// Generate totalWeeks appointments starting from this first valid date
+			for (let week = 0; week < totalWeeks(); week++) {
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
+				const slotDate = new Date(firstSlotDate);
+				slotDate.setDate(firstSlotDate.getDate() + week * 7);
 
 				// Format date as YYYY-MM-DD using local date components
 				const slotYear = slotDate.getFullYear();
@@ -68,6 +71,13 @@
 				});
 			}
 		}
+
+		// Sort by date and hour for consistent display
+		previews.sort((a, b) => {
+			const dateCompare = a.date.localeCompare(b.date);
+			if (dateCompare !== 0) return dateCompare;
+			return a.hour - b.hour;
+		});
 
 		return previews;
 	});
@@ -123,7 +133,7 @@
 					}
 				}
 			}
-		} catch (error) {
+		} catch {
 			// Silently handle conflict check errors
 		} finally {
 			isCheckingConflicts = false;
@@ -147,7 +157,7 @@
 				const result = await response.json();
 				capacityIssues = result.capacityIssues || [];
 			}
-		} catch (error) {
+		} catch {
 			// Silently handle capacity check errors
 		} finally {
 			isCheckingConflicts = false;
@@ -385,7 +395,7 @@
 									{/if}
 								</div>
 								<ul class="timeline timeline-vertical timeline-compact">
-									{#each purchaseChain as purchase, index}
+									{#each purchaseChain as purchase, index (purchase.id)}
 										<li>
 											{#if index > 0}
 												<hr class="bg-warning" />
@@ -513,7 +523,7 @@
 								</div>
 
 								<div class="max-h-[500px] space-y-2 overflow-y-auto">
-									{#each appointmentPreviews as appointment}
+									{#each appointmentPreviews as appointment, i (`${appointment.date}-${appointment.hour}-${i}`)}
 										{@const conflictInfo = conflicts.find(
 											(c) => c.date === appointment.date && c.hour === appointment.hour
 										)}

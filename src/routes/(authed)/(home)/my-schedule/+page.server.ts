@@ -51,11 +51,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 				id,
 				reschedule_left,
 				successor_id,
-				pe_packages(id, name, package_type, reschedulable, weeks_duration, lessons_per_week)
+				pe_packages(id, name, package_type, reschedulable, weeks_duration, min_lessons_per_week, max_lessons_per_week)
 			),
 			pe_group_lessons(
 				id,
-				pe_packages(id, name, package_type, reschedulable, weeks_duration, lessons_per_week)
+				pe_packages(id, name, package_type, reschedulable, weeks_duration, min_lessons_per_week, max_lessons_per_week)
 			),
 			pe_rooms(id, name, capacity),
 			pe_trainers(id, name),

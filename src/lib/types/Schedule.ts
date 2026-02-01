@@ -38,7 +38,8 @@ export interface PackageInfo {
 	package_type?: string;
 	reschedulable?: boolean;
 	weeks_duration?: number | null;
-	lessons_per_week?: number;
+	min_lessons_per_week?: number;
+	max_lessons_per_week?: number;
 }
 
 // Purchase relation for appointments
