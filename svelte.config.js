@@ -6,7 +6,10 @@ const config = {
 	// Consult https://svelte.dev/docs/kit/integrations
 	// for more information about preprocessors
 	preprocess: vitePreprocess(),
-	kit: { adapter: adapter() }
+	kit: {
+		adapter: adapter(),
+		version: { name: process.env.npm_package_version }
+	}
 };
 
 export default config;

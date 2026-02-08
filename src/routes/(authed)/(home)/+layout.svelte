@@ -13,6 +13,7 @@
 	import { allRoutes, type Route } from '$lib/types/Route.js';
 	import type { Role } from '$lib/types/Role.js';
 	import type { ActionItem } from '$lib/types/ActionItem.js';
+	import { version } from '$app/environment';
 
 	let { children, data } = $props();
 	let { supabase, session, userRole } = $derived(data);
@@ -169,28 +170,31 @@
 	<!-- Main content area with sidebar and scrollable content -->
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Fixed sidebar -->
-		<div class="hidden w-80 bg-base-200 p-4 lg:block">
-			{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
-				{#if groupIndex > 0}
-					<div class="divider my-2"></div>
-				{/if}
-				<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">{groupName}</div>
-				<ul class="menu w-full text-base-content">
-					{#each routes as route (route.href)}
-						<li class="w-full">
-							<a
-								href={route.href}
-								class="flex w-full items-center {page.url.pathname === route.href ||
-								page.url.pathname.startsWith(route.href + '/')
-									? 'menu-active'
-									: ''}"
-							>
-								<route.icon size="16" /><span>{route.label}</span>
-							</a>
-						</li>
-					{/each}
-				</ul>
-			{/each}
+		<div class="hidden w-80 flex-col justify-between bg-base-200 p-4 lg:flex">
+			<div>
+				{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
+					{#if groupIndex > 0}
+						<div class="divider my-2"></div>
+					{/if}
+					<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">{groupName}</div>
+					<ul class="menu w-full text-base-content">
+						{#each routes as route (route.href)}
+							<li class="w-full">
+								<a
+									href={route.href}
+									class="flex w-full items-center {page.url.pathname === route.href ||
+									page.url.pathname.startsWith(route.href + '/')
+										? 'menu-active'
+										: ''}"
+								>
+									<route.icon size="16" /><span>{route.label}</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/each}
+			</div>
+			<div class="text-xs text-base-content/40">Build {version}</div>
 		</div>
 
 		<!-- Mobile drawer -->
@@ -201,40 +205,45 @@
 			</div>
 			<div class="drawer-side">
 				<label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
-				<div class="min-h-full w-80 bg-base-200 p-4 text-base-content">
-					<!-- Back arrow for mobile sidebar -->
-					<button
-						class="btn mb-2 btn-ghost lg:hidden"
-						type="button"
-						onclick={closeDrawer}
-						aria-label="Kapat"
-					>
-						<ArrowLeft size="20" />
-					</button>
-					{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
-						{#if groupIndex > 0}
-							<div class="divider my-2"></div>
-						{/if}
-						<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">
-							{groupName}
-						</div>
-						<ul class="menu w-full">
-							{#each routes as route (route.href)}
-								<li class="w-full">
-									<a
-										href={route.href}
-										onclick={closeDrawer}
-										class="flex w-full items-center {page.url.pathname === route.href ||
-										page.url.pathname.startsWith(route.href + '/')
-											? 'menu-active'
-											: ''}"
-									>
-										<route.icon size="16" /><span>{route.label}</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					{/each}
+				<div
+					class="flex min-h-full w-80 flex-col justify-between bg-base-200 p-4 text-base-content"
+				>
+					<div>
+						<!-- Back arrow for mobile sidebar -->
+						<button
+							class="btn mb-2 btn-ghost lg:hidden"
+							type="button"
+							onclick={closeDrawer}
+							aria-label="Kapat"
+						>
+							<ArrowLeft size="20" />
+						</button>
+						{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
+							{#if groupIndex > 0}
+								<div class="divider my-2"></div>
+							{/if}
+							<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">
+								{groupName}
+							</div>
+							<ul class="menu w-full">
+								{#each routes as route (route.href)}
+									<li class="w-full">
+										<a
+											href={route.href}
+											onclick={closeDrawer}
+											class="flex w-full items-center {page.url.pathname === route.href ||
+											page.url.pathname.startsWith(route.href + '/')
+												? 'menu-active'
+												: ''}"
+										>
+											<route.icon size="16" /><span>{route.label}</span>
+										</a>
+									</li>
+								{/each}
+							</ul>
+						{/each}
+					</div>
+					<div class="text-xs text-base-content/40">Build {version}</div>
 				</div>
 			</div>
 		</div>
