@@ -185,3 +185,20 @@ export interface AvailableGroupTimeslot {
 	max_capacity: number;
 	current_capacity: number; // Number of trainees currently assigned to this specific timeslot
 }
+
+// ===============================================
+// WHATSAPP TYPES
+// ===============================================
+
+export type {
+	TemplateMapping,
+	WhatsAppConfig,
+	SendTemplateMessageParams,
+	SendTextMessageParams,
+	TemplateMessageBody,
+	SessionMessageBody,
+	ChakraResponse,
+	TemplateMessageData,
+	SessionMessageData
+} from './WhatsApp';
+
