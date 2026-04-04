@@ -6,8 +6,12 @@ import type {
 	TemplateMessageData,
 	SessionMessageData,
 	TemplateMessageBody,
-	SessionMessageBody
+	SessionMessageBody,
+	WhatsAppAppointmentData,
+	AppointmentQueryRow
 } from '$lib/types/WhatsApp';
+import { formatPhoneNumber } from '$lib/utils/phone-utils';
+import { formatTurkishDate } from '$lib/utils/date-utils';
 
 const BASE_URL = 'https://api.chakrahq.com/v1/ext';
 
@@ -21,7 +25,7 @@ export class WhatsAppRepository {
 	async sendTemplateMessage(
 		params: SendTemplateMessageParams
 	): Promise<ChakraResponse<TemplateMessageData>> {
-		const phone = this.formatPhoneNumber(params.phoneNumber);
+		const phone = formatPhoneNumber(params.phoneNumber);
 		const url = `${BASE_URL}/plugin/whatsapp/${this.config.pluginId}/phoneNumber/${phone}/send-template-message`;
 
 		const body: TemplateMessageBody = {
@@ -37,7 +41,7 @@ export class WhatsAppRepository {
 	async sendTextMessage(
 		params: SendTextMessageParams
 	): Promise<ChakraResponse<SessionMessageData>> {
-		const phone = this.formatPhoneNumber(params.phoneNumber);
+		const phone = formatPhoneNumber(params.phoneNumber);
 		const url = `${BASE_URL}/plugin/whatsapp/${this.config.pluginId}/api/${this.config.apiVersion}/${this.config.phoneNumberId}/messages`;
 
 		const body: SessionMessageBody = {
@@ -51,18 +55,29 @@ export class WhatsAppRepository {
 		return this.request<SessionMessageData>(url, body);
 	}
 
-	private formatPhoneNumber(phone: string): string {
-		const digits = phone.replace(/\D/g, '');
+	static buildAppointmentData(rows: AppointmentQueryRow[]): WhatsAppAppointmentData[] {
+		return rows
+			.filter((row) => row.pe_appointments.date && row.pe_appointments.hour !== null)
+			.map((row) => {
+				const apt = row.pe_appointments;
+				const packageName =
+					apt.pe_purchases?.pe_packages?.name ??
+					apt.pe_group_lessons?.pe_packages?.name ??
+					'';
+				const date = apt.date!;
+				const hour = apt.hour!;
 
-		if (digits.startsWith('90') && digits.length === 12) {
-			return digits;
-		}
-
-		if (digits.length === 10 && digits.startsWith('5')) {
-			return `90${digits}`;
-		}
-
-		return digits;
+				return {
+					traineeName: row.pe_trainees.name,
+					traineePhone: row.pe_trainees.phone,
+					trainerName: apt.pe_trainers?.name ?? '',
+					packageName,
+					date,
+					hour,
+					formattedDate: formatTurkishDate(date),
+					formattedTime: `${String(hour).padStart(2, '0')}:00`
+				};
+			});
 	}
 
 	private async request<T>(

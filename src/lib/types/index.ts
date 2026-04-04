@@ -199,6 +199,8 @@ export type {
 	SessionMessageBody,
 	ChakraResponse,
 	TemplateMessageData,
-	SessionMessageData
+	SessionMessageData,
+	WhatsAppAppointmentData,
+	AppointmentQueryRow
 } from './WhatsApp';
 

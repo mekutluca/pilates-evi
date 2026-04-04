@@ -147,6 +147,20 @@ export function getDayOfWeekFromDate(appointmentDate: string): string {
 }
 
 /**
+ * Formats a date string in full Turkish format with day name
+ * @param dateStr - The date string in YYYY-MM-DD format
+ * @returns Formatted date string, e.g. "31 Mart 2026 Salı"
+ */
+export function formatTurkishDate(dateStr: string): string {
+	const date = new Date(dateStr + 'T00:00:00');
+	const months = [
+		'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+		'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+	];
+	return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
+}
+
+/**
  * Formats a date string for display in Turkish locale
  * @param dateString - The date string to format
  * @returns Formatted date string
