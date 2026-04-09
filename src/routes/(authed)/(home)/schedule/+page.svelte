@@ -803,7 +803,8 @@
 					return async ({ result, update }) => {
 						formLoading = false;
 						if (result.type === 'success') {
-							toast.success('Randevu başarıyla ertelendi');
+							const data = result.data as { message?: string } | undefined;
+							toast.success(data?.message || 'Randevu başarıyla değiştirildi');
 							resetRescheduleForm();
 							selectedAppointment = null;
 							showRescheduleConfirmation = false;

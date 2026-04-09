@@ -201,6 +201,7 @@ export type {
 	TemplateMessageData,
 	SessionMessageData,
 	WhatsAppAppointmentData,
-	AppointmentQueryRow
+	AppointmentQueryRow,
+	RescheduleNotificationParams
 } from './WhatsApp';
 

@@ -3,7 +3,9 @@ import type { Actions, PageServerLoad } from './$types';
 import type { Role } from '$lib/types/Role';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
+import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
 import type { DayOfWeek } from '$lib/types/Schedule';
+import { getWhatsAppRepository } from '$lib/whatsapp';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -116,7 +118,7 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}
 
-		// Get current appointment details with purchase info
+		// Get current appointment details with purchase info, package name, and trainees
 		const { data: currentAppointment, error: fetchError } = await supabase
 			.from('pe_appointments')
 			.select(
@@ -124,7 +126,14 @@ export const actions: Actions = {
 				*,
 				pe_purchases(
 					id,
-					reschedule_left
+					reschedule_left,
+					pe_packages(name)
+				),
+				pe_group_lessons(
+					pe_packages(name)
+				),
+				pe_appointment_trainees(
+					pe_trainees(phone)
 				)
 			`
 			)
@@ -259,6 +268,42 @@ export const actions: Actions = {
 			}
 		}
 
-		return { success: true, message: 'Randevu vakti başarıyla değiştirildi' };
+		// Send WhatsApp reschedule notification
+		const appointmentTrainees = currentAppointment.pe_appointment_trainees as
+			| Array<{ pe_trainees: { phone: string } | null }>
+			| undefined;
+		const trainees = (appointmentTrainees ?? [])
+			.map((at) => at.pe_trainees)
+			.filter((t): t is { phone: string } => t !== null && !!t.phone);
+
+		let notifiedCount = 0;
+		if (trainees.length > 0) {
+			const packageName =
+				currentAppointment.pe_purchases?.pe_packages?.name ??
+				currentAppointment.pe_group_lessons?.pe_packages?.name ??
+				'';
+
+			const oldDateTime = formatShortTurkishDateTime(
+				currentAppointment.date,
+				currentAppointment.hour
+			);
+			const newDateTime = formatShortTurkishDateTime(newAppointmentDateString, newHour);
+
+			const whatsapp = getWhatsAppRepository();
+			notifiedCount = await whatsapp.sendRescheduleNotifications({
+				trainees,
+				oldDateTime,
+				newDateTime,
+				packageName,
+				templateName: 'appt_reschedule_per_user_request'
+			});
+		}
+
+		const message =
+			notifiedCount > 0
+				? `Randevu vakti başarıyla değiştirildi. ${notifiedCount} öğrenciye bilgilendirme mesajı gönderildi.`
+				: 'Randevu vakti başarıyla değiştirildi';
+
+		return { success: true, message };
 	}
 };

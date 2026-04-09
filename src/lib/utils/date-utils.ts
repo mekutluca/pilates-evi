@@ -161,6 +161,21 @@ export function formatTurkishDate(dateStr: string): string {
 }
 
 /**
+ * Formats a date and hour as short Turkish date-time string
+ * @param dateStr - The date string in YYYY-MM-DD format
+ * @param hour - The hour (0-23)
+ * @returns Formatted string, e.g. "26 Şubat 11:00"
+ */
+export function formatShortTurkishDateTime(dateStr: string, hour: number): string {
+	const date = new Date(dateStr + 'T00:00:00');
+	const months = [
+		'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+		'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+	];
+	return `${date.getDate()} ${months[date.getMonth()]} ${String(hour).padStart(2, '0')}:00`;
+}
+
+/**
  * Formats a date string for display in Turkish locale
  * @param dateString - The date string to format
  * @returns Formatted date string

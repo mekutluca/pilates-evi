@@ -6,7 +6,7 @@ import { formatTurkishDate } from '../../../src/lib/utils/date-utils.ts';
 
 const CHAKRA_BASE_URL = 'https://api.chakrahq.com/v1/ext';
 
-const TEMPLATE_NAME = 'appointment_reminder';
+const TEMPLATE_NAME = 'daily_appt_reminder';
 
 Deno.serve(async (req) => {
 	const cronSecret = Deno.env.get('CRON_SECRET')!;

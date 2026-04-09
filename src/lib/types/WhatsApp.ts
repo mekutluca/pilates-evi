@@ -69,6 +69,15 @@ export interface AppointmentQueryRow {
 	};
 }
 
+export interface RescheduleNotificationParams {
+	trainees: Array<{ phone: string }>;
+	oldDateTime: string; // e.g. "26 Şubat 11:00"
+	newDateTime: string; // e.g. "1 Mart 15:00"
+	packageName: string;
+	templateName: string;
+	cause?: string;
+}
+
 export interface WhatsAppAppointmentData {
 	traineeName: string;
 	traineePhone: string;

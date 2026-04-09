@@ -8,7 +8,9 @@ import type {
 	TemplateMessageBody,
 	SessionMessageBody,
 	WhatsAppAppointmentData,
-	AppointmentQueryRow
+	AppointmentQueryRow,
+	TemplateMapping,
+	RescheduleNotificationParams
 } from '$lib/types/WhatsApp';
 import { formatPhoneNumber } from '$lib/utils/phone-utils';
 import { formatTurkishDate } from '$lib/utils/date-utils';
@@ -53,6 +55,33 @@ export class WhatsAppRepository {
 		};
 
 		return this.request<SessionMessageData>(url, body);
+	}
+
+	async sendRescheduleNotifications(params: RescheduleNotificationParams): Promise<number> {
+		const mapping: TemplateMapping[] = [
+			{ schemaPropertyName: 'old_date_time', schemaPropertyValue: params.oldDateTime },
+			{ schemaPropertyName: 'package', schemaPropertyValue: params.packageName },
+			{ schemaPropertyName: 'new_date_time', schemaPropertyValue: params.newDateTime }
+		];
+
+		if (params.cause) {
+			mapping.push({ schemaPropertyName: 'cause', schemaPropertyValue: params.cause });
+		}
+
+		const results = await Promise.all(
+			params.trainees.map((trainee) =>
+				this.sendTemplateMessage({
+					phoneNumber: trainee.phone,
+					templateName: params.templateName,
+					mapping
+				}).catch((error) => {
+					console.error(`Failed to send reschedule notification to ${trainee.phone}:`, error);
+					return null;
+				})
+			)
+		);
+
+		return results.filter((r) => r !== null).length;
 	}
 
 	static buildAppointmentData(rows: AppointmentQueryRow[]): WhatsAppAppointmentData[] {
