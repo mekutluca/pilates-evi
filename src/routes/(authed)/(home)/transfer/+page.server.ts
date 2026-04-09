@@ -10,8 +10,14 @@ import type {
 	RecordWithAppt
 } from '$lib/types/Transfer';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { addWeeksToDate, getDayOfWeekFromDate, buildAppointmentSlots } from '$lib/utils/date-utils';
+import {
+	addWeeksToDate,
+	getDayOfWeekFromDate,
+	buildAppointmentSlots,
+	formatShortTurkishDateTime
+} from '$lib/utils/date-utils';
 import type { DayOfWeek } from '$lib/types/Schedule';
+import { getWhatsAppRepository } from '$lib/whatsapp';
 
 const APPOINTMENT_SELECT_QUERY = `
 	*,
@@ -23,7 +29,7 @@ const APPOINTMENT_SELECT_QUERY = `
 		id,
 		session_number,
 		total_sessions,
-		pe_trainees(id, name)
+		pe_trainees(id, name, phone)
 	)
 `;
 
@@ -165,6 +171,57 @@ async function hasConflict(
 	}
 
 	return { roomConflict, trainerConflict };
+}
+
+async function sendShiftNotifications(
+	appointments: AppointmentWithDetails[],
+	getNewDate: (apt: AppointmentWithDetails) => string,
+	cause: string
+): Promise<number> {
+	const whatsapp = getWhatsAppRepository();
+
+	const messages = appointments.flatMap((apt) => {
+		if (!apt.date || apt.hour === null) return [];
+		const packageName =
+			apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
+		const oldDateTime = formatShortTurkishDateTime(apt.date, apt.hour);
+		const newDate = getNewDate(apt);
+		const newDateTime = formatShortTurkishDateTime(newDate, apt.hour);
+
+		return apt.pe_appointment_trainees
+			.filter((at) => at.pe_trainees?.phone)
+			.map((at) => ({
+				phone: at.pe_trainees!.phone,
+				oldDateTime,
+				newDateTime,
+				packageName
+			}));
+	});
+
+	if (messages.length === 0) return 0;
+
+	// Deduplicate by phone (a trainee appears once per unique notification)
+	const results = await Promise.all(
+		messages.map((msg) =>
+			whatsapp
+				.sendTemplateMessage({
+					phoneNumber: msg.phone,
+					templateName: 'appt_reschedule_by_system',
+					mapping: [
+						{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime },
+						{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName },
+						{ schemaPropertyName: 'cause', schemaPropertyValue: cause },
+						{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime }
+					]
+				})
+				.catch((error) => {
+					console.error(`Failed to send shift notification to ${msg.phone}:`, error);
+					return null;
+				})
+		)
+	);
+
+	return results.filter((r) => r !== null).length;
 }
 
 export const load: PageServerLoad = async ({
@@ -542,6 +599,7 @@ export const actions: Actions = {
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
 		const scope = getRequiredFormDataString(formData, 'scope');
 		const weeks = Number(getRequiredFormDataString(formData, 'weeks'));
+		const cause = formData.get('cause')?.toString() || '';
 
 		// Validation
 		if (weeks === 0) {
@@ -698,8 +756,18 @@ export const actions: Actions = {
 			}
 		}
 
+		// Send WhatsApp notifications
+		let notifiedCount = 0;
+		if (cause) {
+			notifiedCount = await sendShiftNotifications(
+				appointmentsToShift,
+				(apt) => addWeeksToDate(apt.date!, weeks),
+				cause
+			);
+		}
+
 		// Redirect to schedule
-		throw redirect(303, '/schedule');
+		throw redirect(303, `/schedule?notified=${notifiedCount}`);
 	},
 
 	shift_by_slot: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -711,6 +779,7 @@ export const actions: Actions = {
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
 		const scope = getRequiredFormDataString(formData, 'scope');
 		const slots = Number(getRequiredFormDataString(formData, 'slots'));
+		const cause = formData.get('cause')?.toString() || '';
 
 		// Validation
 		if (slots <= 0) {
@@ -912,8 +981,52 @@ export const actions: Actions = {
 			}
 		}
 
+		// Send WhatsApp notifications
+		let notifiedCount = 0;
+		if (cause) {
+			const whatsapp = getWhatsAppRepository();
+			const messages = shiftMap.flatMap((shift) => {
+				const apt = validAppointments.find((a) => a.id === shift.id);
+				if (!apt?.date || apt.hour === null) return [];
+				const packageName =
+					apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
+				const oldDateTime = formatShortTurkishDateTime(apt.date, apt.hour);
+				const newDateTime = formatShortTurkishDateTime(shift.newDate, shift.newHour);
+
+				return apt.pe_appointment_trainees
+					.filter((at) => at.pe_trainees?.phone)
+					.map((at) => ({
+						phone: at.pe_trainees!.phone,
+						oldDateTime,
+						newDateTime,
+						packageName
+					}));
+			});
+
+			const results = await Promise.all(
+				messages.map((msg) =>
+					whatsapp
+						.sendTemplateMessage({
+							phoneNumber: msg.phone,
+							templateName: 'appt_reschedule_by_system',
+							mapping: [
+								{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime },
+								{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName },
+								{ schemaPropertyName: 'cause', schemaPropertyValue: cause },
+								{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime }
+							]
+						})
+						.catch((error) => {
+							console.error(`Failed to send shift notification to ${msg.phone}:`, error);
+							return null;
+						})
+				)
+			);
+			notifiedCount = results.filter((r) => r !== null).length;
+		}
+
 		// Redirect to schedule
-		throw redirect(303, '/schedule');
+		throw redirect(303, `/schedule?notified=${notifiedCount}`);
 	},
 
 	shift_trainee_by_time: async ({ request, locals: { supabase, user, userRole } }) => {

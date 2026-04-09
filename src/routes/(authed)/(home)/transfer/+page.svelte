@@ -42,6 +42,7 @@
 	let appointmentsChecked = $state(0);
 	let hasChecked = $state(false);
 	let transferring = $state(false);
+	let shiftCause = $state('');
 
 	// Computed values
 	const packageName = $derived(
@@ -431,6 +432,10 @@
 				formData.append('change_trainer', hasTrainerSelected.toString());
 			}
 
+			if (isShiftMode && shiftCause) {
+				formData.append('cause', shiftCause);
+			}
+
 			const response = await fetch(`?/${actionName}`, {
 				method: 'POST',
 				body: formData
@@ -439,8 +444,16 @@
 			const result = await response.json();
 
 			if (result.type === 'redirect' || result.type === 'success') {
-				toast.success(successMessage);
-				goto(result.location || '/schedule');
+				const location = result.location || '/schedule';
+				const url = new URL(location, window.location.origin);
+				const notified = url.searchParams.get('notified');
+				const notifiedMessage =
+					notified && Number(notified) > 0
+						? ` ${notified} öğrenciye bilgilendirme mesajı gönderildi.`
+						: '';
+				url.searchParams.delete('notified');
+				toast.success(successMessage + notifiedMessage);
+				goto(url.pathname + url.search);
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || 'Bir hata oluştu');
 			} else {
@@ -734,7 +747,25 @@
 								</span>
 							</div>
 						</div>
-					{:else if isTransferMode}
+					{/if}
+
+					{#if isShiftMode}
+						<!-- Shift Reason -->
+						<div class="form-control mt-4">
+							<label class="label" for="shift-cause">
+								<span class="label-text font-medium">Kaydırma Sebebi</span>
+							</label>
+							<input
+								id="shift-cause"
+								type="text"
+								class="input-bordered input w-full input-warning"
+								placeholder="Örn: 23 Nisan tatili"
+								bind:value={shiftCause}
+							/>
+						</div>
+					{/if}
+
+					{#if isTransferMode}
 						<!-- Room Selection -->
 						<div class="form-control">
 							<label class="label" for="room-select">

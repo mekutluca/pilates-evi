@@ -39,7 +39,7 @@ export type AppointmentWithDetails = {
 		id: number;
 		session_number: number | null;
 		total_sessions: number | null;
-		pe_trainees: { id: string; name: string } | null;
+		pe_trainees: { id: string; name: string; phone: string } | null;
 	}>;
 };
 
