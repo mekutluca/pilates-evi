@@ -140,22 +140,36 @@ Deno.serve(async (req) => {
 		}
 	};
 
+	// Send in batches of 10 with 5 second delay between batches
+	const BATCH_SIZE = 10;
+	const BATCH_DELAY_MS = 5000;
 	const sendStart = performance.now();
-	const results = await Promise.all(appointments.map(sendMessage));
-	const sendDuration = Math.round(performance.now() - sendStart);
 
 	let sent = 0;
 	let failed = 0;
 	const errors: string[] = [];
 
-	for (const result of results) {
-		if (result.success) {
-			sent++;
-		} else {
-			failed++;
-			errors.push(result.error);
+	for (let i = 0; i < appointments.length; i += BATCH_SIZE) {
+		const batch = appointments.slice(i, i + BATCH_SIZE);
+		const results = await Promise.all(batch.map(sendMessage));
+
+		for (const result of results) {
+			if (result.success) {
+				sent++;
+			} else {
+				failed++;
+				errors.push(result.error);
+			}
+		}
+
+		console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} complete — sent so far: ${sent}, failed so far: ${failed}`);
+
+		if (i + BATCH_SIZE < appointments.length) {
+			await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
 		}
 	}
+
+	const sendDuration = Math.round(performance.now() - sendStart);
 
 	console.log(`Messages sent in ${sendDuration}ms — sent: ${sent}, failed: ${failed}`);
 	if (errors.length > 0) {
