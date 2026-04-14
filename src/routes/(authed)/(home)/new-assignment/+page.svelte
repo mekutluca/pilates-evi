@@ -31,6 +31,15 @@
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/components/schedule.types';
 	import DatePicker from '$lib/components/date-picker.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import { cn } from '$lib/utils/class-utils';
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
@@ -962,27 +971,27 @@
 		<!-- Header -->
 		<div class="mb-6">
 			<h1 class="flex items-center gap-2 text-2xl font-bold">
-				<Plus class="h-6 w-6 text-base-content" />
+				<Plus class="h-6 w-6" />
 				Yeni Kayıt
 			</h1>
-			<p class="mt-1 text-sm text-base-content/60">
+			<p class="mt-1 text-sm text-muted-foreground">
 				Ders seçin, zaman dilimlerini belirleyin ve öğrencileri atayın
 			</p>
 		</div>
 
 		<!-- Progress Bar -->
-		<div class="card mb-6 bg-base-100 shadow-sm">
-			<div class="card-body p-4">
+		<Card.Root class="mb-6">
+			<Card.Content class="p-4">
 				<div class="mb-4">
-					<div class="text-sm text-base-content/60">
+					<div class="text-sm text-muted-foreground">
 						Adım {currentStep} / {totalSteps}
 					</div>
 				</div>
 
 				<!-- Progress bar -->
-				<div class="h-2 w-full rounded-full bg-base-200">
+				<div class="h-2 w-full rounded-full bg-muted">
 					<div
-						class="h-2 rounded-full bg-accent transition-all duration-300"
+						class="h-2 rounded-full bg-primary transition-all duration-300"
 						style="width: {progress}%"
 					></div>
 				</div>
@@ -992,12 +1001,13 @@
 					{#each stepTitles as title, index (index)}
 						{@const stepNum = index + 1}
 						{@const isActive = isStepActive(stepNum)}
-						<div
-							class="badge flex items-center gap-1 px-3 py-2 text-xs"
-							class:badge-accent={currentStep === stepNum && isActive}
-							class:badge-success={currentStep > stepNum && isActive}
-							class:badge-outline={currentStep < stepNum}
-							class:opacity-40={!isActive}
+						<Badge
+							variant={currentStep === stepNum && isActive
+								? 'default'
+								: currentStep > stepNum && isActive
+									? 'secondary'
+									: 'outline'}
+							class={cn('flex items-center gap-1 px-3 py-2', !isActive && 'opacity-40')}
 						>
 							{#if !isActive}
 								<span class="line-through">{title}</span>
@@ -1009,82 +1019,76 @@
 								<span class="hidden sm:inline">{title}</span>
 								<span class="sm:hidden">{stepNum}</span>
 							{/if}
-						</div>
+						</Badge>
 					{/each}
 				</div>
-			</div>
-		</div>
+			</Card.Content>
+		</Card.Root>
 
 		<!-- Step Content -->
-		<div class="card bg-base-100 shadow-xl">
-			<div class="card-body p-6">
+		<Card.Root>
+			<Card.Content class="p-6">
 				{#if formLoading}
 					<div class="flex items-center justify-center py-12">
-						<LoaderCircle size={48} class="animate-spin text-accent" />
+						<LoaderCircle size={48} class="animate-spin text-primary" />
 						<span class="ml-3 text-lg">Kayıt tamamlanıyor...</span>
 					</div>
 				{:else if currentStep === 1}
 					<!-- Step 1: Package Selection Only -->
 					<div class="space-y-6">
 						<h2 class="flex items-center gap-2 text-xl font-semibold">
-							<Dumbbell class="h-5 w-5 text-accent" />
+							<Dumbbell class="h-5 w-5 text-muted-foreground" />
 							Ders Seçimi
 						</h2>
 
 						{#if packages.length === 0}
-							<!-- Package Selection -->
 							<!-- Empty state when no packages exist -->
 							<div class="flex flex-col items-center justify-center py-16 text-center">
-								<Dumbbell class="mb-4 h-16 w-16 text-base-content/30" />
-								<h3 class="mb-2 text-lg font-semibold text-base-content/70">
+								<Dumbbell class="mb-4 h-16 w-16 text-muted-foreground/40" />
+								<h3 class="mb-2 text-lg font-semibold text-muted-foreground">
 									Henüz ders eklenmemiş
 								</h3>
-								<p class="mb-6 max-w-md text-base-content/60">
+								<p class="mb-6 max-w-md text-muted-foreground">
 									Yeni kayıt oluşturmak için önce ders oluşturmalısınız.
 								</p>
-								<a href="/packages" class="btn btn-accent">
+								<Button href="/packages">
 									<Plus class="h-4 w-4" />
 									İlk Dersi Oluştur
-								</a>
+								</Button>
 							</div>
 						{:else}
 							<!-- Normal Mode - Show all packages -->
-							<div class="space-y-6">
+							<RadioGroup bind:value={assignmentForm.package_id} class="space-y-6">
 								<!-- Private Packages -->
 								{#if groupedPackages().private.length > 0}
 									<div class="space-y-3">
-										<h4 class="font-medium text-base-content">Özel Dersler</h4>
+										<h4 class="font-medium">Özel Dersler</h4>
 										<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 											{#each groupedPackages().private as pkg (pkg.id)}
 												<label class="cursor-pointer">
 													<div
-														class="card border transition-all duration-200 hover:shadow-lg {assignmentForm.package_id ===
-														pkg.id
-															? 'border-accent bg-accent/10 shadow-lg'
-															: 'hover:border-accent/50'}"
+														class={cn(
+															'rounded-lg border p-4 transition-all duration-200 hover:shadow-lg',
+															assignmentForm.package_id === pkg.id
+																? 'border-primary bg-primary/10 shadow-lg'
+																: 'hover:border-primary/50'
+														)}
 													>
-														<div class="card-body p-4">
-															<div class="flex items-start gap-3">
-																<input
-																	type="radio"
-																	class="radio mt-1 radio-sm radio-accent"
-																	bind:group={assignmentForm.package_id}
-																	value={pkg.id}
-																/>
-																<div class="flex-1">
-																	<div class="font-medium">{pkg.name}</div>
-																	<div class="mt-2 text-xs text-base-content/60">
-																		<div>{formatLessonsPerWeek(pkg)}</div>
-																		<div>Max {pkg.max_capacity} kişi</div>
-																		<div>
-																			{#if pkg.package_type === 'group'}
-																				Devamlı
-																			{:else if pkg.weeks_duration}
-																				{pkg.weeks_duration} hafta
-																			{:else}
-																				Süresiz
-																			{/if}
-																		</div>
+														<div class="flex items-start gap-3">
+															<RadioGroupItem value={pkg.id} class="mt-1" />
+															<div class="flex-1">
+																<div class="font-medium">{pkg.name}</div>
+																<div class="mt-2 text-xs text-muted-foreground">
+																	<div>{formatLessonsPerWeek(pkg)}</div>
+																	<div>Max {pkg.max_capacity} kişi</div>
+																	<div>
+																		{#if pkg.package_type === 'group'}
+																			Devamlı
+																		{:else if pkg.weeks_duration}
+																			{pkg.weeks_duration} hafta
+																		{:else}
+																			Süresiz
+																		{/if}
 																	</div>
 																</div>
 															</div>
@@ -1099,38 +1103,33 @@
 								<!-- Group Packages -->
 								{#if groupedPackages().group.length > 0}
 									<div class="space-y-3">
-										<h4 class="font-medium text-base-content">Grup Dersleri</h4>
+										<h4 class="font-medium">Grup Dersleri</h4>
 										<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 											{#each groupedPackages().group as pkg (pkg.id)}
 												<label class="cursor-pointer">
 													<div
-														class="card border transition-all duration-200 hover:shadow-lg {assignmentForm.package_id ===
-														pkg.id
-															? 'border-accent bg-accent/10 shadow-lg'
-															: 'hover:border-accent/50'}"
+														class={cn(
+															'rounded-lg border p-4 transition-all duration-200 hover:shadow-lg',
+															assignmentForm.package_id === pkg.id
+																? 'border-primary bg-primary/10 shadow-lg'
+																: 'hover:border-primary/50'
+														)}
 													>
-														<div class="card-body p-4">
-															<div class="flex items-start gap-3">
-																<input
-																	type="radio"
-																	class="radio mt-1 radio-sm radio-accent"
-																	bind:group={assignmentForm.package_id}
-																	value={pkg.id}
-																/>
-																<div class="flex-1">
-																	<div class="font-medium">{pkg.name}</div>
-																	<div class="mt-2 text-xs text-base-content/60">
-																		<div>{formatLessonsPerWeek(pkg)}</div>
-																		<div>Max {pkg.max_capacity} kişi</div>
-																		<div>
-																			{#if pkg.package_type === 'group'}
-																				Devamlı
-																			{:else if pkg.weeks_duration}
-																				{pkg.weeks_duration} hafta
-																			{:else}
-																				Süresiz
-																			{/if}
-																		</div>
+														<div class="flex items-start gap-3">
+															<RadioGroupItem value={pkg.id} class="mt-1" />
+															<div class="flex-1">
+																<div class="font-medium">{pkg.name}</div>
+																<div class="mt-2 text-xs text-muted-foreground">
+																	<div>{formatLessonsPerWeek(pkg)}</div>
+																	<div>Max {pkg.max_capacity} kişi</div>
+																	<div>
+																		{#if pkg.package_type === 'group'}
+																			Devamlı
+																		{:else if pkg.weeks_duration}
+																			{pkg.weeks_duration} hafta
+																		{:else}
+																			Süresiz
+																		{/if}
 																	</div>
 																</div>
 															</div>
@@ -1141,14 +1140,14 @@
 										</div>
 									</div>
 								{/if}
-							</div>
+							</RadioGroup>
 						{/if}
 					</div>
 				{:else if currentStep === 2}
 					<!-- Step 2: Group Lesson Selection -->
 					<div class="space-y-6">
 						<h2 class="flex items-center gap-2 text-xl font-semibold">
-							<Users class="h-5 w-5 text-accent" />
+							<Users class="h-5 w-5 text-muted-foreground" />
 							Program Seçimi
 						</h2>
 
@@ -1156,29 +1155,30 @@
 							<!-- Create New Group Option -->
 							<label class="cursor-pointer">
 								<div
-									class="card border transition-all duration-200 hover:shadow-lg {createNewGroupLesson
-										? 'border-accent bg-accent/10 shadow-lg'
-										: 'hover:border-accent/50'}"
+									class={cn(
+										'rounded-lg border p-4 transition-all duration-200 hover:shadow-lg',
+										createNewGroupLesson
+											? 'border-primary bg-primary/10 shadow-lg'
+											: 'hover:border-primary/50'
+									)}
 								>
-									<div class="card-body p-4">
-										<div class="flex items-start gap-3">
-											<input
-												type="radio"
-												class="radio mt-1 radio-sm radio-accent"
-												checked={createNewGroupLesson}
-												onchange={async () => {
-													createNewGroupLesson = true;
-													joinExistingTimeslots = false;
-													selectedGroupLessonId = null;
-													selectedGroupTimeslots = [];
-													await reloadAppointments();
-												}}
-											/>
-											<div class="flex-1">
-												<div class="font-medium">Yeni Program Oluştur</div>
-												<div class="mt-1 text-xs text-base-content/60">
-													Bu ders için yeni bir program oluşturun ve öğrencileri seçin
-												</div>
+									<div class="flex items-start gap-3">
+										<input
+											type="radio"
+											class="mt-1 size-4 accent-accent"
+											checked={createNewGroupLesson}
+											onchange={async () => {
+												createNewGroupLesson = true;
+												joinExistingTimeslots = false;
+												selectedGroupLessonId = null;
+												selectedGroupTimeslots = [];
+												await reloadAppointments();
+											}}
+										/>
+										<div class="flex-1">
+											<div class="font-medium">Yeni Program Oluştur</div>
+											<div class="mt-1 text-xs text-muted-foreground">
+												Bu ders için yeni bir program oluşturun ve öğrencileri seçin
 											</div>
 										</div>
 									</div>
@@ -1189,14 +1189,14 @@
 							{#if availableGroupTimeslots && availableGroupTimeslots.length > 0 && selectedPackage}
 								<div class="space-y-4 pt-4">
 									<div class="flex items-center justify-between">
-										<h4 class="font-medium text-base-content">Mevcut Zaman Dilimleri</h4>
-										<div class="text-sm text-base-content/60">
+										<h4 class="font-medium">Mevcut Zaman Dilimleri</h4>
+										<div class="text-sm text-muted-foreground">
 											{formatSelectionCounter(selectedGroupTimeslots.length, selectedPackage)} seçildi
 										</div>
 									</div>
 
-									<div class="rounded-lg border border-base-300 bg-base-100 p-4">
-										<div class="text-sm text-base-content/70">
+									<div class="rounded-lg border border-border bg-card p-4">
+										<div class="text-sm text-muted-foreground">
 											Aşağıdaki mevcut zaman dilimlerinden
 											{#if selectedPackage.min_lessons_per_week === selectedPackage.max_lessons_per_week}
 												<strong>{selectedPackage.min_lessons_per_week}</strong> tane seçin.
@@ -1212,7 +1212,7 @@
 										{#each groupedTimeslots() as [day, timeslots] (day)}
 											{@const dayName = DAY_NAMES[day as DayOfWeek]}
 											<div class="space-y-3">
-												<h5 class="border-b border-base-200 pb-2 font-medium text-base-content/80">
+												<h5 class="border-b border-border pb-2 font-medium text-foreground/80">
 													{dayName}
 												</h5>
 												<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -1225,9 +1225,10 @@
 														)}
 														{@const isFull = timeslot.current_capacity >= timeslot.max_capacity}
 														<div
-															class="cursor-pointer {isFull && !isSelected
-																? 'cursor-not-allowed'
-																: ''}"
+															class={cn(
+																'cursor-pointer',
+																isFull && !isSelected && 'cursor-not-allowed'
+															)}
 															role="button"
 															tabindex="0"
 															onclick={() => toggleGroupTimeslot(timeslot)}
@@ -1239,32 +1240,33 @@
 															}}
 														>
 															<div
-																class="rounded-lg border transition-colors {isFull && !isSelected
-																	? 'border-base-200 opacity-50'
-																	: isSelected
-																		? 'border-base-content/30 bg-base-200/50'
-																		: 'border-base-200 hover:border-base-300'}"
+																class={cn(
+																	'rounded-lg border transition-colors',
+																	isFull && !isSelected
+																		? 'border-border opacity-50'
+																		: isSelected
+																			? 'border-foreground/30 bg-muted'
+																			: 'border-border hover:border-border/80'
+																)}
 															>
 																<div class="flex items-center gap-3 px-3 py-2">
-																	<input
-																		type="checkbox"
-																		class="pointer-events-none checkbox checkbox-sm"
+																	<Checkbox
 																		checked={isSelected}
 																		disabled={isFull && !isSelected}
-																		readonly
+																		class="pointer-events-none"
 																	/>
 																	<div class="min-w-0 flex-1">
 																		<div class="text-sm font-medium">
 																			{timeslot.hour}:00
 																			{#if isFull}
-																				<span class="ml-2 badge badge-xs badge-error">Dolu</span>
+																				<Badge variant="destructive" class="ml-2">Dolu</Badge>
 																			{/if}
 																		</div>
-																		<div class="text-xs text-base-content/50">
+																		<div class="text-xs text-muted-foreground">
 																			{timeslot.room_name} • {timeslot.trainer_name}
 																		</div>
 																	</div>
-																	<div class="text-xs text-base-content/40">
+																	<div class="text-xs text-muted-foreground">
 																		{timeslot.current_capacity}/{timeslot.max_capacity}
 																	</div>
 																</div>
@@ -1278,8 +1280,8 @@
 								</div>
 							{:else}
 								<div class="space-y-3 pt-4">
-									<h4 class="font-medium text-base-content">Mevcut Ders Grupları</h4>
-									<div class="text-sm text-base-content/60">Henüz grup dersi bulunmuyor.</div>
+									<h4 class="font-medium">Mevcut Ders Grupları</h4>
+									<div class="text-sm text-muted-foreground">Henüz grup dersi bulunmuyor.</div>
 								</div>
 							{/if}
 						</div>
@@ -1288,15 +1290,15 @@
 					<!-- Step 3: Registration Duration (Private & Existing Group only) -->
 					<div class="space-y-6">
 						<h2 class="flex items-center gap-2 text-xl font-semibold">
-							<Calendar class="h-5 w-5 text-accent" />
+							<Calendar class="h-5 w-5 text-muted-foreground" />
 							Kayıt Süresi
 						</h2>
 
 						{#if selectedPackage?.package_type === 'private'}
 							<!-- Private Package Duration -->
 							<div class="space-y-6">
-								<div class="rounded-lg border border-base-300 bg-base-100 p-4">
-									<div class="text-sm text-base-content/70">
+								<div class="rounded-lg border border-border bg-card p-4">
+									<div class="text-sm text-muted-foreground">
 										<strong>{selectedPackage.name}</strong> paketi
 										<strong>{selectedPackage.weeks_duration} hafta</strong> sürer ve
 										<strong>{formatLessonsPerWeek(selectedPackage)}</strong>
@@ -1304,50 +1306,40 @@
 									</div>
 								</div>
 
-								<div class="form-control max-w-md">
-									<label class="label" for="package-count">
-										<span class="label-text font-medium"> Kaç Paket Oluşturulacak? </span>
-									</label>
-									<input
+								<div class="grid max-w-md gap-2">
+									<Label for="package-count" class="font-medium">Kaç Paket Oluşturulacak?</Label>
+									<Input
 										id="package-count"
 										type="number"
 										min="1"
 										max="10"
-										class="input-bordered input w-full"
 										bind:value={packageCount}
 									/>
-									<div class="label">
-										<span class="label-text-alt text-base-content/60">
-											Toplam süre: <strong>{totalAssignmentWeeks()} hafta</strong>
-										</span>
+									<div class="text-xs text-muted-foreground">
+										Toplam süre: <strong>{totalAssignmentWeeks()} hafta</strong>
 									</div>
 								</div>
 							</div>
 						{:else}
 							<!-- Group Package Duration -->
 							<div class="space-y-6">
-								<div class="rounded-lg border border-base-300 bg-base-100 p-4">
-									<div class="text-sm text-base-content/70">
+								<div class="rounded-lg border border-border bg-card p-4">
+									<div class="text-sm text-muted-foreground">
 										Grup dersine kaç hafta için kayıt yapılacağını belirleyin.
 									</div>
 								</div>
 
-								<div class="form-control max-w-md">
-									<label class="label" for="assignment-weeks">
-										<span class="label-text font-medium">Kayıt Süresi (Hafta)</span>
-									</label>
-									<input
+								<div class="grid max-w-md gap-2">
+									<Label for="assignment-weeks" class="font-medium">Kayıt Süresi (Hafta)</Label>
+									<Input
 										id="assignment-weeks"
 										type="number"
 										min="1"
 										max="52"
-										class="input-bordered input w-full"
 										bind:value={assignmentWeeks}
 									/>
-									<div class="label">
-										<span class="label-text-alt text-base-content/60">
-											Toplam: <strong>{assignmentWeeks} hafta</strong>
-										</span>
+									<div class="text-xs text-muted-foreground">
+										Toplam: <strong>{assignmentWeeks} hafta</strong>
 									</div>
 								</div>
 							</div>
@@ -1358,11 +1350,11 @@
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<h2 class="flex items-center gap-2 text-xl font-semibold">
-								<Calendar class="h-5 w-5 text-accent" />
+								<Calendar class="h-5 w-5 text-muted-foreground" />
 								Kaynak Seçimi & Zaman Planlaması
 							</h2>
 							{#if selectedPackage}
-								<div class="text-sm text-base-content/60">
+								<div class="text-sm text-muted-foreground">
 									{#if selectedPackage.package_type === 'group' && createNewGroupLesson}
 										{selectedTimeSlots.length} zaman dilimi seçildi
 									{:else}
@@ -1378,43 +1370,33 @@
 								<!-- Room and Trainer Selection (50/50 split) -->
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<!-- Room Selection -->
-									<div class="form-control">
-										<label class="label" for="room-select">
-											<span class="label-text font-medium">Oda Seçimi</span>
-										</label>
-										<select
+									<div class="grid gap-2">
+										<Label for="room-select" class="font-medium">Oda Seçimi</Label>
+										<NativeSelect
 											id="room-select"
-											class="select-bordered select w-full select-primary"
 											value={assignmentForm.room_id}
 											onchange={handleRoomChange}
 										>
 											<option value="" disabled>Oda seçiniz</option>
 											{#each rooms as room (room.id)}
-												<option value={room.id}>
-													{room.name}
-												</option>
+												<option value={room.id}>{room.name}</option>
 											{/each}
-										</select>
+										</NativeSelect>
 									</div>
 
 									<!-- Trainer Selection -->
-									<div class="form-control">
-										<label class="label" for="trainer-select">
-											<span class="label-text font-medium">Eğitmen Seçimi</span>
-										</label>
-										<select
+									<div class="grid gap-2">
+										<Label for="trainer-select" class="font-medium">Eğitmen Seçimi</Label>
+										<NativeSelect
 											id="trainer-select"
-											class="select-bordered select w-full select-info"
 											value={assignmentForm.trainer_id}
 											onchange={handleTrainerChange}
 										>
 											<option value="" disabled>Eğitmen seçiniz</option>
 											{#each trainers as trainer (trainer.id)}
-												<option value={trainer.id}>
-													{trainer.name}
-												</option>
+												<option value={trainer.id}>{trainer.name}</option>
 											{/each}
-										</select>
+										</NativeSelect>
 									</div>
 								</div>
 
@@ -1422,9 +1404,9 @@
 								{#if assignmentForm.room_id.length > 0 && assignmentForm.trainer_id.length > 0}
 									<!-- Week Navigation above schedule -->
 									<div class="mb-6 flex items-center justify-center gap-4">
-										<button class="btn btn-outline btn-sm" onclick={goToPreviousWeek} type="button">
+										<Button variant="outline" size="sm" onclick={goToPreviousWeek} type="button">
 											<ChevronLeft size={16} />
-										</button>
+										</Button>
 
 										<div class="date-picker-container relative w-64 text-center">
 											<button
@@ -1448,21 +1430,23 @@
 											{/if}
 
 											{#if !isCurrentWeek()}
-												<button
-													class="btn text-info btn-link btn-xs"
+												<Button
+													variant="link"
+													size="xs"
+													class="text-muted-foreground"
 													onclick={goToCurrentWeek}
 													type="button"
 												>
 													Bu Haftaya Dön
-												</button>
+												</Button>
 											{:else}
-												<div class="px-3 py-1 text-xs text-base-content/60 italic">Bu hafta</div>
+												<div class="px-3 py-1 text-xs text-muted-foreground italic">Bu hafta</div>
 											{/if}
 										</div>
 
-										<button class="btn btn-outline btn-sm" onclick={goToNextWeek} type="button">
+										<Button variant="outline" size="sm" onclick={goToNextWeek} type="button">
 											<ChevronRight size={16} />
-										</button>
+										</Button>
 									</div>
 
 									{@const selectedRoom = rooms.find((r) => r.id === assignmentForm.room_id)}
@@ -1479,7 +1463,7 @@
 										/>
 									{/if}
 								{:else}
-									<div class="py-8 text-center text-base-content/60">
+									<div class="py-8 text-center text-muted-foreground">
 										Oda ve eğitmen seçildikten sonra zaman dilimleri görünecektir
 									</div>
 								{/if}
@@ -1491,11 +1475,11 @@
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<h2 class="flex items-center gap-2 text-xl font-semibold">
-								<Users class="h-5 w-5 text-accent" />
+								<Users class="h-5 w-5 text-muted-foreground" />
 								Öğrenci Seçimi
 							</h2>
 							{#if selectedPackage && !createNewGroupLesson}
-								<div class="text-sm text-base-content/60">
+								<div class="text-sm text-muted-foreground">
 									{selectedTrainees.length} / {getAvailableCapacity()} seçildi
 								</div>
 							{/if}
@@ -1503,8 +1487,8 @@
 
 						{#if selectedPackage && createNewGroupLesson}
 							<!-- New group lesson - show message instead of trainee selection -->
-							<div class="rounded-lg border border-base-300 bg-base-100 p-4">
-								<div class="text-sm text-base-content/70">
+							<div class="rounded-lg border border-border bg-card p-4">
+								<div class="text-sm text-muted-foreground">
 									Öğrenci seçimini, grup dersini oluşturduktan sonra tekrar "Yeni Kayıt" ekranından
 									yapabilirsiniz.
 								</div>
@@ -1512,14 +1496,11 @@
 						{:else if selectedPackage}
 							<div class="space-y-4">
 								<!-- Search Input -->
-								<div class="form-control max-w-sm">
-									<label class="label" for="trainee-search">
-										<span class="label-text">Öğrenci Ara</span>
-									</label>
-									<input
+								<div class="grid max-w-sm gap-2">
+									<Label for="trainee-search">Öğrenci Ara</Label>
+									<Input
 										id="trainee-search"
 										type="text"
-										class="input-bordered input input-sm"
 										placeholder="İsim veya telefon ile ara..."
 										bind:value={traineeSearchTerm}
 									/>
@@ -1531,7 +1512,7 @@
 										{@const isExisting = isTraineeInExistingGroupLesson(trainee.id)}
 										{@const isSelected = selectedTrainees.includes(trainee.id)}
 										<div
-											class="cursor-pointer {isExisting ? 'cursor-not-allowed' : ''}"
+											class={cn('cursor-pointer', isExisting && 'cursor-not-allowed')}
 											role="button"
 											tabindex="0"
 											onclick={() => !isExisting && toggleTrainee(trainee.id)}
@@ -1541,43 +1522,38 @@
 												toggleTrainee(trainee.id)}
 										>
 											<div
-												class="card border transition-colors {isExisting
-													? 'border-base-300 bg-base-100 opacity-60'
-													: isSelected
-														? 'border-success bg-success/5 hover:bg-success/10'
-														: 'hover:bg-base-50'}"
+												class={cn(
+													'rounded-lg border p-4 transition-colors',
+													isExisting
+														? 'border-border bg-card opacity-60'
+														: isSelected
+															? 'border-primary bg-primary/5 hover:bg-primary/10'
+															: 'hover:bg-muted/40'
+												)}
 											>
-												<div class="card-body p-4">
-													<div class="flex items-center">
-														{#if isExisting}
-															<!-- Existing group member - non-interactive -->
-															<div class="flex h-5 w-5 items-center justify-center">
-																<Check class="h-3 w-3 text-base-content/40" />
-															</div>
-														{:else}
-															<!-- Regular checkbox for selectable trainees -->
-															<input
-																type="checkbox"
-																class="pointer-events-none checkbox checkbox-sm checkbox-success"
-																checked={isSelected}
-																readonly
-															/>
-														{/if}
-														<div class="ml-3 flex-1">
-															<div
-																class="text-sm font-medium {isExisting
-																	? 'text-base-content/60'
-																	: ''}"
-															>
-																{trainee.name}
-																{#if isExisting}
-																	<span class="ml-2 badge badge-xs badge-neutral">Mevcut Üye</span>
-																{/if}
-															</div>
-															{#if trainee.phone}
-																<div class="text-xs text-base-content/60">{trainee.phone}</div>
+												<div class="flex items-center">
+													{#if isExisting}
+														<div class="flex h-5 w-5 items-center justify-center">
+															<Check class="h-3 w-3 text-muted-foreground" />
+														</div>
+													{:else}
+														<Checkbox checked={isSelected} class="pointer-events-none" />
+													{/if}
+													<div class="ml-3 flex-1">
+														<div
+															class={cn(
+																'text-sm font-medium',
+																isExisting && 'text-muted-foreground'
+															)}
+														>
+															{trainee.name}
+															{#if isExisting}
+																<Badge variant="outline" class="ml-2">Mevcut Üye</Badge>
 															{/if}
 														</div>
+														{#if trainee.phone}
+															<div class="text-xs text-muted-foreground">{trainee.phone}</div>
+														{/if}
 													</div>
 												</div>
 											</div>
@@ -1586,53 +1562,50 @@
 								</div>
 
 								{#if traineeSearchTerm && filteredTrainees.length === 0}
-									<div class="py-8 text-center text-base-content/60">
+									<div class="py-8 text-center text-muted-foreground">
 										Arama kriteriyle eşleşen öğrenci bulunamadı
 									</div>
 								{/if}
 
 								{#if traineeTotalPages > 1}
-									<div class="mt-6 flex items-center justify-center gap-2">
-										<div class="join">
-											<button
-												class="btn join-item btn-sm"
-												onclick={() => goToTraineePage(traineeCurrentPage - 1)}
-												disabled={traineeCurrentPage === 1}
-												type="button"
-											>
-												«
-											</button>
+									<div class="mt-6 flex items-center justify-center gap-1">
+										<Button
+											variant="outline"
+											size="sm"
+											onclick={() => goToTraineePage(traineeCurrentPage - 1)}
+											disabled={traineeCurrentPage === 1}
+											type="button"
+										>
+											«
+										</Button>
 
-											{#each getTraineePageNumbers() as page, index (index)}
-												{#if page === '...'}
-													<button class="btn-disabled btn join-item btn-sm" type="button"
-														>...</button
-													>
-												{:else}
-													<button
-														class="btn join-item btn-sm {traineeCurrentPage === page
-															? 'btn-active'
-															: ''}"
-														onclick={() => goToTraineePage(page as number)}
-														type="button"
-													>
-														{page}
-													</button>
-												{/if}
-											{/each}
+										{#each getTraineePageNumbers() as page, index (index)}
+											{#if page === '...'}
+												<Button variant="outline" size="sm" disabled type="button">...</Button>
+											{:else}
+												<Button
+													variant={traineeCurrentPage === page ? 'default' : 'outline'}
+													size="sm"
+													onclick={() => goToTraineePage(page as number)}
+													type="button"
+												>
+													{page}
+												</Button>
+											{/if}
+										{/each}
 
-											<button
-												class="btn join-item btn-sm"
-												onclick={() => goToTraineePage(traineeCurrentPage + 1)}
-												disabled={traineeCurrentPage === traineeTotalPages}
-												type="button"
-											>
-												»
-											</button>
-										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											onclick={() => goToTraineePage(traineeCurrentPage + 1)}
+											disabled={traineeCurrentPage === traineeTotalPages}
+											type="button"
+										>
+											»
+										</Button>
 									</div>
 
-									<div class="mt-2 text-center text-sm text-base-content/60">
+									<div class="mt-2 text-center text-sm text-muted-foreground">
 										Sayfa {traineeCurrentPage} / {traineeTotalPages} (Toplam {filteredTrainees.length}
 										öğrenci)
 									</div>
@@ -1646,16 +1619,15 @@
 				<div class="flex justify-between pt-8">
 					<div>
 						{#if currentStep > 1}
-							<button class="btn btn-outline" onclick={prevStep}>
+							<Button variant="outline" onclick={prevStep}>
 								<ArrowLeft class="h-4 w-4" />
 								Önceki
-							</button>
+							</Button>
 						{/if}
 					</div>
 					<div>
 						{#if currentStep < totalSteps}
-							<button
-								class="btn btn-accent"
+							<Button
 								disabled={!canProceed()}
 								onclick={() => {
 									if (currentStep === 1) {
@@ -1672,24 +1644,20 @@
 							>
 								Sonraki
 								<ArrowRight class="h-4 w-4" />
-							</button>
+							</Button>
 						{:else}
-							<button
-								class="btn btn-accent"
-								disabled={!canProceed() || formLoading}
-								onclick={handleFinalSubmit}
-							>
+							<Button disabled={!canProceed() || formLoading} onclick={handleFinalSubmit}>
 								{#if formLoading}
 									<LoaderCircle class="h-4 w-4 animate-spin" />
 								{:else}
 									<Check class="h-4 w-4" />
 								{/if}
 								Kaydı Tamamla
-							</button>
+							</Button>
 						{/if}
 					</div>
 				</div>
-			</div>
-		</div>
+			</Card.Content>
+		</Card.Root>
 	</div>
 </div>

@@ -90,9 +90,7 @@ export class WhatsAppRepository {
 			.map((row) => {
 				const apt = row.pe_appointments;
 				const packageName =
-					apt.pe_purchases?.pe_packages?.name ??
-					apt.pe_group_lessons?.pe_packages?.name ??
-					'';
+					apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
 				const date = apt.date!;
 				const hour = apt.hour!;
 

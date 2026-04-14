@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { Role } from '$lib/types/Role';
+import type { Role } from '$lib/types';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';

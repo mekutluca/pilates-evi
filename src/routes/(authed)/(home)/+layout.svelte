@@ -3,33 +3,33 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Logout from '@lucide/svelte/icons/log-out';
-	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ActionMenu from '$lib/components/action-menu.svelte';
 	import GlobalActionDrawer from '$lib/components/global-action-drawer.svelte';
 	import { setActionDrawerContext } from '$lib/stores/action-drawer.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Separator } from '$lib/components/ui/separator/index.js';
+	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { onMount } from 'svelte';
 	import { goto, invalidate, beforeNavigate, afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { allRoutes, type Route } from '$lib/types/Route.js';
 	import type { Role } from '$lib/types/Role.js';
-	import type { ActionItem } from '$lib/types/ActionItem.js';
+	import type { ActionItem } from '$lib/types';
 	import { version } from '$app/environment';
+	import { cn } from '$lib/utils/class-utils';
 
 	let { children, data } = $props();
 	let { supabase, session, userRole } = $derived(data);
 	let loading = $state(false);
 	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 
+	let mobileSidebarOpen = $state(false);
+	let mainEl = $state<HTMLElement | null>(null);
+
 	// Global action drawer state
 	let drawerOpen = $state(false);
 	let drawerActions = $state<ActionItem[]>([]);
-
-	function toggleDrawer() {
-		const drawerCheckbox = document.getElementById('my-drawer-2') as HTMLInputElement;
-		if (drawerCheckbox) {
-			drawerCheckbox.checked = !drawerCheckbox.checked;
-		}
-	}
 
 	const userMenuActions: ActionItem[] = [
 		{
@@ -59,13 +59,6 @@
 		openDrawer
 	});
 
-	function closeDrawer() {
-		const drawerCheckbox = document.getElementById('my-drawer-2') as HTMLInputElement;
-		if (drawerCheckbox) {
-			drawerCheckbox.checked = false;
-		}
-	}
-
 	async function logout() {
 		try {
 			await supabase.auth.signOut();
@@ -88,15 +81,12 @@
 
 		// Navigation loading logic
 		beforeNavigate((navigation) => {
-			// Don't show loading for non-http protocols (mailto, tel, etc.) or external links
 			const url = navigation.to?.url;
 
-			// Skip loading for non-SvelteKit navigation (external protocols, etc.)
 			if (!url || (url.protocol && url.protocol !== 'http:' && url.protocol !== 'https:')) {
 				return;
 			}
 
-			// Skip loading for external links (different origin)
 			if (url.origin && url.origin !== window.location.origin) {
 				return;
 			}
@@ -107,9 +97,13 @@
 			}, 2000);
 		});
 
-		afterNavigate(() => {
+		afterNavigate((navigation) => {
 			if (loadingTimer) clearTimeout(loadingTimer);
 			loading = false;
+			mobileSidebarOpen = false;
+			if (mainEl && navigation.from?.url.pathname !== navigation.to?.url.pathname) {
+				mainEl.scrollTop = 0;
+			}
 		});
 
 		return () => {
@@ -138,132 +132,91 @@
 
 	let availableRoutes = $derived(getAvailableRoutes(userRole));
 	let groupedRoutes = $derived(groupRoutes(availableRoutes));
+
+	function isRouteActive(route: Route): boolean {
+		return page.url.pathname === route.href || page.url.pathname.startsWith(route.href + '/');
+	}
 </script>
+
+{#snippet sidebarContent()}
+	{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
+		{#if groupIndex > 0}
+			<Separator class="my-3" />
+		{/if}
+		<p class="mb-1 px-3 text-xs font-semibold text-muted-foreground">{groupName}</p>
+		<ul class="space-y-1">
+			{#each routes as route (route.href)}
+				<li>
+					<a
+						href={route.href}
+						class={cn(
+							'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+							isRouteActive(route)
+								? 'bg-accent font-medium text-accent-foreground'
+								: 'text-foreground hover:bg-muted'
+						)}
+					>
+						<route.icon size={16} /><span>{route.label}</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
+	{/each}
+{/snippet}
 
 <div class="flex h-screen flex-col">
 	<!-- Loading Overlay -->
 	{#if loading}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-base-200/80">
-			<span class="loading loading-lg loading-spinner text-primary"></span>
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+			<Spinner class="size-8" />
 		</div>
 	{/if}
-	<!-- Fixed navbar at top -->
-	<div class="navbar flex-none bg-base-300 shadow-sm">
-		<div class="flex-none">
-			<button class="btn btn-square btn-ghost lg:hidden" onclick={toggleDrawer}>
-				<Menu />
-			</button>
-		</div>
+
+	<!-- Top navbar -->
+	<header class="flex h-14 flex-none items-center gap-2 border-b bg-card px-4 shadow-sm">
+		<Button
+			variant="ghost"
+			size="icon"
+			class="lg:hidden"
+			onclick={() => (mobileSidebarOpen = true)}
+		>
+			<Menu />
+		</Button>
 		<div class="flex-1">
-			<a class="btn text-xl btn-ghost" href="/">Pilates Evi</a>
+			<Button variant="ghost" href="/" class="text-xl font-semibold">Pilates Evi</Button>
 		</div>
-		<div class="flex-none">
-			<ActionMenu
-				actions={userMenuActions}
-				trigger={Ellipsis}
-				triggerClass="btn btn-square btn-ghost"
-				onOpenDrawer={handleOpenDrawer}
-			/>
-		</div>
-	</div>
+		<ActionMenu actions={userMenuActions} trigger={Ellipsis} onOpenDrawer={handleOpenDrawer} />
+	</header>
 
 	<!-- Main content area with sidebar and scrollable content -->
 	<div class="flex flex-1 overflow-hidden">
-		<!-- Fixed sidebar -->
-		<div class="hidden w-80 flex-col justify-between bg-base-200 p-4 lg:flex">
-			<div>
-				{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
-					{#if groupIndex > 0}
-						<div class="divider my-2"></div>
-					{/if}
-					<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">{groupName}</div>
-					<ul class="menu w-full text-base-content">
-						{#each routes as route (route.href)}
-							<li class="w-full">
-								<a
-									href={route.href}
-									class="flex w-full items-center {page.url.pathname === route.href ||
-									page.url.pathname.startsWith(route.href + '/')
-										? 'menu-active'
-										: ''}"
-								>
-									<route.icon size="16" /><span>{route.label}</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/each}
-			</div>
-			<div class="text-xs text-base-content/40">Build {version}</div>
-		</div>
+		<!-- Desktop sidebar -->
+		<aside class="hidden w-64 flex-col justify-between border-r bg-card p-4 lg:flex">
+			<nav>
+				{@render sidebarContent()}
+			</nav>
+			<p class="text-xs text-muted-foreground">Build {version}</p>
+		</aside>
 
-		<!-- Mobile drawer -->
-		<div class="drawer lg:hidden">
-			<input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
-			<div class="drawer-content flex flex-col overflow-auto bg-base-200">
-				{@render children()}
-			</div>
-			<div class="drawer-side">
-				<label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
-				<div
-					class="flex min-h-full w-80 flex-col justify-between bg-base-200 p-4 text-base-content"
-				>
-					<div>
-						<!-- Back arrow for mobile sidebar -->
-						<button
-							class="btn mb-2 btn-ghost lg:hidden"
-							type="button"
-							onclick={closeDrawer}
-							aria-label="Kapat"
-						>
-							<ArrowLeft size="20" />
-						</button>
-						{#each Object.entries(groupedRoutes) as [groupName, routes], groupIndex (groupName)}
-							{#if groupIndex > 0}
-								<div class="divider my-2"></div>
-							{/if}
-							<div class="mb-1 menu-title text-xs font-semibold text-base-content/70">
-								{groupName}
-							</div>
-							<ul class="menu w-full">
-								{#each routes as route (route.href)}
-									<li class="w-full">
-										<a
-											href={route.href}
-											onclick={closeDrawer}
-											class="flex w-full items-center {page.url.pathname === route.href ||
-											page.url.pathname.startsWith(route.href + '/')
-												? 'menu-active'
-												: ''}"
-										>
-											<route.icon size="16" /><span>{route.label}</span>
-										</a>
-									</li>
-								{/each}
-							</ul>
-						{/each}
-					</div>
-					<div class="text-xs text-base-content/40">Build {version}</div>
-				</div>
-			</div>
-		</div>
+		<!-- Mobile sidebar via Sheet -->
+		<Sheet.Root bind:open={mobileSidebarOpen}>
+			<Sheet.Content side="left" class="w-64 p-4">
+				<Sheet.Header class="sr-only">
+					<Sheet.Title>Menü</Sheet.Title>
+				</Sheet.Header>
+				<nav class="mt-4">
+					{@render sidebarContent()}
+				</nav>
+				<p class="mt-auto text-xs text-muted-foreground">Build {version}</p>
+			</Sheet.Content>
+		</Sheet.Root>
 
-		<!-- Desktop scrollable content area -->
-		<div class="hidden flex-1 overflow-auto bg-base-200 lg:block">
+		<!-- Scrollable content area -->
+		<main bind:this={mainEl} class="flex-1 overflow-auto bg-muted/30">
 			{@render children()}
-		</div>
+		</main>
 	</div>
 </div>
 
 <!-- Global Action Drawer -->
 <GlobalActionDrawer bind:isOpen={drawerOpen} actions={drawerActions} />
-
-<!-- The first element on the sidebar have :active attribute which makes it colorful-->
-<style>
-	.menu :where(li) > :not(ul, .menu-title, details, .btn):focus,
-	.menu :where(li) > :not(ul, .menu-title, details, .btn):active {
-		background-color: transparent !important;
-		color: inherit !important;
-		box-shadow: none !important;
-	}
-</style>

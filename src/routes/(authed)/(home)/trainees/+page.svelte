@@ -10,12 +10,17 @@
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import type { Trainee } from '$lib/types/Trainee';
+	import type { Trainee } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem.js';
+	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import { validation } from '$lib/utils/validation';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 
 	let { data } = $props();
 	let { trainees: initialTrainees, userRole } = $derived(data);
@@ -59,7 +64,7 @@
 					const t = trainees.find((t) => t.id === String(id));
 					if (t) openArchiveModal(t);
 				},
-				class: 'text-error',
+				class: 'text-destructive',
 				icon: Archive
 			});
 		} else {
@@ -69,7 +74,6 @@
 					const t = trainees.find((t) => t.id === String(id));
 					if (t) openRestoreModal(t);
 				},
-				class: 'text-success',
 				icon: ArchiveRestore
 			});
 		}
@@ -86,13 +90,13 @@
 			key: 'email',
 			title: 'Email',
 			render: (trainee: Trainee) =>
-				`<a href="mailto:${trainee.email}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainee.email}</a>`
+				`<a href="mailto:${trainee.email}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainee.email}</a>`
 		},
 		{
 			key: 'phone',
 			title: 'Telefon',
 			render: (trainee: Trainee) =>
-				`<a href="tel:+90${trainee.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainee.phone}</a>`
+				`<a href="tel:+90${trainee.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainee.phone}</a>`
 		},
 		{
 			key: 'created_at',
@@ -101,11 +105,6 @@
 		}
 	];
 
-	function closeDropdown() {
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
-	}
-
 	function openEditModal(trainee: Trainee) {
 		selectedTrainee = trainee;
 		name = trainee.name ?? '';
@@ -113,19 +112,16 @@
 		phone = trainee.phone ?? '';
 		notes = trainee.notes ?? '';
 		showEditModal = true;
-		closeDropdown();
 	}
 
 	function openArchiveModal(trainee: Trainee) {
 		selectedTrainee = trainee;
 		showArchiveModal = true;
-		closeDropdown();
 	}
 
 	function openRestoreModal(trainee: Trainee) {
 		selectedTrainee = trainee;
 		showRestoreModal = true;
-		closeDropdown();
 	}
 
 	function resetForm() {
@@ -149,18 +145,17 @@
 	<PageHeader title="Öğrenciler" subtitle="Bu sayfada öğrencileri yönetin" />
 
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full lg:max-w-xs">
+		<div class="w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Öğrenci ara..." />
 			{#if hasArchivedTrainees}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
-					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+					<Switch bind:checked={showArchived} class="scale-75" />
+					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
 				</label>
 			{/if}
 		</div>
 
-		<button
-			class="btn btn-success"
+		<Button
 			onclick={() => {
 				resetForm();
 				showAddModal = true;
@@ -168,7 +163,7 @@
 		>
 			<GraduationCap size={16} />
 			Yeni Öğrenci
-		</button>
+		</Button>
 	</div>
 
 	<SortableTable
@@ -203,31 +198,31 @@
 			};
 		}}
 	>
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Öğrenci Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-trainee-name">Öğrenci Adı</Label>
+			<Input id="add-trainee-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Email</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-trainee-email">Email</Label>
+			<Input
+				id="add-trainee-email"
 				type="email"
 				name="email"
-				class="input w-full"
 				bind:value={email}
 				placeholder="ornek@email.com"
 				pattern={validation.email.pattern}
 				title={validation.email.title}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Telefon</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-trainee-phone">Telefon</Label>
+			<Input
+				id="add-trainee-phone"
 				type="tel"
 				name="phone"
-				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
 				pattern={validation.phone.pattern}
@@ -235,38 +230,38 @@
 				maxlength={validation.phone.maxlength}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
-			<textarea
+		<div class="grid gap-2">
+			<Label for="add-trainee-notes">Notlar (İsteğe bağlı)</Label>
+			<Textarea
+				id="add-trainee-notes"
 				name="notes"
-				class="textarea w-full"
 				bind:value={notes}
 				placeholder="Öğrenci hakkında notlar..."
-				rows="3"
-			></textarea>
-		</fieldset>
+				rows={3}
+			/>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showAddModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Plus size={16} />
 				{/if}
 				Ekle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -293,31 +288,31 @@
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Öğrenci Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="edit-trainee-name">Öğrenci Adı</Label>
+			<Input id="edit-trainee-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Email</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="edit-trainee-email">Email</Label>
+			<Input
+				id="edit-trainee-email"
 				type="email"
 				name="email"
-				class="input w-full"
 				bind:value={email}
 				placeholder="ornek@email.com"
 				pattern={validation.email.pattern}
 				title={validation.email.title}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Telefon</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="edit-trainee-phone">Telefon</Label>
+			<Input
+				id="edit-trainee-phone"
 				type="tel"
 				name="phone"
-				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
 				pattern={validation.phone.pattern}
@@ -325,38 +320,38 @@
 				maxlength={validation.phone.maxlength}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Notlar (İsteğe bağlı)</legend>
-			<textarea
+		<div class="grid gap-2">
+			<Label for="edit-trainee-notes">Notlar (İsteğe bağlı)</Label>
+			<Textarea
+				id="edit-trainee-notes"
 				name="notes"
-				class="textarea w-full"
 				bind:value={notes}
 				placeholder="Öğrenci hakkında notlar..."
-				rows="3"
-			></textarea>
-		</fieldset>
+				rows={3}
+			/>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showEditModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Edit size={16} />
 				{/if}
 				Güncelle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -387,25 +382,25 @@
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showArchiveModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-error" disabled={formLoading}>
+			</Button>
+			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Archive size={16} />
 				{/if}
 				Arşivle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -436,25 +431,25 @@
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showRestoreModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
 				Geri Yükle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

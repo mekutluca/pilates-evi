@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
 		.eq('pe_trainees.is_active', true);
 
 	const queryDuration = Math.round(performance.now() - queryStart);
-	console.log(`Query completed in ${queryDuration}ms — ${rows?.length ?? 0} rows found for ${tomorrowStr}`);
+	console.log(
+		`Query completed in ${queryDuration}ms — ${rows?.length ?? 0} rows found for ${tomorrowStr}`
+	);
 
 	if (queryError) {
 		return new Response(JSON.stringify({ error: queryError.message }), {
@@ -136,7 +138,10 @@ Deno.serve(async (req) => {
 				return { success: false, error: `${phone}: ${response.status} - ${errorText}` } as const;
 			}
 		} catch (error) {
-			return { success: false, error: `${phone}: ${error instanceof Error ? error.message : String(error)}` } as const;
+			return {
+				success: false,
+				error: `${phone}: ${error instanceof Error ? error.message : String(error)}`
+			} as const;
 		}
 	};
 
@@ -162,7 +167,9 @@ Deno.serve(async (req) => {
 			}
 		}
 
-		console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} complete — sent so far: ${sent}, failed so far: ${failed}`);
+		console.log(
+			`Batch ${Math.floor(i / BATCH_SIZE) + 1} complete — sent so far: ${sent}, failed so far: ${failed}`
+		);
 
 		if (i + BATCH_SIZE < appointments.length) {
 			await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));

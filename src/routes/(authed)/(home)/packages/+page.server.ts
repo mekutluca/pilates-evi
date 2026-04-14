@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import type { CreatePackageForm } from '$lib/types/Package';
+import type { CreatePackageForm } from '$lib/types';
 
 export const actions: Actions = {
 	createPackage: async ({ request, locals: { supabase, user, userRole } }) => {

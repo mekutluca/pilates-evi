@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import { cn } from '$lib/utils/class-utils';
 
 	interface Props {
 		open: boolean;
@@ -20,93 +21,32 @@
 		header
 	}: Props = $props();
 
-	let showContent = $state(false);
-	let resetTimeout: NodeJS.Timeout | null = null;
-	let shouldCallOnClose = $state(false);
-
-	const RESET_DELAY = 300;
 	const sizeClasses = {
-		sm: 'modal-box w-80',
-		md: 'modal-box',
-		lg: 'modal-box max-w-lg',
-		xl: 'modal-box w-11/12 max-w-5xl'
+		sm: 'max-w-sm',
+		md: 'max-w-md',
+		lg: 'max-w-lg',
+		xl: 'max-w-5xl w-11/12'
 	} as const;
 
-	$effect(() => {
-		if (open) {
-			// Opening modal
-			showContent = true;
-			shouldCallOnClose = false;
-			if (resetTimeout) {
-				clearTimeout(resetTimeout);
-				resetTimeout = null;
-			}
-		} else if (showContent) {
-			// Closing modal - keep content visible during animation
-			resetTimeout = setTimeout(() => {
-				showContent = false;
-				resetTimeout = null;
-				if (shouldCallOnClose) {
-					onClose();
-					shouldCallOnClose = false;
-				}
-			}, RESET_DELAY);
-		}
-	});
-
-	function handleClose() {
-		if (showContent && !resetTimeout) {
-			shouldCallOnClose = true;
+	function handleOpenChange(isOpen: boolean) {
+		if (!isOpen) {
 			open = false;
+			onClose();
 		}
 	}
-
-	function handleBackdropClick(event: Event) {
-		event.preventDefault();
-		handleClose();
-	}
-
-	function handleDialogClose(event: Event) {
-		event.preventDefault();
-		if (open) {
-			handleClose();
-		}
-	}
-
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && open) {
-			event.preventDefault();
-			handleClose();
-		}
-	}
-
-	onMount(() => {
-		return () => {
-			if (resetTimeout) {
-				clearTimeout(resetTimeout);
-			}
-		};
-	});
 </script>
 
-<dialog class="modal" class:modal-open={open} onclose={handleDialogClose} onkeydown={handleKeyDown}>
-	<div class={sizeClasses[size]}>
+<Dialog.Root bind:open onOpenChange={handleOpenChange}>
+	<Dialog.Content class={cn(sizeClasses[size])}>
 		{#if header}
-			<div class="mb-4">
+			<Dialog.Header>
 				{@render header()}
-			</div>
+			</Dialog.Header>
 		{:else if title}
-			<h3 class="mb-4 text-lg font-bold">{title}</h3>
+			<Dialog.Header>
+				<Dialog.Title>{title}</Dialog.Title>
+			</Dialog.Header>
 		{/if}
-
-		{#if showContent}
-			{@render children()}
-		{/if}
-	</div>
-	<button
-		type="button"
-		class="modal-backdrop"
-		onclick={handleBackdropClick}
-		aria-label="Close modal"
-	></button>
-</dialog>
+		{@render children()}
+	</Dialog.Content>
+</Dialog.Root>

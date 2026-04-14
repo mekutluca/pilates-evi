@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import type { Trainer } from '$lib/types/Trainer';
+import type { Trainer } from '$lib/types';
 import type { Room } from '$lib/types/Room.js';
 import type { Trainee } from '$lib/types/Trainee.js';
 import type { Package } from '$lib/types/Package.js';

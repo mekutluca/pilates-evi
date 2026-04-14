@@ -8,12 +8,15 @@
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import { enhance } from '$app/forms';
-	import type { Room } from '$lib/types/Room';
-	// Training system removed
+	import type { Room } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem';
+	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 
 	let { data } = $props();
 	let { rooms: initialRooms, userRole } = $derived(data);
@@ -55,7 +58,7 @@
 					const r = rooms.find((r) => r.id === String(id));
 					if (r) openArchiveModal(r);
 				},
-				class: 'text-error',
+				class: 'text-destructive',
 				icon: Archive
 			});
 		} else {
@@ -65,7 +68,6 @@
 					const r = rooms.find((r) => r.id === String(id));
 					if (r) openRestoreModal(r);
 				},
-				class: 'text-success',
 				icon: ArchiveRestore
 			});
 		}
@@ -85,29 +87,21 @@
 		}
 	];
 
-	function closeDropdown() {
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
-	}
-
 	function openEditModal(room: Room) {
 		selectedRoom = room;
 		name = room.name ?? '';
 		capacity = room.capacity;
 		showEditModal = true;
-		closeDropdown();
 	}
 
 	function openArchiveModal(room: Room) {
 		selectedRoom = room;
 		showArchiveModal = true;
-		closeDropdown();
 	}
 
 	function openRestoreModal(room: Room) {
 		selectedRoom = room;
 		showRestoreModal = true;
-		closeDropdown();
 	}
 
 	function resetForm() {
@@ -121,19 +115,18 @@
 	<PageHeader title="Odalar" subtitle="Bu sayfada odaları yönetin" />
 
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full lg:max-w-xs">
+		<div class="w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Oda ara..." />
 			{#if hasArchivedRooms}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
-					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+					<Switch bind:checked={showArchived} class="scale-75" />
+					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
 				</label>
 			{/if}
 		</div>
 
 		{#if userRole === 'admin'}
-			<button
-				class="btn btn-primary"
+			<Button
 				onclick={() => {
 					resetForm();
 					showAddModal = true;
@@ -141,7 +134,7 @@
 			>
 				<Plus size={16} />
 				Yeni Oda
-			</button>
+			</Button>
 		{/if}
 	</div>
 
@@ -176,35 +169,35 @@
 			};
 		}}
 	>
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Oda Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-room-name">Oda Adı</Label>
+			<Input id="add-room-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Kapasite</legend>
-			<input type="number" name="capacity" class="input w-full" bind:value={capacity} min="0" />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-room-capacity">Kapasite</Label>
+			<Input id="add-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showAddModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-primary" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Plus size={16} />
 				{/if}
 				Ekle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -231,35 +224,35 @@
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Oda Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="edit-room-name">Oda Adı</Label>
+			<Input id="edit-room-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Kapasite</legend>
-			<input type="number" name="capacity" class="input w-full" bind:value={capacity} min="0" />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="edit-room-capacity">Kapasite</Label>
+			<Input id="edit-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showEditModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-primary" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Edit size={16} />
 				{/if}
 				Güncelle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -290,25 +283,25 @@
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showArchiveModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-error" disabled={formLoading}>
+			</Button>
+			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Archive size={16} />
 				{/if}
 				Arşivle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -339,25 +332,25 @@
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showRestoreModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
 				Geri Yükle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

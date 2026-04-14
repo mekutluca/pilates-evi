@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { ActionItem } from '$lib/types/ActionItem';
+	import type { ActionItem } from '$lib/types';
+	import * as Card from '$lib/components/ui/card/index.js';
 
 	interface Props {
 		title: string;
@@ -11,16 +12,18 @@
 	let { title, value, icon, description }: Props = $props();
 </script>
 
-<div class="stat bg-base-100">
-	<div class="stat-figure text-base-content/40">
+<Card.Root>
+	<Card.Header class="flex flex-row items-center justify-between pb-2">
+		<Card.Title class="text-sm font-medium text-muted-foreground">{title}</Card.Title>
 		{#if icon}
 			{@const Icon = icon}
-			<Icon size={32} />
+			<Icon size={20} class="text-muted-foreground" />
 		{/if}
-	</div>
-	<div class="stat-title">{title}</div>
-	<div class="stat-value">{value}</div>
-	{#if description}
-		<div class="stat-desc">{description}</div>
-	{/if}
-</div>
+	</Card.Header>
+	<Card.Content>
+		<div class="text-2xl font-bold">{value}</div>
+		{#if description}
+			<p class="mt-1 text-xs text-muted-foreground">{description}</p>
+		{/if}
+	</Card.Content>
+</Card.Root>

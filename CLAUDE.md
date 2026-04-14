@@ -4,17 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a SvelteKit application for a Pilates studio management system ("pilates-evi") using TypeScript, Supabase for backend, TailwindCSS with DaisyUI for styling, and Lucide icons.
-
-## Development Commands
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run check` - Run Svelte type checking
-- `npm run check:watch` - Run type checking in watch mode
-- `npm run format` - Format code with Prettier
-- `npm run lint` - Run linting (Prettier + ESLint)
+This is a SvelteKit application for a Pilates studio management system ("pilates-evi") using TypeScript, Supabase for backend, TailwindCSS v4 with shadcn-svelte for styling, and Lucide icons.
 
 ## Architecture
 
@@ -25,13 +15,6 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 - Role-based access control with 4 roles: `admin`, `coordinator`, `trainer`, `trainee`
 - Roles are prefixed with `pe_` in Supabase but stripped to base role names in the app
 - Route protection implemented in `hooks.server.ts` using route definitions from `Route.ts`
-
-### Route Structure
-
-- `(prelogin)` - Unauthenticated routes (login page)
-- `(authed)` - Protected routes requiring authentication
-- `(home)` - Main dashboard area with role-based navigation
-- `admin/` - Admin-only routes
 
 ### Key Files
 
@@ -58,9 +41,11 @@ Key entity types defined in `src/lib/types/`:
 
 ### Styling
 
-- TailwindCSS v4 with DaisyUI component library
+- TailwindCSS v4 with shadcn-svelte components (built on bits-ui)
+- shadcn-svelte primitives live in `src/lib/components/ui/` (auto-generated; do not edit by hand unless intentionally customizing)
 - Custom font: Plus Jakarta Sans
-- Uses `tailwind-merge` for conditional classes
+- Uses `cn()` from `$lib/utils` (clsx + tailwind-merge) for conditional classes
+- Custom semantic color tokens defined in `src/app.css` extend the default shadcn palette: `info`, `success`, `warning` (each with a `-foreground` variant), in addition to the standard `primary`, `secondary`, `accent`, `destructive`, `muted`
 
 ### State Management
 
@@ -74,51 +59,58 @@ Key entity types defined in `src/lib/types/`:
 - Always use the typed Supabase client with `Database` type for type safety
 - Authentication state is available in all routes via layout load functions
 
-## Color Scheme
-
-The application uses a consistent color scheme across different pages and features based on DaisyUI theme colors:
-
-### Page/Feature Colors
-
-- **Trainers** (Eğitmenler): `info` (cyan) - Used for buttons, badges, and primary actions
-- **Trainings** (Eğitimler): `secondary` (purple/gray) - Used for buttons, badges, and primary actions
-- **Trainees** (Öğrenciler): `success` (green) - Used for buttons, badges, and primary actions
-- **Rooms** (Odalar): `primary` (blue) - Used for buttons, badges, and primary actions
-- **Admin/Users** (Yönetici/Kullanıcılar): `accent` (pink/purple) - Used for buttons, badges, and primary actions
-
 ### Usage Guidelines
 
-- **Primary actions** (Add/Create buttons): Use the page's designated color
-- **Training-related items**: Always use `secondary` color regardless of context (e.g., training chips in rooms, trainer pages)
-- **User role badges**: All roles use `neutral` (gray) for consistency
-- **Delete actions**: Always use `error` (red)
-- **Form actions**: Submit buttons use page color, cancel buttons use default
+- **Primary actions** (Add/Create, modal submits): plain `<Button>` (default variant).
+- **Cancel actions**: `<Button variant="outline">` or `variant="ghost"`.
+- **Delete / archive actions**: `<Button variant="destructive">`.
+- **Status badges**: `<Badge variant="outline">` for neutral labels, `<Badge variant="secondary">` for muted highlights.
+- **Semantic colors** (`info`, `success`, `warning`, `destructive`) are still defined in `src/app.css` and may be used for **state-based** UI — e.g. success indicators ("Çakışma yok"), info-level alerts, warning banners — but never as a page-identity differentiator.
 
 ### Examples
 
-```html
-<!-- Trainers page -->
-<button class="btn btn-info">Yeni Eğitmen</button>
-<span class="badge badge-secondary">Pilates</span>
-<!-- Training badge -->
+```svelte
+<script lang="ts">
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+</script>
 
-<!-- Rooms page -->
-<button class="btn btn-primary">Yeni Oda</button>
-<span class="badge badge-secondary">Yoga</span>
-<!-- Training badge -->
+<!-- Primary action on any page -->
+<Button>Yeni Eğitmen</Button>
+<Button>Yeni Oda</Button>
+<Button>Yeni Öğrenci</Button>
+<Button>Yeni Kullanıcı</Button>
 
-<!-- Admin page -->
-<button class="btn btn-accent">Yeni Kullanıcı</button>
-<span class="badge badge-neutral">admin</span>
-<!-- User role badge -->
+<!-- Cancel / outline -->
+<Button variant="outline">İptal</Button>
+
+<!-- Destructive -->
+<Button variant="destructive">Sil</Button>
+
+<!-- Badges -->
+<Badge>Aktif</Badge>
+<Badge variant="outline">admin</Badge>
+<Badge variant="secondary">Pilates</Badge>
 ```
+
+### Common shadcn-svelte primitives in this project
+
+- `Button`, `Input`, `Label`, `Textarea`, `Checkbox`, `Switch`, `RadioGroup`/`RadioGroupItem`, `Badge`, `Separator`
+- `Card.Root` / `Card.Header` / `Card.Title` / `Card.Content` / `Card.Footer`
+- `Table.Root` / `Table.Header` / `Table.Body` / `Table.Row` / `Table.Head` / `Table.Cell`
+- `Dialog.*` (used internally by `$lib/components/modal.svelte`)
+- `DropdownMenu.*` (used internally by `$lib/components/action-menu.svelte` for desktop; mobile falls back to a `Drawer` via `getActionDrawerContext()`)
+- `Sheet.*` (used by `(authed)/(home)/+layout.svelte` for the mobile sidebar)
+- `Accordion.*` (used by `trainees/[id]/+page.svelte` for the purchase history)
+- `NativeSelect` for simple form selects (preserves form binding semantics)
+- `Calendar` (used internally by `$lib/components/date-picker.svelte`, replacing `cally`)
 
 ## Development Guidelines
 
 - **Never use `unknown` or `any` types** - Always define proper TypeScript types
 - **Use reusable components and utilities** - Leverage existing components in `src/lib/components/` and utilities in `src/lib/utils.ts`
 - **Never perform Supabase/database operations without permission** - Always check user roles and permissions before database operations
-- **Follow color scheme conventions** - Use appropriate colors based on the feature/page as documented above
+- **Follow the theme palette** - All pages share the theme primary color; do not introduce per-page accent colors. Reserve `info`/`success`/`warning`/`destructive` for state semantics, not page identity.
 - **Avoid unnecessary try-catch blocks** - Only use try-catch when you need to handle specific errors or transform them. Let validation errors from utility functions bubble up naturally to SvelteKit's error handling
 
 ### Error Handling Guidelines

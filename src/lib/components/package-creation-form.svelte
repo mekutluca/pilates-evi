@@ -1,7 +1,15 @@
 <script lang="ts">
-	import type { CreatePackageForm } from '$lib/types/Package';
+	import type { CreatePackageForm } from '$lib/types';
 	import Medal from '@lucide/svelte/icons/medal';
 	import CalendarSync from '@lucide/svelte/icons/calendar-sync';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
+	import { Separator } from '$lib/components/ui/separator/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
 
 	// Props
 	interface Props {
@@ -23,7 +31,6 @@
 	let reschedulable = $state(false);
 	let reschedule_limit = $state<number | undefined>(undefined);
 
-	// Reset function
 	function resetFormState() {
 		name = '';
 		description = '';
@@ -36,13 +43,10 @@
 		reschedule_limit = undefined;
 	}
 
-	// Track previous visibility state to only reset when closing
 	let previouslyVisible = $state(isVisible);
 
-	// Reset when modal becomes not visible (after close animation)
 	$effect(() => {
 		if (previouslyVisible && !isVisible) {
-			// Delay to ensure modal close animation completes
 			setTimeout(() => {
 				resetFormState();
 			}, 300);
@@ -50,7 +54,6 @@
 		previouslyVisible = isVisible;
 	});
 
-	// Form submission
 	function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		onSubmit({
@@ -66,10 +69,8 @@
 		});
 	}
 
-	// Validation
 	const showRescheduleLimit = $derived(reschedulable);
 
-	// Local validation based on actual form state
 	const canProceedLocal = $derived(
 		name.trim().length > 0 &&
 			min_lessons_per_week > 0 &&
@@ -83,14 +84,11 @@
 
 <form class="space-y-4" onsubmit={handleSubmit}>
 	<!-- Package Name -->
-	<div class="form-control">
-		<label class="label" for="package-name">
-			<span class="label-text font-semibold">Ders Adı *</span>
-		</label>
-		<input
+	<div class="grid gap-2">
+		<Label for="package-name" class="font-semibold">Ders Adı *</Label>
+		<Input
 			id="package-name"
 			type="text"
-			class="input-bordered input w-full"
 			placeholder="Örn: Başlangıç Pilates"
 			bind:value={name}
 			required
@@ -99,54 +97,47 @@
 	</div>
 
 	<!-- Package Description -->
-	<div class="form-control">
-		<label class="label" for="package-description">
-			<span class="label-text font-semibold">Açıklama</span>
-		</label>
-		<textarea
+	<div class="grid gap-2">
+		<Label for="package-description" class="font-semibold">Açıklama</Label>
+		<Textarea
 			id="package-description"
-			class="textarea-bordered textarea w-full"
 			placeholder="Ders detayları..."
-			rows="3"
+			rows={3}
 			bind:value={description}
-		></textarea>
+		/>
 	</div>
 
 	<!-- Basic Configuration - Row 1: Duration & Capacity -->
 	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 		<!-- Weeks Duration -->
-		<div class="form-control">
-			<label class="label" for="weeks-duration">
-				<span class="label-text font-medium">
-					Ders Süresi (Hafta) {#if package_type === 'private'}*{/if}
-				</span>
-			</label>
+		<div class="grid gap-2">
+			<Label for="weeks-duration" class="font-medium">
+				Ders Süresi (Hafta) {#if package_type === 'private'}*{/if}
+			</Label>
 			{#if package_type === 'private'}
-				<input
+				<Input
 					id="weeks-duration"
 					type="number"
-					class="input-bordered input w-full"
 					placeholder="Örn: 4"
 					min="1"
 					bind:value={weeks_duration}
 					required
 				/>
 			{:else}
-				<div class="input-bordered input flex w-full items-center bg-base-200 text-base-content/60">
+				<div
+					class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+				>
 					Devamlı
 				</div>
 			{/if}
 		</div>
 
 		<!-- Max Capacity -->
-		<div class="form-control">
-			<label class="label" for="max-capacity">
-				<span class="label-text font-medium">Maksimum Kapasite *</span>
-			</label>
-			<input
+		<div class="grid gap-2">
+			<Label for="max-capacity" class="font-medium">Maksimum Kapasite *</Label>
+			<Input
 				id="max-capacity"
 				type="number"
-				class="input-bordered input w-full"
 				placeholder="Örn: 12"
 				min="1"
 				max="50"
@@ -158,15 +149,11 @@
 
 	<!-- Basic Configuration - Row 2: Min/Max Lessons -->
 	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-		<!-- Min Lessons per Week -->
-		<div class="form-control">
-			<label class="label" for="min-lessons-per-week">
-				<span class="label-text font-medium">Min Haftalık Ders *</span>
-			</label>
-			<input
+		<div class="grid gap-2">
+			<Label for="min-lessons-per-week" class="font-medium">Min Haftalık Ders *</Label>
+			<Input
 				id="min-lessons-per-week"
 				type="number"
-				class="input-bordered input w-full"
 				placeholder="Örn: 2"
 				min="1"
 				max="7"
@@ -175,15 +162,11 @@
 			/>
 		</div>
 
-		<!-- Max Lessons per Week -->
-		<div class="form-control">
-			<label class="label" for="max-lessons-per-week">
-				<span class="label-text font-medium">Max Haftalık Ders *</span>
-			</label>
-			<input
+		<div class="grid gap-2">
+			<Label for="max-lessons-per-week" class="font-medium">Max Haftalık Ders *</Label>
+			<Input
 				id="max-lessons-per-week"
 				type="number"
-				class="input-bordered input w-full"
 				placeholder="Örn: 3"
 				min="1"
 				max="7"
@@ -196,112 +179,86 @@
 	<!-- Advanced Configuration Cards -->
 	<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 		<!-- Trainee Type Card -->
-		<div class="card border border-base-300 bg-base-100">
-			<div class="card-body p-4">
+		<Card.Root>
+			<Card.Content class="p-4">
 				<div class="flex items-center gap-2">
-					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10">
-						<Medal class="h-4 w-4 text-warning" />
+					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
+						<Medal class="size-4 text-warning" />
 					</div>
 					<h3 class="text-sm font-semibold">Öğrenci Yönetimi</h3>
 				</div>
-				<div class="divider m-0"></div>
+				<Separator class="my-3" />
 
-				<div class="space-y-3">
-					<div class="form-control">
-						<label class="cursor-pointer">
-							<div
-								class="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-base-200"
-							>
-								<input
-									type="radio"
-									class="radio radio-sm radio-warning"
-									bind:group={package_type}
-									value="private"
-								/>
-								<div class="flex-1">
-									<div class="text-sm font-medium">Özel ders</div>
-									<div class="text-xs text-base-content/60">Bireysel veya özel grup dersi</div>
-								</div>
-							</div>
-						</label>
-					</div>
+				<RadioGroup bind:value={package_type} class="space-y-2">
+					<label
+						class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+					>
+						<RadioGroupItem value="private" />
+						<div class="flex-1">
+							<div class="text-sm font-medium">Özel ders</div>
+							<div class="text-xs text-muted-foreground">Bireysel veya özel grup dersi</div>
+						</div>
+					</label>
 
-					<div class="form-control">
-						<label class="cursor-pointer">
-							<div
-								class="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-base-200"
-							>
-								<input
-									type="radio"
-									class="radio radio-sm radio-warning"
-									bind:group={package_type}
-									value="group"
-								/>
-								<div class="flex-1">
-									<div class="text-sm font-medium">Grup dersi</div>
-									<div class="text-xs text-base-content/60">Herkese açık grup dersi</div>
-								</div>
-							</div>
-						</label>
-					</div>
-				</div>
-			</div>
-		</div>
+					<label
+						class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+					>
+						<RadioGroupItem value="group" />
+						<div class="flex-1">
+							<div class="text-sm font-medium">Grup dersi</div>
+							<div class="text-xs text-muted-foreground">Herkese açık grup dersi</div>
+						</div>
+					</label>
+				</RadioGroup>
+			</Card.Content>
+		</Card.Root>
 
 		<!-- Rescheduling Card -->
-		<div class="card border border-base-300 bg-base-100">
-			<div class="card-body p-4">
+		<Card.Root>
+			<Card.Content class="p-4">
 				<div class="flex items-center gap-2">
-					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10">
-						<CalendarSync class="h-4 w-4 text-warning" />
+					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
+						<CalendarSync class="size-4 text-warning" />
 					</div>
 					<h3 class="text-sm font-semibold">Randevu Değiştirme Ayarları</h3>
 				</div>
-				<div class="divider m-0"></div>
+				<Separator class="my-3" />
 
 				<div class="space-y-3">
-					<div class="form-control">
-						<label
-							class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-base-200"
-						>
-							<input
-								type="checkbox"
-								class="checkbox checkbox-sm checkbox-warning"
-								bind:checked={reschedulable}
-							/>
-							<div class="flex-1">
-								<div class="text-sm font-medium">Randevu Değiştirme İzni</div>
-								<div class="text-xs text-base-content/60">Derslerin zamanı değiştirilebilir</div>
-							</div>
-						</label>
-					</div>
+					<label
+						class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+					>
+						<Checkbox bind:checked={reschedulable} />
+						<div class="flex-1">
+							<div class="text-sm font-medium">Randevu Değiştirme İzni</div>
+							<div class="text-xs text-muted-foreground">Derslerin zamanı değiştirilebilir</div>
+						</div>
+					</label>
 
 					{#if showRescheduleLimit}
-						<div class="rounded-lg bg-base-200 p-2">
-							<div class="mb-2 text-xs text-base-content/70">Değiştirme Limiti</div>
+						<div class="rounded-lg bg-muted p-2">
+							<div class="mb-2 text-xs text-muted-foreground">Değiştirme Limiti</div>
 							<div class="flex items-center gap-2">
-								<input
+								<Input
 									type="number"
-									class="input-bordered input input-sm h-8 w-16"
+									class="h-8 w-16"
 									placeholder="∞"
 									min="1"
 									max="50"
 									bind:value={reschedule_limit}
 								/>
-								<span class="text-xs text-base-content/70">kez</span>
+								<span class="text-xs text-muted-foreground">kez</span>
 							</div>
 						</div>
 					{/if}
 				</div>
-			</div>
-		</div>
+			</Card.Content>
+		</Card.Root>
 	</div>
 
 	<!-- Form Actions -->
-	<div class="modal-action">
-		<button type="button" class="btn btn-ghost" onclick={onCancel}> İptal </button>
-		<button type="submit" class="btn btn-accent" disabled={!canProceedLocal}>
-			Dersi Oluştur
-		</button>
+	<div class="flex justify-end gap-2">
+		<Button type="button" variant="ghost" onclick={onCancel}>İptal</Button>
+		<Button type="submit" disabled={!canProceedLocal}>Dersi Oluştur</Button>
 	</div>
 </form>

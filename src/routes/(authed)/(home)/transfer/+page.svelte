@@ -23,6 +23,16 @@
 		addWeeksToDate,
 		buildAppointmentSlots
 	} from '$lib/utils/date-utils';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
+	import { Separator } from '$lib/components/ui/separator/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
+	import * as Table from '$lib/components/ui/table/index.js';
 
 	const { data }: { data: PageData } = $props();
 
@@ -498,7 +508,7 @@
 						Randevu Değiştir
 					{/if}
 				</h1>
-				<p class="mt-1 text-sm text-base-content/60">
+				<p class="mt-1 text-sm text-muted-foreground">
 					{#if isShiftMode}
 						Randevuları ileri veya geri kaydırın
 					{:else}
@@ -507,8 +517,12 @@
 				</p>
 			</div>
 			<div class="flex gap-3">
-				<a href="/schedule" class="btn btn-ghost">İptal</a>
-				<button class="btn btn-warning" disabled={!canProceed} onclick={handleTransfer}>
+				<Button href="/schedule" variant="ghost">İptal</Button>
+				<Button
+					class="bg-warning text-warning-foreground hover:bg-warning/80"
+					disabled={!canProceed}
+					onclick={handleTransfer}
+				>
 					{#if transferring}
 						<LoaderCircle class="h-4 w-4 animate-spin" />
 					{:else if isShiftMode}
@@ -517,248 +531,183 @@
 						<ArrowLeftRight class="h-4 w-4" />
 					{/if}
 					{isShiftMode ? 'Kaydırmayı Onayla' : 'Değişikliği Onayla'}
-				</button>
+				</Button>
 			</div>
 		</div>
 
 		<!-- 3-Column Layout -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 			<!-- Column 1: Transfer Settings -->
-			<div class="card bg-base-100 shadow-xl">
-				<div class="card-body">
+			<Card.Root>
+				<Card.Content class="space-y-4">
 					<!-- Trainee Shift Mode Alert -->
 					{#if isTraineeShiftMode}
-						<div class="mb-4 alert alert-info">
-							<Package class="h-5 w-5" />
-							<div>
-								<h3 class="font-bold">Öğrenci Kaydırma Modu</h3>
-								<div class="text-sm">
-									<strong>{data.traineeInfo?.name}</strong> kaydırılıyor
-								</div>
-							</div>
-						</div>
+						<Alert.Root class="border-info/40 bg-info/10">
+							<Package class="h-5 w-5 text-info" />
+							<Alert.Title>Öğrenci Kaydırma Modu</Alert.Title>
+							<Alert.Description>
+								<strong>{data.traineeInfo?.name}</strong> kaydırılıyor
+							</Alert.Description>
+						</Alert.Root>
 					{/if}
 
-					<h2 class="card-title text-lg">
+					<h2 class="flex items-center gap-2 text-lg font-semibold">
 						<Calendar class="h-5 w-5 text-warning" />
 						İşlem Tipi
 					</h2>
 
 					<!-- Operation Selection -->
-					<div class="space-y-2">
+					<RadioGroup
+						value={operation}
+						onValueChange={(v) => (operation = v as TransferOperation)}
+						class="space-y-2"
+					>
 						{#if !isTraineeShiftMode}
-							<div class="form-control">
-								<label class="label cursor-pointer justify-start gap-3">
-									<input
-										type="radio"
-										name="operation"
-										class="radio radio-warning"
-										value="transfer"
-										checked={operation === 'transfer'}
-										onchange={() => (operation = 'transfer')}
-									/>
-									<div class="flex flex-col">
-										<span class="text-sm text-base-content">Oda/Eğitmen Değiştir</span>
-										<span class="text-xs text-base-content/60"
-											>Randevuyu farklı oda veya eğitmene aktar</span
-										>
-									</div>
-								</label>
-							</div>
-						{/if}
-
-						<div class="form-control">
-							<label class="label cursor-pointer justify-start gap-3">
-								<input
-									type="radio"
-									name="operation"
-									class="radio radio-warning"
-									value="shift"
-									checked={operation === 'shift'}
-									onchange={() => (operation = 'shift')}
-									disabled={isTraineeShiftMode}
-								/>
+							<label class="flex cursor-pointer items-start gap-3">
+								<RadioGroupItem value="transfer" class="mt-0.5" />
 								<div class="flex flex-col">
-									<span class="text-sm text-base-content"
-										>Tarih Kaydır {isTraineeShiftMode ? '(Otomatik seçili)' : ''}</span
-									>
-									<span class="text-xs text-base-content/60">Randevuları ileri kaydır</span>
+									<span class="text-sm">Oda/Eğitmen Değiştir</span>
+									<span class="text-xs text-muted-foreground">
+										Randevuyu farklı oda veya eğitmene aktar
+									</span>
 								</div>
 							</label>
-						</div>
-					</div>
+						{/if}
+
+						<label class="flex cursor-pointer items-start gap-3">
+							<RadioGroupItem value="shift" class="mt-0.5" disabled={isTraineeShiftMode} />
+							<div class="flex flex-col">
+								<span class="text-sm">
+									Tarih Kaydır {isTraineeShiftMode ? '(Otomatik seçili)' : ''}
+								</span>
+								<span class="text-xs text-muted-foreground">Randevuları ileri kaydır</span>
+							</div>
+						</label>
+					</RadioGroup>
 
 					<!-- Shift Mode Selection (only show when in shift mode) -->
 					{#if isShiftMode}
-						<div class="mt-4">
-							<h3 class="mb-2 text-sm font-medium text-base-content/70">Kaydırma Tipi</h3>
-							<div class="space-y-2">
-								<div class="form-control">
-									<label class="label cursor-pointer justify-start gap-3">
-										<input
-											type="radio"
-											name="shiftMode"
-											class="radio radio-sm radio-warning"
-											value="by_time"
-											checked={shiftMode === 'by_time'}
-											onchange={() => (shiftMode = 'by_time')}
-										/>
-										<div class="flex flex-col">
-											<span class="text-sm text-base-content">Haftalık</span>
-											<span class="text-xs text-base-content/60"
-												>Tüm randevuları belirtilen hafta kadar kaydır</span
-											>
-										</div>
-									</label>
-								</div>
+						<div>
+							<h3 class="mb-2 text-sm font-medium text-muted-foreground">Kaydırma Tipi</h3>
+							<RadioGroup
+								value={shiftMode}
+								onValueChange={(v) => (shiftMode = v as ShiftMode)}
+								class="space-y-2"
+							>
+								<label class="flex cursor-pointer items-start gap-3">
+									<RadioGroupItem value="by_time" class="mt-0.5" />
+									<div class="flex flex-col">
+										<span class="text-sm">Haftalık</span>
+										<span class="text-xs text-muted-foreground">
+											Tüm randevuları belirtilen hafta kadar kaydır
+										</span>
+									</div>
+								</label>
 
-								<div class="form-control">
-									<label class="label cursor-pointer justify-start gap-3">
-										<input
-											type="radio"
-											name="shiftMode"
-											class="radio radio-sm radio-warning"
-											value="by_slot"
-											checked={shiftMode === 'by_slot'}
-											onchange={() => (shiftMode = 'by_slot')}
-										/>
-										<div class="flex flex-col">
-											<span class="text-sm text-base-content">Tekli</span>
-											<span class="text-xs text-base-content/60"
-												>Her randevuyu bir sonraki randevunun yerine kaydır</span
-											>
-										</div>
-									</label>
-								</div>
-							</div>
+								<label class="flex cursor-pointer items-start gap-3">
+									<RadioGroupItem value="by_slot" class="mt-0.5" />
+									<div class="flex flex-col">
+										<span class="text-sm">Tekli</span>
+										<span class="text-xs text-muted-foreground">
+											Her randevuyu bir sonraki randevunun yerine kaydır
+										</span>
+									</div>
+								</label>
+							</RadioGroup>
 						</div>
 					{/if}
 
-					<div class="divider"></div>
+					<Separator />
 
-					<h2 class="text-sm font-medium text-base-content/70">Kapsam</h2>
+					<h2 class="text-sm font-medium text-muted-foreground">Kapsam</h2>
 
 					<!-- Scope Selection -->
-					<div class="space-y-2">
+					<RadioGroup
+						value={scope}
+						onValueChange={(v) => (scope = v as TransferScope)}
+						class="space-y-2"
+					>
 						{#if isTransferMode}
-							<div class="form-control">
-								<label class="label cursor-pointer justify-start gap-3">
-									<input
-										type="radio"
-										name="scope"
-										class="radio radio-warning"
-										value="single"
-										checked={scope === 'single'}
-										onchange={() => (scope = 'single')}
-									/>
-									<span class="text-sm text-base-content">Sadece bu randevu</span>
-								</label>
-							</div>
+							<label class="flex cursor-pointer items-center gap-3">
+								<RadioGroupItem value="single" />
+								<span class="text-sm">Sadece bu randevu</span>
+							</label>
 						{/if}
 
 						{#if data.futureAppointmentCount > 1}
-							<div class="form-control">
-								<label class="label cursor-pointer justify-start gap-3">
-									<input
-										type="radio"
-										name="scope"
-										class="radio radio-warning"
-										value="from_selected"
-										checked={scope === 'from_selected'}
-										onchange={() => (scope = 'from_selected')}
-									/>
-									<span class="text-sm text-base-content"
-										>Seçilen ve sonraki tüm randevular ({data.futureAppointmentCount})</span
-									>
-								</label>
-							</div>
+							<label class="flex cursor-pointer items-center gap-3">
+								<RadioGroupItem value="from_selected" />
+								<span class="text-sm">
+									Seçilen ve sonraki tüm randevular ({data.futureAppointmentCount})
+								</span>
+							</label>
 						{/if}
 
 						{#if isTransferMode && data.allFromNowCount > 1}
-							<div class="form-control">
-								<label class="label cursor-pointer justify-start gap-3">
-									<input
-										type="radio"
-										name="scope"
-										class="radio radio-warning"
-										value="all_from_now"
-										checked={scope === 'all_from_now'}
-										onchange={() => (scope = 'all_from_now')}
-									/>
-									<span class="text-sm text-base-content"
-										>Bugünden itibaren tüm randevular ({data.allFromNowCount})</span
-									>
-								</label>
-							</div>
+							<label class="flex cursor-pointer items-center gap-3">
+								<RadioGroupItem value="all_from_now" />
+								<span class="text-sm">
+									Bugünden itibaren tüm randevular ({data.allFromNowCount})
+								</span>
+							</label>
 						{/if}
-					</div>
+					</RadioGroup>
 
-					<div class="divider"></div>
+					<Separator />
 
 					{#if isShiftByTimeMode}
 						<!-- Weeks Selection -->
-						<div class="form-control">
-							<label class="label" for="weeks-input">
-								<span class="label-text font-medium">Kaydırma Süresi</span>
-							</label>
+						<div class="grid gap-2">
+							<Label for="weeks-input" class="font-medium">Kaydırma Süresi</Label>
 							<div class="flex gap-2">
-								<input
+								<Input
 									id="weeks-input"
 									type="number"
-									class="input-bordered input flex-1 input-warning"
+									class="flex-1"
 									min="-52"
 									max="52"
 									bind:value={weeksToShift}
 								/>
-								<span class="flex items-center text-sm text-base-content/60">hafta</span>
+								<span class="flex items-center text-sm text-muted-foreground">hafta</span>
 							</div>
-							<div class="label">
-								<span class="label-text-alt text-base-content/60">
-									{#if weeksToShift > 0}
-										İleri kaydır: {weeksToShift} hafta sonraya
-									{:else if weeksToShift < 0}
-										Geri kaydır: {Math.abs(weeksToShift)} hafta öncesine
-									{:else}
-										Değişiklik yok
-									{/if}
-								</span>
+							<div class="text-xs text-muted-foreground">
+								{#if weeksToShift > 0}
+									İleri kaydır: {weeksToShift} hafta sonraya
+								{:else if weeksToShift < 0}
+									Geri kaydır: {Math.abs(weeksToShift)} hafta öncesine
+								{:else}
+									Değişiklik yok
+								{/if}
 							</div>
 						</div>
 					{:else if isShiftBySlotMode}
 						<!-- Slots Selection -->
-						<div class="form-control">
-							<label class="label" for="slots-input">
-								<span class="label-text font-medium">Kaydırma Sayısı</span>
-							</label>
+						<div class="grid gap-2">
+							<Label for="slots-input" class="font-medium">Kaydırma Sayısı</Label>
 							<div class="flex gap-2">
-								<input
+								<Input
 									id="slots-input"
 									type="number"
-									class="input-bordered input flex-1 input-warning"
+									class="flex-1"
 									min="1"
 									max="20"
 									bind:value={slotsToShift}
 								/>
-								<span class="flex items-center text-sm text-base-content/60">randevu</span>
+								<span class="flex items-center text-sm text-muted-foreground">randevu</span>
 							</div>
-							<div class="label">
-								<span class="label-text-alt text-base-content/60">
-									Her randevu {slotsToShift} randevu ileri kayacak
-								</span>
+							<div class="text-xs text-muted-foreground">
+								Her randevu {slotsToShift} randevu ileri kayacak
 							</div>
 						</div>
 					{/if}
 
 					{#if isShiftMode}
 						<!-- Shift Reason -->
-						<div class="form-control mt-4">
-							<label class="label" for="shift-cause">
-								<span class="label-text font-medium">Kaydırma Sebebi</span>
-							</label>
-							<input
+						<div class="grid gap-2">
+							<Label for="shift-cause" class="font-medium">Kaydırma Sebebi</Label>
+							<Input
 								id="shift-cause"
 								type="text"
-								class="input-bordered input w-full input-warning"
 								placeholder="Örn: 23 Nisan tatili"
 								bind:value={shiftCause}
 							/>
@@ -767,48 +716,34 @@
 
 					{#if isTransferMode}
 						<!-- Room Selection -->
-						<div class="form-control">
-							<label class="label" for="room-select">
-								<span class="label-text font-medium">Oda</span>
-							</label>
-							<select
-								id="room-select"
-								class="select-bordered select w-full"
-								class:select-warning={hasRoomSelected}
-								bind:value={selectedRoomId}
-							>
+						<div class="grid gap-2">
+							<Label for="room-select" class="font-medium">Oda</Label>
+							<NativeSelect id="room-select" bind:value={selectedRoomId}>
 								<option value="" disabled>Oda seçin</option>
 								{#each data.rooms as room (room.id)}
 									<option value={room.id}>{room.name}</option>
 								{/each}
-							</select>
+							</NativeSelect>
 						</div>
 
 						<!-- Trainer Selection -->
-						<div class="form-control">
-							<label class="label" for="trainer-select">
-								<span class="label-text font-medium">Eğitmen</span>
-							</label>
-							<select
-								id="trainer-select"
-								class="select-bordered select w-full"
-								class:select-warning={hasTrainerSelected}
-								bind:value={selectedTrainerId}
-							>
+						<div class="grid gap-2">
+							<Label for="trainer-select" class="font-medium">Eğitmen</Label>
+							<NativeSelect id="trainer-select" bind:value={selectedTrainerId}>
 								<option value="" disabled>Eğitmen seçin</option>
 								{#each data.trainers as trainer (trainer.id)}
 									<option value={trainer.id}>{trainer.name}</option>
 								{/each}
-							</select>
+							</NativeSelect>
 						</div>
 					{/if}
-				</div>
-			</div>
+				</Card.Content>
+			</Card.Root>
 
 			<!-- Column 2: Current Appointment Details -->
-			<div class="card bg-base-100 shadow-xl">
-				<div class="card-body">
-					<h2 class="card-title text-lg">
+			<Card.Root>
+				<Card.Content class="space-y-3">
+					<h2 class="flex items-center gap-2 text-lg font-semibold">
 						<Package class="h-5 w-5 text-warning" />
 						Mevcut Randevu Bilgileri
 					</h2>
@@ -816,22 +751,22 @@
 					<div class="space-y-3">
 						<!-- Trainees -->
 						<div>
-							<div class="text-xs text-base-content/60">Öğrenciler</div>
+							<div class="text-xs text-muted-foreground">Öğrenciler</div>
 							<div class="font-medium">{traineeNames}</div>
 						</div>
 
 						<!-- Package -->
 						<div>
-							<div class="text-xs text-base-content/60">Paket</div>
+							<div class="text-xs text-muted-foreground">Paket</div>
 							<div class="font-medium">{packageName}</div>
 						</div>
 					</div>
 
-					<div class="divider my-2"></div>
+					<Separator class="my-2" />
 
 					<!-- Affected Appointments List -->
 					<div>
-						<div class="mb-2 text-xs font-medium text-base-content/60">
+						<div class="mb-2 text-xs font-medium text-muted-foreground">
 							Etkilenecek Randevular
 							{#if scope === 'single'}
 								(1 randevu)
@@ -845,13 +780,13 @@
 						<div class="max-h-[300px] space-y-1 overflow-y-auto">
 							{#if scope === 'single'}
 								{@const appt = data.appointment}
-								<div class="rounded bg-base-200 px-3 py-2 text-sm">
+								<div class="rounded bg-muted px-3 py-2 text-sm">
 									<div class="font-medium">
 										{#if appt.date}
 											{#if isShiftByTimeMode && weeksToShift !== 0}
-												<span class="text-base-content/50 line-through"
-													>{formatDateWithDay(appt.date)}</span
-												>
+												<span class="text-muted-foreground line-through">
+													{formatDateWithDay(appt.date)}
+												</span>
 												<span class="mx-1">→</span>
 												<span>{formatDateWithDay(addWeeksToDate(appt.date, weeksToShift))}</span>
 											{:else}
@@ -859,17 +794,15 @@
 											{/if}
 										{/if}
 									</div>
-									<div class="text-xs text-base-content/60">
+									<div class="text-xs text-muted-foreground">
 										{#if appt.hour !== null}
 											{getTimeRangeString(appt.hour)}
 										{/if}
 									</div>
-									<div class="mt-1 flex gap-2 text-xs">
-										<span class="text-base-content/50">Oda: {appt.pe_rooms?.name || '-'}</span>
-										<span class="text-base-content/50">•</span>
-										<span class="text-base-content/50"
-											>Eğitmen: {appt.pe_trainers?.name || '-'}</span
-										>
+									<div class="mt-1 flex gap-2 text-xs text-muted-foreground">
+										<span>Oda: {appt.pe_rooms?.name || '-'}</span>
+										<span>•</span>
+										<span>Eğitmen: {appt.pe_trainers?.name || '-'}</span>
 									</div>
 								</div>
 							{:else}
@@ -919,19 +852,19 @@
 										isShiftBySlotMode && allSlotsForPreview
 											? allSlotsForPreview[index + slotsToShift]
 											: null}
-									<div class="rounded bg-base-200 px-3 py-2 text-sm">
+									<div class="rounded bg-muted px-3 py-2 text-sm">
 										<div class="font-medium">
 											{#if appt.date}
 												{#if isShiftByTimeMode && weeksToShift !== 0}
-													<span class="text-base-content/50 line-through"
-														>{formatDateWithDay(appt.date)}</span
-													>
+													<span class="text-muted-foreground line-through">
+														{formatDateWithDay(appt.date)}
+													</span>
 													<span class="mx-1">→</span>
 													<span>{formatDateWithDay(addWeeksToDate(appt.date, weeksToShift))}</span>
 												{:else if isShiftBySlotMode && slotsToShift > 0 && targetAppt?.date}
-													<span class="text-base-content/50 line-through"
-														>{formatDateWithDay(appt.date)}</span
-													>
+													<span class="text-muted-foreground line-through">
+														{formatDateWithDay(appt.date)}
+													</span>
 													<span class="mx-1">→</span>
 													<span>{formatDateWithDay(targetAppt.date)}</span>
 												{:else}
@@ -939,9 +872,9 @@
 												{/if}
 											{/if}
 										</div>
-										<div class="text-xs text-base-content/60">
+										<div class="text-xs text-muted-foreground">
 											{#if isShiftBySlotMode && targetAppt && targetAppt.hour !== null && targetAppt.hour !== appt.hour}
-												<span class="text-base-content/40 line-through">
+												<span class="line-through opacity-60">
 													{#if appt.hour !== null}
 														{getTimeRangeString(appt.hour)}
 													{/if}
@@ -952,23 +885,23 @@
 												{getTimeRangeString(appt.hour)}
 											{/if}
 										</div>
-										<div class="mt-1 flex gap-2 text-xs">
-											<span class="text-base-content/50">Oda: {appt.room_name || '-'}</span>
-											<span class="text-base-content/50">•</span>
-											<span class="text-base-content/50">Eğitmen: {appt.trainer_name || '-'}</span>
+										<div class="mt-1 flex gap-2 text-xs text-muted-foreground">
+											<span>Oda: {appt.room_name || '-'}</span>
+											<span>•</span>
+											<span>Eğitmen: {appt.trainer_name || '-'}</span>
 										</div>
 									</div>
 								{/each}
 							{/if}
 						</div>
 					</div>
-				</div>
-			</div>
+				</Card.Content>
+			</Card.Root>
 
 			<!-- Column 3: Conflict Check Results -->
-			<div class="card bg-base-100 shadow-xl">
-				<div class="card-body">
-					<h2 class="card-title text-lg">
+			<Card.Root>
+				<Card.Content>
+					<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold">
 						<Calendar class="h-5 w-5 text-warning" />
 						Çakışma Kontrolü
 					</h2>
@@ -976,15 +909,15 @@
 					<div class="relative min-h-[200px]">
 						{#if !hasBothSelected && !isShiftMode}
 							<div class="flex flex-col items-center justify-center py-12 text-center">
-								<ArrowLeftRight class="h-12 w-12 text-base-content/30" />
-								<p class="mt-3 text-sm text-base-content/60">
+								<ArrowLeftRight class="h-12 w-12 text-muted-foreground/40" />
+								<p class="mt-3 text-sm text-muted-foreground">
 									Oda ve eğitmen seçtiğinizde<br />çakışma kontrolü yapılacak
 								</p>
 							</div>
 						{:else if isShiftMode && !hasValidWeeks}
 							<div class="flex flex-col items-center justify-center py-12 text-center">
-								<CalendarArrowUp class="h-12 w-12 text-base-content/30" />
-								<p class="mt-3 text-sm text-base-content/60">
+								<CalendarArrowUp class="h-12 w-12 text-muted-foreground/40" />
+								<p class="mt-3 text-sm text-muted-foreground">
 									Kaydırma süresi giriniz<br />çakışma kontrolü yapılacak
 								</p>
 							</div>
@@ -993,10 +926,10 @@
 							<div class="mb-4">
 								{#if hasConflicts}
 									<div class="flex flex-col items-center justify-center py-8">
-										<AlertTriangle class="mb-3 h-12 w-12 text-error" />
+										<AlertTriangle class="mb-3 h-12 w-12 text-destructive" />
 										<div class="text-center">
-											<div class="text-lg font-bold text-error">Çakışma Tespit Edildi</div>
-											<div class="mt-1 text-sm text-base-content/60">
+											<div class="text-lg font-bold text-destructive">Çakışma Tespit Edildi</div>
+											<div class="mt-1 text-sm text-muted-foreground">
 												{conflicts.length} randevuda çakışma var
 											</div>
 										</div>
@@ -1008,7 +941,7 @@
 											<div class="text-lg font-bold text-success">
 												{isShiftMode ? 'Kaydırma Hazır' : 'Aktarma Hazır'}
 											</div>
-											<div class="mt-1 text-sm text-base-content/60">
+											<div class="mt-1 text-sm text-muted-foreground">
 												{appointmentsChecked} randevu kontrol edildi
 											</div>
 										</div>
@@ -1019,47 +952,47 @@
 							<!-- Conflicts Table -->
 							{#if hasConflicts}
 								<div class="overflow-x-auto">
-									<table class="table table-xs">
-										<thead>
-											<tr>
-												<th>Tarih</th>
-												<th>Saat</th>
-												<th>Durum</th>
-											</tr>
-										</thead>
-										<tbody>
+									<Table.Root>
+										<Table.Header>
+											<Table.Row>
+												<Table.Head>Tarih</Table.Head>
+												<Table.Head>Saat</Table.Head>
+												<Table.Head>Durum</Table.Head>
+											</Table.Row>
+										</Table.Header>
+										<Table.Body>
 											{#each conflicts as conflict (conflict.appointmentId)}
-												<tr>
-													<td class="text-xs">
+												<Table.Row>
+													<Table.Cell class="text-xs">
 														{#if conflict.date}
 															{formatDate(conflict.date)}
 														{:else}
 															-
 														{/if}
-													</td>
-													<td class="text-xs">
+													</Table.Cell>
+													<Table.Cell class="text-xs">
 														{#if conflict.hour !== null}
 															{getTimeRangeString(conflict.hour)}
 														{:else}
 															-
 														{/if}
-													</td>
-													<td>
+													</Table.Cell>
+													<Table.Cell>
 														{#if conflict.roomConflict && conflict.trainerConflict}
 															<div class="flex flex-col gap-1">
-																<span class="badge badge-xs badge-error">Oda Dolu</span>
-																<span class="badge badge-xs badge-error">Eğitmen Dolu</span>
+																<Badge variant="destructive">Oda Dolu</Badge>
+																<Badge variant="destructive">Eğitmen Dolu</Badge>
 															</div>
 														{:else if conflict.roomConflict}
-															<span class="badge badge-xs badge-error">Oda Dolu</span>
+															<Badge variant="destructive">Oda Dolu</Badge>
 														{:else if conflict.trainerConflict}
-															<span class="badge badge-xs badge-error">Eğitmen Dolu</span>
+															<Badge variant="destructive">Eğitmen Dolu</Badge>
 														{/if}
-													</td>
-												</tr>
+													</Table.Cell>
+												</Table.Row>
 											{/each}
-										</tbody>
-									</table>
+										</Table.Body>
+									</Table.Root>
 								</div>
 							{/if}
 						{:else}
@@ -1072,17 +1005,17 @@
 						<!-- Loading overlay -->
 						{#if checking}
 							<div
-								class="absolute inset-0 flex items-center justify-center rounded-2xl bg-base-100/80 backdrop-blur-sm"
+								class="absolute inset-0 flex items-center justify-center rounded-2xl bg-card/80 backdrop-blur-sm"
 							>
 								<div class="flex flex-col items-center">
 									<LoaderCircle class="h-8 w-8 animate-spin text-warning" />
-									<span class="mt-2 text-sm text-base-content/70">Kontrol ediliyor...</span>
+									<span class="mt-2 text-sm text-muted-foreground">Kontrol ediliyor...</span>
 								</div>
 							</div>
 						{/if}
 					</div>
-				</div>
-			</div>
+				</Card.Content>
+			</Card.Root>
 		</div>
 	</div>
 </div>

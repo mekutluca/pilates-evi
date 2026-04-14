@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { ActionItem } from '$lib/types/ActionItem';
+import type { ActionItem } from '$lib/types';
 
 interface ActionDrawerContext {
 	openDrawer: (actions: ActionItem[]) => void;

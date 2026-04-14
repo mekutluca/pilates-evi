@@ -1,27 +1,39 @@
 <script lang="ts">
 	import X from '@lucide/svelte/icons/x';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
 
-	export let value: string = '';
-	export let placeholder: string = '';
-	export let clearTitle: string = 'Aramayı temizle';
-	export let classes: string = '';
+	interface Props {
+		value: string;
+		placeholder?: string;
+		clearTitle?: string;
+		classes?: string;
+	}
+
+	let {
+		value = $bindable(''),
+		placeholder = '',
+		clearTitle = 'Aramayı temizle',
+		classes = ''
+	}: Props = $props();
 
 	function clear() {
 		value = '';
 	}
 </script>
 
-<label class="input-bordered input flex w-full items-center gap-2 {classes}">
-	<input type="text" class="grow" {placeholder} bind:value />
+<div class="relative {classes}">
+	<Input type="text" {placeholder} bind:value class="pr-8" />
 	{#if value?.trim()}
-		<button
-			type="button"
-			class="cursor-pointer text-base-content/60 hover:text-base-content"
-			on:click={clear}
+		<Button
+			variant="ghost"
+			size="icon-xs"
+			class="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+			onclick={clear}
 			title={clearTitle}
 			aria-label={clearTitle}
 		>
-			<X size={16} />
-		</button>
+			<X class="size-4" />
+		</Button>
 	{/if}
-</label>
+</div>

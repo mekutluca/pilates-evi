@@ -34,12 +34,19 @@
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/components/schedule.types';
 	import DatePicker from '$lib/components/date-picker.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
 	// Extract data reactively
 	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
-	// Access inherited data from parent layout
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
 
@@ -72,7 +79,7 @@
 		return urlWeek ? getWeekStart(new Date(urlWeek)) : getWeekStart(new Date());
 	});
 
-	// Appointment modal state (simplified - add appointment modal removed)
+	// Appointment modal state
 	let showAppointmentDetailsModal = $state(false);
 	let rescheduleMode = $state(false);
 	let showRescheduleConfirmation = $state(false);
@@ -83,7 +90,7 @@
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
 
-	// Extension modal state - TODO: Re-implement for new schema
+	// Extension modal state
 	let showExtensionModal = $state(false);
 	let additionalPackages = $state(1);
 	let extensionLoading = $state(false);
@@ -146,7 +153,6 @@
 		selectedAppointment = appointment;
 		rescheduleMode = true;
 		showAppointmentDetailsModal = false;
-		// Don't reset selectedAppointment when closing the details modal for reschedule
 		toast.info('Yeni bir zaman dilimi seçin', { duration: 10000 });
 	}
 
@@ -160,7 +166,6 @@
 		if (!rescheduleMode || !selectedAppointment) return;
 
 		selectedRescheduleSlot = { roomId, day, hour };
-		// Add a small delay to ensure state is set before opening modal
 		setTimeout(() => {
 			showRescheduleConfirmation = true;
 		}, 10);
@@ -184,7 +189,6 @@
 
 	// Check if a time slot is within 23 hours for coordinator restrictions
 	function isSlotWithin23Hours(day: DayOfWeek, hour: number): boolean {
-		// Only apply 23-hour restriction to coordinators in reschedule mode
 		if (data.userRole !== 'coordinator' || !rescheduleMode) return false;
 
 		const now = new SvelteDate();
@@ -199,7 +203,6 @@
 	// Check if an appointment is in the past
 	function isAppointmentInPast(appointment: AppointmentWithDetails): boolean {
 		const now = new SvelteDate();
-		// Use the date if available
 		if (appointment.date && appointment.hour !== null) {
 			const appointmentDateTime = new SvelteDate(appointment.date);
 			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
@@ -211,12 +214,10 @@
 
 	// Check if an appointment can be rescheduled based on user role and reschedule limits
 	function canRescheduleAppointment(appointment: AppointmentWithDetails): boolean {
-		// Rule 1: Past appointments are never reschedulable
 		if (isAppointmentInPast(appointment)) {
 			return false;
 		}
 
-		// Calculate time until appointment
 		const now = new SvelteDate();
 		let appointmentDateTime: SvelteDate;
 
@@ -224,23 +225,19 @@
 			appointmentDateTime = new SvelteDate(appointment.date);
 			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
 		} else {
-			// Fallback: this shouldn't happen with new appointments
 			return false;
 		}
 
 		const hoursUntil = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-		// Rule 2: Admin can reschedule any future appointment (no reschedule limit check)
 		if (data.userRole === 'admin') {
 			return hoursUntil > 0;
 		}
 
-		// Rule 3: For non-admin users, check if the package has reschedules remaining
 		if (!appointment.purchase_id || (appointment.reschedule_left ?? 0) <= 0) {
-			return false; // No reschedules left
+			return false;
 		}
 
-		// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
 		if (data.userRole === 'coordinator') {
 			return hoursUntil >= 23;
 		}
@@ -250,7 +247,6 @@
 
 	// Check if an appointment has any trainee with their last session
 	function isLastSessionAndExtendable(appointment: AppointmentWithDetails): boolean {
-		// Check if any trainee in this appointment has their last session
 		return appointment.has_last_session || false;
 	}
 
@@ -295,7 +291,7 @@
 						: appointmentDetails.room_name || '',
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
-				color: isBeingRescheduled ? 'warning' : viewMode === 'room' ? 'primary' : 'info',
+				color: isBeingRescheduled ? 'warning' : 'primary',
 				clickable: !rescheduleMode,
 				data: appointmentDetails
 			};
@@ -364,62 +360,52 @@
 		<div class="flex flex-col justify-between md:flex-row md:items-center">
 			<PageHeader title="Haftalık Program" />
 
-			<div class="flex items-start gap-4">
+			<div class="flex items-end gap-4">
 				<!-- View Mode Selector -->
-				<div class="form-control flex flex-col">
-					<div class="label">
-						<span class="label-text font-semibold">Görünüm</span>
-					</div>
-					<div class="join">
-						<button
-							class="btn join-item btn-sm md:btn-md"
-							class:btn-primary={viewMode === 'room'}
-							class:btn-outline={viewMode !== 'room'}
+				<div class="flex flex-col gap-2">
+					<Label class="font-semibold">Görünüm</Label>
+					<div class="flex">
+						<Button
+							size="sm"
+							variant={viewMode === 'room' ? 'default' : 'outline'}
+							class="rounded-r-none"
 							onclick={() => (viewMode = 'room')}
 						>
 							Oda
-						</button>
-						<button
-							class="btn join-item btn-sm md:btn-md"
-							class:btn-info={viewMode === 'trainer'}
-							class:btn-outline={viewMode !== 'trainer'}
+						</Button>
+						<Button
+							size="sm"
+							variant={viewMode === 'trainer' ? 'default' : 'outline'}
+							class="rounded-l-none"
 							onclick={() => (viewMode = 'trainer')}
 						>
 							Eğitmen
-						</button>
+						</Button>
 					</div>
 				</div>
 
 				<!-- Room/Trainer Selector -->
 				{#if viewMode === 'room'}
-					<div class="form-control">
-						<label class="label" for="room-select">
-							<span class="label-text font-semibold">Oda Seçin</span>
-						</label>
-						<select
-							id="room-select"
-							bind:value={selectedRoomId}
-							class="select-bordered select w-full max-w-xs select-sm md:select-md"
-						>
+					<div class="flex flex-col gap-2">
+						<Label for="room-select" class="font-semibold">Oda Seçin</Label>
+						<NativeSelect id="room-select" bind:value={selectedRoomId} class="w-full max-w-xs">
 							{#each rooms.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as room (room.id)}
 								<option value={room.id}>{room.name}</option>
 							{/each}
-						</select>
+						</NativeSelect>
 					</div>
 				{:else}
-					<div class="form-control">
-						<label class="label" for="trainer-select">
-							<span class="label-text font-semibold">Eğitmen Seçin</span>
-						</label>
-						<select
+					<div class="flex flex-col gap-2">
+						<Label for="trainer-select" class="font-semibold">Eğitmen Seçin</Label>
+						<NativeSelect
 							id="trainer-select"
 							bind:value={selectedTrainerId}
-							class="select-bordered select w-full max-w-xs select-sm md:select-md"
+							class="w-full max-w-xs"
 						>
 							{#each trainers.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as trainer (trainer.id)}
 								<option value={trainer.id}>{trainer.name}</option>
 							{/each}
-						</select>
+						</NativeSelect>
 					</div>
 				{/if}
 			</div>
@@ -427,27 +413,28 @@
 	</div>
 
 	{#if form && form.type === 'failure'}
-		<div class="alert alert-error">
-			<span>{form.data?.message}</span>
-		</div>
+		<Alert.Root variant="destructive" class="mx-6">
+			<Alert.Description>{form.data?.message}</Alert.Description>
+		</Alert.Root>
 	{/if}
 
 	{#if form && form.type === 'success'}
-		<div class="alert alert-success">
-			<span>{form.data?.message}</span>
-		</div>
+		<Alert.Root class="mx-6 border-success/40 bg-success/10 text-success">
+			<Alert.Description>{form.data?.message}</Alert.Description>
+		</Alert.Root>
 	{/if}
 
 	<!-- Week Navigation -->
-	<div class="card mb-6 bg-base-100 shadow-xl">
-		<div class="card-body">
+	<Card.Root class="mb-6">
+		<Card.Content>
 			<div class="flex items-center justify-center gap-4">
-				<button class="btn btn-outline btn-sm" onclick={goToPreviousWeek}>
+				<Button variant="outline" size="sm" onclick={goToPreviousWeek}>
 					<ChevronLeft size={16} />
-				</button>
+				</Button>
 
 				<div class="date-picker-container relative w-64 text-center">
 					<button
+						type="button"
 						class="cursor-pointer text-lg font-semibold transition-all hover:underline"
 						onclick={toggleDatePicker}
 					>
@@ -465,20 +452,18 @@
 					{/if}
 
 					{#if !isCurrentWeek()}
-						<button class="btn btn-link btn-xs btn-info" onclick={goToCurrentWeek}
-							>Bu Haftaya Dön</button
-						>
+						<Button variant="link" size="xs" onclick={goToCurrentWeek}>Bu Haftaya Dön</Button>
 					{:else}
-						<div class="px-3 py-1 text-xs text-base-content/60 italic">Bu hafta</div>
+						<div class="px-3 py-1 text-xs text-muted-foreground italic">Bu hafta</div>
 					{/if}
 				</div>
 
-				<button class="btn btn-outline btn-sm" onclick={goToNextWeek}>
+				<Button variant="outline" size="sm" onclick={goToNextWeek}>
 					<ChevronRight size={16} />
-				</button>
+				</Button>
 			</div>
-		</div>
-	</div>
+		</Card.Content>
+	</Card.Root>
 
 	<!-- Schedule Grid -->
 	{#if (viewMode === 'room' && selectedRoomId) || (viewMode === 'trainer' && selectedTrainerId)}
@@ -492,7 +477,7 @@
 				entityName={selectedEntity.name || ''}
 				entityBadge={{
 					text: viewMode === 'room' ? 'Oda' : 'Eğitmen',
-					color: viewMode === 'room' ? 'primary' : 'info'
+					color: 'primary'
 				}}
 				{getSlotData}
 				onSlotClick={handleScheduleSlotClick}
@@ -500,40 +485,40 @@
 				{#snippet alertBanner()}
 					{#if rescheduleMode && selectedAppointment}
 						<div class="flex items-center gap-3">
-							<div class="alert alert-info px-3 py-2">
-								<div class="text-sm">
+							<Alert.Root class="px-3 py-2">
+								<Alert.Description class="text-sm">
 									<strong>Zaman Değiştirme Modu:</strong>
 									{selectedAppointment.trainer_name} - {selectedAppointment.package_name}
-								</div>
-							</div>
-							<button class="btn btn-sm btn-error" onclick={cancelReschedule}> İptal </button>
+								</Alert.Description>
+							</Alert.Root>
+							<Button size="sm" variant="destructive" onclick={cancelReschedule}>İptal</Button>
 						</div>
 					{/if}
 				{/snippet}
 			</Schedule>
 		{/if}
 	{:else}
-		<div class="card bg-base-100 shadow-xl">
-			<div class="card-body items-center text-center">
+		<Card.Root>
+			<Card.Content class="flex flex-col items-center text-center">
 				{#if viewMode === 'room' && rooms.length === 0}
-					<h3 class="card-title">Henüz oda eklenmemiş</h3>
-					<p class="text-base-content/70">
+					<h3 class="text-lg font-semibold">Henüz oda eklenmemiş</h3>
+					<p class="text-muted-foreground">
 						Haftalık programı görüntülemek için önce bir oda eklemeniz gerekiyor.
 					</p>
-					<div class="mt-4 card-actions">
-						<a href="/rooms" class="btn btn-primary">Oda Ekle</a>
+					<div class="mt-4">
+						<Button href="/rooms">Oda Ekle</Button>
 					</div>
 				{:else if viewMode === 'trainer' && trainers.length === 0}
-					<h3 class="card-title">Henüz eğitmen eklenmemiş</h3>
-					<p class="text-base-content/70">
+					<h3 class="text-lg font-semibold">Henüz eğitmen eklenmemiş</h3>
+					<p class="text-muted-foreground">
 						Haftalık programı görüntülemek için önce bir eğitmen eklemeniz gerekiyor.
 					</p>
-					<div class="mt-4 card-actions">
-						<a href="/trainers" class="btn btn-info">Eğitmen Ekle</a>
+					<div class="mt-4">
+						<Button href="/trainers">Eğitmen Ekle</Button>
 					</div>
 				{/if}
-			</div>
-		</div>
+			</Card.Content>
+		</Card.Root>
 	{/if}
 </div>
 
@@ -552,13 +537,14 @@
 		<div class="flex items-center justify-between">
 			<h3 class="text-lg font-bold">Randevu Detayları</h3>
 			{#if selectedAppointment && selectedAppointment.purchase_id}
-				<a
+				<Button
 					href="/extend?purchase_id={selectedAppointment.purchase_id}"
-					class="btn btn-sm btn-warning"
+					size="sm"
+					class="bg-warning text-warning-foreground hover:bg-warning/80"
 				>
 					<Plus size={16} />
 					Paketi Uzat
-				</a>
+				</Button>
 			{/if}
 		</div>
 	{/snippet}
@@ -566,25 +552,25 @@
 		<div class="space-y-4">
 			<!-- Extension Alert Strip - Only for private lessons -->
 			{#if isLastSessionAndExtendable(selectedAppointment) && selectedAppointment.purchase_id}
-				<div class="alert alert-warning p-3">
-					<div class="flex items-center gap-2">
-						<ClockAlert size={16} />
-						<span class="text-sm font-medium">Bu paketin son dersi</span>
-					</div>
-				</div>
+				<Alert.Root class="border-warning/40 bg-warning/10 text-warning">
+					<ClockAlert size={16} />
+					<Alert.Description class="text-sm font-medium text-warning">
+						Bu paketin son dersi
+					</Alert.Description>
+				</Alert.Root>
 			{/if}
 
 			<div class="space-y-3">
 				<!-- Room -->
 				<div>
-					<div class="text-xs text-base-content/60">Oda</div>
+					<div class="text-xs text-muted-foreground">Oda</div>
 					<div class="font-medium">{selectedAppointment.room_name}</div>
 				</div>
 
 				<!-- Day & Time -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<div class="text-xs text-base-content/60">Gün</div>
+						<div class="text-xs text-muted-foreground">Gün</div>
 						<div class="font-medium">
 							{selectedAppointment.date
 								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
@@ -592,7 +578,7 @@
 						</div>
 					</div>
 					<div>
-						<div class="text-xs text-base-content/60">Saat</div>
+						<div class="text-xs text-muted-foreground">Saat</div>
 						<div class="font-medium">
 							{selectedAppointment.hour !== null
 								? getTimeRangeString(selectedAppointment.hour)
@@ -603,19 +589,19 @@
 
 				<!-- Trainer -->
 				<div>
-					<div class="text-xs text-base-content/60">Eğitmen</div>
+					<div class="text-xs text-muted-foreground">Eğitmen</div>
 					<div class="font-medium">{selectedAppointment.trainer_name}</div>
 				</div>
 
 				<!-- Package -->
 				<div>
-					<div class="text-xs text-base-content/60">Ders</div>
+					<div class="text-xs text-muted-foreground">Ders</div>
 					<div class="font-medium">{selectedAppointment.package_name || 'Ders Bilgisi Yok'}</div>
 				</div>
 
 				<!-- Trainees -->
 				<div>
-					<div class="text-xs text-base-content/60">
+					<div class="text-xs text-muted-foreground">
 						Öğrenciler ({selectedAppointment.trainee_count})
 					</div>
 					<div class="space-y-2">
@@ -634,21 +620,23 @@
 								</div>
 								{#if isGroupLesson && trainee.purchase_id && trainee.pe_trainees?.id}
 									<div class="flex gap-1">
-										<a
+										<Button
 											href="/transfer?appointment_id={selectedAppointment.id}&trainee_id={trainee
 												.pe_trainees.id}"
-											class="btn flex-shrink-0 btn-xs btn-warning"
+											size="xs"
+											class="bg-warning text-warning-foreground hover:bg-warning/80"
 										>
 											<CalendarArrowUp size={14} />
 											Kaydır
-										</a>
-										<a
+										</Button>
+										<Button
 											href="/extend?purchase_id={trainee.purchase_id}"
-											class="btn flex-shrink-0 btn-xs btn-warning"
+											size="xs"
+											class="bg-warning text-warning-foreground hover:bg-warning/80"
 										>
 											<Plus size={14} />
 											Uzat
-										</a>
+										</Button>
 									</div>
 								{/if}
 							</div>
@@ -659,17 +647,19 @@
 		</div>
 	{/if}
 
-	<div class="modal-action">
+	<div class="flex justify-end gap-2 pt-4">
 		{#if selectedAppointment && (data.userRole === 'admin' || data.userRole === 'coordinator') && !isAppointmentInPast(selectedAppointment)}
-			<a href="/transfer?appointment_id={selectedAppointment.id}" class="btn btn-warning">
+			<Button
+				href="/transfer?appointment_id={selectedAppointment.id}"
+				class="bg-warning text-warning-foreground hover:bg-warning/80"
+			>
 				<ArrowLeftRight size={16} />
 				Değiştir
-			</a>
+			</Button>
 		{/if}
 		{#if selectedAppointment && canRescheduleAppointment(selectedAppointment)}
-			<button
-				type="button"
-				class="btn btn-warning"
+			<Button
+				class="bg-warning text-warning-foreground hover:bg-warning/80"
 				onclick={() => selectedAppointment && openRescheduleModal(selectedAppointment)}
 			>
 				{#if (selectedAppointment.reschedule_left ?? 0) >= 999}
@@ -677,18 +667,16 @@
 				{:else}
 					Zamanını Değiştir ({selectedAppointment.reschedule_left} kaldı)
 				{/if}
-			</button>
+			</Button>
 		{/if}
-		<button
-			type="button"
-			class="btn"
+		<Button
+			variant="outline"
 			onclick={() => {
 				showAppointmentDetailsModal = false;
-				// Don't reset selectedAppointment immediately - let the Modal's onClose handle it after animation
 			}}
 		>
 			Kapat
-		</button>
+		</Button>
 	</div>
 </Modal>
 
@@ -704,7 +692,7 @@
 	{#if selectedAppointment && selectedRescheduleSlot}
 		<div class="space-y-4">
 			<!-- Appointment details (shared info) -->
-			<div class="rounded bg-base-200 p-4">
+			<div class="rounded bg-muted p-4">
 				<h4 class="mb-3 text-sm font-semibold">Randevu Bilgileri</h4>
 				<div class="grid grid-cols-2 gap-2 text-sm">
 					<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
@@ -714,9 +702,7 @@
 				{#if selectedAppointment.package_name}
 					<div class="mt-2 text-sm">
 						<strong>Ders:</strong>
-						<span class="ml-1 badge badge-sm badge-secondary"
-							>{selectedAppointment.package_name}</span
-						>
+						<Badge variant="secondary" class="ml-1">{selectedAppointment.package_name}</Badge>
 					</div>
 				{/if}
 
@@ -727,7 +713,7 @@
 						</div>
 						<div class="flex flex-wrap gap-1">
 							{#each selectedAppointment.trainee_names as traineeName (traineeName)}
-								<span class="badge badge-xs badge-success">{traineeName}</span>
+								<Badge variant="secondary">{traineeName}</Badge>
 							{/each}
 						</div>
 					</div>
@@ -739,11 +725,11 @@
 				<h4 class="mb-3 text-sm font-semibold text-warning">Tarih ve Saat Değişikliği</h4>
 				<div class="flex items-center justify-center gap-3 text-sm">
 					<div class="text-center">
-						<div class="font-medium text-base-content/70">Mevcut</div>
+						<div class="font-medium text-muted-foreground">Mevcut</div>
 						<div class="mt-1">
 							{#if selectedAppointment.date}
 								{@const currentDate = new Date(selectedAppointment.date)}
-								<div class="text-xs text-base-content/60">
+								<div class="text-xs text-muted-foreground">
 									{formatDayMonth(currentDate)}
 								</div>
 								<div class="font-semibold">
@@ -752,7 +738,7 @@
 							{:else}
 								<div class="font-semibold">-</div>
 							{/if}
-							<div class="text-xs text-base-content/70">
+							<div class="text-xs text-muted-foreground">
 								{selectedAppointment.hour !== null
 									? getTimeRangeString(selectedAppointment.hour)
 									: '-'}
@@ -772,20 +758,20 @@
 					</div>
 
 					<div class="text-center">
-						<div class="font-medium text-base-content/70">Yeni</div>
+						<div class="font-medium text-muted-foreground">Yeni</div>
 						<div class="mt-1">
 							{#if selectedRescheduleSlot}
 								{@const newDate = getDateForDayOfWeek(
 									currentWeekStart(),
 									selectedRescheduleSlot.day
 								)}
-								<div class="text-xs text-base-content/60">
+								<div class="text-xs text-muted-foreground">
 									{formatDayMonth(newDate)}
 								</div>
 								<div class="font-semibold">
 									{DAY_NAMES[selectedRescheduleSlot.day]}
 								</div>
-								<div class="text-xs text-base-content/70">
+								<div class="text-xs text-muted-foreground">
 									{getTimeRangeString(selectedRescheduleSlot.hour)}
 								</div>
 							{/if}
@@ -821,34 +807,37 @@
 				<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
 				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
 
-				<fieldset class="fieldset">
-					<legend class="fieldset-legend">Değişiklik Sebebi (İsteğe bağlı)</legend>
-					<textarea
+				<div class="grid gap-2">
+					<Label for="reschedule-reason">Değişiklik Sebebi (İsteğe bağlı)</Label>
+					<Textarea
+						id="reschedule-reason"
 						name="reason"
-						class="textarea-bordered textarea w-full"
 						placeholder="Randevu değişikliği sebebini açıklayın..."
-						rows="2"
-					></textarea>
-				</fieldset>
+						rows={2}
+					/>
+				</div>
 
-				<div class="modal-action">
-					<button
+				<div class="flex justify-end gap-2">
+					<Button
 						type="button"
-						class="btn"
+						variant="outline"
 						onclick={() => {
 							showRescheduleConfirmation = false;
-							// Don't reset selectedRescheduleSlot immediately - let the Modal's onClose handle it after animation
 						}}
 					>
 						İptal
-					</button>
-					<button type="submit" class="btn btn-warning" disabled={formLoading}>
+					</Button>
+					<Button
+						type="submit"
+						class="bg-warning text-warning-foreground hover:bg-warning/80"
+						disabled={formLoading}
+					>
 						{#if formLoading}
 							<LoaderCircle size={16} class="animate-spin" />
 						{:else}
 							Onayla
 						{/if}
-					</button>
+					</Button>
 				</div>
 			</form>
 		</div>
@@ -879,39 +868,39 @@
 			<input type="hidden" name="purchase_id" value={selectedAppointment.purchase_id} />
 			<input type="hidden" name="package_count" value={additionalPackages} />
 
-			<div class="alert alert-warning">
-				<span>Extension functionality needs to be reimplemented for the new schema.</span>
-			</div>
+			<Alert.Root class="border-warning/40 bg-warning/10 text-warning">
+				<Alert.Description>
+					Extension functionality needs to be reimplemented for the new schema.
+				</Alert.Description>
+			</Alert.Root>
 
 			<!-- Extension Input -->
-			<div class="form-control">
-				<label class="label pb-2" for="package_count">
-					<span class="label-text font-medium">Kaç paket uzatılsın?</span>
-				</label>
-				<input
+			<div class="grid gap-2">
+				<Label for="package_count" class="font-medium">Kaç paket uzatılsın?</Label>
+				<Input
 					type="number"
 					id="package_count"
 					name="package_count"
 					bind:value={additionalPackages}
 					min="1"
 					max="20"
-					class="input-bordered input text-center text-lg font-medium"
+					class="text-center text-lg font-medium"
 					required
 				/>
 			</div>
 
 			<!-- Action Buttons -->
-			<div class="modal-action">
-				<button type="button" class="btn" onclick={() => (showExtensionModal = false)}>
+			<div class="flex justify-end gap-2">
+				<Button type="button" variant="outline" onclick={() => (showExtensionModal = false)}>
 					İptal
-				</button>
-				<button type="submit" class="btn btn-info" disabled={true}>
+				</Button>
+				<Button type="submit" disabled={true}>
 					{#if extensionLoading}
 						<LoaderCircle size={16} class="animate-spin" />
 					{:else}
 						Uzat (Henüz aktif değil)
 					{/if}
-				</button>
+				</Button>
 			</div>
 		</form>
 	{/if}

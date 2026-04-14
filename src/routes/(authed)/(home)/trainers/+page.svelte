@@ -10,13 +10,16 @@
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
-	import type { Trainer } from '$lib/types/Trainer';
-	// Training system removed
+	import type { Trainer } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem';
+	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import { validation } from '$lib/utils/validation';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 
 	let { data } = $props();
 	let { trainers: initialTrainers, userRole } = $derived(data);
@@ -41,7 +44,6 @@
 	let email = $state('');
 	let password = $state('');
 	let newPassword = $state('');
-	// Training system removed
 
 	const getTableActions = (trainer: Trainer): ActionItem[] => {
 		if (userRole !== 'admin') return [];
@@ -75,7 +77,7 @@
 					const t = trainers.find((t) => t.id === String(id));
 					if (t) openArchiveModal(t);
 				},
-				class: 'text-error',
+				class: 'text-destructive',
 				icon: Archive
 			});
 		} else {
@@ -86,7 +88,6 @@
 					const t = trainers.find((t) => t.id === String(id));
 					if (t) openRestoreModal(t);
 				},
-				class: 'text-success',
 				icon: ArchiveRestore
 			});
 		}
@@ -103,7 +104,7 @@
 			key: 'phone',
 			title: 'Telefon',
 			render: (trainer: Trainer) =>
-				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-base-content/70 hover:text-info transition-colors">${trainer.phone}</a>`
+				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainer.phone}</a>`
 		},
 		{
 			key: 'active_appointments',
@@ -111,45 +112,33 @@
 			sortable: false,
 			render: (trainer: Trainer) => {
 				return trainer.is_active
-					? '<span class="badge badge-success badge-sm">Aktif</span>'
-					: '<span class="badge badge-error badge-sm">Pasif</span>';
+					? '<span class="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Aktif</span>'
+					: '<span class="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Pasif</span>';
 			}
 		}
 	];
-
-	// clear handled inside SearchInput component via bind:value
-
-	function closeDropdown() {
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
-	}
 
 	function openEditModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		name = trainer.name ?? '';
 		phone = trainer.phone;
-		// Training assignment removed
 		showEditModal = true;
-		closeDropdown();
 	}
 
 	function openArchiveModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		showArchiveModal = true;
-		closeDropdown();
 	}
 
 	function openRestoreModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		showRestoreModal = true;
-		closeDropdown();
 	}
 
 	function openResetPasswordModal(trainer: Trainer) {
 		selectedTrainer = trainer;
 		newPassword = '';
 		showResetPasswordModal = true;
-		closeDropdown();
 	}
 
 	function resetForm() {
@@ -159,7 +148,6 @@
 		password = '';
 		newPassword = '';
 		selectedTrainer = null;
-		// No training selection needed
 	}
 </script>
 
@@ -168,19 +156,18 @@
 
 	<!-- Search and Add Trainer Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full lg:max-w-xs">
+		<div class="w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara..." />
 			{#if hasArchivedTrainers}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
-					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+					<Switch bind:checked={showArchived} class="scale-75" />
+					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
 				</label>
 			{/if}
 		</div>
 
 		{#if userRole === 'admin'}
-			<button
-				class="btn btn-info"
+			<Button
 				onclick={() => {
 					resetForm();
 					showAddModal = true;
@@ -188,7 +175,7 @@
 			>
 				<UserPlus size={16} />
 				Yeni Eğitmen
-			</button>
+			</Button>
 		{/if}
 	</div>
 
@@ -226,17 +213,17 @@
 			};
 		}}
 	>
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Eğitmen Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-trainer-name">Eğitmen Adı</Label>
+			<Input id="add-trainer-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Telefon</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-trainer-phone">Telefon</Label>
+			<Input
+				id="add-trainer-phone"
 				type="tel"
 				name="phone"
-				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
 				pattern={validation.phone.pattern}
@@ -244,54 +231,54 @@
 				maxlength={validation.phone.maxlength}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">E-posta</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-trainer-email">E-posta</Label>
+			<Input
+				id="add-trainer-email"
 				type="email"
 				name="email"
-				class="input w-full"
 				bind:value={email}
 				placeholder="ornek@email.com"
 				pattern={validation.email.pattern}
 				title={validation.email.title}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Şifre</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-trainer-password">Şifre</Label>
+			<Input
+				id="add-trainer-password"
 				type="password"
 				name="password"
-				class="input w-full"
 				bind:value={password}
 				placeholder="Minimum 6 karakter"
-				minlength="6"
+				minlength={6}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showAddModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-info" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Plus size={16} />
 				{/if}
 				Ekle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -321,17 +308,17 @@
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Eğitmen Adı</legend>
-			<input type="text" name="name" class="input w-full" bind:value={name} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="edit-trainer-name">Eğitmen Adı</Label>
+			<Input id="edit-trainer-name" type="text" name="name" bind:value={name} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Telefon</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="edit-trainer-phone">Telefon</Label>
+			<Input
+				id="edit-trainer-phone"
 				type="tel"
 				name="phone"
-				class="input w-full"
 				bind:value={phone}
 				placeholder="5xx xxx xx xx"
 				pattern={validation.phone.pattern}
@@ -339,29 +326,27 @@
 				maxlength={validation.phone.maxlength}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<!-- Training assignment section removed - no longer needed in package-based system -->
-
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showEditModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-info" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Edit size={16} />
 				{/if}
 				Güncelle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -395,25 +380,25 @@
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showArchiveModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-error" disabled={formLoading}>
+			</Button>
+			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Archive size={16} />
 				{/if}
 				Arşivle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -447,25 +432,25 @@
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showRestoreModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
 				Geri Yükle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -499,38 +484,42 @@
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Yeni Şifre</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="reset-trainer-password">Yeni Şifre</Label>
+			<Input
+				id="reset-trainer-password"
 				type="password"
 				name="newPassword"
-				class="input w-full"
 				bind:value={newPassword}
 				placeholder="Minimum 6 karakter"
-				minlength="6"
+				minlength={6}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showResetPasswordModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-warning" disabled={formLoading}>
+			</Button>
+			<Button
+				type="submit"
+				class="bg-warning text-warning-foreground hover:bg-warning/80"
+				disabled={formLoading}
+			>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Key size={16} />
 				{/if}
 				Şifre Sıfırla
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

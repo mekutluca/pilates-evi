@@ -1,13 +1,21 @@
 <script lang="ts">
-	export let title: string;
-	export let subtitle: string = '';
+	import type { Snippet } from 'svelte';
+
+	interface Props {
+		title: string;
+		subtitle?: string;
+		children?: Snippet;
+	}
+
+	let { title, subtitle = '', children }: Props = $props();
 </script>
 
 <div class="mb-6">
 	<h1 class="text-3xl font-bold">{title}</h1>
 	{#if subtitle}
-		<p class="mt-2 text-base-content/70">{subtitle}</p>
+		<p class="mt-2 text-muted-foreground">{subtitle}</p>
 	{/if}
-	<slot />
-	<!-- optional slot for extra content under the header, if needed -->
+	{#if children}
+		{@render children()}
+	{/if}
 </div>

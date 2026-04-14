@@ -2,7 +2,12 @@
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ActionMenu from './action-menu.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem';
+	import type { ActionItem } from '$lib/types';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Table from '$lib/components/ui/table/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import { cn } from '$lib/utils/class-utils';
 
 	interface Column {
 		key: string;
@@ -186,30 +191,34 @@
 		return column.sortable !== false;
 	}
 
-	function handlePageSizeChange(newSize: number) {
-		pageSize = newSize;
+	function handlePageSizeChange(e: Event) {
+		const target = e.target as HTMLSelectElement;
+		pageSize = Number(target.value);
 		currentPage = 1;
 	}
 </script>
 
-<div class="card bg-base-100 shadow">
-	<div class="card-body">
+<Card.Root>
+	<Card.Content class="p-0">
 		{#if filteredAndSortedData().length === 0}
 			<div class="py-8 text-center">
-				<p class="text-base-content/70">
+				<p class="text-muted-foreground">
 					{searchTerm ? 'Arama kriterlerine uygun veri bulunamadı' : emptyMessage}
 				</p>
 			</div>
 		{:else}
-			<div class="overflow-x-auto md:overflow-x-visible">
-				<table class="table table-zebra">
-					<thead>
-						<tr>
+			<div class="overflow-x-auto">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
 							{#each columns as column (column.key)}
-								<th
-									class="select-none {column.class || ''} {isColumnSortable(column)
-										? 'cursor-pointer transition-colors hover:bg-base-200'
-										: ''}"
+								<Table.Head
+									class={cn(
+										column.class || '',
+										isColumnSortable(column)
+											? 'cursor-pointer transition-colors select-none hover:bg-muted'
+											: 'select-none'
+									)}
 									onclick={() => handleSort(column.key)}
 								>
 									<div class="flex items-center gap-2">
@@ -217,30 +226,30 @@
 										{#if isColumnSortable(column)}
 											{@const SortIcon = getSortIcon(column.key)}
 											{#if SortIcon}
-												<SortIcon size={14} class="text-base-content/60" />
+												<SortIcon size={14} class="text-muted-foreground" />
 											{:else}
 												<div class="w-[14px]"></div>
 											{/if}
 										{/if}
 									</div>
-								</th>
+								</Table.Head>
 							{/each}
 							{#if actions && (typeof actions === 'function' || actions.length > 0)}
-								<th class="w-24 text-right select-none">
+								<Table.Head class="w-24 text-right select-none">
 									<span>{actionsTitle}</span>
-								</th>
+								</Table.Head>
 							{/if}
-						</tr>
-					</thead>
-					<tbody>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each paginatedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
 							{@const globalIndex = (currentPage - 1) * pageSize + index}
-							<tr
-								class={onRowClick ? 'cursor-pointer transition-colors hover:bg-base-200' : ''}
+							<Table.Row
+								class={onRowClick ? 'cursor-pointer' : ''}
 								onclick={() => onRowClick?.(item)}
 							>
 								{#each columns as column (column.key)}
-									<td class={column.class || ''}>
+									<Table.Cell class={column.class || ''}>
 										{#if column.renderComponent}
 											{@const Component = column.renderComponent}
 											<Component {item} index={globalIndex} />
@@ -250,11 +259,11 @@
 										{:else}
 											{getColumnValue(item, column, globalIndex)}
 										{/if}
-									</td>
+									</Table.Cell>
 								{/each}
 								{#if actions && (typeof actions === 'function' ? actions(item).length > 0 : actions.length > 0)}
 									{@const itemActions = typeof actions === 'function' ? actions(item) : actions}
-									<td class="text-right" onclick={(e) => e.stopPropagation()}>
+									<Table.Cell class="text-right" onclick={(e: MouseEvent) => e.stopPropagation()}>
 										<ActionMenu
 											actions={itemActions.map(
 												(action): ActionItem => ({
@@ -269,72 +278,73 @@
 												})
 											)}
 										/>
-									</td>
+									</Table.Cell>
 								{/if}
-							</tr>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 			</div>
 
-			<div class="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-				<div class="text-sm text-base-content/60">
+			<div
+				class="flex flex-col items-center gap-3 border-t px-4 py-3 sm:flex-row sm:justify-between"
+			>
+				<div class="text-sm text-muted-foreground">
 					Toplam {filteredAndSortedData().length} kayıt
 				</div>
 
 				{#if totalPages > 1}
-					<div class="join">
-						<button
-							class="btn join-item btn-sm"
+					<div class="flex items-center gap-1">
+						<Button
+							variant="outline"
+							size="sm"
 							onclick={() => goToPage(currentPage - 1)}
 							disabled={currentPage === 1}
 						>
 							«
-						</button>
+						</Button>
 
 						{#each getPageNumbers() as page, index (index)}
 							{#if page === '...'}
-								<button class="btn-disabled btn join-item btn-sm">...</button>
+								<Button variant="outline" size="sm" disabled>...</Button>
 							{:else}
-								<button
-									class="btn join-item btn-sm {currentPage === page ? 'btn-active' : ''}"
+								<Button
+									variant={currentPage === page ? 'default' : 'outline'}
+									size="sm"
 									onclick={() => goToPage(page as number)}
 								>
 									{page}
-								</button>
+								</Button>
 							{/if}
 						{/each}
 
-						<button
-							class="btn join-item btn-sm"
+						<Button
+							variant="outline"
+							size="sm"
 							onclick={() => goToPage(currentPage + 1)}
 							disabled={currentPage === totalPages}
 						>
 							»
-						</button>
+						</Button>
 					</div>
 				{/if}
 
 				<div class="flex items-center gap-2">
 					{#if totalPages > 1}
-						<span class="text-sm text-base-content/60">
+						<span class="text-sm text-muted-foreground">
 							Sayfa {currentPage} / {totalPages}
 						</span>
-						<span class="text-base-content/40">•</span>
+						<span class="text-muted-foreground/40">•</span>
 					{/if}
-					<span class="text-sm text-base-content/70">Sayfa başına:</span>
-					<select
-						class="select-bordered select w-20 select-sm"
-						bind:value={pageSize}
-						onchange={() => handlePageSizeChange(pageSize)}
-					>
-						<option value={10}>10</option>
-						<option value={25}>25</option>
-						<option value={50}>50</option>
-						<option value={100}>100</option>
-					</select>
+					<span class="text-sm text-muted-foreground">Sayfa başına:</span>
+					<NativeSelect class="w-20" value={String(pageSize)} onchange={handlePageSizeChange}>
+						<option value="10">10</option>
+						<option value="25">25</option>
+						<option value="50">50</option>
+						<option value="100">100</option>
+					</NativeSelect>
 				</div>
 			</div>
 		{/if}
-	</div>
-</div>
+	</Card.Content>
+</Card.Root>

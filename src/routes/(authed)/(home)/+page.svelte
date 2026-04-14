@@ -8,6 +8,9 @@
 	import CheckCircle from '@lucide/svelte/icons/check-circle';
 	import Info from '@lucide/svelte/icons/info';
 	import { getWeekStart, formatWeekRange, formatDisplayDate } from '$lib/utils/date-utils';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 
 	let { data } = $props();
 	let { stats } = $derived(data);
@@ -21,7 +24,7 @@
 	<PageHeader title="Bu Hafta" subtitle={weekRange} />
 
 	<!-- Statistics Cards -->
-	<div class="stats mb-6 w-full stats-vertical bg-base-100 shadow md:stats-horizontal">
+	<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 		<StatCard title="Randevular" value={stats.appointmentsCount} icon={Calendar} />
 		<StatCard title="Katılımcı Öğrenciler" value={stats.uniqueTraineesCount} icon={Users} />
 		<StatCard
@@ -39,108 +42,104 @@
 	<!-- Content Grid -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 		<!-- Purchases This Week Card -->
-		<div class="card flex max-h-[50vh] flex-col bg-base-100 shadow">
-			<div class="card-body flex min-h-0 flex-col">
-				<div class="flex flex-shrink-0 items-center justify-between">
-					<h3 class="card-title flex items-center gap-2 text-lg">
-						<ShoppingCart size={20} />
-						Bu Hafta Yapılan Satın Almalar
-					</h3>
-					{#if stats.purchasesThisWeek.length > 0}
-						<span class="badge badge-neutral">{stats.purchasesThisWeek.length}</span>
-					{/if}
-				</div>
+		<Card.Root class="flex max-h-[50vh] flex-col">
+			<Card.Header class="flex flex-row items-center justify-between space-y-0">
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<ShoppingCart size={20} />
+					Bu Hafta Yapılan Satın Almalar
+				</Card.Title>
+				{#if stats.purchasesThisWeek.length > 0}
+					<Badge variant="outline">{stats.purchasesThisWeek.length}</Badge>
+				{/if}
+			</Card.Header>
 
-				<div class="min-h-0 flex-1 overflow-y-auto">
-					{#if stats.purchasesThisWeek.length === 0}
-						<div role="alert" class="alert-soft alert alert-info">
-							<Info class="h-6 w-6 shrink-0 stroke-current" />
-							<span>Bu hafta henüz satın alma yapılmadı.</span>
-						</div>
-					{:else}
-						<ul class="list space-y-2">
-							{#each stats.purchasesThisWeek as purchase (purchase.id + purchase.trainee?.id)}
-								<li class="list-row items-center gap-3 rounded-lg bg-base-200 p-3">
-									<div class="flex-1">
-										{#if purchase.trainee?.id}
-											<a href="/trainees/{purchase.trainee.id}" class="font-medium hover:underline">
-												{purchase.trainee.name}
-											</a>
-										{:else}
-											<p class="font-medium">Bilinmeyen Öğrenci</p>
-										{/if}
-										<p class="text-sm text-base-content/70">
-											{formatDisplayDate(purchase.created_at)}
+			<Card.Content class="min-h-0 flex-1 overflow-y-auto">
+				{#if stats.purchasesThisWeek.length === 0}
+					<Alert.Root class="border-info/30 bg-info/10 text-info-foreground">
+						<Info class="h-5 w-5 shrink-0" />
+						<Alert.Description>Bu hafta henüz satın alma yapılmadı.</Alert.Description>
+					</Alert.Root>
+				{:else}
+					<ul class="space-y-2">
+						{#each stats.purchasesThisWeek as purchase (purchase.id + purchase.trainee?.id)}
+							<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
+								<div class="flex-1">
+									{#if purchase.trainee?.id}
+										<a href="/trainees/{purchase.trainee.id}" class="font-medium hover:underline">
+											{purchase.trainee.name}
+										</a>
+									{:else}
+										<p class="font-medium">Bilinmeyen Öğrenci</p>
+									{/if}
+									<p class="text-sm text-muted-foreground">
+										{formatDisplayDate(purchase.created_at)}
+									</p>
+								</div>
+								<div class="text-right">
+									<p class="font-medium">{purchase.package?.name || 'Paket Yok'}</p>
+									{#if purchase.package?.package_type}
+										<p class="text-sm text-muted-foreground">
+											{purchase.package.package_type === 'private' ? 'Özel' : 'Grup'}
 										</p>
-									</div>
-									<div class="text-right">
-										<p class="font-medium">{purchase.package?.name || 'Paket Yok'}</p>
-										{#if purchase.package?.package_type}
-											<p class="text-sm text-base-content/70">
-												{purchase.package.package_type === 'private' ? 'Özel' : 'Grup'}
-											</p>
-										{/if}
-									</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			</div>
-		</div>
+									{/if}
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 
 		<!-- Trainees with Last Lessons Card -->
-		<div class="card flex max-h-[50vh] flex-col bg-base-100 shadow">
-			<div class="card-body flex min-h-0 flex-col">
-				<div class="flex flex-shrink-0 items-center justify-between">
-					<h3 class="card-title flex items-center gap-2 text-lg">
-						<AlertCircle size={20} />
-						Son Dersi Yaklaşanlar
-					</h3>
-					{#if stats.traineesWithLastLessons.length > 0}
-						<span class="badge badge-neutral">{stats.traineesWithLastLessons.length}</span>
-					{/if}
-				</div>
+		<Card.Root class="flex max-h-[50vh] flex-col">
+			<Card.Header class="flex flex-row items-center justify-between space-y-0">
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<AlertCircle size={20} />
+					Son Dersi Yaklaşanlar
+				</Card.Title>
+				{#if stats.traineesWithLastLessons.length > 0}
+					<Badge variant="outline">{stats.traineesWithLastLessons.length}</Badge>
+				{/if}
+			</Card.Header>
 
-				<div class="min-h-0 flex-1 overflow-y-auto">
-					{#if stats.traineesWithLastLessons.length === 0}
-						<div class="flex flex-col items-center justify-center py-8">
-							<CheckCircle class="mb-3 h-12 w-12 text-success" />
-							<div class="text-center">
-								<div class="font-semibold text-success">Son dersine yaklaşan öğrenci yok</div>
-							</div>
+			<Card.Content class="min-h-0 flex-1 overflow-y-auto">
+				{#if stats.traineesWithLastLessons.length === 0}
+					<div class="flex flex-col items-center justify-center py-8">
+						<CheckCircle class="mb-3 h-12 w-12 text-success" />
+						<div class="text-center">
+							<div class="font-semibold text-success">Son dersine yaklaşan öğrenci yok</div>
 						</div>
-					{:else}
-						<ul class="list space-y-2">
-							{#each stats.traineesWithLastLessons as item (item.trainee.id)}
-								<li class="list-row items-center gap-3 rounded-lg bg-base-200 p-3">
-									<div class="flex-1">
-										<a href="/trainees/{item.trainee.id}" class="font-medium hover:underline">
-											{item.trainee.name}
-										</a>
-										<p class="text-sm text-base-content/70">
-											{item.session_number}/{item.total_sessions} ders
-											{#if item.package}
-												- {item.package.name}
-											{/if}
-										</p>
-									</div>
-									<div class="flex flex-col items-end gap-1">
-										<span class="badge badge-outline">
-											{item.total_sessions - item.session_number} ders kaldı
-										</span>
-										{#if item.appointment_date}
-											<span class="text-xs text-base-content/70">
-												{formatDisplayDate(item.appointment_date)}
-											</span>
+					</div>
+				{:else}
+					<ul class="space-y-2">
+						{#each stats.traineesWithLastLessons as item (item.trainee.id)}
+							<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
+								<div class="flex-1">
+									<a href="/trainees/{item.trainee.id}" class="font-medium hover:underline">
+										{item.trainee.name}
+									</a>
+									<p class="text-sm text-muted-foreground">
+										{item.session_number}/{item.total_sessions} ders
+										{#if item.package}
+											- {item.package.name}
 										{/if}
-									</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			</div>
-		</div>
+									</p>
+								</div>
+								<div class="flex flex-col items-end gap-1">
+									<Badge variant="outline">
+										{item.total_sessions - item.session_number} ders kaldı
+									</Badge>
+									{#if item.appointment_date}
+										<span class="text-xs text-muted-foreground">
+											{formatDisplayDate(item.appointment_date)}
+										</span>
+									{/if}
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	</div>
 </div>

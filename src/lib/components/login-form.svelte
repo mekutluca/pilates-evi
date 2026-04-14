@@ -6,6 +6,9 @@
 	import { toast } from 'svelte-sonner';
 	import Modal from './modal.svelte';
 	import { validation } from '$lib/utils/validation';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
 
 	let {
 		class: className = '',
@@ -111,7 +114,7 @@
 				Şifreni sıfırla
 			{/if}
 		</h1>
-		<p class="text-muted-foreground text-sm text-balance">
+		<p class="text-sm text-balance text-muted-foreground">
 			{#if formType === 'login'}
 				Email ve şifrenizle giriş yapın
 			{:else if formType === 'forgot-password'}
@@ -123,10 +126,9 @@
 	</div>
 	<div class="grid gap-6">
 		{#if formType === 'login' || formType === 'forgot-password'}
-			<fieldset class="fieldset">
-				<legend class="fieldset-legend">Email</legend>
-				<input
-					class="input"
+			<div class="grid gap-2">
+				<Label for="email">Email</Label>
+				<Input
 					id="email"
 					type="email"
 					placeholder=""
@@ -135,31 +137,31 @@
 					required
 					bind:value={email}
 				/>
-			</fieldset>
+			</div>
 		{/if}
 		{#if formType === 'login' || formType === 'reset-password'}
-			<fieldset class="fieldset">
-				<div class="flex place-content-between">
-					<legend class="fieldset-legend">Şifre</legend>
+			<div class="grid gap-2">
+				<div class="flex items-center justify-between">
+					<Label for="password">Şifre</Label>
 					{#if formType === 'login'}
-						<button
-							class="btn btn-ghost btn-sm hover:underline!"
-							tabindex="-1"
+						<Button
+							variant="link"
+							size="sm"
+							class="h-auto p-0 text-xs"
+							tabindex={-1}
 							onclick={showModal}
 							type="button"
 						>
 							Şifremi unuttum
-						</button>
+						</Button>
 					{/if}
 				</div>
-				<input class="input" id="password" type="password" required bind:value={password} />
-			</fieldset>
+				<Input id="password" type="password" required bind:value={password} />
+			</div>
 		{/if}
-		<button type="submit" class="btn w-full btn-primary" disabled={inProgress}>
+		<Button type="submit" class="w-full" disabled={inProgress}>
 			{#if inProgress}
-				<div class="flex items-center">
-					<LoaderCircle size={16} class="animation--rotate opacity-50" />
-				</div>
+				<LoaderCircle size={16} class="animate-spin" />
 			{:else if formType === 'login'}
 				Giriş yap
 			{:else if formType === 'forgot-password'}
@@ -167,20 +169,19 @@
 			{:else if formType === 'reset-password'}
 				Şifremi güncelle
 			{/if}
-		</button>
+		</Button>
 	</div>
 	<div class="text-center text-sm">
 		{#if formType === 'forgot-password'}
 			Hata?
-			<a href="/login" class="underline! underline-offset-4"> Giriş yap. </a>
+			<a href="/login" class="underline underline-offset-4"> Giriş yap. </a>
 		{:else if formType === 'reset-password'}
 			Hata?
-			<a href="/login" class="underline! underline-offset-4"> Giriş yap. </a>
+			<a href="/login" class="underline underline-offset-4"> Giriş yap. </a>
 		{/if}
 	</div>
 </form>
 
 <Modal bind:open={showForgotPasswordModal} title="Şifremi unuttum">
-	<!-- https://www.reddit.com/r/Supabase/comments/1c257cg/reset_password_and_update_user_without_clientside/ -->
 	<p class="py-4">Eğer şifrenizi unuttuysanız lütfen adminler ile iletişime geçiniz.</p>
 </Modal>

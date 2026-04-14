@@ -11,10 +11,16 @@
 	import SearchInput from '$lib/components/search-input.svelte';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import PackageCreationForm from '$lib/components/package-creation-form.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem.js';
-	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types/Package';
+	import type { ActionItem } from '$lib/types';
+	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 
 	let { data } = $props();
 	let { packages: initialPackages, userRole } = $derived(data);
@@ -65,7 +71,7 @@
 					const p = packages.find((p) => p.id === String(id));
 					if (p) openArchiveModal(p);
 				},
-				class: 'text-error',
+				class: 'text-destructive',
 				icon: Archive
 			});
 		} else {
@@ -75,7 +81,6 @@
 					const p = packages.find((p) => p.id === String(id));
 					if (p) openRestoreModal(p);
 				},
-				class: 'text-success',
 				icon: ArchiveRestore
 			});
 		}
@@ -100,8 +105,7 @@
 			title: 'Ders Türü',
 			render: (pkg: PackageWithPurchases) => {
 				const type = pkg.package_type === 'private' ? 'Özel' : 'Grup';
-				const color = pkg.package_type === 'private' ? 'badge-info' : 'badge-warning';
-				return `<div class="badge ${color} badge-sm">${type}</div>`;
+				return `<span class="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground">${type}</span>`;
 			}
 		},
 		{
@@ -261,26 +265,25 @@
 
 	<!-- Search and Add Package Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full lg:max-w-xs">
+		<div class="w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Ders ara..." />
 			{#if hasArchivedPackages}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-xs" bind:checked={showArchived} />
-					<span class="text-sm text-base-content/70">Arşivlenenleri göster</span>
+					<Switch bind:checked={showArchived} class="scale-75" />
+					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
 				</label>
 			{/if}
 		</div>
 
 		{#if userRole === 'admin'}
-			<button
-				class="btn btn-accent"
+			<Button
 				onclick={() => {
 					showCreateModal = true;
 				}}
 			>
 				<Plus size={16} />
 				Yeni Ders
-			</button>
+			</Button>
 		{/if}
 	</div>
 
@@ -300,7 +303,7 @@
 <Modal bind:open={showCreateModal} title="Yeni Ders" size="xl" onClose={handleCancelCreate}>
 	{#if formLoading}
 		<div class="flex items-center justify-center py-8">
-			<LoaderCircle size={32} class="animate-spin text-accent" />
+			<LoaderCircle size={32} class="animate-spin text-primary" />
 			<span class="ml-2">Ders oluşturuluyor...</span>
 		</div>
 	{:else}
@@ -316,20 +319,17 @@
 <Modal bind:open={showEditModal} title="Dersi Düzenle" size="xl" onClose={closeEditModal}>
 	{#if formLoading}
 		<div class="flex items-center justify-center py-8">
-			<LoaderCircle size={32} class="animate-spin text-accent" />
+			<LoaderCircle size={32} class="animate-spin text-primary" />
 			<span class="ml-2">Ders güncelleniyor...</span>
 		</div>
 	{:else}
 		<div class="space-y-4">
 			<!-- Package Name -->
-			<div>
-				<label class="label" for="edit-name">
-					<span class="label-text font-medium">Ders Adı *</span>
-				</label>
-				<input
+			<div class="grid gap-2">
+				<Label for="edit-name" class="font-medium">Ders Adı *</Label>
+				<Input
 					id="edit-name"
 					type="text"
-					class="input-bordered input w-full"
 					bind:value={editName}
 					placeholder="Ders adını girin"
 					required
@@ -337,47 +337,38 @@
 			</div>
 
 			<!-- Description -->
-			<div>
-				<label class="label" for="edit-description">
-					<span class="label-text font-medium">Açıklama</span>
-				</label>
-				<textarea
+			<div class="grid gap-2">
+				<Label for="edit-description" class="font-medium">Açıklama</Label>
+				<Textarea
 					id="edit-description"
-					class="textarea-bordered textarea w-full"
 					bind:value={editDescription}
 					placeholder="Ders açıklaması (isteğe bağlı)"
-					rows="3"
-				></textarea>
+					rows={3}
+				/>
 			</div>
 
 			<!-- Duration (Non-editable) and Lessons per week (Editable) -->
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<div
-					class="tooltip tooltip-top"
-					data-tip="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
-				>
-					<label class="label" for="edit-weeks-duration">
-						<span class="label-text font-medium">Süre (Hafta)</span>
-						<span class="label-text-alt text-warning">Değiştirilemez</span>
-					</label>
-					<input
+				<div class="grid gap-2">
+					<Label for="edit-weeks-duration" class="flex items-center justify-between font-medium">
+						<span>Süre (Hafta)</span>
+						<span class="text-xs text-warning">Değiştirilemez</span>
+					</Label>
+					<Input
 						id="edit-weeks-duration"
 						type="number"
-						class="input-bordered input w-full"
 						value={editWeeksDuration}
 						disabled
 						readonly
+						title="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
 					/>
 				</div>
 
-				<div>
-					<label class="label" for="edit-min-lessons-per-week">
-						<span class="label-text font-medium">Min Haftalık Ders *</span>
-					</label>
-					<input
+				<div class="grid gap-2">
+					<Label for="edit-min-lessons-per-week" class="font-medium">Min Haftalık Ders *</Label>
+					<Input
 						id="edit-min-lessons-per-week"
 						type="number"
-						class="input-bordered input w-full"
 						bind:value={editMinLessonsPerWeek}
 						min="1"
 						max="7"
@@ -385,14 +376,11 @@
 					/>
 				</div>
 
-				<div>
-					<label class="label" for="edit-max-lessons-per-week">
-						<span class="label-text font-medium">Max Haftalık Ders *</span>
-					</label>
-					<input
+				<div class="grid gap-2">
+					<Label for="edit-max-lessons-per-week" class="font-medium">Max Haftalık Ders *</Label>
+					<Input
 						id="edit-max-lessons-per-week"
 						type="number"
-						class="input-bordered input w-full"
 						bind:value={editMaxLessonsPerWeek}
 						min="1"
 						max="7"
@@ -403,14 +391,11 @@
 
 			<!-- Capacity and Trainee Type -->
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-				<div>
-					<label class="label" for="edit-max-capacity">
-						<span class="label-text font-medium">Maksimum Kapasite *</span>
-					</label>
-					<input
+				<div class="grid gap-2">
+					<Label for="edit-max-capacity" class="font-medium">Maksimum Kapasite *</Label>
+					<Input
 						id="edit-max-capacity"
 						type="number"
-						class="input-bordered input w-full"
 						bind:value={editMaxCapacity}
 						min="1"
 						max="50"
@@ -418,23 +403,20 @@
 					/>
 				</div>
 
-				<div
-					class="tooltip tooltip-top"
-					data-tip="Bu değer değiştirilemez. Farklı öğrenci türü için yeni ders oluşturun."
-				>
-					<label class="label" for="edit-trainee-type">
-						<span class="label-text font-medium">Öğrenci Türü</span>
-						<span class="label-text-alt text-warning">Değiştirilemez</span>
-					</label>
-					<input
+				<div class="grid gap-2">
+					<Label for="edit-trainee-type" class="flex items-center justify-between font-medium">
+						<span>Öğrenci Türü</span>
+						<span class="text-xs text-warning">Değiştirilemez</span>
+					</Label>
+					<Input
 						id="edit-trainee-type"
 						type="text"
-						class="input-bordered input w-full"
 						value={editPackageType === 'private'
 							? 'Özel - Belirli öğrencilerle'
 							: 'Grup - Esnek öğrenci katılımı'}
 						disabled
 						readonly
+						title="Bu değer değiştirilemez. Farklı öğrenci türü için yeni ders oluşturun."
 					/>
 				</div>
 			</div>
@@ -442,27 +424,22 @@
 			<!-- Rescheduling Options -->
 			<div class="space-y-3">
 				<div class="flex items-center gap-3">
-					<input
-						id="edit-reschedulable"
-						type="checkbox"
-						class="checkbox checkbox-primary"
-						bind:checked={editReschedulable}
-					/>
-					<label for="edit-reschedulable" class="label-text cursor-pointer font-medium">
+					<Checkbox id="edit-reschedulable" bind:checked={editReschedulable} />
+					<Label for="edit-reschedulable" class="cursor-pointer font-medium">
 						Randevu değişikliğine izin ver
-					</label>
+					</Label>
 				</div>
 
 				{#if editReschedulable}
-					<div>
-						<label class="label" for="edit-reschedule-limit">
-							<span class="label-text">Değişiklik Limiti</span>
-							<span class="label-text-alt">Boş bırakırsanız sınırsız</span>
-						</label>
-						<input
+					<div class="grid gap-2">
+						<Label for="edit-reschedule-limit" class="flex items-center justify-between">
+							<span>Değişiklik Limiti</span>
+							<span class="text-xs text-muted-foreground">Boş bırakırsanız sınırsız</span>
+						</Label>
+						<Input
 							id="edit-reschedule-limit"
 							type="number"
-							class="input-bordered input w-full md:w-48"
+							class="md:w-48"
 							bind:value={editRescheduleLimit}
 							min="1"
 							placeholder="Örn: 3"
@@ -473,20 +450,16 @@
 		</div>
 	{/if}
 
-	<div class="modal-action">
-		<button class="btn btn-ghost" onclick={closeEditModal} disabled={formLoading}> İptal </button>
-		<button
-			class="btn btn-primary"
-			onclick={handleEditPackage}
-			disabled={formLoading || !editName.trim()}
-		>
+	<div class="flex justify-end gap-2 pt-4">
+		<Button variant="ghost" onclick={closeEditModal} disabled={formLoading}>İptal</Button>
+		<Button onclick={handleEditPackage} disabled={formLoading || !editName.trim()}>
 			{#if formLoading}
 				<LoaderCircle size={16} class="animate-spin" />
 			{:else}
 				<Dumbbell size={16} />
 			{/if}
 			Güncelle
-		</button>
+		</Button>
 	</div>
 </Modal>
 
@@ -517,25 +490,25 @@
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showArchiveModal = false;
 					selectedPackage = null;
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-error" disabled={formLoading}>
+			</Button>
+			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Archive size={16} />
 				{/if}
 				Arşivle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -567,25 +540,25 @@
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showRestoreModal = false;
 					selectedPackage = null;
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-success" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
 				Geri Yükle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

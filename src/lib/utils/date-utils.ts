@@ -154,8 +154,18 @@ export function getDayOfWeekFromDate(appointmentDate: string): string {
 export function formatTurkishDate(dateStr: string): string {
 	const date = new Date(dateStr + 'T00:00:00');
 	const months = [
-		'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-		'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+		'Ocak',
+		'Şubat',
+		'Mart',
+		'Nisan',
+		'Mayıs',
+		'Haziran',
+		'Temmuz',
+		'Ağustos',
+		'Eylül',
+		'Ekim',
+		'Kasım',
+		'Aralık'
 	];
 	return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
 }
@@ -169,8 +179,18 @@ export function formatTurkishDate(dateStr: string): string {
 export function formatShortTurkishDateTime(dateStr: string, hour: number): string {
 	const date = new Date(dateStr + 'T00:00:00');
 	const months = [
-		'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-		'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+		'Ocak',
+		'Şubat',
+		'Mart',
+		'Nisan',
+		'Mayıs',
+		'Haziran',
+		'Temmuz',
+		'Ağustos',
+		'Eylül',
+		'Ekim',
+		'Kasım',
+		'Aralık'
 	];
 	return `${date.getDate()} ${months[date.getMonth()]} ${String(hour).padStart(2, '0')}:00`;
 }

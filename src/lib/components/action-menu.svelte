@@ -1,7 +1,9 @@
 <script lang="ts">
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import { getActionDrawerContext } from '$lib/stores/action-drawer.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem';
+	import type { ActionItem } from '$lib/types';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 
 	interface Props {
 		actions: ActionItem[];
@@ -10,24 +12,15 @@
 		onOpenDrawer?: (detail: { actions: ActionItem[] }) => void;
 	}
 
-	let {
-		actions,
-		trigger = MoreVertical,
-		triggerClass = 'btn btn-sm btn-ghost',
-		onOpenDrawer
-	}: Props = $props();
+	let { actions, trigger = MoreVertical, triggerClass, onOpenDrawer }: Props = $props();
 
 	const drawerContext = getActionDrawerContext();
 
 	async function handleAction(action: ActionItem) {
 		try {
-			await action.handler(); // No dummy ID needed with optional parameter
-			// Close dropdown on desktop by blurring active element
-			const activeElement = document?.activeElement as HTMLElement | null;
-			activeElement?.blur();
+			await action.handler();
 		} catch (error) {
 			console.error('Action failed:', error);
-			// Could implement user-facing error handling here
 		}
 	}
 
@@ -40,37 +33,39 @@
 	}
 </script>
 
-<!-- Desktop: Dropdown (md and up) -->
+<!-- Desktop: shadcn DropdownMenu (md and up) -->
 <div class="hidden md:block">
-	<div class="dropdown dropdown-end">
-		<div tabindex="0" role="button" class={triggerClass}>
-			{#if trigger}
-				{@const TriggerComponent = trigger}
-				<TriggerComponent size={14} />
-			{/if}
-		</div>
-		<ul class="dropdown-content menu z-[1] w-52 rounded-box border bg-base-100 p-2 shadow-lg">
+	<DropdownMenu.Root>
+		<DropdownMenu.Trigger>
+			{#snippet child({ props })}
+				<Button variant="ghost" size="icon-sm" class={triggerClass} {...props}>
+					{#if trigger}
+						{@const TriggerComponent = trigger}
+						<TriggerComponent size={14} />
+					{/if}
+				</Button>
+			{/snippet}
+		</DropdownMenu.Trigger>
+		<DropdownMenu.Content align="end">
 			{#each actions as action (action.label)}
-				<li>
-					<button onclick={() => handleAction(action)} class={action.class || ''} type="button">
-						{#if action.icon}
-							{@const IconComponent = action.icon}
-							<IconComponent size={14} />
-						{/if}
-						{action.label}
-					</button>
-				</li>
+				<DropdownMenu.Item onclick={() => handleAction(action)} class={action.class || ''}>
+					{#if action.icon}
+						{@const IconComponent = action.icon}
+						<IconComponent size={14} />
+					{/if}
+					{action.label}
+				</DropdownMenu.Item>
 			{/each}
-		</ul>
-	</div>
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
 </div>
 
-<!-- Mobile: Trigger button (sm and below) -->
+<!-- Mobile: opens the global bottom sheet via context (sm and below) -->
 <div class="md:hidden">
-	<button class={triggerClass} onclick={openMobileDrawer} type="button">
+	<Button variant="ghost" size="icon-sm" class={triggerClass} onclick={openMobileDrawer}>
 		{#if trigger}
 			{@const TriggerComponent = trigger}
 			<TriggerComponent size={14} />
 		{/if}
-	</button>
+	</Button>
 </div>

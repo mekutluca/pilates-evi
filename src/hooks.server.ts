@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { PRIVATE_SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
-import type { Role } from '$lib/types/Role';
+import type { Role } from '$lib/types';
 import { allRoutes } from '$lib/types/Route';
 
 const supabase: Handle = async ({ event, resolve }) => {

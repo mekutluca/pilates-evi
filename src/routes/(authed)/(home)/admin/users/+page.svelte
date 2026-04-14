@@ -8,12 +8,16 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
-	import type { User } from '$lib/types/User';
+	import type { User } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types/ActionItem.js';
+	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import { validation } from '$lib/utils/validation';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -62,7 +66,7 @@
 			render: (user: User) => {
 				const isCurrentUser = user.id === currentUser?.id;
 				const badge = isCurrentUser
-					? '<div class="badge badge-accent badge-sm ml-2">Siz</div>'
+					? '<span class="ml-2 inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Siz</span>'
 					: '';
 				return `<span class="font-medium">${user.fullName || '-'}</span>${badge}`;
 			}
@@ -70,13 +74,13 @@
 		{
 			key: 'email',
 			title: 'Email',
-			render: (user: User) => `<div class="text-sm text-base-content/70">${user.email}</div>`
+			render: (user: User) => `<div class="text-sm text-muted-foreground">${user.email}</div>`
 		},
 		{
 			key: 'role',
 			title: 'Rol',
 			render: (user: User) => {
-				return `<div class="badge badge-neutral">${getRoleDisplayName(user.role)}</div>`;
+				return `<span class="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium">${getRoleDisplayName(user.role)}</span>`;
 			}
 		},
 		{
@@ -92,11 +96,6 @@
 		}
 	];
 
-	function closeDropdown() {
-		const activeElement = document?.activeElement as HTMLElement | null;
-		activeElement?.blur();
-	}
-
 	function openEditModal(user: User) {
 		selectedUser = user;
 		email = user.email;
@@ -104,7 +103,6 @@
 		role = user.role;
 		password = '';
 		showEditModal = true;
-		closeDropdown();
 	}
 
 	function openResetPasswordModal(user: User) {
@@ -112,7 +110,6 @@
 		email = user.email;
 		newPassword = '';
 		showResetPasswordModal = true;
-		closeDropdown();
 	}
 
 	function resetForm() {
@@ -159,12 +156,11 @@
 
 	<!-- Search and Add User Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="form-control w-full lg:max-w-xs">
+		<div class="w-full lg:max-w-xs">
 			<SearchInput bind:value={searchTerm} placeholder="Kullanıcı ara..." />
 		</div>
 
-		<button
-			class="btn btn-accent"
+		<Button
 			onclick={() => {
 				resetForm();
 				showAddModal = true;
@@ -172,7 +168,7 @@
 		>
 			<UserPlus size={16} />
 			Yeni Kullanıcı
-		</button>
+		</Button>
 	</div>
 
 	<SortableTable
@@ -209,57 +205,63 @@
 			};
 		}}
 	>
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Ad Soyad</legend>
-			<input type="text" name="fullName" class="input w-full" bind:value={fullName} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-user-fullname">Ad Soyad</Label>
+			<Input id="add-user-fullname" type="text" name="fullName" bind:value={fullName} required />
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Email</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="add-user-email">Email</Label>
+			<Input
+				id="add-user-email"
 				type="email"
 				name="email"
-				class="input w-full"
 				bind:value={email}
 				pattern={validation.email.pattern}
 				title={validation.email.title}
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Şifre</legend>
-			<input type="password" name="password" class="input w-full" bind:value={password} required />
-		</fieldset>
+		<div class="grid gap-2">
+			<Label for="add-user-password">Şifre</Label>
+			<Input
+				id="add-user-password"
+				type="password"
+				name="password"
+				bind:value={password}
+				required
+			/>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Rol</legend>
-			<select name="role" class="select w-full" bind:value={role} required>
+		<div class="grid gap-2">
+			<Label for="add-user-role">Rol</Label>
+			<NativeSelect id="add-user-role" name="role" bind:value={role} required>
 				{#each roleOptions as option (option.value)}
 					<option value={option.value}>{option.label}</option>
 				{/each}
-			</select>
-		</fieldset>
+			</NativeSelect>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showAddModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Plus size={16} />
 				{/if}
 				Ekle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -289,51 +291,51 @@
 	>
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Ad Soyad</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="edit-user-fullname">Ad Soyad</Label>
+			<Input
+				id="edit-user-fullname"
 				type="text"
 				name="fullName"
-				class="input w-full"
 				bind:value={fullName}
 				placeholder="Ad Soyad"
 			/>
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Email</legend>
-			<input type="email" name="email" class="input w-full" bind:value={email} disabled />
+		<div class="grid gap-2">
+			<Label for="edit-user-email">Email</Label>
+			<Input id="edit-user-email" type="email" bind:value={email} disabled />
 			<input type="hidden" name="email" value={email} />
-		</fieldset>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Rol</legend>
-			<select name="role" class="select w-full" bind:value={role}>
+		<div class="grid gap-2">
+			<Label for="edit-user-role">Rol</Label>
+			<NativeSelect id="edit-user-role" name="role" bind:value={role}>
 				{#each roleOptions as option (option.value)}
 					<option value={option.value}>{option.label}</option>
 				{/each}
-			</select>
-		</fieldset>
+			</NativeSelect>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showEditModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Edit size={16} />
 				{/if}
 				Güncelle
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -363,42 +365,46 @@
 	>
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Email</legend>
-			<div class="input w-full bg-base-200 text-base-content/70">{email}</div>
-		</fieldset>
+		<div class="grid gap-2">
+			<Label>Email</Label>
+			<div
+				class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+			>
+				{email}
+			</div>
+		</div>
 
-		<fieldset class="fieldset">
-			<legend class="fieldset-legend">Yeni Şifre</legend>
-			<input
+		<div class="grid gap-2">
+			<Label for="reset-new-password">Yeni Şifre</Label>
+			<Input
+				id="reset-new-password"
 				type="password"
 				name="newPassword"
-				class="input w-full"
 				bind:value={newPassword}
 				placeholder="Yeni şifre girin"
 				required
 			/>
-		</fieldset>
+		</div>
 
-		<div class="modal-action">
-			<button
+		<div class="flex justify-end gap-2">
+			<Button
 				type="button"
-				class="btn"
+				variant="outline"
 				onclick={() => {
 					showResetPasswordModal = false;
 					resetForm();
 				}}
 			>
 				İptal
-			</button>
-			<button type="submit" class="btn btn-accent" disabled={formLoading}>
+			</Button>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Key size={16} />
 				{/if}
 				Şifreyi Sıfırla
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

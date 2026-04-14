@@ -23,6 +23,9 @@
 		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
 	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 
 	let { data }: { data: PageData } = $props();
 
@@ -54,7 +57,7 @@
 				title: appointmentDetails.room_name || '',
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
-				color: 'info',
+				color: 'primary',
 				clickable: true,
 				data: appointmentDetails
 			};
@@ -140,15 +143,16 @@
 	</div>
 
 	<!-- Week Navigation -->
-	<div class="card mb-6 bg-base-100 shadow-xl">
-		<div class="card-body">
+	<Card.Root class="mb-6">
+		<Card.Content>
 			<div class="flex items-center justify-center gap-4">
-				<button class="btn btn-outline btn-sm" onclick={goToPreviousWeek}>
+				<Button variant="outline" size="sm" onclick={goToPreviousWeek}>
 					<ChevronLeft size={16} />
-				</button>
+				</Button>
 
 				<div class="date-picker-container relative w-64 text-center">
 					<button
+						type="button"
 						class="cursor-pointer text-lg font-semibold transition-all hover:underline"
 						onclick={toggleDatePicker}
 					>
@@ -166,20 +170,18 @@
 					{/if}
 
 					{#if !isCurrentWeek()}
-						<button class="btn btn-link btn-xs btn-info" onclick={goToCurrentWeek}
-							>Bu Haftaya Dön</button
-						>
+						<Button variant="link" size="xs" onclick={goToCurrentWeek}>Bu Haftaya Dön</Button>
 					{:else}
-						<div class="px-3 py-1 text-xs text-base-content/60 italic">Bu hafta</div>
+						<div class="px-3 py-1 text-xs text-muted-foreground italic">Bu hafta</div>
 					{/if}
 				</div>
 
-				<button class="btn btn-outline btn-sm" onclick={goToNextWeek}>
+				<Button variant="outline" size="sm" onclick={goToNextWeek}>
 					<ChevronRight size={16} />
-				</button>
+				</Button>
 			</div>
-		</div>
-	</div>
+		</Card.Content>
+	</Card.Root>
 
 	<!-- Schedule Grid -->
 	<Schedule
@@ -187,7 +189,7 @@
 		entityName={trainerName || ''}
 		entityBadge={{
 			text: 'Eğitmen',
-			color: 'info'
+			color: 'primary'
 		}}
 		{getSlotData}
 		onSlotClick={handleScheduleSlotClick}
@@ -209,25 +211,25 @@
 		<div class="space-y-4">
 			<!-- Extension Alert Strip - Only for private lessons with last session -->
 			{#if selectedAppointment.has_last_session && selectedAppointment.purchase_id}
-				<div class="alert alert-warning p-3">
-					<div class="flex items-center gap-2">
-						<ClockAlert size={16} />
-						<span class="text-sm font-medium">Bu paketin son dersi</span>
-					</div>
-				</div>
+				<Alert.Root class="border-warning/40 bg-warning/10 text-warning">
+					<ClockAlert size={16} />
+					<Alert.Description class="text-sm font-medium text-warning">
+						Bu paketin son dersi
+					</Alert.Description>
+				</Alert.Root>
 			{/if}
 
 			<div class="space-y-3">
 				<!-- Room -->
 				<div>
-					<div class="text-xs text-base-content/60">Oda</div>
+					<div class="text-xs text-muted-foreground">Oda</div>
 					<div class="font-medium">{selectedAppointment.room_name}</div>
 				</div>
 
 				<!-- Day & Time -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<div class="text-xs text-base-content/60">Gün</div>
+						<div class="text-xs text-muted-foreground">Gün</div>
 						<div class="font-medium">
 							{selectedAppointment.date
 								? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
@@ -235,7 +237,7 @@
 						</div>
 					</div>
 					<div>
-						<div class="text-xs text-base-content/60">Saat</div>
+						<div class="text-xs text-muted-foreground">Saat</div>
 						<div class="font-medium">
 							{selectedAppointment.hour !== null
 								? getTimeRangeString(selectedAppointment.hour)
@@ -246,19 +248,19 @@
 
 				<!-- Trainer -->
 				<div>
-					<div class="text-xs text-base-content/60">Eğitmen</div>
+					<div class="text-xs text-muted-foreground">Eğitmen</div>
 					<div class="font-medium">{selectedAppointment.trainer_name}</div>
 				</div>
 
 				<!-- Package -->
 				<div>
-					<div class="text-xs text-base-content/60">Ders</div>
+					<div class="text-xs text-muted-foreground">Ders</div>
 					<div class="font-medium">{selectedAppointment.package_name || 'Ders Bilgisi Yok'}</div>
 				</div>
 
 				<!-- Trainees -->
 				<div>
-					<div class="text-xs text-base-content/60">
+					<div class="text-xs text-muted-foreground">
 						Öğrenciler ({selectedAppointment.trainee_count})
 					</div>
 					<div class="space-y-2">
@@ -282,15 +284,14 @@
 		</div>
 	{/if}
 
-	<div class="modal-action">
-		<button
-			type="button"
-			class="btn"
+	<div class="flex justify-end gap-2 pt-4">
+		<Button
+			variant="outline"
 			onclick={() => {
 				showAppointmentDetailsModal = false;
 			}}
 		>
 			Kapat
-		</button>
+		</Button>
 	</div>
 </Modal>
