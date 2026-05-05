@@ -3,22 +3,29 @@ import type { PageServerLoad, Actions } from './$types';
 import type { DayOfWeek } from '$lib/types/Schedule';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
+import type {
+	AppointmentRefInfo,
+	PurchaseChainDates,
+	PurchaseChainEntry
+} from '$lib/types/Extension';
 import {
 	findLastPurchaseInChain,
 	canExtendPurchase,
 	getLastAppointmentDate,
-	calculateExtensionStartDate
+	calculateExtensionStartDate,
+	getStartingAppointmentCandidates,
+	buildAppointmentSlotsFromStart,
+	getCanonicalPurchaseTimeSlots,
+	getFutureGroupAppointments
 } from '$lib/utils/extension-utils';
 import { parseLocalDate } from '$lib/utils/date-utils';
-
-type AppointmentInfo = { room_id: string; trainer_id: string; date: string; hour: number };
 
 // Helper to get appointments for either private or group lessons
 async function getAppointmentsForPurchase(
 	supabase: SupabaseClient<Database>,
 	purchaseId: string,
 	limit?: number
-): Promise<AppointmentInfo[]> {
+): Promise<AppointmentRefInfo[]> {
 	// Try direct purchase_id first (for private lessons)
 	const { data: directAppointments } = await supabase
 		.from('pe_appointments')
@@ -29,7 +36,7 @@ async function getAppointmentsForPurchase(
 
 	if (directAppointments && directAppointments.length > 0) {
 		return directAppointments.filter(
-			(a): a is AppointmentInfo =>
+			(a): a is AppointmentRefInfo =>
 				a.room_id !== null && a.trainer_id !== null && a.date !== null && a.hour !== null
 		);
 	}
@@ -43,55 +50,111 @@ async function getAppointmentsForPurchase(
 		.limit(limit || 10);
 
 	if (traineeAppointments && traineeAppointments.length > 0) {
-		return traineeAppointments
-			.map((t) => (t as { pe_appointments: AppointmentInfo | null }).pe_appointments)
-			.filter((a): a is AppointmentInfo => a !== null);
+		const result: AppointmentRefInfo[] = [];
+		for (const row of traineeAppointments) {
+			const apt = row.pe_appointments;
+			if (!apt || Array.isArray(apt)) continue;
+			if (apt.room_id && apt.trainer_id && apt.date && apt.hour !== null) {
+				result.push({
+					room_id: apt.room_id,
+					trainer_id: apt.trainer_id,
+					date: apt.date,
+					hour: apt.hour
+				});
+			}
+		}
+		return result;
 	}
 
 	return [];
+}
+
+// Fetches team trainees with name+id, flattening the join into a clean array.
+async function fetchTeamTrainees(
+	supabase: SupabaseClient<Database>,
+	teamId: string
+): Promise<Array<{ id: string; name: string }>> {
+	const { data: members } = await supabase
+		.from('pe_teams')
+		.select('trainee_id')
+		.eq('id', teamId);
+
+	if (!members || members.length === 0) return [];
+
+	const traineeIds = members
+		.map((m) => m.trainee_id)
+		.filter((id): id is string => id !== null);
+	if (traineeIds.length === 0) return [];
+
+	const { data: trainees } = await supabase
+		.from('pe_trainees')
+		.select('id, name')
+		.in('id', traineeIds);
+
+	return trainees ?? [];
+}
+
+// Walk the successor chain forward from `startId`, collecting purchase ids in order.
+async function collectPurchaseChainIds(
+	supabase: SupabaseClient<Database>,
+	startId: string
+): Promise<string[]> {
+	const ids: string[] = [];
+	let currentId: string | null = startId;
+	while (currentId) {
+		const result: { data: PurchaseChainEntry | null } = await supabase
+			.from('pe_purchases')
+			.select('id, successor_id')
+			.eq('id', currentId)
+			.single();
+		if (!result.data) break;
+		ids.push(result.data.id);
+		currentId = result.data.successor_id;
+	}
+	return ids;
 }
 
 // Helper to get appointment dates for purchase chain
 async function getAppointmentDatesForPurchase(
 	supabase: SupabaseClient<Database>,
 	purchaseId: string
-): Promise<{ start_date: Date | null; end_date: Date | null }> {
+): Promise<PurchaseChainDates> {
+	const dates: string[] = [];
+
 	// Try direct purchase_id first
-	let { data: appointments } = await supabase
+	const { data: directRows } = await supabase
 		.from('pe_appointments')
 		.select('date')
 		.eq('purchase_id', purchaseId)
 		.order('date', { ascending: true });
 
+	for (const row of directRows ?? []) {
+		if (row.date) dates.push(row.date);
+	}
+
 	// If no appointments found, try via pe_appointment_trainees
-	if (!appointments || appointments.length === 0) {
-		const { data: traineeAppointments } = await supabase
+	if (dates.length === 0) {
+		const { data: traineeRows } = await supabase
 			.from('pe_appointment_trainees')
 			.select('pe_appointments(date)')
 			.eq('purchase_id', purchaseId)
 			.order('pe_appointments(date)', { ascending: true });
 
-		if (traineeAppointments && traineeAppointments.length > 0) {
-			appointments = traineeAppointments
-				.map((t) => {
-					const apt = (t as { pe_appointments: { date: string | null } | null }).pe_appointments;
-					return apt?.date ? { date: apt.date } : null;
-				})
-				.filter((a): a is { date: string } => a !== null);
+		for (const row of traineeRows ?? []) {
+			const apt = row.pe_appointments;
+			if (!apt || Array.isArray(apt)) continue;
+			if (apt.date) dates.push(apt.date);
 		}
 	}
 
-	let startDate: Date | null = null;
-	let endDate: Date | null = null;
-
-	if (appointments && appointments.length > 0) {
-		const firstDate = appointments[0].date;
-		const lastDate = appointments[appointments.length - 1].date;
-		if (firstDate) startDate = new Date(firstDate);
-		if (lastDate) endDate = new Date(lastDate);
+	if (dates.length === 0) {
+		return { start_date: null, end_date: null };
 	}
 
-	return { start_date: startDate, end_date: endDate };
+	return {
+		start_date: new Date(dates[0]),
+		end_date: new Date(dates[dates.length - 1])
+	};
 }
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
@@ -110,6 +173,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	if (!lastPurchase) {
 		throw error(404, 'Satın alma bulunamadı');
 	}
+	if (!lastPurchase.package_id || !lastPurchase.team_id) {
+		throw error(400, 'Paket veya takım bilgisi eksik');
+	}
 
 	// Check if the last purchase can be extended
 	const extensionCheck = await canExtendPurchase(supabase, lastPurchase.id);
@@ -117,179 +183,78 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		throw error(400, extensionCheck.reason || 'Bu paket uzatılamaz');
 	}
 
-	// Get all purchases in the chain to show the extension history
-	const purchaseChain: Array<{ id: string; start_date: Date | null; end_date: Date | null }> = [];
-	let currentId: string | null = purchaseId;
+	// Phase 1: independent fetches in parallel.
+	const [chainIds, packageRes, teamRes, refAppointments, lastAppDate] = await Promise.all([
+		collectPurchaseChainIds(supabase, purchaseId),
+		supabase.from('pe_packages').select('*').eq('id', lastPurchase.package_id).single(),
+		fetchTeamTrainees(supabase, lastPurchase.team_id),
+		getAppointmentsForPurchase(supabase, lastPurchase.id, 1),
+		getLastAppointmentDate(supabase, lastPurchase.id)
+	]);
 
-	while (currentId) {
-		const { data } = await supabase
-			.from('pe_purchases')
-			.select('id, successor_id')
-			.eq('id', currentId)
-			.single();
-
-		if (!data) break;
-
-		const chainPurchase: { id: string; successor_id: string | null } = {
-			id: data.id,
-			successor_id: data.successor_id
-		};
-
-		const dates = await getAppointmentDatesForPurchase(supabase, chainPurchase.id);
-
-		purchaseChain.push({
-			id: chainPurchase.id,
-			...dates
-		});
-
-		currentId = chainPurchase.successor_id;
-	}
-
-	// Load purchase details with package
-	const { data: purchaseData, error: purchaseError } = await supabase
-		.from('pe_purchases')
-		.select(
-			`
-			id,
-			package_id,
-			team_id,
-			successor_id,
-			pe_packages(
-				id,
-				name,
-				package_type,
-				weeks_duration,
-				min_lessons_per_week,
-				max_lessons_per_week,
-				max_capacity
-			)
-		`
-		)
-		.eq('id', lastPurchase.id)
-		.single();
-
-	if (purchaseError || !purchaseData) {
-		throw error(404, 'Satın alma detayları yüklenemedi');
-	}
-
-	// Type the response properly
-	type PurchaseWithPackage = {
-		id: string;
-		package_id: string;
-		team_id: string;
-		successor_id: string | null;
-		pe_packages: {
-			id: string;
-			name: string;
-			package_type: 'private' | 'group';
-			weeks_duration: number;
-			min_lessons_per_week: number;
-			max_lessons_per_week: number;
-			max_capacity: number;
-		} | null;
-	};
-
-	const typedPurchase = purchaseData as unknown as PurchaseWithPackage;
-
-	if (!typedPurchase.pe_packages) {
+	if (packageRes.error || !packageRes.data) {
 		throw error(404, 'Paket bilgisi bulunamadı');
 	}
-
-	// Get trainees from team
-	const { data: teamMembers, error: teamError } = await supabase
-		.from('pe_teams')
-		.select(
-			`
-			trainee_id,
-			pe_trainees(id, name)
-		`
-		)
-		.eq('id', typedPurchase.team_id);
-
-	if (teamError) {
-		throw error(500, 'Takım bilgisi yüklenemedi');
+	const pkg = packageRes.data;
+	if (pkg.weeks_duration === null) {
+		throw error(400, 'Paket süresi belirsiz');
 	}
-
-	type TeamMemberWithTrainee = {
-		trainee_id: string;
-		pe_trainees: { id: string; name: string } | null;
-	};
-
-	const trainees = (teamMembers as unknown as TeamMemberWithTrainee[])
-		.filter((t) => t.pe_trainees)
-		.map((t) => ({
-			id: t.trainee_id,
-			name: t.pe_trainees!.name
-		}));
-
-	// Get appointments to determine room, trainer, and time slots
-	const appointments = await getAppointmentsForPurchase(supabase, lastPurchase.id);
-
-	if (appointments.length === 0) {
+	if (refAppointments.length === 0) {
 		throw error(404, 'Randevu bilgisi bulunamadı');
 	}
 
-	// Get room and trainer names
-	const { data: roomData } = await supabase
-		.from('pe_rooms')
-		.select('id, name')
-		.eq('id', appointments[0].room_id)
-		.single();
+	const refRoomId = refAppointments[0].room_id;
+	const refTrainerId = refAppointments[0].trainer_id;
+	const earliestStart = calculateExtensionStartDate(lastAppDate);
+	const isGroup = pkg.package_type === 'group';
+	const weeksDuration = pkg.weeks_duration;
 
-	const { data: trainerData } = await supabase
-		.from('pe_trainers')
-		.select('id, name')
-		.eq('id', appointments[0].trainer_id)
-		.single();
+	// Phase 2: dependent fetches, also parallelized.
+	const [chainDates, roomDataRes, trainerDataRes, slotsResult] = await Promise.all([
+		Promise.all(chainIds.map((id) => getAppointmentDatesForPurchase(supabase, id))),
+		supabase.from('pe_rooms').select('id, name').eq('id', refRoomId).single(),
+		supabase.from('pe_trainers').select('id, name').eq('id', refTrainerId).single(),
+		isGroup
+			? getFutureGroupAppointments(supabase, lastPurchase.id, earliestStart, weeksDuration)
+			: getCanonicalPurchaseTimeSlots(supabase, lastPurchase.id, 'private', weeksDuration)
+	]);
 
-	// Extract unique time slots
-	const dayMap: Record<number, DayOfWeek> = {
-		0: 'sunday',
-		1: 'monday',
-		2: 'tuesday',
-		3: 'wednesday',
-		4: 'thursday',
-		5: 'friday',
-		6: 'saturday'
-	};
+	let timeSlots: Array<{ day: DayOfWeek; hour: number }>;
+	let startCandidates: Array<{ date: string; hour: number; day: DayOfWeek }>;
 
-	const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-	const seenSlots = new Set<string>();
-
-	for (const apt of appointments) {
-		const date = parseLocalDate(apt.date);
-		const dayOfWeek = date.getDay();
-		const day = dayMap[dayOfWeek];
-		const slotKey = `${day}-${apt.hour}`;
-
-		if (!seenSlots.has(slotKey)) {
-			seenSlots.add(slotKey);
-			timeSlots.push({ day, hour: apt.hour });
-		}
+	if ('canonicalSlots' in slotsResult) {
+		timeSlots = slotsResult.canonicalSlots;
+		startCandidates = slotsResult.upcomingAppointments
+			.slice(0, 12)
+			.map((a) => ({ date: a.date, hour: a.hour, day: a.day }));
+	} else {
+		timeSlots = slotsResult.slots;
+		startCandidates = getStartingAppointmentCandidates(timeSlots, earliestStart, 12);
 	}
 
-	// Calculate suggested start date
-	const lastAppDate = await getLastAppointmentDate(supabase, lastPurchase.id);
-	const suggestedStartDate = calculateExtensionStartDate(lastAppDate);
+	if (timeSlots.length === 0) {
+		throw error(404, 'Bu paket için ders saatleri belirlenemedi');
+	}
+
+	const purchaseChain = chainIds.map((id, i) => ({ id, ...chainDates[i] }));
 
 	const purchaseInfo = {
 		id: lastPurchase.id,
-		package_id: typedPurchase.package_id,
-		package_name: typedPurchase.pe_packages.name,
-		package_type: typedPurchase.pe_packages.package_type,
-		weeks_duration: typedPurchase.pe_packages.weeks_duration,
-		min_lessons_per_week: typedPurchase.pe_packages.min_lessons_per_week,
-		max_lessons_per_week: typedPurchase.pe_packages.max_lessons_per_week,
-		// Use actual time slots count for display (matches the original assignment)
+		package_id: lastPurchase.package_id,
+		package_name: pkg.name,
+		package_type: pkg.package_type,
+		weeks_duration: weeksDuration,
+		min_lessons_per_week: pkg.min_lessons_per_week,
+		max_lessons_per_week: pkg.max_lessons_per_week,
 		lessons_per_week: timeSlots.length,
-		max_capacity: typedPurchase.pe_packages.max_capacity,
-		trainees,
-		room_id: appointments[0].room_id,
-		room_name: roomData?.name || '',
-		trainer_id: appointments[0].trainer_id,
-		trainer_name: trainerData?.name || '',
+		max_capacity: pkg.max_capacity,
+		trainees: teamRes,
+		room_id: refRoomId,
+		room_name: roomDataRes.data?.name || '',
+		trainer_id: refTrainerId,
+		trainer_name: trainerDataRes.data?.name || '',
 		time_slots: timeSlots,
-		successor_id: typedPurchase.successor_id
+		successor_id: lastPurchase.successor_id
 	};
 
 	// Format date helper
@@ -302,7 +267,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 	return {
 		purchaseInfo,
-		suggestedStartDate: formatLocalDate(suggestedStartDate),
+		startCandidates,
 		lastAppointmentDate: lastAppDate ? formatLocalDate(new Date(lastAppDate)) : null,
 		purchaseChain: purchaseChain.map((p) => ({
 			id: p.id,
@@ -324,11 +289,20 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const purchaseId = formData.get('purchase_id') as string;
 		const packageCount = parseInt(formData.get('package_count') as string);
+		const startDateStr = formData.get('start_date') as string;
+		const startHour = parseInt(formData.get('start_hour') as string);
 
 		if (!purchaseId || !packageCount || packageCount < 1) {
 			return fail(400, {
 				success: false,
 				message: 'Geçersiz form verileri'
+			});
+		}
+
+		if (!startDateStr || isNaN(startHour)) {
+			return fail(400, {
+				success: false,
+				message: 'Başlangıç randevusu seçilmedi'
 			});
 		}
 
@@ -340,183 +314,99 @@ export const actions: Actions = {
 				message: 'Satın alma bulunamadı'
 			});
 		}
-
-		// Load purchase details
-		const { data: purchaseData, error: purchaseError } = await supabase
-			.from('pe_purchases')
-			.select(
-				`
-				id,
-				package_id,
-				team_id,
-				reschedule_left,
-				pe_packages(
-					id,
-					package_type,
-					weeks_duration,
-					min_lessons_per_week,
-					max_lessons_per_week,
-					reschedulable,
-					reschedule_limit
-				)
-			`
-			)
-			.eq('id', lastPurchase.id)
-			.single();
-
-		if (purchaseError || !purchaseData) {
-			return fail(404, {
+		if (!lastPurchase.package_id || !lastPurchase.team_id) {
+			return fail(400, {
 				success: false,
-				message: 'Satın alma detayları yüklenemedi'
+				message: 'Paket veya takım bilgisi eksik'
 			});
 		}
 
-		type PurchaseWithPackage = {
-			id: string;
-			package_id: string;
-			team_id: string;
-			reschedule_left: number;
-			pe_packages: {
-				id: string;
-				package_type: 'private' | 'group';
-				weeks_duration: number;
-				min_lessons_per_week: number;
-				max_lessons_per_week: number;
-				reschedulable: boolean;
-				reschedule_limit: number | null;
-			} | null;
-		};
+		const packageRes = await supabase
+			.from('pe_packages')
+			.select('*')
+			.eq('id', lastPurchase.package_id)
+			.single();
 
-		const typedPurchase = purchaseData as unknown as PurchaseWithPackage;
-
-		if (!typedPurchase.pe_packages) {
+		if (packageRes.error || !packageRes.data) {
 			return fail(404, {
 				success: false,
 				message: 'Paket bilgisi bulunamadı'
 			});
 		}
+		const packageInfo = packageRes.data;
+		if (packageInfo.weeks_duration === null) {
+			return fail(400, {
+				success: false,
+				message: 'Paket süresi belirsiz'
+			});
+		}
 
-		const packageInfo = typedPurchase.pe_packages;
+		const [{ data: refAppointment }, { slots: timeSlots }] = await Promise.all([
+			supabase
+				.from('pe_appointments')
+				.select('room_id, trainer_id')
+				.eq('purchase_id', lastPurchase.id)
+				.order('date', { ascending: true })
+				.limit(1)
+				.maybeSingle(),
+			getCanonicalPurchaseTimeSlots(supabase, lastPurchase.id, 'private', packageInfo.weeks_duration)
+		]);
 
-		// Get appointments to determine room, trainer, and time slots
-		const { data: appointments, error: appointmentsError } = await supabase
-			.from('pe_appointments')
-			.select('room_id, trainer_id, date, hour')
-			.eq('purchase_id', lastPurchase.id)
-			.order('date', { ascending: true })
-			.limit(10);
-
-		if (appointmentsError || !appointments || appointments.length === 0) {
+		if (!refAppointment || !refAppointment.room_id || !refAppointment.trainer_id) {
 			return fail(404, {
 				success: false,
 				message: 'Randevu bilgisi bulunamadı'
 			});
 		}
-
-		// Extract time slots
-		const dayMap: Record<number, DayOfWeek> = {
-			0: 'sunday',
-			1: 'monday',
-			2: 'tuesday',
-			3: 'wednesday',
-			4: 'thursday',
-			5: 'friday',
-			6: 'saturday'
-		};
-
-		const timeSlots: Array<{ day: DayOfWeek; hour: number; date: string }> = [];
-		const seenSlots = new Set<string>();
-
-		for (const apt of appointments) {
-			const date = parseLocalDate(apt.date);
-			const dayOfWeek = date.getDay();
-			const day = dayMap[dayOfWeek];
-			const slotKey = `${day}-${apt.hour}`;
-
-			if (!seenSlots.has(slotKey)) {
-				seenSlots.add(slotKey);
-				timeSlots.push({ day, hour: apt.hour, date: apt.date });
-			}
+		if (timeSlots.length === 0) {
+			return fail(404, {
+				success: false,
+				message: 'Bu paket için ders saatleri belirlenemedi'
+			});
 		}
 
-		// Calculate start date for extension
-		const lastAppDate = await getLastAppointmentDate(supabase, lastPurchase.id);
-		let currentStartDate = calculateExtensionStartDate(lastAppDate);
+		const roomId = refAppointment.room_id;
+		const trainerId = refAppointment.trainer_id;
 
-		// For private lessons, create separate purchases for each package
-		// For group lessons, create one purchase with all appointments
-		const isPrivate = packageInfo.package_type === 'private';
-		const purchasesToCreate = isPrivate ? packageCount : 1;
+		const lessonsPerWeek = timeSlots.length;
 		const weeksPerPurchase = packageInfo.weeks_duration;
-		const totalWeeksForGroupLesson = isPrivate ? weeksPerPurchase : weeksPerPurchase * packageCount;
+		const slotsPerPurchase = weeksPerPurchase * lessonsPerWeek;
+		const totalSlots = slotsPerPurchase * packageCount;
 
-		// Helper function to build appointment slots for a given number of weeks
-		const buildAppointmentSlots = (
-			startDate: Date,
-			numWeeks: number
-		): Array<{ date: string; hour: number }> => {
-			const slots: Array<{ date: string; hour: number }> = [];
+		// Build all slots starting from the user-selected appointment
+		const startDate = parseLocalDate(startDateStr);
+		let allAppointmentSlots: Array<{ date: string; hour: number }>;
+		try {
+			allAppointmentSlots = buildAppointmentSlotsFromStart(
+				startDate,
+				startHour,
+				timeSlots,
+				totalSlots
+			);
+		} catch (e) {
+			return fail(400, {
+				success: false,
+				message: e instanceof Error ? e.message : 'Başlangıç randevusu hesaplanamadı'
+			});
+		}
 
-			for (let week = 0; week < numWeeks; week++) {
-				for (const slot of timeSlots) {
-					const weekStart = new Date(startDate);
-					weekStart.setDate(startDate.getDate() + week * 7);
+		// One batched conflict check for all slots in the date span.
+		const slotDates = allAppointmentSlots.map((s) => s.date);
+		const { data: existingAppointments } = await supabase
+			.from('pe_appointments')
+			.select('date, hour')
+			.eq('room_id', roomId)
+			.eq('trainer_id', trainerId)
+			.in('date', slotDates);
 
-					// Calculate the actual date for this day
-					const dayIndex = {
-						sunday: 0,
-						monday: 1,
-						tuesday: 2,
-						wednesday: 3,
-						thursday: 4,
-						friday: 5,
-						saturday: 6
-					}[slot.day];
-
-					const weekStartDay = weekStart.getDay();
-					let daysToAdd = dayIndex - weekStartDay;
-					if (daysToAdd < 0) daysToAdd += 7;
-
-					const slotDate = new Date(weekStart);
-					slotDate.setDate(weekStart.getDate() + daysToAdd);
-
-					const year = slotDate.getFullYear();
-					const month = String(slotDate.getMonth() + 1).padStart(2, '0');
-					const day = String(slotDate.getDate()).padStart(2, '0');
-					const dateString = `${year}-${month}-${day}`;
-
-					slots.push({
-						date: dateString,
-						hour: slot.hour
-					});
-				}
-			}
-
-			return slots;
-		};
-
-		// Build all appointments to check for conflicts upfront
-		const allAppointmentSlots = buildAppointmentSlots(
-			currentStartDate,
-			isPrivate ? weeksPerPurchase * packageCount : totalWeeksForGroupLesson
-		);
-
-		// Check for conflicts before creating any purchases
-		for (const slot of allAppointmentSlots) {
-			const { data: conflictingAppointment } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('room_id', appointments[0].room_id)
-				.eq('trainer_id', appointments[0].trainer_id)
-				.eq('date', slot.date)
-				.eq('hour', slot.hour)
-				.maybeSingle();
-
-			if (conflictingAppointment) {
-				const dateStr = new Date(slot.date).toLocaleDateString('tr-TR');
+		if (existingAppointments && existingAppointments.length > 0) {
+			const occupied = new Set(existingAppointments.map((a) => `${a.date}-${a.hour}`));
+			const conflict = allAppointmentSlots.find((s) => occupied.has(`${s.date}-${s.hour}`));
+			if (conflict) {
+				const dateStr = new Date(conflict.date).toLocaleDateString('tr-TR');
 				return fail(400, {
 					success: false,
-					message: `${dateStr} tarihindeki ${slot.hour}:00 zaman dilimi zaten dolu`
+					message: `${dateStr} tarihindeki ${conflict.hour}:00 zaman dilimi zaten dolu`
 				});
 			}
 		}
@@ -525,7 +415,7 @@ export const actions: Actions = {
 		const { data: teamMembers, error: teamError } = await supabase
 			.from('pe_teams')
 			.select('trainee_id')
-			.eq('id', typedPurchase.team_id);
+			.eq('id', lastPurchase.team_id);
 
 		if (teamError || !teamMembers) {
 			return fail(500, {
@@ -536,17 +426,21 @@ export const actions: Actions = {
 
 		const rescheduleLeft = packageInfo.reschedulable ? (packageInfo.reschedule_limit ?? 999) : 0;
 
-		// Create purchases and appointments
+		// Chunk pre-built slots into one purchase per package, preserving chronological order
 		let previousPurchaseId = lastPurchase.id;
 		let totalAppointmentsCreated = 0;
 
-		for (let i = 0; i < purchasesToCreate; i++) {
-			// Create purchase
+		for (let i = 0; i < packageCount; i++) {
+			const purchaseSlots = allAppointmentSlots.slice(
+				i * slotsPerPurchase,
+				(i + 1) * slotsPerPurchase
+			);
+
 			const { data: newPurchase, error: newPurchaseError } = await supabase
 				.from('pe_purchases')
 				.insert({
-					package_id: typedPurchase.package_id,
-					team_id: typedPurchase.team_id,
+					package_id: lastPurchase.package_id,
+					team_id: lastPurchase.team_id,
 					reschedule_left: rescheduleLeft,
 					successor_id: null
 				})
@@ -560,7 +454,6 @@ export const actions: Actions = {
 				});
 			}
 
-			// Update previous purchase to point to new purchase
 			const { error: updateError } = await supabase
 				.from('pe_purchases')
 				.update({ successor_id: newPurchase.id })
@@ -573,22 +466,10 @@ export const actions: Actions = {
 				});
 			}
 
-			// Get appointment slots for this purchase
-			const numWeeks = isPrivate ? weeksPerPurchase : totalWeeksForGroupLesson;
-			const purchaseSlots = buildAppointmentSlots(currentStartDate, numWeeks);
-
-			// Sort by date and hour
-			purchaseSlots.sort((a, b) => {
-				const dateCompare = a.date.localeCompare(b.date);
-				if (dateCompare !== 0) return dateCompare;
-				return a.hour - b.hour;
-			});
-
-			// Create appointments for this purchase
 			const appointmentInserts = purchaseSlots.map((slot) => ({
 				purchase_id: newPurchase.id,
-				room_id: appointments[0].room_id,
-				trainer_id: appointments[0].trainer_id,
+				room_id: roomId,
+				trainer_id: trainerId,
 				date: slot.date,
 				hour: slot.hour
 			}));
@@ -606,9 +487,7 @@ export const actions: Actions = {
 				});
 			}
 
-			// Assign trainees to appointments
-			// Use actual time slots count for total sessions calculation
-			const totalSessions = numWeeks * timeSlots.length;
+			const totalSessions = slotsPerPurchase;
 			const appointmentTraineeInserts = [];
 
 			for (let sessionNumber = 1; sessionNumber <= createdAppointments.length; sessionNumber++) {
@@ -638,14 +517,6 @@ export const actions: Actions = {
 
 			totalAppointmentsCreated += createdAppointments.length;
 			previousPurchaseId = newPurchase.id;
-
-			// For private lessons, update start date for next purchase
-			if (isPrivate) {
-				// Get the last appointment date of this purchase and calculate next start
-				const lastSlotDate = purchaseSlots[purchaseSlots.length - 1].date;
-				const lastDate = parseLocalDate(lastSlotDate);
-				currentStartDate = calculateExtensionStartDate(lastDate);
-			}
 		}
 
 		return {
@@ -665,6 +536,8 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const purchaseId = formData.get('purchase_id') as string;
 		const assignmentWeeksStr = formData.get('assignment_weeks') as string;
+		const startDateStr = formData.get('start_date') as string;
+		const startHour = parseInt(formData.get('start_hour') as string);
 
 		if (!purchaseId || !assignmentWeeksStr) {
 			return fail(400, {
@@ -681,6 +554,13 @@ export const actions: Actions = {
 			});
 		}
 
+		if (!startDateStr || isNaN(startHour)) {
+			return fail(400, {
+				success: false,
+				message: 'Başlangıç randevusu seçilmedi'
+			});
+		}
+
 		// Find the last purchase in the chain
 		const lastPurchase = await findLastPurchaseInChain(supabase, purchaseId);
 		if (!lastPurchase) {
@@ -689,229 +569,80 @@ export const actions: Actions = {
 				message: 'Satın alma bulunamadı'
 			});
 		}
-
-		// Load purchase details
-		const { data: purchaseData, error: purchaseError } = await supabase
-			.from('pe_purchases')
-			.select(
-				`
-				id,
-				package_id,
-				team_id,
-				reschedule_left,
-				pe_packages(
-					id,
-					package_type,
-					weeks_duration,
-					min_lessons_per_week,
-					max_lessons_per_week,
-					reschedulable,
-					reschedule_limit
-				)
-			`
-			)
-			.eq('id', lastPurchase.id)
-			.single();
-
-		if (purchaseError || !purchaseData) {
-			return fail(404, {
+		if (!lastPurchase.package_id || !lastPurchase.team_id) {
+			return fail(400, {
 				success: false,
-				message: 'Satın alma detayları yüklenemedi'
+				message: 'Paket veya takım bilgisi eksik'
 			});
 		}
 
-		type PurchaseWithPackage = {
-			id: string;
-			package_id: string;
-			team_id: string;
-			reschedule_left: number;
-			pe_packages: {
-				id: string;
-				package_type: 'private' | 'group';
-				weeks_duration: number;
-				min_lessons_per_week: number;
-				max_lessons_per_week: number;
-				reschedulable: boolean;
-				reschedule_limit: number | null;
-			} | null;
-		};
+		const packageRes = await supabase
+			.from('pe_packages')
+			.select('*')
+			.eq('id', lastPurchase.package_id)
+			.single();
 
-		const typedPurchase = purchaseData as unknown as PurchaseWithPackage;
-
-		if (!typedPurchase.pe_packages) {
+		if (packageRes.error || !packageRes.data) {
 			return fail(404, {
 				success: false,
 				message: 'Paket bilgisi bulunamadı'
 			});
 		}
-
-		// Verify this is a group package
-		if (typedPurchase.pe_packages.package_type !== 'group') {
+		const packageInfo = packageRes.data;
+		if (packageInfo.package_type !== 'group') {
 			return fail(400, {
 				success: false,
 				message: 'Bu işlem sadece grup dersleri için geçerlidir'
 			});
 		}
-
-		const packageInfo = typedPurchase.pe_packages;
-
-		// Get appointments via pe_appointment_trainees (for group lessons)
-		const { data: traineeAppointments, error: traineeAppError } = await supabase
-			.from('pe_appointment_trainees')
-			.select('pe_appointments(id, room_id, trainer_id, date, hour, group_lesson_id)')
-			.eq('purchase_id', lastPurchase.id)
-			.order('pe_appointments(date)', { ascending: true })
-			.limit(10);
-
-		type TraineeAppointmentData = {
-			pe_appointments: {
-				id: string;
-				room_id: string;
-				trainer_id: string;
-				date: string;
-				hour: number;
-				group_lesson_id: string;
-			} | null;
-		};
-
-		const appointments: AppointmentInfo[] = [];
-		// Track group_lesson_id for each timeslot (to support per-timeslot assignments from different groups)
-		const timeslotGroupLessons: Map<string, string> = new Map(); // key: "day-hour", value: group_lesson_id
-
-		if (traineeAppointments && traineeAppointments.length > 0) {
-			const typedAppointments = traineeAppointments as TraineeAppointmentData[];
-
-			for (const t of typedAppointments) {
-				if (t.pe_appointments) {
-					appointments.push({
-						room_id: t.pe_appointments.room_id,
-						trainer_id: t.pe_appointments.trainer_id,
-						date: t.pe_appointments.date,
-						hour: t.pe_appointments.hour
-					});
-
-					// Track which group lesson this timeslot belongs to
-					const aptDate = parseLocalDate(t.pe_appointments.date);
-					const dayOfWeek = aptDate.getDay();
-					const timeslotKey = `${dayOfWeek}-${t.pe_appointments.hour}`;
-					if (!timeslotGroupLessons.has(timeslotKey)) {
-						timeslotGroupLessons.set(timeslotKey, t.pe_appointments.group_lesson_id);
-					}
-				}
-			}
-		}
-
-		if (appointments.length === 0) {
-			let errorMessage = `Randevu bilgisi bulunamadı. Purchase ID: ${lastPurchase.id}`;
-			if (traineeAppError) {
-				errorMessage += ` | DB Error: ${traineeAppError.message}`;
-			} else if (!traineeAppointments || traineeAppointments.length === 0) {
-				errorMessage += ' | Bu purchase için hiç appointment_trainee kaydı bulunamadı.';
-			}
-
-			return fail(404, {
+		if (packageInfo.weeks_duration === null) {
+			return fail(400, {
 				success: false,
-				message: errorMessage
+				message: 'Paket süresi belirsiz'
 			});
 		}
 
-		if (timeslotGroupLessons.size === 0) {
+		// Pull the trainee's actual upcoming group-lesson appointments (already filtered to
+		// canonical day/hour). Locate the chosen start, then join the next totalSessions rows.
+		const startDate = parseLocalDate(startDateStr);
+		const { canonicalSlots, upcomingAppointments } = await getFutureGroupAppointments(
+			supabase,
+			lastPurchase.id,
+			startDate,
+			packageInfo.weeks_duration
+		);
+
+		if (canonicalSlots.length === 0 || upcomingAppointments.length === 0) {
 			return fail(404, {
 				success: false,
-				message: 'Grup dersi ID bulunamadı'
+				message: 'Bu paket için katılınacak randevu bulunamadı'
 			});
 		}
 
-		// Extract time slots
-		const dayMap: Record<number, DayOfWeek> = {
-			0: 'sunday',
-			1: 'monday',
-			2: 'tuesday',
-			3: 'wednesday',
-			4: 'thursday',
-			5: 'friday',
-			6: 'saturday'
-		};
-
-		const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-		const seenSlots = new Set<string>();
-
-		for (const apt of appointments) {
-			const date = parseLocalDate(apt.date);
-			const dayOfWeek = date.getDay();
-			const day = dayMap[dayOfWeek];
-			const slotKey = `${day}-${apt.hour}`;
-
-			if (!seenSlots.has(slotKey)) {
-				seenSlots.add(slotKey);
-				timeSlots.push({ day, hour: apt.hour });
-			}
+		const startIdx = upcomingAppointments.findIndex(
+			(a) => a.date === startDateStr && a.hour === startHour
+		);
+		if (startIdx === -1) {
+			return fail(400, {
+				success: false,
+				message: 'Seçilen başlangıç randevusu bulunamadı'
+			});
 		}
 
-		// Calculate start date for extension
-		const lastAppDate = await getLastAppointmentDate(supabase, lastPurchase.id);
-		const currentStartDate = calculateExtensionStartDate(lastAppDate);
+		const totalSessions = assignmentWeeks * canonicalSlots.length;
+		const sessionsToJoin = upcomingAppointments.slice(startIdx, startIdx + totalSessions);
 
-		// For group lessons, create one purchase with specified weeks
-		const numWeeks = assignmentWeeks;
+		if (sessionsToJoin.length < totalSessions) {
+			return fail(400, {
+				success: false,
+				message: `${totalSessions} ders için yeterli ileri tarihli randevu yok (${sessionsToJoin.length} mevcut). Grup dersinin randevuları daha ileri tarihe oluşturulmalı.`
+			});
+		}
 
-		// Helper function to build appointment slots
-		const buildAppointmentSlots = (
-			startDate: Date,
-			numWeeks: number
-		): Array<{ date: string; hour: number }> => {
-			const slots: Array<{ date: string; hour: number }> = [];
-
-			for (let week = 0; week < numWeeks; week++) {
-				for (const slot of timeSlots) {
-					const weekStart = new Date(startDate);
-					weekStart.setDate(startDate.getDate() + week * 7);
-
-					const dayIndex = {
-						sunday: 0,
-						monday: 1,
-						tuesday: 2,
-						wednesday: 3,
-						thursday: 4,
-						friday: 5,
-						saturday: 6
-					}[slot.day];
-
-					const weekStartDay = weekStart.getDay();
-					let daysToAdd = dayIndex - weekStartDay;
-					if (daysToAdd < 0) daysToAdd += 7;
-
-					const slotDate = new Date(weekStart);
-					slotDate.setDate(weekStart.getDate() + daysToAdd);
-
-					const year = slotDate.getFullYear();
-					const month = String(slotDate.getMonth() + 1).padStart(2, '0');
-					const day = String(slotDate.getDate()).padStart(2, '0');
-					const dateString = `${year}-${month}-${day}`;
-
-					slots.push({
-						date: dateString,
-						hour: slot.hour
-					});
-				}
-			}
-
-			return slots;
-		};
-
-		// Build all appointment slots and sort by date/hour for correct session numbering
-		const allAppointmentSlots = buildAppointmentSlots(currentStartDate, numWeeks);
-		allAppointmentSlots.sort((a, b) => {
-			const dateCompare = a.date.localeCompare(b.date);
-			if (dateCompare !== 0) return dateCompare;
-			return a.hour - b.hour;
-		});
-
-		// Get trainee from team (should be one trainee for group lesson extension)
 		const { data: teamMembers, error: teamError } = await supabase
 			.from('pe_teams')
 			.select('trainee_id')
-			.eq('id', typedPurchase.team_id);
+			.eq('id', lastPurchase.team_id);
 
 		if (teamError || !teamMembers || teamMembers.length === 0) {
 			return fail(500, {
@@ -922,12 +653,11 @@ export const actions: Actions = {
 
 		const rescheduleLeft = packageInfo.reschedulable ? (packageInfo.reschedule_limit ?? 999) : 0;
 
-		// Create new purchase
 		const { data: newPurchase, error: newPurchaseError } = await supabase
 			.from('pe_purchases')
 			.insert({
-				package_id: typedPurchase.package_id,
-				team_id: typedPurchase.team_id,
+				package_id: lastPurchase.package_id,
+				team_id: lastPurchase.team_id,
 				reschedule_left: rescheduleLeft,
 				successor_id: null
 			})
@@ -941,7 +671,6 @@ export const actions: Actions = {
 			});
 		}
 
-		// Update previous purchase to point to new purchase
 		const { error: updateError } = await supabase
 			.from('pe_purchases')
 			.update({ successor_id: newPurchase.id })
@@ -954,53 +683,15 @@ export const actions: Actions = {
 			});
 		}
 
-		// Find matching appointments to join using per-timeslot group lesson mapping
-		const appointmentTraineeInserts = [];
-		let totalSessionsJoined = 0;
-
-		for (let sessionNumber = 1; sessionNumber <= allAppointmentSlots.length; sessionNumber++) {
-			const slot = allAppointmentSlots[sessionNumber - 1];
-
-			// Determine which group lesson this slot belongs to
-			const slotDate = parseLocalDate(slot.date);
-			const slotDayOfWeek = slotDate.getDay();
-			const timeslotKey = `${slotDayOfWeek}-${slot.hour}`;
-			const slotGroupLessonId = timeslotGroupLessons.get(timeslotKey);
-
-			if (!slotGroupLessonId) {
-				// Skip if we don't have a mapping for this timeslot
-				continue;
-			}
-
-			// Find the appointment that matches this slot in the correct group lesson
-			const { data: matchingAppointment } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('group_lesson_id', slotGroupLessonId)
-				.eq('date', slot.date)
-				.eq('hour', slot.hour)
-				.maybeSingle();
-
-			if (matchingAppointment) {
-				for (const member of teamMembers) {
-					appointmentTraineeInserts.push({
-						appointment_id: matchingAppointment.id,
-						trainee_id: member.trainee_id,
-						purchase_id: newPurchase.id,
-						session_number: sessionNumber,
-						total_sessions: allAppointmentSlots.length
-					});
-				}
-				totalSessionsJoined++;
-			}
-		}
-
-		if (appointmentTraineeInserts.length === 0) {
-			return fail(404, {
-				success: false,
-				message: 'Katılınacak randevu bulunamadı'
-			});
-		}
+		const appointmentTraineeInserts = sessionsToJoin.flatMap((apt, idx) =>
+			teamMembers.map((member) => ({
+				appointment_id: apt.appointment_id,
+				trainee_id: member.trainee_id,
+				purchase_id: newPurchase.id,
+				session_number: idx + 1,
+				total_sessions: totalSessions
+			}))
+		);
 
 		const { error: traineeError } = await supabase
 			.from('pe_appointment_trainees')
@@ -1015,7 +706,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: `${assignmentWeeks} haftalık uzatma (${totalSessionsJoined} derse katılım) başarıyla oluşturuldu`
+			message: `${assignmentWeeks} haftalık uzatma (${totalSessions} derse katılım) başarıyla oluşturuldu`
 		};
 	}
 };

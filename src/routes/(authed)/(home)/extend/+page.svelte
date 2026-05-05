@@ -7,27 +7,32 @@
 	import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
 	import CheckCircle from '@lucide/svelte/icons/check-circle';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import Play from '@lucide/svelte/icons/play';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
-	import { getDateForDayOfWeek, getWeekStart } from '$lib/utils/date-utils';
+	import { parseLocalDate, formatTurkishDate } from '$lib/utils/date-utils';
+	import { buildAppointmentSlotsFromStart } from '$lib/utils/extension-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 
 	let { data } = $props();
-	let { purchaseInfo, suggestedStartDate, lastAppointmentDate, purchaseChain } = $derived(data);
+	let { purchaseInfo, startCandidates, lastAppointmentDate, purchaseChain } = $derived(data);
 
 	let packageCount = $state(1); // For private packages
 	let assignmentWeeks = $state(4); // For group packages
+	let selectedStartIndex = $state('0'); // RadioGroup binds to string
 	let isSubmitting = $state(false);
 
 	const isGroupPackage = $derived(purchaseInfo.package_type === 'group');
 	const isPrivatePackage = $derived(purchaseInfo.package_type === 'private');
 
-	const totalWeeks = $derived(() => {
+	const totalWeeks = $derived.by(() => {
 		if (isPrivatePackage) {
 			return packageCount * purchaseInfo.weeks_duration;
 		} else {
@@ -35,57 +40,46 @@
 		}
 	});
 
+	const totalAppointmentCount = $derived(totalWeeks * purchaseInfo.lessons_per_week);
+
+	const selectedCandidate = $derived(
+		startCandidates[Number(selectedStartIndex)] ?? startCandidates[0] ?? null
+	);
+
 	const appointmentPreviews = $derived.by(() => {
-		const previews: Array<{ date: string; hour: number; day: DayOfWeek; weekNumber: number }> = [];
-		// Parse date string as local date to avoid timezone issues
-		const [year, month, day] = suggestedStartDate.split('-').map(Number);
-		const startDate = new Date(year, month - 1, day);
-
-		// Get the Monday of the week containing the start date
-		const firstWeekMonday = getWeekStart(startDate);
-
-		// For each timeslot, find its first valid date and generate totalWeeks appointments
-		for (const slot of purchaseInfo.time_slots) {
-			// Get the date for this slot's day in the first week
-			let firstSlotDate = getDateForDayOfWeek(firstWeekMonday, slot.day);
-
-			// If this date is before start date, move to next week
-			if (firstSlotDate < startDate) {
-				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
-				firstSlotDate = new Date(firstSlotDate);
-				firstSlotDate.setDate(firstSlotDate.getDate() + 7);
-			}
-
-			// Generate totalWeeks appointments starting from this first valid date
-			for (let week = 0; week < totalWeeks(); week++) {
-				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
-				const slotDate = new Date(firstSlotDate);
-				slotDate.setDate(firstSlotDate.getDate() + week * 7);
-
-				// Format date as YYYY-MM-DD using local date components
-				const slotYear = slotDate.getFullYear();
-				const slotMonth = String(slotDate.getMonth() + 1).padStart(2, '0');
-				const slotDay = String(slotDate.getDate()).padStart(2, '0');
-				const dateString = `${slotYear}-${slotMonth}-${slotDay}`;
-
-				previews.push({
-					date: dateString,
-					hour: slot.hour,
-					day: slot.day,
-					weekNumber: week + 1
-				});
-			}
+		if (!selectedCandidate || totalAppointmentCount <= 0) {
+			return [] as Array<{ date: string; hour: number; day: DayOfWeek; weekNumber: number }>;
 		}
 
-		// Sort by date and hour for consistent display
-		previews.sort((a, b) => {
-			const dateCompare = a.date.localeCompare(b.date);
-			if (dateCompare !== 0) return dateCompare;
-			return a.hour - b.hour;
-		});
+		const startDate = parseLocalDate(selectedCandidate.date);
+		const slots = buildAppointmentSlotsFromStart(
+			startDate,
+			selectedCandidate.hour,
+			purchaseInfo.time_slots,
+			totalAppointmentCount
+		);
 
-		return previews;
+		return slots.map((slot, idx) => ({
+			date: slot.date,
+			hour: slot.hour,
+			day: getDayOfWeekName(slot.date),
+			weekNumber: Math.floor(idx / purchaseInfo.lessons_per_week) + 1
+		}));
 	});
+
+	function getDayOfWeekName(dateStr: string): DayOfWeek {
+		const date = parseLocalDate(dateStr);
+		const names: DayOfWeek[] = [
+			'sunday',
+			'monday',
+			'tuesday',
+			'wednesday',
+			'thursday',
+			'friday',
+			'saturday'
+		];
+		return names[date.getDay()];
+	}
 
 	let conflicts = $state<Array<{ date: string; hour: number; reason: string }>>([]);
 	let capacityIssues = $state<
@@ -108,7 +102,6 @@
 		conflicts = [];
 
 		try {
-			// Fetch existing appointments for conflict checking
 			const dateStrings = appointmentPreviews.map((a) => a.date);
 			const minDate = dateStrings[0];
 			const maxDate = dateStrings[dateStrings.length - 1];
@@ -171,21 +164,24 @@
 
 	const hasConflicts = $derived(conflicts.length > 0);
 	const hasCapacityIssues = $derived(capacityIssues.length > 0);
-	const canSubmit = $derived(() => {
+	const canSubmit = $derived.by(() => {
 		if (isCheckingConflicts) return false;
+		if (!selectedCandidate) return false;
 		if (isPrivatePackage && (hasConflicts || packageCount <= 0)) return false;
 		if (isGroupPackage && (hasCapacityIssues || assignmentWeeks <= 0)) return false;
 		return true;
 	});
 
 	async function handleSubmit() {
-		if (!canSubmit()) return;
+		if (!canSubmit || !selectedCandidate) return;
 
 		isSubmitting = true;
 
 		try {
 			const formData = new FormData();
 			formData.append('purchase_id', purchaseInfo.id);
+			formData.append('start_date', selectedCandidate.date);
+			formData.append('start_hour', selectedCandidate.hour.toString());
 
 			let actionUrl = '';
 			if (isPrivatePackage) {
@@ -221,7 +217,6 @@
 		}
 	}
 
-	// Format date for display
 	function formatDate(dateString: string): string {
 		const date = new Date(dateString);
 		return date.toLocaleDateString('tr-TR', {
@@ -247,7 +242,7 @@
 			</div>
 			<Button
 				class="bg-warning text-warning-foreground hover:bg-warning/80"
-				disabled={!canSubmit() || isSubmitting}
+				disabled={!canSubmit || isSubmitting}
 				onclick={handleSubmit}
 			>
 				{#if isSubmitting}
@@ -261,15 +256,15 @@
 
 		<!-- 3-Column Layout -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-			<!-- Column 1: Duration Settings -->
+			<!-- Column 1: Start + Duration Settings -->
 			<Card.Root>
 				<Card.Header>
 					<Card.Title class="flex items-center gap-2 text-lg">
 						<Calendar class="h-5 w-5 text-warning" />
-						Uzatma Süresi
+						Uzatma Ayarları
 					</Card.Title>
 				</Card.Header>
-				<Card.Content class="space-y-4">
+				<Card.Content class="space-y-5">
 					<!-- Package Info Summary -->
 					<div class="rounded-lg border border-border bg-muted/40 p-4">
 						<div class="text-sm text-muted-foreground">
@@ -290,14 +285,63 @@
 						</div>
 					</div>
 
+					<!-- Starting Appointment Selector -->
+					<div class="grid gap-2">
+						<Label class="flex items-center gap-1.5 font-medium">
+							<Play class="h-3.5 w-3.5 text-warning" />
+							Başlangıç Randevusu
+						</Label>
+						<p class="text-xs text-muted-foreground">
+							Uzatmanın başlayacağı ilk dersi seçin. Diğer randevular bu noktadan itibaren ders
+							saatlerine göre sıralanır.
+						</p>
+
+						{#if startCandidates.length === 0}
+							<div
+								class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
+							>
+								Uygun başlangıç randevusu bulunamadı.
+							</div>
+						{:else}
+							<RadioGroup
+								bind:value={selectedStartIndex}
+								class="max-h-72 gap-2 overflow-y-auto pr-1"
+							>
+								{#each startCandidates as candidate, i (`${candidate.date}-${candidate.hour}`)}
+									{@const id = `start-candidate-${i}`}
+									{@const isSelected = i.toString() === selectedStartIndex}
+									<Label
+										for={id}
+										class={cn(
+											'flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 transition-colors',
+											isSelected
+												? 'border-warning bg-warning/5'
+												: 'border-border hover:bg-muted/40'
+										)}
+									>
+										<div class="flex flex-col">
+											<span class="text-sm font-medium">
+												{formatTurkishDate(candidate.date)}
+											</span>
+											<span class="text-xs text-muted-foreground">
+												{DAY_NAMES[candidate.day]} • {candidate.hour}:00
+											</span>
+										</div>
+										<RadioGroupItem {id} value={i.toString()} class="border-warning" />
+									</Label>
+								{/each}
+							</RadioGroup>
+						{/if}
+					</div>
+
 					<!-- Duration input - differs for private vs group -->
 					{#if isPrivatePackage}
 						<div class="grid gap-2">
 							<Label for="package-count" class="font-medium">Kaç Paket Uzatılacak?</Label>
 							<Input id="package-count" type="number" min="1" max="10" bind:value={packageCount} />
 							<div class="text-xs text-muted-foreground">
-								Toplam: <strong>{totalWeeks()} hafta</strong>
-								({totalWeeks() * purchaseInfo.lessons_per_week} ders)
+								Toplam: <strong>{totalWeeks} hafta</strong>
+								({totalAppointmentCount} ders)
 							</div>
 						</div>
 					{:else if isGroupPackage}
@@ -312,7 +356,7 @@
 							/>
 							<div class="text-xs text-muted-foreground">
 								Toplam: <strong>{assignmentWeeks} hafta</strong>
-								({assignmentWeeks * purchaseInfo.lessons_per_week} ders)
+								({totalAppointmentCount} ders)
 							</div>
 						</div>
 					{/if}
@@ -518,7 +562,7 @@
 										<div
 											class="rounded-lg border p-3 transition-colors {hasIssue
 												? 'border-destructive bg-destructive/5'
-												: 'border-border'}"
+												: 'border-border'} {i === 0 ? 'ring-1 ring-warning/40' : ''}"
 										>
 											<div class="flex items-start justify-between">
 												<div class="flex-1">
@@ -528,6 +572,9 @@
 													<div class="mt-1 text-xs text-muted-foreground">
 														{DAY_NAMES[appointment.day]} • {appointment.hour}:00 • Hafta {appointment.weekNumber}
 													</div>
+													{#if i === 0}
+														<div class="mt-1 text-xs font-medium text-warning">Başlangıç</div>
+													{/if}
 													{#if hasIssue}
 														<div class="mt-2">
 															{#if isPrivatePackage && conflictInfo}
