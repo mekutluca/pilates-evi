@@ -6,8 +6,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import type { ScheduleSlot } from './schedule.types';
-	import type { DayOfWeek } from '$lib/types/Schedule';
+	import type { ScheduleSlot, DayOfWeek } from '$lib/types/Schedule';
 	import type { Snippet } from 'svelte';
 
 	type ScheduleColor =
@@ -169,6 +168,7 @@
 											class={cn(
 												'min-h-12 w-full rounded p-2 text-xs transition-colors',
 												colorClasses[apptColor].solid,
+												slot.dimmed && 'opacity-60',
 												slot.clickable !== false
 													? 'cursor-pointer hover:opacity-80'
 													: 'cursor-default'

@@ -217,3 +217,60 @@ export function getTimeRangeString(hour: number): string {
 export function getDayIndex(day: DayOfWeek): number {
 	return DAYS_OF_WEEK.indexOf(day);
 }
+
+// ===============================================
+// SCHEDULE SLOT TYPES (used by the Schedule component)
+// ===============================================
+
+export type SlotVariant = 'empty' | 'appointment' | 'available' | 'disabled' | 'custom';
+
+export interface RescheduleSlotData {
+	roomId: string;
+	day: DayOfWeek;
+	hour: number;
+}
+
+export interface BaseSlotData {
+	day: DayOfWeek;
+	hour: number;
+	date: string; // ISO date string
+}
+
+export interface EmptySlot extends BaseSlotData {
+	variant: 'empty';
+	label?: string; // Optional label like "-" or "Müsait"
+}
+
+export interface AppointmentSlot extends BaseSlotData {
+	variant: 'appointment';
+	title: string; // Main text (e.g., trainer/room name)
+	subtitle?: string; // Optional subtitle (e.g., package name)
+	badge?: string; // Optional badge text (e.g., "Son ders")
+	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+	clickable?: boolean;
+	dimmed?: boolean; // Visually de-emphasize the slot (e.g., empty group lesson)
+	data?: AppointmentWithDetails | Appointment;
+}
+
+export interface AvailableSlot extends BaseSlotData {
+	variant: 'available';
+	label?: string; // Optional label like "Seç" or "Müsait"
+	clickable?: boolean;
+	disabled?: boolean;
+	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+	data?: RescheduleSlotData;
+}
+
+export interface DisabledSlot extends BaseSlotData {
+	variant: 'disabled';
+	label?: string; // Optional label like "Geçmiş" or "23s"
+	reason?: string; // Why it's disabled (for tooltip/accessibility)
+}
+
+export interface CustomSlot extends BaseSlotData {
+	variant: 'custom';
+	clickable?: boolean;
+	data?: Record<string, never>;
+}
+
+export type ScheduleSlot = EmptySlot | AppointmentSlot | AvailableSlot | DisabledSlot | CustomSlot;

@@ -13,12 +13,14 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { SvelteDate } from 'svelte/reactivity';
-	import type {
-		DayOfWeek,
-		AppointmentWithDetails,
-		AppointmentWithRelations
+	import {
+		type DayOfWeek,
+		type AppointmentWithDetails,
+		type AppointmentWithRelations,
+		type ScheduleSlot,
+		DAY_NAMES,
+		getTimeRangeString
 	} from '$lib/types/Schedule';
-	import { DAY_NAMES, getTimeRangeString } from '$lib/types/Schedule';
 	import {
 		getWeekStart,
 		formatWeekRange,
@@ -32,14 +34,13 @@
 	import { page } from '$app/state';
 	import Modal from '$lib/components/modal.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
-	import type { ScheduleSlot } from '$lib/components/schedule.types';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 
@@ -89,11 +90,8 @@
 
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
-
-	// Extension modal state
-	let showExtensionModal = $state(false);
-	let additionalPackages = $state(1);
-	let extensionLoading = $state(false);
+	let rescheduleSource = $state<'trainee' | 'system'>('trainee');
+	let rescheduleSystemReason = $state('');
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -160,6 +158,8 @@
 		rescheduleMode = false;
 		selectedRescheduleSlot = null;
 		showRescheduleConfirmation = false;
+		rescheduleSource = 'trainee';
+		rescheduleSystemReason = '';
 	}
 
 	function handleRescheduleSlotClick(roomId: string, day: DayOfWeek, hour: number) {
@@ -279,6 +279,7 @@
 			);
 			const isBeingRescheduled =
 				rescheduleMode && selectedAppointment && appointment.id === selectedAppointment.id;
+			const isEmpty = (appointmentDetails.trainee_count ?? 0) === 0;
 
 			return {
 				variant: 'appointment',
@@ -293,6 +294,7 @@
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
 				color: isBeingRescheduled ? 'warning' : 'primary',
 				clickable: !rescheduleMode,
+				dimmed: isEmpty,
 				data: appointmentDetails
 			};
 		} else if (isPast) {
@@ -806,16 +808,49 @@
 				<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
 				<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
 				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
+				<input type="hidden" name="source" value={rescheduleSource} />
 
 				<div class="grid gap-2">
-					<Label for="reschedule-reason">Değişiklik Sebebi (İsteğe bağlı)</Label>
-					<Textarea
-						id="reschedule-reason"
-						name="reason"
-						placeholder="Randevu değişikliği sebebini açıklayın..."
-						rows={2}
-					/>
+					<Label>Değişikliği Talep Eden</Label>
+					<RadioGroup
+						value={rescheduleSource}
+						onValueChange={(v) => (rescheduleSource = v as 'trainee' | 'system')}
+						class="space-y-2"
+					>
+						<label class="flex cursor-pointer items-start gap-3">
+							<RadioGroupItem value="trainee" class="mt-0.5" />
+							<div class="flex flex-col">
+								<span class="text-sm">Öğrenci Talebi</span>
+								<span class="text-xs text-muted-foreground">
+									Öğrenci tarafından talep edilen değişiklik
+								</span>
+							</div>
+						</label>
+						<label class="flex cursor-pointer items-start gap-3">
+							<RadioGroupItem value="system" class="mt-0.5" />
+							<div class="flex flex-col">
+								<span class="text-sm">Sistem</span>
+								<span class="text-xs text-muted-foreground">
+									Stüdyo kaynaklı değişiklik (tatil, eğitmen değişikliği, vb.)
+								</span>
+							</div>
+						</label>
+					</RadioGroup>
 				</div>
+
+				{#if rescheduleSource === 'system'}
+					<div class="grid gap-2">
+						<Label for="reschedule-reason">Değişiklik Sebebi</Label>
+						<Textarea
+							id="reschedule-reason"
+							name="reason"
+							placeholder="Örn: 23 Nisan tatili"
+							rows={2}
+							required
+							bind:value={rescheduleSystemReason}
+						/>
+					</div>
+				{/if}
 
 				<div class="flex justify-end gap-2">
 					<Button
@@ -841,67 +876,5 @@
 				</div>
 			</form>
 		</div>
-	{/if}
-</Modal>
-
-<Modal bind:open={showExtensionModal} title="Paketi Uzat">
-	{#if selectedAppointment}
-		<form
-			method="POST"
-			action="?/extendPackage"
-			use:enhance={() => {
-				extensionLoading = true;
-				return async ({ result, update }) => {
-					extensionLoading = false;
-					if (result.type === 'success') {
-						toast.success('Paket başarıyla uzatıldı');
-						showExtensionModal = false;
-						additionalPackages = 1;
-					} else if (result.type === 'failure') {
-						toast.error(getActionErrorMessage(result));
-					}
-					await update();
-				};
-			}}
-			class="space-y-5"
-		>
-			<input type="hidden" name="purchase_id" value={selectedAppointment.purchase_id} />
-			<input type="hidden" name="package_count" value={additionalPackages} />
-
-			<Alert.Root class="border-warning/40 bg-warning/10 text-warning">
-				<Alert.Description>
-					Extension functionality needs to be reimplemented for the new schema.
-				</Alert.Description>
-			</Alert.Root>
-
-			<!-- Extension Input -->
-			<div class="grid gap-2">
-				<Label for="package_count" class="font-medium">Kaç paket uzatılsın?</Label>
-				<Input
-					type="number"
-					id="package_count"
-					name="package_count"
-					bind:value={additionalPackages}
-					min="1"
-					max="20"
-					class="text-center text-lg font-medium"
-					required
-				/>
-			</div>
-
-			<!-- Action Buttons -->
-			<div class="flex justify-end gap-2">
-				<Button type="button" variant="outline" onclick={() => (showExtensionModal = false)}>
-					İptal
-				</Button>
-				<Button type="submit" disabled={true}>
-					{#if extensionLoading}
-						<LoaderCircle size={16} class="animate-spin" />
-					{:else}
-						Uzat (Henüz aktif değil)
-					{/if}
-				</Button>
-			</div>
-		</form>
 	{/if}
 </Modal>

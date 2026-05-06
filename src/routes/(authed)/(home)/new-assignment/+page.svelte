@@ -29,7 +29,7 @@
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Schedule from '$lib/components/schedule.svelte';
-	import type { ScheduleSlot } from '$lib/components/schedule.types';
+	import type { ScheduleSlot } from '$lib/types/Schedule';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';

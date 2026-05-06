@@ -59,13 +59,13 @@ export class WhatsAppRepository {
 
 	async sendRescheduleNotifications(params: RescheduleNotificationParams): Promise<number> {
 		const mapping: TemplateMapping[] = [
-			{ schemaPropertyName: 'old_date_time', schemaPropertyValue: params.oldDateTime },
-			{ schemaPropertyName: 'package', schemaPropertyValue: params.packageName },
-			{ schemaPropertyName: 'new_date_time', schemaPropertyValue: params.newDateTime }
+			{ schemaPropertyName: 'old_date_time', schemaPropertyValue: params.oldDateTime.trim() },
+			{ schemaPropertyName: 'package', schemaPropertyValue: params.packageName.trim() },
+			{ schemaPropertyName: 'new_date_time', schemaPropertyValue: params.newDateTime.trim() }
 		];
 
 		if (params.cause) {
-			mapping.push({ schemaPropertyName: 'cause', schemaPropertyValue: params.cause });
+			mapping.push({ schemaPropertyName: 'cause', schemaPropertyValue: params.cause.trim() });
 		}
 
 		const results = await Promise.all(

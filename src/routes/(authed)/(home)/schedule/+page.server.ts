@@ -112,10 +112,19 @@ export const actions: Actions = {
 		const newRoomId = getRequiredFormDataString(formData, 'newRoomId');
 		const newDayOfWeek = getRequiredFormDataString(formData, 'newDayOfWeek') as DayOfWeek;
 		const newHour = Number(getRequiredFormDataString(formData, 'newHour'));
+		const source = (formData.get('source')?.toString() || 'trainee') as 'trainee' | 'system';
+		const reason = formData.get('reason')?.toString() || '';
 
 		// Validate inputs
 		if (isNaN(appointmentId) || isNaN(newHour)) {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
+		}
+
+		if (source === 'system' && !reason.trim()) {
+			return fail(400, {
+				success: false,
+				message: 'Sistem kaynaklı değişiklikler için sebep belirtilmesi gerekir'
+			});
 		}
 
 		// Get current appointment details with purchase info, package name, and trainees
@@ -295,7 +304,9 @@ export const actions: Actions = {
 				oldDateTime,
 				newDateTime,
 				packageName,
-				templateName: 'appt_reschedule_per_user_request'
+				templateName:
+					source === 'system' ? 'appt_reschedule_by_system' : 'appt_reschedule_per_user_request',
+				cause: source === 'system' ? reason : undefined
 			});
 		}
 

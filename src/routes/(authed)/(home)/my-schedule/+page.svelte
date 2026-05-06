@@ -12,7 +12,7 @@
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import Modal from '$lib/components/modal.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
-	import type { ScheduleSlot } from '$lib/components/schedule.types';
+	import type { ScheduleSlot } from '$lib/types/Schedule';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
