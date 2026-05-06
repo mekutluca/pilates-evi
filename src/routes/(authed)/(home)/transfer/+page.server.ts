@@ -17,6 +17,7 @@ import {
 	formatShortTurkishDateTime
 } from '$lib/utils/date-utils';
 import type { DayOfWeek } from '$lib/types/Schedule';
+import { getGroupLessonCanonicalSlots } from '$lib/utils/extension-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 
 const APPOINTMENT_SELECT_QUERY = `
@@ -97,7 +98,9 @@ async function getFutureAppointmentsByPurchase(
 		.eq('purchase_id', purchaseId)
 		.or(
 			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
-		);
+		)
+		.order('date', { ascending: true })
+		.order('hour', { ascending: true });
 
 	let allAppointments = (appointments || []) as AppointmentWithDetails[];
 
@@ -106,7 +109,9 @@ async function getFutureAppointmentsByPurchase(
 		const { data: successorAppts } = await supabase
 			.from('pe_appointments')
 			.select(APPOINTMENT_SELECT_QUERY)
-			.eq('purchase_id', successorId);
+			.eq('purchase_id', successorId)
+			.order('date', { ascending: true })
+			.order('hour', { ascending: true });
 
 		if (successorAppts) {
 			allAppointments = [...allAppointments, ...(successorAppts as AppointmentWithDetails[])];
@@ -130,9 +135,25 @@ async function getFutureAppointmentsByGroupLesson(
 		.eq('group_lesson_id', groupLessonId)
 		.or(
 			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
-		);
+		)
+		.order('date', { ascending: true })
+		.order('hour', { ascending: true });
 
 	return (appointments || []) as AppointmentWithDetails[];
+}
+
+// Keeps only appointments whose (day-of-week, hour) is in the canonical slot set,
+// dropping one-off reschedule destinations that landed on off-pattern days/hours.
+function filterToCanonicalSlots<T extends { date: string | null; hour: number | null }>(
+	appointments: T[],
+	canonicalSlots: Set<string>
+): T[] {
+	if (canonicalSlots.size === 0) return appointments;
+	return appointments.filter((apt) => {
+		if (!apt.date || apt.hour === null) return false;
+		const day = getDayOfWeekFromDate(apt.date);
+		return canonicalSlots.has(`${day}-${apt.hour}`);
+	});
 }
 
 async function hasConflict(
@@ -208,10 +229,10 @@ async function sendShiftNotifications(
 					phoneNumber: msg.phone,
 					templateName: 'appt_reschedule_by_system',
 					mapping: [
-						{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime },
-						{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName },
-						{ schemaPropertyName: 'cause', schemaPropertyValue: cause },
-						{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime }
+						{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime.trim() },
+						{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName.trim() },
+						{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
+						{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime.trim() }
 					]
 				})
 				.catch((error) => {
@@ -369,7 +390,9 @@ export const load: PageServerLoad = async ({
 			.from('pe_appointments')
 			.select(APPOINTMENT_SUMMARY_SELECT_QUERY)
 			.in('purchase_id', purchaseChain)
-			.gte('date', today);
+			.gte('date', today)
+			.order('date', { ascending: true })
+			.order('hour', { ascending: true });
 		allFromNowAppointments = (chainAppts || []) as AppointmentSummaryResult[];
 	} else if (appointment.group_lesson_id) {
 		// If trainee shift mode, get only trainee's enrolled appointments (including extensions)
@@ -409,9 +432,21 @@ export const load: PageServerLoad = async ({
 				.from('pe_appointments')
 				.select(APPOINTMENT_SUMMARY_SELECT_QUERY)
 				.eq('group_lesson_id', appointment.group_lesson_id)
-				.gte('date', today);
+				.gte('date', today)
+				.order('date', { ascending: true })
+				.order('hour', { ascending: true });
 			allFromNowAppointments = (groupAppts || []) as AppointmentSummaryResult[];
 		}
+	}
+
+	// For group lessons, drop one-off reschedule destinations from both lists so the affected-
+	// appointments view and slot-shift preview only consider the canonical recurring schedule.
+	let canonicalTimeslots: Array<{ day: DayOfWeek; hour: number }> = [];
+	if (appointment.group_lesson_id) {
+		const canonical = await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id);
+		futureAppointments = filterToCanonicalSlots(futureAppointments, canonical.slotKeys);
+		allFromNowAppointments = filterToCanonicalSlots(allFromNowAppointments, canonical.slotKeys);
+		canonicalTimeslots = canonical.slots;
 	}
 
 	// If trainee shift mode, fetch trainee and purchase info
@@ -453,7 +488,8 @@ export const load: PageServerLoad = async ({
 			room_name: a.pe_rooms?.name || null,
 			trainer_name: a.pe_trainers?.name || null
 		})),
-		allFromNowCount: allFromNowAppointments.length
+		allFromNowCount: allFromNowAppointments.length,
+		canonicalTimeslots
 	};
 };
 
@@ -542,6 +578,15 @@ export const actions: Actions = {
 					appointmentsToTransfer = groupAppts as AppointmentWithDetails[];
 				}
 			}
+		}
+
+		// For group lessons, exclude one-off reschedule destinations from the bulk transfer.
+		if (appointment.group_lesson_id && scope !== 'single') {
+			const { slotKeys } = await getGroupLessonCanonicalSlots(
+				supabase,
+				appointment.group_lesson_id
+			);
+			appointmentsToTransfer = filterToCanonicalSlots(appointmentsToTransfer, slotKeys);
 		}
 
 		// Final conflict check
@@ -679,6 +724,14 @@ export const actions: Actions = {
 					appointmentsToShift = groupAppts as AppointmentWithDetails[];
 				}
 			}
+		}
+
+		if (appointment.group_lesson_id && scope !== 'single') {
+			const { slotKeys } = await getGroupLessonCanonicalSlots(
+				supabase,
+				appointment.group_lesson_id
+			);
+			appointmentsToShift = filterToCanonicalSlots(appointmentsToShift, slotKeys);
 		}
 
 		// Final conflict check
@@ -832,6 +885,15 @@ export const actions: Actions = {
 			});
 		}
 
+		// For group lessons, drop one-off reschedule destinations so the slot pattern stays clean.
+		const canonical = appointment.group_lesson_id
+			? await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id)
+			: { slots: [], slotKeys: new Set<string>() };
+
+		if (appointment.group_lesson_id) {
+			appointmentsToShift = filterToCanonicalSlots(appointmentsToShift, canonical.slotKeys);
+		}
+
 		// Filter valid appointments
 		const validAppointments = appointmentsToShift.filter((a) => a.date && a.hour !== null);
 
@@ -842,18 +904,22 @@ export const actions: Actions = {
 			});
 		}
 
-		// Extract the time slot pattern (day of week + hour) from existing appointments
+		// Build the recurring time-slot pattern. For group lessons use the canonical schedule
+		// (pe_group_lessons.timeslots); for private lessons infer from the appointment list.
 		const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-		const seenSlots = new Set<string>();
+		if (canonical.slots.length > 0) {
+			timeSlots.push(...canonical.slots);
+		} else {
+			const seenSlots = new Set<string>();
+			for (const apt of validAppointments) {
+				if (!apt.date || apt.hour === null) continue;
+				const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+				const slotKey = `${day}-${apt.hour}`;
 
-		for (const apt of validAppointments) {
-			if (!apt.date || apt.hour === null) continue;
-			const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
-			const slotKey = `${day}-${apt.hour}`;
-
-			if (!seenSlots.has(slotKey)) {
-				seenSlots.add(slotKey);
-				timeSlots.push({ day, hour: apt.hour });
+				if (!seenSlots.has(slotKey)) {
+					seenSlots.add(slotKey);
+					timeSlots.push({ day, hour: apt.hour });
+				}
 			}
 		}
 
@@ -1010,10 +1076,10 @@ export const actions: Actions = {
 							phoneNumber: msg.phone,
 							templateName: 'appt_reschedule_by_system',
 							mapping: [
-								{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime },
-								{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName },
-								{ schemaPropertyName: 'cause', schemaPropertyValue: cause },
-								{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime }
+								{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime.trim() },
+								{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName.trim() },
+								{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
+								{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime.trim() }
 							]
 						})
 						.catch((error) => {

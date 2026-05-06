@@ -398,6 +398,41 @@ export async function getFutureGroupAppointments(
 }
 
 /**
+ * Returns the canonical recurring schedule for a group lesson, parsed straight from
+ * `pe_group_lessons.timeslots`. Returns both an Array<{day,hour}> for iteration and a
+ * Set keyed by `${dayName}-${hour}` for fast lookup.
+ */
+export async function getGroupLessonCanonicalSlots(
+	supabase: SupabaseClientType,
+	groupLessonId: string
+): Promise<{
+	slots: Array<{ day: DayOfWeek; hour: number }>;
+	slotKeys: Set<string>;
+}> {
+	const { data } = await supabase
+		.from('pe_group_lessons')
+		.select('timeslots')
+		.eq('id', groupLessonId)
+		.single();
+
+	if (!data) return { slots: [], slotKeys: new Set() };
+
+	const slots: Array<{ day: DayOfWeek; hour: number }> = [];
+	const slotKeys = new Set<string>();
+	for (const ts of parseGroupLessonTimeslots(data.timeslots)) {
+		if (!isDayOfWeek(ts.day)) continue;
+		for (const hour of ts.hours) {
+			const key = `${ts.day}-${hour}`;
+			if (!slotKeys.has(key)) {
+				slotKeys.add(key);
+				slots.push({ day: ts.day, hour });
+			}
+		}
+	}
+	return { slots, slotKeys };
+}
+
+/**
  * Gets the last appointment date for a group lesson
  */
 export async function getLastGroupLessonAppointmentDate(

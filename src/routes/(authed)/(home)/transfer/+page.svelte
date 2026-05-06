@@ -536,7 +536,7 @@
 		</div>
 
 		<!-- 3-Column Layout -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
 			<!-- Column 1: Transfer Settings -->
 			<Card.Root>
 				<Card.Content class="space-y-4">
@@ -810,23 +810,28 @@
 									scope === 'from_selected' ? data.futureAppointments : data.allFromNowAppointments}
 								{@const allSlotsForPreview = (() => {
 									if (!isShiftBySlotMode || slotsToShift <= 0) return null;
+									if (appointments.length === 0 || !appointments[0].date) return null;
 
-									// Extract time slot pattern
-									const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-									const seenSlots = new Set<string>();
-
-									for (const apt of appointments) {
-										if (!apt.date || apt.hour === null) continue;
-										const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
-										const slotKey = `${day}-${apt.hour}`;
-
-										if (!seenSlots.has(slotKey)) {
-											seenSlots.add(slotKey);
-											timeSlots.push({ day, hour: apt.hour });
+									// Use the canonical schedule from pe_group_lessons.timeslots when available
+									// (group lessons), otherwise infer from the appointment list (private). This
+									// keeps one-off reschedules from polluting the slot-shift sequence.
+									let timeSlots: Array<{ day: DayOfWeek; hour: number }>;
+									if (data.canonicalTimeslots && data.canonicalTimeslots.length > 0) {
+										timeSlots = [...data.canonicalTimeslots];
+									} else {
+										timeSlots = [];
+										const seenSlots = new Set<string>();
+										for (const apt of appointments) {
+											if (!apt.date || apt.hour === null) continue;
+											const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+											const slotKey = `${day}-${apt.hour}`;
+											if (!seenSlots.has(slotKey)) {
+												seenSlots.add(slotKey);
+												timeSlots.push({ day, hour: apt.hour });
+											}
 										}
 									}
 
-									// Sort time slots
 									const dayOrder = {
 										sunday: 0,
 										monday: 1,
@@ -842,8 +847,7 @@
 										return a.hour - b.hour;
 									});
 
-									// Build full schedule using utility function
-									const firstDate = new Date(appointments[0].date!);
+									const firstDate = new Date(appointments[0].date);
 									const totalSlotsNeeded = appointments.length + slotsToShift;
 									return buildAppointmentSlots(timeSlots, firstDate, totalSlotsNeeded);
 								})()}
