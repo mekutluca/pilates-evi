@@ -314,9 +314,7 @@
 										for={id}
 										class={cn(
 											'flex cursor-pointer items-center justify-between gap-3 rounded-lg border p-3 transition-colors',
-											isSelected
-												? 'border-warning bg-warning/5'
-												: 'border-border hover:bg-muted/40'
+											isSelected ? 'border-warning bg-warning/5' : 'border-border hover:bg-muted/40'
 										)}
 									>
 										<div class="flex flex-col">

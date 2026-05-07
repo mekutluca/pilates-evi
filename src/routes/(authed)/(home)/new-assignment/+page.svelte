@@ -239,12 +239,12 @@
 		return active[currentIndex + 1];
 	}
 
-	// Progress calculation based on active steps
+	// Floor at 4 so the landing screen (activeSteps = [1]) doesn't report 100%.
 	const progress = $derived(() => {
 		const active = activeSteps();
 		const currentIndex = active.indexOf(currentStep);
 		if (currentIndex === -1) return 0;
-		return ((currentIndex + 1) / active.length) * 100;
+		return ((currentIndex + 1) / Math.max(active.length, 4)) * 100;
 	});
 
 	// Navigation functions
@@ -263,10 +263,7 @@
 		}
 	}
 
-	// Week navigation - reactive to start_date changes
 	const currentWeekStart = $derived.by(() => {
-		// In extension mode, use the extension start date
-		// Otherwise use the form's start_date or current week
 		const startDate = assignmentForm.start_date || getCurrentWeekMonday();
 		return getWeekStart(new Date(startDate));
 	});
@@ -992,7 +989,7 @@
 				<div class="h-2 w-full rounded-full bg-muted">
 					<div
 						class="h-2 rounded-full bg-primary transition-all duration-300"
-						style="width: {progress}%"
+						style="width: {progress()}%"
 					></div>
 				</div>
 

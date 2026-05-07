@@ -74,16 +74,11 @@ async function fetchTeamTrainees(
 	supabase: SupabaseClient<Database>,
 	teamId: string
 ): Promise<Array<{ id: string; name: string }>> {
-	const { data: members } = await supabase
-		.from('pe_teams')
-		.select('trainee_id')
-		.eq('id', teamId);
+	const { data: members } = await supabase.from('pe_teams').select('trainee_id').eq('id', teamId);
 
 	if (!members || members.length === 0) return [];
 
-	const traineeIds = members
-		.map((m) => m.trainee_id)
-		.filter((id): id is string => id !== null);
+	const traineeIds = members.map((m) => m.trainee_id).filter((id): id is string => id !== null);
 	if (traineeIds.length === 0) return [];
 
 	const { data: trainees } = await supabase
@@ -349,7 +344,12 @@ export const actions: Actions = {
 				.order('date', { ascending: true })
 				.limit(1)
 				.maybeSingle(),
-			getCanonicalPurchaseTimeSlots(supabase, lastPurchase.id, 'private', packageInfo.weeks_duration)
+			getCanonicalPurchaseTimeSlots(
+				supabase,
+				lastPurchase.id,
+				'private',
+				packageInfo.weeks_duration
+			)
 		]);
 
 		if (!refAppointment || !refAppointment.room_id || !refAppointment.trainer_id) {
