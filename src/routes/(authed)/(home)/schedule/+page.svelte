@@ -688,14 +688,6 @@
 				{/if}
 			</Button>
 		{/if}
-		<Button
-			variant="outline"
-			onclick={() => {
-				showAppointmentDetailsModal = false;
-			}}
-		>
-			Kapat
-		</Button>
 	</div>
 </Modal>
 
@@ -931,13 +923,13 @@
 						<strong>Saat:</strong>
 						{selectedAppointment.hour !== null ? getTimeRangeString(selectedAppointment.hour) : '-'}
 					</div>
+					{#if selectedAppointment.package_name}
+						<div class="col-span-2">
+							<strong>Ders:</strong>
+							{selectedAppointment.package_name}
+						</div>
+					{/if}
 				</div>
-				{#if selectedAppointment.package_name}
-					<div class="mt-2 text-sm">
-						<strong>Ders:</strong>
-						<Badge variant="secondary" class="ml-1">{selectedAppointment.package_name}</Badge>
-					</div>
-				{/if}
 				{#if traineeCount > 0 && selectedAppointment.trainee_names?.length}
 					<div class="mt-2">
 						<div class="mb-1 text-sm font-semibold">Öğrenciler ({traineeCount}):</div>
