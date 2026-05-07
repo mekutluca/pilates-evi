@@ -1,10 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
-import {
-	getGroupLessonCanonicalSlots,
-	getPurchaseSuccessorChain
-} from '$lib/utils/extension-utils';
+import { getPurchaseSuccessorChain } from '$lib/utils/extension-utils';
 import { buildAppointmentSlots, getDayOfWeekFromDate } from '$lib/utils/date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
@@ -28,7 +25,11 @@ interface TraineeRecord {
 	appointment_id: number | null;
 	trainee_id: string | null;
 	purchase_id: string | null;
-	pe_appointments: { date: string | null; hour: number | null } | null;
+	pe_appointments: {
+		date: string | null;
+		hour: number | null;
+		group_lesson_id: string | null;
+	} | null;
 }
 
 function isAppointmentFuture(date: string | null, hour: number | null): boolean {
@@ -135,27 +136,6 @@ async function shiftPrivateSeriesByOne(
 	return { error: null };
 }
 
-async function getEligibleGroupAppointments(
-	supabase: SupabaseClientType,
-	groupLessonId: string,
-	fromDate: string
-): Promise<AppointmentSlot[]> {
-	const { slotKeys } = await getGroupLessonCanonicalSlots(supabase, groupLessonId);
-
-	const { data } = await supabase
-		.from('pe_appointments')
-		.select('id, date, hour')
-		.eq('group_lesson_id', groupLessonId)
-		.gte('date', fromDate)
-		.order('date', { ascending: true })
-		.order('hour', { ascending: true });
-
-	return (data || [])
-		.filter((a): a is { id: number; date: string; hour: number } => !!a.date && a.hour !== null)
-		.filter((a) => slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`))
-		.map((a) => ({ id: a.id, date: a.date, hour: a.hour }));
-}
-
 async function getTraineeRecordsInChain(
 	supabase: SupabaseClientType,
 	traineeId: string,
@@ -164,23 +144,29 @@ async function getTraineeRecordsInChain(
 	const chain = await getPurchaseSuccessorChain(supabase, purchaseId);
 	const { data } = await supabase
 		.from('pe_appointment_trainees')
-		.select('id, appointment_id, trainee_id, purchase_id, pe_appointments(date, hour)')
+		.select(
+			'id, appointment_id, trainee_id, purchase_id, pe_appointments(date, hour, group_lesson_id)'
+		)
 		.eq('trainee_id', traineeId)
 		.in('purchase_id', chain);
 
 	return (data || []) as TraineeRecord[];
 }
 
-// Mirrors transfer's shift_trainee_by_slot for slots=1: starting at the cancelled
-// appointment, each of the trainee's records moves onto the next eligible group-lesson
-// appointment, freeing the cancelled slot for that trainee.
+// Mirrors transfer's shift_trainee_by_slot for slots=1: each of the trainee's records
+// from the cancelled appointment onwards moves onto the next group-lesson appointment
+// that matches the trainee's own slot pattern (not the group's full canonical schedule),
+// so a Wed/Thu trainee in an every-day group lands on the next Wed, not Friday.
 async function shiftTraineeForwardByOne(
 	supabase: SupabaseClientType,
-	cancelledAppointmentId: number,
+	cancelled: CancelTargetAppointment,
 	traineeId: string,
-	purchaseId: string,
-	eligibleAppointments: AppointmentSlot[]
+	purchaseId: string
 ): Promise<{ error: string | null }> {
+	if (!cancelled.group_lesson_id || !cancelled.date) {
+		return { error: 'Geçersiz randevu bilgisi' };
+	}
+
 	const records = await getTraineeRecordsInChain(supabase, traineeId, purchaseId);
 	const sortedRecords = records
 		.filter((r) => r.pe_appointments?.date && r.pe_appointments?.hour !== null)
@@ -190,10 +176,34 @@ async function shiftTraineeForwardByOne(
 			return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
 		});
 
-	const startIndex = sortedRecords.findIndex((r) => r.appointment_id === cancelledAppointmentId);
+	const startIndex = sortedRecords.findIndex((r) => r.appointment_id === cancelled.id);
 	if (startIndex === -1) {
 		return { error: 'Öğrenci kaydı bulunamadı' };
 	}
+
+	// Build the trainee's actual (day, hour) pattern within the cancelled group lesson.
+	// A purchase chain can span multiple group lessons, so cross-group records are excluded
+	// from the pattern — they belong to a different recurring schedule.
+	const traineeSlotKeys = new Set<string>();
+	for (const record of sortedRecords) {
+		const apt = record.pe_appointments;
+		if (!apt?.date || apt.hour === null) continue;
+		if (apt.group_lesson_id !== cancelled.group_lesson_id) continue;
+		traineeSlotKeys.add(`${getDayOfWeekFromDate(apt.date)}-${apt.hour}`);
+	}
+
+	const { data: groupAppts } = await supabase
+		.from('pe_appointments')
+		.select('id, date, hour')
+		.eq('group_lesson_id', cancelled.group_lesson_id)
+		.gte('date', cancelled.date)
+		.order('date', { ascending: true })
+		.order('hour', { ascending: true });
+
+	const eligibleAppointments: AppointmentSlot[] = (groupAppts || [])
+		.filter((a): a is { id: number; date: string; hour: number } => !!a.date && a.hour !== null)
+		.filter((a) => traineeSlotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`))
+		.map((a) => ({ id: a.id, date: a.date, hour: a.hour }));
 
 	const recordsToShift = sortedRecords.slice(startIndex);
 
@@ -242,19 +252,12 @@ async function shiftGroupTraineesByOne(
 		return { error: null };
 	}
 
-	const eligibleAppointments = await getEligibleGroupAppointments(
-		supabase,
-		cancelled.group_lesson_id,
-		cancelled.date
-	);
-
 	for (const trainee of validTrainees) {
 		const { error } = await shiftTraineeForwardByOne(
 			supabase,
-			cancelled.id,
+			cancelled,
 			trainee.trainee_id,
-			trainee.purchase_id,
-			eligibleAppointments
+			trainee.purchase_id
 		);
 		if (error) return { error };
 	}
