@@ -20,7 +20,11 @@ import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
-import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
+import {
+	renumberTraineeSessionsInChain,
+	shiftSeriesBySlot,
+	shiftTraineeRecordsBySlot
+} from '$lib/utils/shift-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 
 const APPOINTMENT_SELECT_QUERY = `
@@ -1013,6 +1017,13 @@ export const actions: Actions = {
 					success: false,
 					message: 'Öğrenci kaydırma sırasında hata oluştu'
 				});
+			}
+		}
+
+		if (shiftMap.length > 0) {
+			const renumber = await renumberTraineeSessionsInChain(supabase, traineeId, purchaseChain);
+			if (renumber.error) {
+				return fail(500, { success: false, message: renumber.error });
 			}
 		}
 

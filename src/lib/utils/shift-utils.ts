@@ -301,6 +301,55 @@ async function getTraineeRecordsForChain(
 }
 
 /**
+ * Reassigns `session_number` 1..N within each purchase of `chain` for the given trainee
+ * so the numbering matches the records' chronological order. `total_sessions` is left
+ * alone (the package's session count doesn't change when records move between
+ * appointments). Run this after any shift that changes individual records'
+ * `appointment_id` — whole-series shifts move every appointment uniformly so they
+ * preserve order without help.
+ */
+export async function renumberTraineeSessionsInChain(
+	supabase: SupabaseClientType,
+	traineeId: string,
+	chain: string[]
+): Promise<{ error: string | null }> {
+	for (const purchaseId of chain) {
+		const { data } = await supabase
+			.from('pe_appointment_trainees')
+			.select('id, session_number, pe_appointments(date, hour)')
+			.eq('trainee_id', traineeId)
+			.eq('purchase_id', purchaseId);
+
+		const rows = (data ?? []) as Array<{
+			id: number;
+			session_number: number | null;
+			pe_appointments: { date: string | null; hour: number | null } | null;
+		}>;
+
+		const sorted = rows
+			.filter((r) => r.pe_appointments?.date && r.pe_appointments.hour !== null)
+			.sort((a, b) => {
+				const dc = (a.pe_appointments?.date ?? '').localeCompare(b.pe_appointments?.date ?? '');
+				if (dc !== 0) return dc;
+				return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
+			});
+
+		for (let i = 0; i < sorted.length; i++) {
+			const expected = i + 1;
+			if (sorted[i].session_number === expected) continue;
+			const { error } = await supabase
+				.from('pe_appointment_trainees')
+				.update({ session_number: expected })
+				.eq('id', sorted[i].id);
+			if (error) {
+				return { error: 'Ders numaraları güncellenirken hata: ' + error.message };
+			}
+		}
+	}
+	return { error: null };
+}
+
+/**
  * Shifts a single trainee's records, starting at `fromAppointmentId`, forward by `slots`
  * positions in the trainee's *own* slot pattern within the cancelled/selected group lesson.
  *
@@ -395,6 +444,14 @@ export async function shiftTraineeRecordsBySlot(
 			.eq('id', step.recordId);
 		if (error) {
 			return { error: 'Öğrenci kaydırma sırasında hata oluştu: ' + error.message, shifted: [] };
+		}
+	}
+
+	if (shiftMap.length > 0) {
+		const chain = await getPurchaseSuccessorChain(supabase, currentRecord.purchase_id);
+		const renumber = await renumberTraineeSessionsInChain(supabase, traineeId, chain);
+		if (renumber.error) {
+			return { error: renumber.error, shifted: [] };
 		}
 	}
 
