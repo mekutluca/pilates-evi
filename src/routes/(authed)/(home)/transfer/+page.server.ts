@@ -17,7 +17,10 @@ import {
 	formatShortTurkishDateTime
 } from '$lib/utils/date-utils';
 import type { DayOfWeek } from '$lib/types/Schedule';
-import { getGroupLessonCanonicalSlots } from '$lib/utils/extension-utils';
+import {
+	getGroupLessonCanonicalSlots,
+	getPurchaseSuccessorChain
+} from '$lib/utils/extension-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 
 const APPOINTMENT_SELECT_QUERY = `
@@ -41,31 +44,6 @@ const APPOINTMENT_SUMMARY_SELECT_QUERY = `
 	pe_rooms(id, name),
 	pe_trainers(id, name)
 `;
-
-async function getPurchaseSuccessorChain(
-	supabase: SupabaseClient<Database>,
-	purchaseId: string
-): Promise<string[]> {
-	const chain: string[] = [purchaseId];
-	let currentId: string | null = purchaseId;
-
-	while (currentId) {
-		const { data }: { data: { successor_id: string | null } | null } = await supabase
-			.from('pe_purchases')
-			.select('successor_id')
-			.eq('id', currentId)
-			.single();
-
-		if (data?.successor_id) {
-			chain.push(data.successor_id);
-			currentId = data.successor_id;
-		} else {
-			break;
-		}
-	}
-
-	return chain;
-}
 
 async function getReferenceDateTime(
 	supabase: SupabaseClient<Database>,
@@ -96,9 +74,7 @@ async function getFutureAppointmentsByPurchase(
 		.from('pe_appointments')
 		.select(APPOINTMENT_SELECT_QUERY)
 		.eq('purchase_id', purchaseId)
-		.or(
-			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
-		)
+		.or(`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`)
 		.order('date', { ascending: true })
 		.order('hour', { ascending: true });
 
@@ -133,9 +109,7 @@ async function getFutureAppointmentsByGroupLesson(
 		.from('pe_appointments')
 		.select(APPOINTMENT_SELECT_QUERY)
 		.eq('group_lesson_id', groupLessonId)
-		.or(
-			`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`
-		)
+		.or(`date.gt.${refDateTime.date},and(date.eq.${refDateTime.date},hour.gte.${refDateTime.hour})`)
 		.order('date', { ascending: true })
 		.order('hour', { ascending: true });
 
@@ -1076,7 +1050,10 @@ export const actions: Actions = {
 							phoneNumber: msg.phone,
 							templateName: 'appt_reschedule_by_system',
 							mapping: [
-								{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime.trim() },
+								{
+									schemaPropertyName: 'old_date_time',
+									schemaPropertyValue: msg.oldDateTime.trim()
+								},
 								{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName.trim() },
 								{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
 								{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime.trim() }

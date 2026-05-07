@@ -77,6 +77,35 @@ function formatLocalYMD(date: Date): string {
 }
 
 /**
+ * Returns every purchase id reachable from the given one by following
+ * successor_id links, starting with the given id itself.
+ */
+export async function getPurchaseSuccessorChain(
+	supabase: SupabaseClientType,
+	purchaseId: string
+): Promise<string[]> {
+	const chain: string[] = [purchaseId];
+	let currentId: string | null = purchaseId;
+
+	while (currentId) {
+		const { data }: { data: { successor_id: string | null } | null } = await supabase
+			.from('pe_purchases')
+			.select('successor_id')
+			.eq('id', currentId)
+			.single();
+
+		if (data?.successor_id) {
+			chain.push(data.successor_id);
+			currentId = data.successor_id;
+		} else {
+			break;
+		}
+	}
+
+	return chain;
+}
+
+/**
  * Follows the successor_id chain to find the last purchase
  * A purchase is "last" when it has no successor (successor_id is null)
  */

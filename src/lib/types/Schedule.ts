@@ -10,6 +10,9 @@ export type DayOfWeek =
 	| 'sunday';
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 
+// Decision applied to trainees attached to an appointment that is being cancelled
+export type CancelTraineeAction = 'shift' | 'remove';
+
 // Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;

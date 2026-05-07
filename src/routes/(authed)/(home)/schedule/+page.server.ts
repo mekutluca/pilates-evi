@@ -4,8 +4,8 @@ import type { Role } from '$lib/types';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
-import type { DayOfWeek } from '$lib/types/Schedule';
-import { deleteAppointment, isAppointmentFuture } from '$lib/utils/cancellation-utils';
+import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
+import { cancelAppointment } from '$lib/utils/cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 
 // Helper function to validate user permissions
@@ -330,36 +330,19 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}
 
-		const { data: appointment, error: fetchError } = await supabase
-			.from('pe_appointments')
-			.select('id, date, hour, pe_appointment_trainees(id)')
-			.eq('id', appointmentId)
-			.single();
+		const rawTraineeAction = formData.get('traineeAction')?.toString();
+		const traineeAction: CancelTraineeAction | null =
+			rawTraineeAction === 'shift' || rawTraineeAction === 'remove' ? rawTraineeAction : null;
 
-		if (fetchError || !appointment) {
-			return fail(404, { success: false, message: 'Randevu bulunamadı' });
-		}
-
-		if (!isAppointmentFuture(appointment.date, appointment.hour)) {
-			return fail(400, { success: false, message: 'Geçmiş randevular iptal edilemez' });
-		}
-
-		const traineeCount = appointment.pe_appointment_trainees?.length ?? 0;
-		if (traineeCount > 0) {
-			return fail(400, {
-				success: false,
-				message: 'Öğrencisi olan randevular için iptal henüz desteklenmiyor'
-			});
-		}
-
-		const { error } = await deleteAppointment(supabase, appointmentId);
+		const { error } = await cancelAppointment(supabase, appointmentId, traineeAction);
 		if (error) {
-			return fail(500, {
-				success: false,
-				message: 'Randevu iptal edilirken hata: ' + error
-			});
+			return fail(400, { success: false, message: error });
 		}
 
-		return { success: true, message: 'Randevu başarıyla iptal edildi' };
+		const message =
+			traineeAction === 'shift'
+				? 'Randevu iptal edildi ve öğrenci dersleri kaydırıldı'
+				: 'Randevu başarıyla iptal edildi';
+		return { success: true, message };
 	}
 };

@@ -19,6 +19,7 @@
 		type DayOfWeek,
 		type AppointmentWithDetails,
 		type AppointmentWithRelations,
+		type CancelTraineeAction,
 		type ScheduleSlot,
 		DAY_NAMES,
 		getTimeRangeString
@@ -97,6 +98,7 @@
 
 	// Cancellation modal state
 	let showCancelConfirmation = $state(false);
+	let cancelTraineeAction = $state<CancelTraineeAction>('shift');
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -901,9 +903,11 @@
 	size="md"
 	onClose={() => {
 		selectedAppointment = null;
+		cancelTraineeAction = 'shift';
 	}}
 >
 	{#if selectedAppointment}
+		{@const traineeCount = selectedAppointment.trainee_count ?? 0}
 		<div class="space-y-4">
 			<Alert.Root variant="destructive">
 				<TriangleAlert size={16} />
@@ -934,11 +938,22 @@
 						<Badge variant="secondary" class="ml-1">{selectedAppointment.package_name}</Badge>
 					</div>
 				{/if}
+				{#if traineeCount > 0 && selectedAppointment.trainee_names?.length}
+					<div class="mt-2">
+						<div class="mb-1 text-sm font-semibold">Öğrenciler ({traineeCount}):</div>
+						<div class="flex flex-wrap gap-1">
+							{#each selectedAppointment.trainee_names as traineeName (traineeName)}
+								<Badge variant="secondary">{traineeName}</Badge>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 
 			<form
 				method="POST"
 				action="?/cancelAppointment"
+				class="space-y-4"
 				use:enhance={() => {
 					formLoading = true;
 					return async ({ result, update }) => {
@@ -948,6 +963,7 @@
 							toast.success(data?.message || 'Randevu başarıyla iptal edildi');
 							showCancelConfirmation = false;
 							selectedAppointment = null;
+							cancelTraineeAction = 'shift';
 						} else if (result.type === 'failure') {
 							toast.error(getActionErrorMessage(result));
 						}
@@ -956,6 +972,36 @@
 				}}
 			>
 				<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
+				{#if traineeCount > 0}
+					<input type="hidden" name="traineeAction" value={cancelTraineeAction} />
+					<div class="grid gap-2">
+						<Label>Öğrenciler İçin İşlem</Label>
+						<RadioGroup
+							value={cancelTraineeAction}
+							onValueChange={(v) => (cancelTraineeAction = v as CancelTraineeAction)}
+							class="space-y-2"
+						>
+							<label class="flex cursor-pointer items-start gap-3">
+								<RadioGroupItem value="shift" class="mt-0.5" />
+								<div class="flex flex-col">
+									<span class="text-sm">Derslerini Bir Kaydır</span>
+									<span class="text-xs text-muted-foreground">
+										Öğrencilerin ders sayısı korunur, ileri tarihli randevulara kaydırılır
+									</span>
+								</div>
+							</label>
+							<label class="flex cursor-pointer items-start gap-3">
+								<RadioGroupItem value="remove" class="mt-0.5" />
+								<div class="flex flex-col">
+									<span class="text-sm">Atamaları Kaldır</span>
+									<span class="text-xs text-muted-foreground">
+										Öğrenciler bu dersi kaybeder, başka değişiklik olmaz
+									</span>
+								</div>
+							</label>
+						</RadioGroup>
+					</div>
+				{/if}
 				<div class="flex justify-end gap-2">
 					<Button
 						type="button"
