@@ -9,6 +9,8 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import CalendarArrowUp from '@lucide/svelte/icons/calendar-arrow-up';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -92,6 +94,9 @@
 	let formLoading = $state(false);
 	let rescheduleSource = $state<'trainee' | 'system'>('trainee');
 	let rescheduleSystemReason = $state('');
+
+	// Cancellation modal state
+	let showCancelConfirmation = $state(false);
 
 	function navigateToWeek(date: Date) {
 		const weekParam = formatDateParam(date);
@@ -529,8 +534,8 @@
 	bind:open={showAppointmentDetailsModal}
 	size="lg"
 	onClose={() => {
-		// Only reset selectedAppointment if we're not in reschedule mode
-		if (!rescheduleMode) {
+		// Keep selectedAppointment when transitioning to reschedule or cancel flows
+		if (!rescheduleMode && !showCancelConfirmation) {
 			selectedAppointment = null;
 		}
 	}}
@@ -651,6 +656,16 @@
 
 	<div class="flex justify-end gap-2 pt-4">
 		{#if selectedAppointment && (data.userRole === 'admin' || data.userRole === 'coordinator') && !isAppointmentInPast(selectedAppointment)}
+			<Button
+				variant="destructive"
+				onclick={() => {
+					showAppointmentDetailsModal = false;
+					showCancelConfirmation = true;
+				}}
+			>
+				<Trash2 size={16} />
+				İptal Et
+			</Button>
 			<Button
 				href="/transfer?appointment_id={selectedAppointment.id}"
 				class="bg-warning text-warning-foreground hover:bg-warning/80"
@@ -871,6 +886,92 @@
 							<LoaderCircle size={16} class="animate-spin" />
 						{:else}
 							Onayla
+						{/if}
+					</Button>
+				</div>
+			</form>
+		</div>
+	{/if}
+</Modal>
+
+<!-- Cancellation Confirmation Modal -->
+<Modal
+	bind:open={showCancelConfirmation}
+	title="Randevuyu İptal Et"
+	size="md"
+	onClose={() => {
+		selectedAppointment = null;
+	}}
+>
+	{#if selectedAppointment}
+		<div class="space-y-4">
+			<Alert.Root variant="destructive">
+				<TriangleAlert size={16} />
+				<Alert.Description>
+					Bu işlem geri alınamaz. Randevu kalıcı olarak silinecek.
+				</Alert.Description>
+			</Alert.Root>
+
+			<div class="rounded bg-muted p-4">
+				<h4 class="mb-3 text-sm font-semibold">Randevu Bilgileri</h4>
+				<div class="grid grid-cols-2 gap-2 text-sm">
+					<div><strong>Oda:</strong> {selectedAppointment.room_name}</div>
+					<div><strong>Eğitmen:</strong> {selectedAppointment.trainer_name}</div>
+					<div>
+						<strong>Gün:</strong>
+						{selectedAppointment.date
+							? DAY_NAMES[getDayOfWeekFromDate(selectedAppointment.date) as DayOfWeek]
+							: '-'}
+					</div>
+					<div>
+						<strong>Saat:</strong>
+						{selectedAppointment.hour !== null ? getTimeRangeString(selectedAppointment.hour) : '-'}
+					</div>
+				</div>
+				{#if selectedAppointment.package_name}
+					<div class="mt-2 text-sm">
+						<strong>Ders:</strong>
+						<Badge variant="secondary" class="ml-1">{selectedAppointment.package_name}</Badge>
+					</div>
+				{/if}
+			</div>
+
+			<form
+				method="POST"
+				action="?/cancelAppointment"
+				use:enhance={() => {
+					formLoading = true;
+					return async ({ result, update }) => {
+						formLoading = false;
+						if (result.type === 'success') {
+							const data = result.data as { message?: string } | undefined;
+							toast.success(data?.message || 'Randevu başarıyla iptal edildi');
+							showCancelConfirmation = false;
+							selectedAppointment = null;
+						} else if (result.type === 'failure') {
+							toast.error(getActionErrorMessage(result));
+						}
+						await update();
+					};
+				}}
+			>
+				<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
+				<div class="flex justify-end gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						onclick={() => {
+							showCancelConfirmation = false;
+						}}
+					>
+						Vazgeç
+					</Button>
+					<Button type="submit" variant="destructive" disabled={formLoading}>
+						{#if formLoading}
+							<LoaderCircle size={16} class="animate-spin" />
+						{:else}
+							<Trash2 size={16} />
+							Randevuyu İptal Et
 						{/if}
 					</Button>
 				</div>
