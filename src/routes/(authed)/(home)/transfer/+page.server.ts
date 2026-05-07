@@ -13,14 +13,14 @@ import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import {
 	addWeeksToDate,
 	getDayOfWeekFromDate,
-	buildAppointmentSlots,
 	formatShortTurkishDateTime
 } from '$lib/utils/date-utils';
-import type { DayOfWeek } from '$lib/types/Schedule';
+import type { DayOfWeek, ShiftedAppointment } from '$lib/types/Schedule';
 import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
+import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 
 const APPOINTMENT_SELECT_QUERY = `
@@ -170,7 +170,7 @@ async function hasConflict(
 
 async function sendShiftNotifications(
 	appointments: AppointmentWithDetails[],
-	getNewDate: (apt: AppointmentWithDetails) => string,
+	getNewSlot: (apt: AppointmentWithDetails) => { date: string; hour: number },
 	cause: string
 ): Promise<number> {
 	const whatsapp = getWhatsAppRepository();
@@ -180,8 +180,8 @@ async function sendShiftNotifications(
 		const packageName =
 			apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
 		const oldDateTime = formatShortTurkishDateTime(apt.date, apt.hour);
-		const newDate = getNewDate(apt);
-		const newDateTime = formatShortTurkishDateTime(newDate, apt.hour);
+		const next = getNewSlot(apt);
+		const newDateTime = formatShortTurkishDateTime(next.date, next.hour);
 
 		return apt.pe_appointment_trainees
 			.filter((at) => at.pe_trainees?.phone)
@@ -217,6 +217,60 @@ async function sendShiftNotifications(
 	);
 
 	return results.filter((r) => r !== null).length;
+}
+
+// Mirrors the series-selection that shiftSeriesBySlot does internally, but with full
+// appointment details (rooms/trainers/packages/trainees) so we can build WhatsApp
+// notifications that reference the package name and the trainees on each appointment.
+async function loadAppointmentDetailsForSeries(
+	supabase: SupabaseClient<Database>,
+	fromAppointmentId: number
+): Promise<Map<number, AppointmentWithDetails>> {
+	const { data: appt } = await supabase
+		.from('pe_appointments')
+		.select('purchase_id, group_lesson_id')
+		.eq('id', fromAppointmentId)
+		.single();
+
+	if (!appt) return new Map();
+
+	let series: AppointmentWithDetails[] = [];
+	if (appt.purchase_id) {
+		series = await getFutureAppointmentsByPurchase(supabase, fromAppointmentId, appt.purchase_id);
+	} else if (appt.group_lesson_id) {
+		series = await getFutureAppointmentsByGroupLesson(
+			supabase,
+			fromAppointmentId,
+			appt.group_lesson_id
+		);
+		const { slotKeys } = await getGroupLessonCanonicalSlots(supabase, appt.group_lesson_id);
+		series = filterToCanonicalSlots(series, slotKeys);
+	}
+
+	return new Map(series.map((a) => [a.id, a]));
+}
+
+async function sendSlotShiftNotifications(
+	shifted: ShiftedAppointment[],
+	detailsByAppt: Map<number, AppointmentWithDetails>,
+	cause: string
+): Promise<number> {
+	const ordered = shifted
+		.map((s) => ({ shift: s, apt: detailsByAppt.get(s.id) }))
+		.filter(
+			(entry): entry is { shift: ShiftedAppointment; apt: AppointmentWithDetails } => !!entry.apt
+		);
+
+	return sendShiftNotifications(
+		ordered.map((entry) => entry.apt),
+		(apt) => {
+			const match = ordered.find((entry) => entry.apt.id === apt.id);
+			return match
+				? { date: match.shift.newDate, hour: match.shift.newHour }
+				: { date: apt.date!, hour: apt.hour! };
+		},
+		cause
+	);
 }
 
 export const load: PageServerLoad = async ({
@@ -788,7 +842,7 @@ export const actions: Actions = {
 		if (cause) {
 			notifiedCount = await sendShiftNotifications(
 				appointmentsToShift,
-				(apt) => addWeeksToDate(apt.date!, weeks),
+				(apt) => ({ date: addWeeksToDate(apt.date!, weeks), hour: apt.hour! }),
 				cause
 			);
 		}
@@ -808,14 +862,6 @@ export const actions: Actions = {
 		const slots = Number(getRequiredFormDataString(formData, 'slots'));
 		const cause = formData.get('cause')?.toString() || '';
 
-		// Validation
-		if (slots <= 0) {
-			return fail(400, {
-				success: false,
-				message: 'Kaydırma sayısı pozitif olmalı'
-			});
-		}
-
 		if (slots > 20) {
 			return fail(400, {
 				success: false,
@@ -823,35 +869,7 @@ export const actions: Actions = {
 			});
 		}
 
-		// Get the appointment
-		const { data: appointment } = await supabase
-			.from('pe_appointments')
-			.select('purchase_id, group_lesson_id, room_id, trainer_id')
-			.eq('id', appointmentId)
-			.single();
-
-		if (!appointment) {
-			return fail(404, { success: false, message: 'Randevu bulunamadı' });
-		}
-
-		// Get appointments to shift (must be from_selected scope for slot shifting)
-		let appointmentsToShift: AppointmentWithDetails[] = [];
-
-		if (scope === 'from_selected') {
-			if (appointment.purchase_id) {
-				appointmentsToShift = await getFutureAppointmentsByPurchase(
-					supabase,
-					appointmentId,
-					appointment.purchase_id
-				);
-			} else if (appointment.group_lesson_id) {
-				appointmentsToShift = await getFutureAppointmentsByGroupLesson(
-					supabase,
-					appointmentId,
-					appointment.group_lesson_id
-				);
-			}
-		} else {
+		if (scope !== 'from_selected') {
 			return fail(400, {
 				success: false,
 				message:
@@ -859,216 +877,29 @@ export const actions: Actions = {
 			});
 		}
 
-		// For group lessons, drop one-off reschedule destinations so the slot pattern stays clean.
-		const canonical = appointment.group_lesson_id
-			? await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id)
-			: { slots: [], slotKeys: new Set<string>() };
+		// Pre-fetch appointments with details so we can build WhatsApp messages from the
+		// pre-shift state. The shared helper re-queries the bare fields it needs internally.
+		const detailsByAppt = await loadAppointmentDetailsForSeries(supabase, appointmentId);
 
-		if (appointment.group_lesson_id) {
-			appointmentsToShift = filterToCanonicalSlots(appointmentsToShift, canonical.slotKeys);
-		}
+		const result = await shiftSeriesBySlot(supabase, appointmentId, slots);
 
-		// Filter valid appointments
-		const validAppointments = appointmentsToShift.filter((a) => a.date && a.hour !== null);
-
-		if (validAppointments.length === 0) {
+		if (result.conflicts.length > 0) {
 			return fail(400, {
 				success: false,
-				message: 'Kaydırılacak geçerli randevu bulunamadı'
+				message: `${result.conflicts.length} çakışma tespit edildi. Lütfen önce çakışmaları kontrol edin.`,
+				conflicts: result.conflicts
 			});
 		}
 
-		// Build the recurring time-slot pattern. For group lessons use the canonical schedule
-		// (pe_group_lessons.timeslots); for private lessons infer from the appointment list.
-		const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-		if (canonical.slots.length > 0) {
-			timeSlots.push(...canonical.slots);
-		} else {
-			const seenSlots = new Set<string>();
-			for (const apt of validAppointments) {
-				if (!apt.date || apt.hour === null) continue;
-				const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
-				const slotKey = `${day}-${apt.hour}`;
-
-				if (!seenSlots.has(slotKey)) {
-					seenSlots.add(slotKey);
-					timeSlots.push({ day, hour: apt.hour });
-				}
-			}
+		if (result.error) {
+			return fail(500, { success: false, message: result.error });
 		}
 
-		// Sort time slots by day of week and hour to ensure consistent ordering
-		const dayOrder = {
-			sunday: 0,
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6
-		};
-		timeSlots.sort((a, b) => {
-			const dayDiff = dayOrder[a.day] - dayOrder[b.day];
-			if (dayDiff !== 0) return dayDiff;
-			return a.hour - b.hour;
-		});
-
-		// Build slots: existing + enough new ones to cover the shift
-		const firstAppointmentDate = new Date(validAppointments[0].date!);
-		const totalSlotsNeeded = validAppointments.length + slots;
-		const allSlots = buildAppointmentSlots(timeSlots, firstAppointmentDate, totalSlotsNeeded);
-
-		// Create a map of new dates for each appointment
-		// Each appointment shifts to the slot N positions ahead
-		const shiftMap: Array<{ id: number; newDate: string; newHour: number }> = [];
-
-		for (let i = 0; i < validAppointments.length; i++) {
-			const currentAppt = validAppointments[i];
-			const targetIndex = i + slots;
-			const targetSlot = allSlots[targetIndex];
-
-			if (targetSlot && currentAppt.hour !== null) {
-				shiftMap.push({
-					id: currentAppt.id,
-					newDate: targetSlot.date,
-					newHour: targetSlot.hour
-				});
-			}
-		}
-
-		if (shiftMap.length === 0) {
-			return fail(400, {
-				success: false,
-				message: 'Kaydırılacak randevu bulunamadı.'
-			});
-		}
-
-		// Get all appointment IDs in the series (to exclude from conflicts)
-		const appointmentIdsInSeries = new Set(validAppointments.map((a) => a.id));
-
-		// Final conflict check
-		const conflicts = [];
-		for (const shift of shiftMap) {
-			const originalAppt = validAppointments.find((a) => a.id === shift.id);
-			if (!originalAppt) continue;
-
-			let roomConflict = false;
-			let trainerConflict = false;
-
-			// Check room conflict
-			if (originalAppt.room_id) {
-				const { data } = await supabase
-					.from('pe_appointments')
-					.select('id')
-					.eq('room_id', originalAppt.room_id)
-					.eq('date', shift.newDate)
-					.eq('hour', shift.newHour)
-					.neq('id', shift.id);
-
-				// Check if any conflicts are NOT in the same series
-				if (data && data.length > 0) {
-					roomConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
-				}
-			}
-
-			// Check trainer conflict
-			if (originalAppt.trainer_id) {
-				const { data } = await supabase
-					.from('pe_appointments')
-					.select('id')
-					.eq('trainer_id', originalAppt.trainer_id)
-					.eq('date', shift.newDate)
-					.eq('hour', shift.newHour)
-					.neq('id', shift.id);
-
-				// Check if any conflicts are NOT in the same series
-				if (data && data.length > 0) {
-					trainerConflict = data.some((conflict) => !appointmentIdsInSeries.has(conflict.id));
-				}
-			}
-
-			if (roomConflict || trainerConflict) {
-				conflicts.push({ date: shift.newDate, hour: shift.newHour, roomConflict, trainerConflict });
-			}
-		}
-
-		if (conflicts.length > 0) {
-			return fail(400, {
-				success: false,
-				message: `${conflicts.length} çakışma tespit edildi. Lütfen önce çakışmaları kontrol edin.`,
-				conflicts
-			});
-		}
-
-		// Perform the shift - update each appointment's date and hour
-		// We need to do this in the correct order to avoid conflicts within the series
-		// We'll use a temporary update approach or do it in reverse order
-
-		// Sort in reverse order (from last to first) to avoid overwriting
-		const sortedShiftMap = [...shiftMap].reverse();
-
-		for (const shift of sortedShiftMap) {
-			const { error: updateError } = await supabase
-				.from('pe_appointments')
-				.update({ date: shift.newDate, hour: shift.newHour })
-				.eq('id', shift.id);
-
-			if (updateError) {
-				return fail(500, {
-					success: false,
-					message: 'Kaydırma sırasında hata oluştu: ' + updateError.message
-				});
-			}
-		}
-
-		// Send WhatsApp notifications
 		let notifiedCount = 0;
 		if (cause) {
-			const whatsapp = getWhatsAppRepository();
-			const messages = shiftMap.flatMap((shift) => {
-				const apt = validAppointments.find((a) => a.id === shift.id);
-				if (!apt?.date || apt.hour === null) return [];
-				const packageName =
-					apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
-				const oldDateTime = formatShortTurkishDateTime(apt.date, apt.hour);
-				const newDateTime = formatShortTurkishDateTime(shift.newDate, shift.newHour);
-
-				return apt.pe_appointment_trainees
-					.filter((at) => at.pe_trainees?.phone)
-					.map((at) => ({
-						phone: at.pe_trainees!.phone,
-						oldDateTime,
-						newDateTime,
-						packageName
-					}));
-			});
-
-			const results = await Promise.all(
-				messages.map((msg) =>
-					whatsapp
-						.sendTemplateMessage({
-							phoneNumber: msg.phone,
-							templateName: 'appt_reschedule_by_system',
-							mapping: [
-								{
-									schemaPropertyName: 'old_date_time',
-									schemaPropertyValue: msg.oldDateTime.trim()
-								},
-								{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName.trim() },
-								{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
-								{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime.trim() }
-							]
-						})
-						.catch((error) => {
-							console.error(`Failed to send shift notification to ${msg.phone}:`, error);
-							return null;
-						})
-				)
-			);
-			notifiedCount = results.filter((r) => r !== null).length;
+			notifiedCount = await sendSlotShiftNotifications(result.shifted, detailsByAppt, cause);
 		}
 
-		// Redirect to schedule
 		throw redirect(303, `/schedule?notified=${notifiedCount}`);
 	},
 
@@ -1201,126 +1032,9 @@ export const actions: Actions = {
 		const traineeId = getRequiredFormDataString(formData, 'trainee_id');
 		const slots = Number(getRequiredFormDataString(formData, 'slots'));
 
-		// Get the trainee's current appointment_trainee record
-		const { data: currentRecord } = await supabase
-			.from('pe_appointment_trainees')
-			.select('*, pe_appointments(group_lesson_id, date, hour)')
-			.eq('appointment_id', appointmentId)
-			.eq('trainee_id', traineeId)
-			.single();
-
-		if (!currentRecord || !currentRecord.pe_appointments) {
-			return fail(404, { success: false, message: 'Öğrenci kaydı bulunamadı' });
-		}
-
-		const groupLessonId = currentRecord.pe_appointments.group_lesson_id;
-		if (!groupLessonId) {
-			return fail(400, {
-				success: false,
-				message: 'Bu işlem sadece grup dersleri için geçerlidir'
-			});
-		}
-
-		// Get trainee's records for the purchase chain (including extensions)
-		const purchaseChain = await getPurchaseSuccessorChain(supabase, currentRecord.purchase_id);
-
-		const { data: traineeRecords } = await supabase
-			.from('pe_appointment_trainees')
-			.select('id, appointment_id, session_number, pe_appointments(id, date, hour)')
-			.eq('trainee_id', traineeId)
-			.in('purchase_id', purchaseChain);
-
-		if (!traineeRecords || traineeRecords.length === 0) {
-			return fail(404, { success: false, message: 'Öğrenci kayıtları bulunamadı' });
-		}
-
-		// Sort trainee's enrolled appointments by date/hour
-		const sortedTraineeAppts = traineeRecords
-			.filter((r) => r.pe_appointments?.date && r.pe_appointments?.hour !== null)
-			.sort((a, b) => {
-				const dateCompare = (a.pe_appointments?.date ?? '').localeCompare(
-					b.pe_appointments?.date ?? ''
-				);
-				if (dateCompare !== 0) return dateCompare;
-				return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
-			});
-
-		// Find the starting index (the selected appointment)
-		const startIndex = sortedTraineeAppts.findIndex((r) => r.pe_appointments?.id === appointmentId);
-		if (startIndex === -1) {
-			return fail(404, { success: false, message: 'Başlangıç randevusu bulunamadı' });
-		}
-
-		// Get all future group lesson appointments to find targets
-		const { data: allGroupAppts } = await supabase
-			.from('pe_appointments')
-			.select('id, date, hour')
-			.eq('group_lesson_id', groupLessonId)
-			.gte('date', sortedTraineeAppts[startIndex].pe_appointments?.date ?? '')
-			.order('date')
-			.order('hour');
-
-		if (!allGroupAppts || allGroupAppts.length === 0) {
-			return fail(404, { success: false, message: 'Grup dersi randevuları bulunamadı' });
-		}
-
-		// Extract the trainee's timeslot pattern (day-of-week + hour combinations they're enrolled in)
-		const traineeTimeslots = new Set<string>();
-		for (const record of sortedTraineeAppts) {
-			if (record.pe_appointments?.date && record.pe_appointments?.hour !== null) {
-				const day = getDayOfWeekFromDate(record.pe_appointments.date);
-				traineeTimeslots.add(`${day}-${record.pe_appointments.hour}`);
-			}
-		}
-
-		// Filter group appointments to only those matching trainee's timeslot pattern
-		const eligibleGroupAppts = allGroupAppts.filter((apt) => {
-			if (!apt.date || apt.hour === null) return false;
-			const day = getDayOfWeekFromDate(apt.date);
-			return traineeTimeslots.has(`${day}-${apt.hour}`);
-		});
-
-		// Build shift map: each appointment from start onwards shifts by N slots within eligible appointments
-		const shiftMap: Array<{ recordId: number; newAppointmentId: number }> = [];
-
-		for (let i = startIndex; i < sortedTraineeAppts.length; i++) {
-			const record = sortedTraineeAppts[i];
-			const currentApptId = record.pe_appointments?.id;
-			if (!currentApptId) continue;
-
-			// Find current appointment's index in eligible group appointments
-			const currentEligibleIndex = eligibleGroupAppts.findIndex((a) => a.id === currentApptId);
-			if (currentEligibleIndex === -1) continue;
-
-			const targetIndex = currentEligibleIndex + slots;
-			if (targetIndex >= eligibleGroupAppts.length) {
-				return fail(400, {
-					success: false,
-					message: 'Hedef randevular mevcut grup dersi randevularını aşıyor'
-				});
-			}
-
-			const targetAppt = eligibleGroupAppts[targetIndex];
-			shiftMap.push({
-				recordId: record.id,
-				newAppointmentId: targetAppt.id
-			});
-		}
-
-		// Update in reverse order to avoid conflicts
-		const sortedShiftMap = [...shiftMap].reverse();
-		for (const shift of sortedShiftMap) {
-			const { error: updateError } = await supabase
-				.from('pe_appointment_trainees')
-				.update({ appointment_id: shift.newAppointmentId })
-				.eq('id', shift.recordId);
-
-			if (updateError) {
-				return fail(500, {
-					success: false,
-					message: 'Öğrenci kaydırma sırasında hata oluştu'
-				});
-			}
+		const result = await shiftTraineeRecordsBySlot(supabase, appointmentId, traineeId, slots);
+		if (result.error) {
+			return fail(400, { success: false, message: result.error });
 		}
 
 		throw redirect(303, '/schedule');

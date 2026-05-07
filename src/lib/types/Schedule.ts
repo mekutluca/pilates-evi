@@ -13,6 +13,45 @@ export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 // Decision applied to trainees attached to an appointment that is being cancelled
 export type CancelTraineeAction = 'shift' | 'remove';
 
+// Conflict reported by series-shift operations when a target slot is already occupied
+// by an appointment outside the shifting series.
+export interface ShiftConflict {
+	date: string;
+	hour: number;
+	roomConflict: boolean;
+	trainerConflict: boolean;
+}
+
+// Per-appointment record describing a series-shift outcome (for notifications/audit).
+export interface ShiftedAppointment {
+	id: number;
+	oldDate: string;
+	oldHour: number;
+	newDate: string;
+	newHour: number;
+	roomId: string | null;
+	trainerId: string | null;
+	purchaseId: string | null;
+	groupLessonId: string | null;
+}
+
+export interface SeriesShiftResult {
+	error: string | null;
+	conflicts: ShiftConflict[];
+	shifted: ShiftedAppointment[];
+}
+
+export interface ShiftedTraineeRecord {
+	recordId: number;
+	oldAppointmentId: number;
+	newAppointmentId: number;
+}
+
+export interface TraineeShiftResult {
+	error: string | null;
+	shifted: ShiftedTraineeRecord[];
+}
+
 // Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
