@@ -7,7 +7,7 @@ import type {
 	AvailableGroupTimeslot
 } from '$lib/types';
 import { randomUUID } from 'crypto';
-import { parseLocalDate } from '$lib/utils/date-utils';
+import { parseLocalDate, getDayOfWeekFromDate } from '$lib/utils/date-utils';
 
 // Type for group lesson query result with joined tables
 interface GroupLessonQueryResult {
@@ -121,8 +121,10 @@ export const load: PageServerLoad = async ({
 				}
 			}
 
-			// Build available timeslots with per-timeslot capacity
-			// Get tomorrow's date for filtering future appointments
+			// Build available timeslots with per-timeslot capacity.
+			// Capacity is computed against the next canonical appointment matching
+			// (group_lesson_id, day-of-week, hour) — filtering by hour alone would mix
+			// trainees across different days that share the same hour.
 			const tomorrow = new Date();
 			tomorrow.setDate(tomorrow.getDate() + 1);
 			const tomorrowStr = tomorrow.toISOString().split('T')[0];
@@ -131,33 +133,32 @@ export const load: PageServerLoad = async ({
 				const timeslots = gl.timeslots || [];
 				const maxCapacity = gl.pe_packages?.max_capacity || 0;
 
+				if (timeslots.length === 0) continue;
+
+				const { data: upcomingAppointments } = await supabase
+					.from('pe_appointments')
+					.select('id, date, hour, pe_appointment_trainees(trainee_id)')
+					.eq('group_lesson_id', gl.id)
+					.gte('date', tomorrowStr)
+					.order('date', { ascending: true })
+					.order('hour', { ascending: true });
+
 				for (const timeslot of timeslots) {
 					for (const hour of timeslot.hours) {
-						// Get a sample of upcoming appointments for this specific day/hour combination
-						// to calculate current capacity for this timeslot
-						const { data: sampleAppointments, error: sampleError } = await supabase
-							.from('pe_appointments')
-							.select('id')
-							.eq('group_lesson_id', gl.id)
-							.eq('hour', hour)
-							.gte('date', tomorrowStr)
-							.limit(5); // Get a few upcoming appointments
+						const targetDay = timeslot.day.toLowerCase();
 
-						let timeslotCapacity = 0;
+						const firstMatch = upcomingAppointments?.find(
+							(apt) =>
+								apt.hour === hour && apt.date && getDayOfWeekFromDate(apt.date) === targetDay
+						);
 
-						if (!sampleError && sampleAppointments && sampleAppointments.length > 0) {
-							// Count unique trainees in these appointments
-							const appointmentIds = sampleAppointments.map((apt) => apt.id);
-							const { data: traineeData } = await supabase
-								.from('pe_appointment_trainees')
-								.select('trainee_id')
-								.in('appointment_id', appointmentIds);
-
-							if (traineeData) {
-								const uniqueTrainees = new Set(traineeData.map((t) => t.trainee_id));
-								timeslotCapacity = uniqueTrainees.size;
-							}
-						}
+						const timeslotCapacity = firstMatch
+							? new Set(
+									firstMatch.pe_appointment_trainees.map(
+										(t: { trainee_id: string }) => t.trainee_id
+									)
+								).size
+							: 0;
 
 						availableGroupTimeslots.push({
 							group_lesson_id: gl.id,
