@@ -434,7 +434,7 @@
 	{/if}
 
 	<!-- Week Navigation -->
-	<Card.Root class="mb-6">
+	<Card.Root class="mb-6 overflow-visible">
 		<Card.Content>
 			<div class="flex items-center justify-center gap-4">
 				<Button variant="outline" size="sm" onclick={goToPreviousWeek}>
