@@ -3,6 +3,7 @@
 	import { getDateForDayOfWeek, formatDayMonth } from '$lib/utils';
 	import { cn } from '$lib/utils';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -190,6 +191,14 @@
 												>
 													<ClockAlert size={12} />
 													<span>{slot.badge}</span>
+												</div>
+											{/if}
+											{#if slot.warning}
+												<div
+													class="mt-1 flex items-center justify-center gap-1 text-xs font-semibold"
+												>
+													<TriangleAlert size={12} />
+													<span>{slot.warning}</span>
 												</div>
 											{/if}
 										</button>

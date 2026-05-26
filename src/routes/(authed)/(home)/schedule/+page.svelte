@@ -33,7 +33,11 @@
 		formatDayMonth
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
+	import {
+		createAppointmentDetails,
+		computeAppointmentWarnings,
+		getAppointmentWarningLabel
+	} from '$lib/utils/appointment-utils';
 	import { page } from '$app/state';
 	import Modal from '$lib/components/modal.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
@@ -53,6 +57,10 @@
 	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
+
+	// Capacity/timeslot-collision flags for the week's appointments, computed once across the
+	// whole set so collisions can be detected across rooms and trainers.
+	let appointmentWarnings = $derived(computeAppointmentWarnings(appointments));
 
 	// UI state
 	let viewMode = $state<'room' | 'trainer'>('room');
@@ -287,6 +295,7 @@
 			const isBeingRescheduled =
 				rescheduleMode && selectedAppointment && appointment.id === selectedAppointment.id;
 			const isEmpty = (appointmentDetails.trainee_count ?? 0) === 0;
+			const warningLabel = getAppointmentWarningLabel(appointmentWarnings.get(appointment.id));
 
 			return {
 				variant: 'appointment',
@@ -299,7 +308,8 @@
 						: appointmentDetails.room_name || '',
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
-				color: isBeingRescheduled ? 'warning' : 'primary',
+				warning: warningLabel,
+				color: isBeingRescheduled ? 'warning' : warningLabel ? 'error' : 'primary',
 				clickable: !rescheduleMode,
 				dimmed: isEmpty,
 				data: appointmentDetails

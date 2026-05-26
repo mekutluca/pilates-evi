@@ -82,6 +82,15 @@ export interface PackageInfo {
 	weeks_duration?: number | null;
 	min_lessons_per_week?: number;
 	max_lessons_per_week?: number;
+	max_capacity?: number;
+}
+
+// Schedule-level issues flagged on an appointment: more trainees than the package allows, or
+// another appointment occupying the same (date, hour) for the same room or trainer.
+export interface AppointmentWarning {
+	exceededCapacity: boolean;
+	roomCollision: boolean;
+	trainerCollision: boolean;
 }
 
 // Purchase relation for appointments
@@ -288,6 +297,7 @@ export interface AppointmentSlot extends BaseSlotData {
 	title: string; // Main text (e.g., trainer/room name)
 	subtitle?: string; // Optional subtitle (e.g., package name)
 	badge?: string; // Optional badge text (e.g., "Son ders")
+	warning?: string; // Optional conflict notation (e.g., "Kapasite aşıldı", "Çakışma")
 	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
 	clickable?: boolean;
 	dimmed?: boolean; // Visually de-emphasize the slot (e.g., empty group lesson)
