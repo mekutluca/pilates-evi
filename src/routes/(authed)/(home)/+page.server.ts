@@ -150,12 +150,16 @@ export const load: PageServerLoad = async ({ locals: { supabase }, parent }) => 
 			const trainee = layoutData.trainees.find((t) => t.id === at.trainee_id);
 			if (!trainee) continue;
 
-			// Get the package from the purchase
+			// Get the package and successor from the purchase
 			const { data: purchaseData } = await supabase
 				.from('pe_purchases')
-				.select('package_id, pe_packages(*)')
+				.select('package_id, successor_id, pe_packages(*)')
 				.eq('id', at.purchase_id || '')
 				.single();
+
+			// Skip if the purchase has been extended (has a successor) — the trainee isn't
+			// actually nearing their last lesson, they continue in the successor purchase.
+			if (purchaseData?.successor_id) continue;
 
 			// Get appointment date
 			const appointment = appointments?.find((a) => a.id === at.appointment_id);
