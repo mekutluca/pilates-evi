@@ -8,6 +8,7 @@ import Calendar from '@lucide/svelte/icons/calendar';
 import Dumbbell from '@lucide/svelte/icons/dumbbell';
 import Plus from '@lucide/svelte/icons/plus';
 import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+import Wrench from '@lucide/svelte/icons/wrench';
 
 export interface Route {
 	href: string;
@@ -86,6 +87,13 @@ export const allRoutes: Route[] = [
 		label: 'Yetkili Kullanıcılar',
 		icon: IdCard,
 		availableToRoles: ['admin'],
+		group: 'Yönetim'
+	},
+	{
+		href: '/operations',
+		label: 'Operasyonlar',
+		icon: Wrench,
+		availableToRoles: ['admin', 'coordinator'],
 		group: 'Yönetim'
 	}
 ];

@@ -10,7 +10,8 @@ import type {
 	WhatsAppAppointmentData,
 	AppointmentQueryRow,
 	TemplateMapping,
-	RescheduleNotificationParams
+	RescheduleNotificationParams,
+	ShiftNotificationEntry
 } from '$lib/types/WhatsApp';
 import { formatPhoneNumber } from '$lib/utils/phone-utils';
 import { formatTurkishDate } from '$lib/utils/date-utils';
@@ -76,6 +77,33 @@ export class WhatsAppRepository {
 					mapping
 				}).catch((error) => {
 					console.error(`Failed to send reschedule notification to ${trainee.phone}:`, error);
+					return null;
+				})
+			)
+		);
+
+		return results.filter((r) => r !== null).length;
+	}
+
+	/**
+	 * Sends one shift/reschedule notification per entry, each with its own old/new date-time.
+	 * Uses the system reschedule template (with a cause), matching how the transfer flow notifies
+	 * trainees when their appointments move. Returns the number of messages successfully sent.
+	 */
+	async sendShiftNotifications(entries: ShiftNotificationEntry[], cause: string): Promise<number> {
+		const results = await Promise.all(
+			entries.map((entry) =>
+				this.sendTemplateMessage({
+					phoneNumber: entry.phone,
+					templateName: 'appt_reschedule_by_system',
+					mapping: [
+						{ schemaPropertyName: 'old_date_time', schemaPropertyValue: entry.oldDateTime.trim() },
+						{ schemaPropertyName: 'package', schemaPropertyValue: entry.packageName.trim() },
+						{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
+						{ schemaPropertyName: 'new_date_time', schemaPropertyValue: entry.newDateTime.trim() }
+					]
+				}).catch((error) => {
+					console.error(`Failed to send shift notification to ${entry.phone}:`, error);
 					return null;
 				})
 			)

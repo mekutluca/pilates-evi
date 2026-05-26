@@ -16,6 +16,7 @@ import {
 	formatShortTurkishDateTime
 } from '$lib/utils/date-utils';
 import type { DayOfWeek, ShiftedAppointment } from '$lib/types/Schedule';
+import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
 import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
@@ -209,9 +210,7 @@ async function sendShiftNotifications(
 	getNewSlot: (apt: AppointmentWithDetails) => { date: string; hour: number },
 	cause: string
 ): Promise<number> {
-	const whatsapp = getWhatsAppRepository();
-
-	const messages = appointments.flatMap((apt) => {
+	const entries: ShiftNotificationEntry[] = appointments.flatMap((apt) => {
 		if (!apt.date || apt.hour === null) return [];
 		const packageName =
 			apt.pe_purchases?.pe_packages?.name ?? apt.pe_group_lessons?.pe_packages?.name ?? '';
@@ -229,30 +228,7 @@ async function sendShiftNotifications(
 			}));
 	});
 
-	if (messages.length === 0) return 0;
-
-	// Deduplicate by phone (a trainee appears once per unique notification)
-	const results = await Promise.all(
-		messages.map((msg) =>
-			whatsapp
-				.sendTemplateMessage({
-					phoneNumber: msg.phone,
-					templateName: 'appt_reschedule_by_system',
-					mapping: [
-						{ schemaPropertyName: 'old_date_time', schemaPropertyValue: msg.oldDateTime.trim() },
-						{ schemaPropertyName: 'package', schemaPropertyValue: msg.packageName.trim() },
-						{ schemaPropertyName: 'cause', schemaPropertyValue: cause.trim() },
-						{ schemaPropertyName: 'new_date_time', schemaPropertyValue: msg.newDateTime.trim() }
-					]
-				})
-				.catch((error) => {
-					console.error(`Failed to send shift notification to ${msg.phone}:`, error);
-					return null;
-				})
-		)
-	);
-
-	return results.filter((r) => r !== null).length;
+	return getWhatsAppRepository().sendShiftNotifications(entries, cause);
 }
 
 // Mirrors the series-selection that shiftSeriesBySlot does internally, but with full
@@ -536,8 +512,10 @@ export const load: PageServerLoad = async ({
 	// list (not the group's full canonical pattern). A trainee in a Mon-Sun-13 group who
 	// only attends Wed shifts Wed→next-Wed, not Wed→Thu — and the same goes for any cross-
 	// group records under their purchase chain.
-	let slotShiftEligibleByGroup: Record<string, Array<{ id: number; date: string; hour: number }>> =
-		{};
+	let slotShiftEligibleByGroup: Record<
+		string,
+		Array<{ id: number; date: string; hour: number }>
+	> = {};
 	if (traineeId && appointment.date) {
 		const recordsForPattern = allFromNowAppointments
 			.filter(
@@ -1024,9 +1002,7 @@ export const actions: Actions = {
 
 		const { data: futureRecords } = await supabase
 			.from('pe_appointment_trainees')
-			.select(
-				'id, appointment_id, session_number, pe_appointments(date, hour, group_lesson_id)'
-			)
+			.select('id, appointment_id, session_number, pe_appointments(date, hour, group_lesson_id)')
 			.eq('trainee_id', traineeId)
 			.in('purchase_id', purchaseChain);
 

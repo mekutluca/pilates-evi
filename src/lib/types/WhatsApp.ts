@@ -78,6 +78,15 @@ export interface RescheduleNotificationParams {
 	cause?: string;
 }
 
+// A single trainee notification for a shifted appointment, where each entry can carry its
+// own old/new date-time (group trainees on the same appointment may land on different slots).
+export interface ShiftNotificationEntry {
+	phone: string;
+	oldDateTime: string; // e.g. "26 Şubat 11:00"
+	newDateTime: string; // e.g. "1 Mart 15:00"
+	packageName: string;
+}
+
 export interface WhatsAppAppointmentData {
 	traineeName: string;
 	traineePhone: string;
