@@ -158,28 +158,24 @@
 				appointmentId: a.id
 			}));
 		} else if (isShiftBySlotMode) {
-			// Shift by slots - need to find target appointments N slots ahead
-			// For now, we'll get all group appointments and find the targets
-			const allGroupAppts = data.allFromNowAppointments
-				.filter((a) => a.date && a.hour !== null)
-				.sort((a, b) => {
-					const dateCompare = (a.date ?? '').localeCompare(b.date ?? '');
-					if (dateCompare !== 0) return dateCompare;
-					return (a.hour ?? 0) - (b.hour ?? 0);
-				});
-
+			// Slot shift: walk each record forward through its own group's eligible list
+			// (the trainee's day/hour pattern within that group), so multi-group records
+			// resolve correctly.
 			targetAppointments = validAppointments
 				.map((a) => {
-					const currentIndex = allGroupAppts.findIndex((g) => g.id === a.id);
+					const fromAll = data.allFromNowAppointments.find((x) => x.id === a.id);
+					const groupId = fromAll?.group_lesson_id;
+					if (!groupId) return null;
+					const eligible = data.slotShiftEligibleByGroup?.[groupId];
+					if (!eligible) return null;
+					const currentIndex = eligible.findIndex((e) => e.id === a.id);
 					if (currentIndex === -1) return null;
-
 					const targetIndex = currentIndex + slotsToShift;
-					if (targetIndex >= allGroupAppts.length) return null;
-
-					const target = allGroupAppts[targetIndex];
+					if (targetIndex >= eligible.length) return null;
+					const target = eligible[targetIndex];
 					return {
-						date: target.date!,
-						hour: target.hour!,
+						date: target.date,
+						hour: target.hour,
 						appointmentId: a.id
 					};
 				})
@@ -852,10 +848,23 @@
 									return buildAppointmentSlots(timeSlots, firstDate, totalSlotsNeeded);
 								})()}
 								{#each appointments as appt, index (appt.id)}
+									{@const traineeEligible =
+										isTraineeShiftMode && appt.group_lesson_id
+											? data.slotShiftEligibleByGroup?.[appt.group_lesson_id]
+											: undefined}
+									{@const traineeTarget = (() => {
+										if (!isShiftBySlotMode || slotsToShift <= 0 || !traineeEligible) return null;
+										const idx = traineeEligible.findIndex((e) => e.id === appt.id);
+										if (idx === -1) return null;
+										const targetIdx = idx + slotsToShift;
+										if (targetIdx >= traineeEligible.length) return null;
+										return traineeEligible[targetIdx];
+									})()}
 									{@const targetAppt =
-										isShiftBySlotMode && allSlotsForPreview
+										traineeTarget ??
+										(isShiftBySlotMode && allSlotsForPreview && !isTraineeShiftMode
 											? allSlotsForPreview[index + slotsToShift]
-											: null}
+											: null)}
 									<div class="rounded bg-muted px-3 py-2 text-sm">
 										<div class="font-medium">
 											{#if appt.date}

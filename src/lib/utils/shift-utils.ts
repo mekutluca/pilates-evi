@@ -349,14 +349,60 @@ export async function renumberTraineeSessionsInChain(
 	return { error: null };
 }
 
+export type EligibleAppointment = { id: number; date: string; hour: number };
+
+/**
+ * For each group lesson the trainee attends within these records, returns the upcoming
+ * appointments (from `fromDate` onwards) that match the trainee's own (day, hour) pattern
+ * inside that group. The slot-shift action and UI preview both rely on this to walk the
+ * trainee through their actual schedule rather than the group's full canonical pattern.
+ */
+export async function buildTraineeEligibleByGroup(
+	supabase: SupabaseClientType,
+	records: Array<{ groupLessonId: string | null; date: string; hour: number }>,
+	fromDate: string
+): Promise<Map<string, EligibleAppointment[]>> {
+	const slotKeysByGroup = new Map<string, Set<string>>();
+	for (const record of records) {
+		if (!record.groupLessonId) continue;
+		let set = slotKeysByGroup.get(record.groupLessonId);
+		if (!set) {
+			set = new Set<string>();
+			slotKeysByGroup.set(record.groupLessonId, set);
+		}
+		set.add(`${getDayOfWeekFromDate(record.date)}-${record.hour}`);
+	}
+
+	const eligibleByGroup = new Map<string, EligibleAppointment[]>();
+	for (const [groupLessonId, slotKeys] of slotKeysByGroup) {
+		const { data: groupAppts } = await supabase
+			.from('pe_appointments')
+			.select('id, date, hour')
+			.eq('group_lesson_id', groupLessonId)
+			.gte('date', fromDate)
+			.order('date', { ascending: true })
+			.order('hour', { ascending: true });
+
+		const eligible = (
+			(groupAppts as Array<{ id: number; date: string | null; hour: number | null }> | null) ?? []
+		)
+			.filter((a): a is EligibleAppointment => !!a.date && a.hour !== null)
+			.filter((a) => slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`));
+
+		eligibleByGroup.set(groupLessonId, eligible);
+	}
+	return eligibleByGroup;
+}
+
 /**
  * Shifts a single trainee's records, starting at `fromAppointmentId`, forward by `slots`
- * positions in the trainee's *own* slot pattern within the cancelled/selected group lesson.
+ * positions in the trainee's *own* slot pattern within each group lesson they attend.
  *
  * The trainee's own (day, hour) pattern is the right ground truth here — a trainee in a
  * Mon–Sun-at-13:00 group lesson who only attends Wed/Thu must shift Wed→Thu→next-Wed,
- * not Wed→Thu→Fri. Cross-group records under the same purchase chain are excluded from
- * the pattern; they belong to a different recurring schedule.
+ * not Wed→Thu→Fri. When a purchase chain spans multiple group lessons (e.g. trainee
+ * attends Wed 13 in one lesson and Sun 10 in another), each record shifts forward inside
+ * its own group's pattern.
  *
  * Updates run in reverse order so that the trainee never momentarily holds two records
  * on the same appointment.
@@ -382,8 +428,7 @@ export async function shiftTraineeRecordsBySlot(
 		return { error: 'Öğrenci kaydı bulunamadı', shifted: [] };
 	}
 
-	const groupLessonId = currentRecord.pe_appointments.group_lesson_id;
-	if (!groupLessonId) {
+	if (!currentRecord.pe_appointments.group_lesson_id) {
 		return { error: 'Bu işlem sadece grup dersleri için geçerlidir', shifted: [] };
 	}
 
@@ -398,29 +443,14 @@ export async function shiftTraineeRecordsBySlot(
 		return { error: 'Başlangıç randevusu bulunamadı', shifted: [] };
 	}
 
-	const traineeSlotKeys = new Set<string>();
-	for (const record of records) {
-		if (record.groupLessonId !== groupLessonId) continue;
-		traineeSlotKeys.add(`${getDayOfWeekFromDate(record.date)}-${record.hour}`);
-	}
-
-	const { data: groupAppts } = await supabase
-		.from('pe_appointments')
-		.select('id, date, hour')
-		.eq('group_lesson_id', groupLessonId)
-		.gte('date', fromDate)
-		.order('date', { ascending: true })
-		.order('hour', { ascending: true });
-
-	const eligible = (
-		(groupAppts as Array<{ id: number; date: string | null; hour: number | null }> | null) ?? []
-	)
-		.filter((a): a is { id: number; date: string; hour: number } => !!a.date && a.hour !== null)
-		.filter((a) => traineeSlotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`));
+	const eligibleByGroup = await buildTraineeEligibleByGroup(supabase, records, fromDate);
 
 	const recordsToShift = records.slice(startIndex);
 	const shiftMap: ShiftedTraineeRecord[] = [];
 	for (const record of recordsToShift) {
+		if (!record.groupLessonId) continue;
+		const eligible = eligibleByGroup.get(record.groupLessonId);
+		if (!eligible) continue;
 		const currentIdx = eligible.findIndex((a) => a.id === record.appointmentId);
 		if (currentIdx === -1) continue;
 		const targetIdx = currentIdx + slots;

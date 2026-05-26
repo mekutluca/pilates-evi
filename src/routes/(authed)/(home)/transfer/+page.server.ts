@@ -21,6 +21,7 @@ import {
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
 import {
+	buildTraineeEligibleByGroup,
 	renumberTraineeSessionsInChain,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsBySlot
@@ -45,6 +46,7 @@ const APPOINTMENT_SUMMARY_SELECT_QUERY = `
 	id,
 	date,
 	hour,
+	group_lesson_id,
 	pe_rooms(id, name),
 	pe_trainers(id, name)
 `;
@@ -131,6 +133,36 @@ function filterToCanonicalSlots<T extends { date: string | null; hour: number | 
 		if (!apt.date || apt.hour === null) return false;
 		const day = getDayOfWeekFromDate(apt.date);
 		return canonicalSlots.has(`${day}-${apt.hour}`);
+	});
+}
+
+// Per-group variant: each appointment is filtered against ITS OWN group lesson's canonical
+// slot set. Used when a single list spans multiple group lessons (e.g. a trainee shift where
+// the trainee attends several group lessons under one purchase chain).
+async function filterByGroupCanonicalSlots<
+	T extends { date: string | null; hour: number | null; group_lesson_id: string | null }
+>(
+	supabase: SupabaseClient<Database>,
+	appointments: T[],
+	cache: Map<string, Set<string>>
+): Promise<T[]> {
+	const groupIds = new Set<string>();
+	for (const apt of appointments) {
+		if (apt.group_lesson_id && !cache.has(apt.group_lesson_id)) {
+			groupIds.add(apt.group_lesson_id);
+		}
+	}
+	for (const id of groupIds) {
+		const { slotKeys } = await getGroupLessonCanonicalSlots(supabase, id);
+		cache.set(id, slotKeys);
+	}
+	return appointments.filter((apt) => {
+		if (!apt.date || apt.hour === null) return false;
+		if (!apt.group_lesson_id) return true;
+		const slots = cache.get(apt.group_lesson_id);
+		if (!slots || slots.size === 0) return true;
+		const day = getDayOfWeekFromDate(apt.date);
+		return slots.has(`${day}-${apt.hour}`);
 	});
 }
 
@@ -473,12 +505,52 @@ export const load: PageServerLoad = async ({
 
 	// For group lessons, drop one-off reschedule destinations from both lists so the affected-
 	// appointments view and slot-shift preview only consider the canonical recurring schedule.
+	// Trainee shift can span multiple group lessons via the purchase chain, so each appointment
+	// is filtered against its own group's canonical slots — using only the clicked group's
+	// slots would wrongly drop the trainee's records from other group lessons.
 	let canonicalTimeslots: Array<{ day: DayOfWeek; hour: number }> = [];
 	if (appointment.group_lesson_id) {
-		const canonical = await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id);
-		futureAppointments = filterToCanonicalSlots(futureAppointments, canonical.slotKeys);
-		allFromNowAppointments = filterToCanonicalSlots(allFromNowAppointments, canonical.slotKeys);
-		canonicalTimeslots = canonical.slots;
+		if (traineeId) {
+			const canonicalCache = new Map<string, Set<string>>();
+			futureAppointments = await filterByGroupCanonicalSlots(
+				supabase,
+				futureAppointments,
+				canonicalCache
+			);
+			allFromNowAppointments = await filterByGroupCanonicalSlots(
+				supabase,
+				allFromNowAppointments,
+				canonicalCache
+			);
+			const canonical = await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id);
+			canonicalTimeslots = canonical.slots;
+		} else {
+			const canonical = await getGroupLessonCanonicalSlots(supabase, appointment.group_lesson_id);
+			futureAppointments = filterToCanonicalSlots(futureAppointments, canonical.slotKeys);
+			allFromNowAppointments = filterToCanonicalSlots(allFromNowAppointments, canonical.slotKeys);
+			canonicalTimeslots = canonical.slots;
+		}
+	}
+
+	// For trainee slot-shift previews, the UI needs the trainee's own per-group eligible
+	// list (not the group's full canonical pattern). A trainee in a Mon-Sun-13 group who
+	// only attends Wed shifts Wed→next-Wed, not Wed→Thu — and the same goes for any cross-
+	// group records under their purchase chain.
+	let slotShiftEligibleByGroup: Record<string, Array<{ id: number; date: string; hour: number }>> =
+		{};
+	if (traineeId && appointment.date) {
+		const recordsForPattern = allFromNowAppointments
+			.filter(
+				(a): a is typeof a & { date: string; hour: number; group_lesson_id: string } =>
+					!!a.date && a.hour !== null && !!a.group_lesson_id
+			)
+			.map((a) => ({ groupLessonId: a.group_lesson_id, date: a.date, hour: a.hour }));
+		const eligibleMap = await buildTraineeEligibleByGroup(
+			supabase,
+			recordsForPattern,
+			appointment.date
+		);
+		slotShiftEligibleByGroup = Object.fromEntries(eligibleMap);
 	}
 
 	// If trainee shift mode, fetch trainee and purchase info
@@ -509,6 +581,7 @@ export const load: PageServerLoad = async ({
 			id: a.id,
 			date: a.date,
 			hour: a.hour,
+			group_lesson_id: a.group_lesson_id,
 			room_name: a.pe_rooms?.name || null,
 			trainer_name: a.pe_trainers?.name || null
 		})),
@@ -517,11 +590,13 @@ export const load: PageServerLoad = async ({
 			id: a.id,
 			date: a.date,
 			hour: a.hour,
+			group_lesson_id: a.group_lesson_id,
 			room_name: a.pe_rooms?.name || null,
 			trainer_name: a.pe_trainers?.name || null
 		})),
 		allFromNowCount: allFromNowAppointments.length,
-		canonicalTimeslots
+		canonicalTimeslots,
+		slotShiftEligibleByGroup
 	};
 };
 
@@ -949,7 +1024,9 @@ export const actions: Actions = {
 
 		const { data: futureRecords } = await supabase
 			.from('pe_appointment_trainees')
-			.select('id, appointment_id, session_number, pe_appointments(date, hour)')
+			.select(
+				'id, appointment_id, session_number, pe_appointments(date, hour, group_lesson_id)'
+			)
 			.eq('trainee_id', traineeId)
 			.in('purchase_id', purchaseChain);
 
@@ -973,12 +1050,15 @@ export const actions: Actions = {
 				return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
 			});
 
-		// Find target appointments (shifted by N weeks)
+		// Find target appointments (shifted by N weeks). Each record uses its OWN
+		// group_lesson_id — a trainee may attend multiple group lessons under one purchase
+		// chain, so we can't pin every lookup to the clicked appointment's group.
 		const shiftMap: Array<{ recordId: number; newAppointmentId: number }> = [];
 
 		for (const record of recordsToShift) {
 			const currentDate = record.pe_appointments?.date;
 			const currentHour = record.pe_appointments?.hour;
+			const recordGroupLessonId = record.pe_appointments?.group_lesson_id ?? groupLessonId;
 			if (!currentDate || currentHour === null) continue;
 
 			const targetDate = addWeeksToDate(currentDate, weeks);
@@ -987,7 +1067,7 @@ export const actions: Actions = {
 			const { data: targetAppt } = await supabase
 				.from('pe_appointments')
 				.select('id')
-				.eq('group_lesson_id', groupLessonId)
+				.eq('group_lesson_id', recordGroupLessonId)
 				.eq('date', targetDate)
 				.eq('hour', currentHour)
 				.single();

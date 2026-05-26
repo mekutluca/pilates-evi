@@ -56,6 +56,7 @@ export type AppointmentSummaryResult = {
 	id: number;
 	date: string | null;
 	hour: number | null;
+	group_lesson_id: string | null;
 	pe_rooms: { id: string; name: string } | null;
 	pe_trainers: { id: string; name: string } | null;
 };
@@ -75,5 +76,9 @@ export type RecordWithAppt = {
 	id: number;
 	appointment_id: number;
 	session_number: number | null;
-	pe_appointments: { date: string | null; hour: number | null } | null;
+	pe_appointments: {
+		date: string | null;
+		hour: number | null;
+		group_lesson_id: string | null;
+	} | null;
 };
