@@ -693,7 +693,9 @@ export const actions: Actions = {
 			// STEP 6: Assign trainees to appointments
 			if (isJoiningSelectedTimeslots) {
 				// For joining specific timeslots from different group lessons
-				const today = new Date().toISOString().split('T')[0];
+				const now = new Date();
+				const todayStr = now.toISOString().split('T')[0];
+				const currentHour = now.getHours();
 				const durationWeeks = assignmentForm.duration_weeks || 4;
 				const selectedTimeslots = assignmentForm.selected_group_timeslots!;
 
@@ -755,84 +757,86 @@ export const actions: Actions = {
 					saturday: 6
 				};
 
-				// For each trainee and their purchase, find matching appointments and assign
-				const lessonsPerWeek = selectedTimeslots.length; // Use actual selected count
+				// Fetch upcoming appointments for each involved group lesson once. We don't
+				// filter by hour: an exact (day, hour) match is required, but the absence of
+				// a match (e.g. a canceled or rescheduled slot) just leaves a gap that gets
+				// skipped — later weeks fill in to reach the required total.
+				const uniqueGroupLessonIds = Array.from(
+					new Set(selectedTimeslots.map((t) => t.group_lesson_id))
+				);
+
+				const upcomingByGroupLesson = new Map<
+					string,
+					Array<{ id: number; date: string; hour: number }>
+				>();
+
+				for (const groupLessonId of uniqueGroupLessonIds) {
+					const { data, error: apptsError } = await supabase
+						.from('pe_appointments')
+						.select('id, date, hour')
+						.eq('group_lesson_id', groupLessonId)
+						.gte('date', todayStr)
+						.order('date', { ascending: true })
+						.order('hour', { ascending: true });
+
+					if (apptsError) {
+						return fail(500, {
+							success: false,
+							message: `Zaman dilimi randevuları alınırken hata: ${apptsError.message}`
+						});
+					}
+
+					const future: Array<{ id: number; date: string; hour: number }> = [];
+					for (const apt of data || []) {
+						if (!apt.date || apt.hour === null) continue;
+						if (apt.date === todayStr && apt.hour <= currentHour) continue;
+						future.push({ id: apt.id, date: apt.date, hour: apt.hour });
+					}
+					upcomingByGroupLesson.set(groupLessonId, future);
+				}
+
+				// Collect exact (day, hour) matches across all selected timeslots, sort
+				// chronologically, and take the first totalSessions. Missing/rescheduled
+				// slots are skipped; the next matching slots fill in.
+				const lessonsPerWeek = selectedTimeslots.length;
 				const totalSessions = durationWeeks * lessonsPerWeek;
-				let totalAppointmentsAssigned = 0;
+
+				const allMatches: Array<{ id: number; date: string; hour: number }> = [];
+
+				for (const timeslot of selectedTimeslots) {
+					const targetDayNumber = dayNameToNumber[timeslot.day.toLowerCase()];
+					const upcoming = upcomingByGroupLesson.get(timeslot.group_lesson_id) || [];
+
+					for (const apt of upcoming) {
+						if (apt.hour !== timeslot.hour) continue;
+						if (parseLocalDate(apt.date).getDay() !== targetDayNumber) continue;
+						allMatches.push(apt);
+					}
+				}
+
+				allMatches.sort((a, b) => {
+					const dateCompare = a.date.localeCompare(b.date);
+					if (dateCompare !== 0) return dateCompare;
+					return a.hour - b.hour;
+				});
+
+				const collectedAppointments = allMatches.slice(0, totalSessions);
+
+				if (collectedAppointments.length === 0) {
+					return fail(400, {
+						success: false,
+						message: 'Seçilen zaman dilimleri için uygun randevu bulunamadı'
+					});
+				}
 
 				for (const { traineeId, purchaseId } of traineesPurchases) {
-					// Collect all appointments first, then sort by date for correct session numbering
-					const collectedAppointments: Array<{ id: number; date: string; hour: number }> = [];
-
-					// For each selected timeslot, find upcoming appointments
-					for (const timeslot of selectedTimeslots) {
-						// Get upcoming appointments for this specific group lesson and timeslot
-						// Use higher limit to account for multiple days per week at the same hour
-						const { data: timeslotAppointments, error: timeslotError } = await supabase
-							.from('pe_appointments')
-							.select('id, date, hour')
-							.eq('group_lesson_id', timeslot.group_lesson_id)
-							.eq('hour', timeslot.hour)
-							.gte('date', today)
-							.order('date', { ascending: true })
-							.limit(durationWeeks * 7); // Account for up to 7 days per week at same hour
-
-						if (timeslotError) {
-							return fail(500, {
-								success: false,
-								message: `Zaman dilimi randevuları alınırken hata: ${timeslotError.message}`
-							});
-						}
-
-						if (!timeslotAppointments || timeslotAppointments.length === 0) {
-							continue;
-						}
-
-						// Filter appointments to only those on the correct day of week
-						const targetDayNumber = dayNameToNumber[timeslot.day.toLowerCase()];
-						const matchingAppointments = timeslotAppointments.filter((apt) => {
-							const aptDate = parseLocalDate(apt.date);
-							return aptDate.getDay() === targetDayNumber;
-						});
-
-						// Take only the number of weeks we need
-						const appointmentsToAssign = matchingAppointments.slice(0, durationWeeks);
-						collectedAppointments.push(...appointmentsToAssign);
-					}
-
-					// Sort by date and hour for correct session numbering
-					collectedAppointments.sort((a, b) => {
-						const dateCompare = a.date.localeCompare(b.date);
-						if (dateCompare !== 0) return dateCompare;
-						return a.hour - b.hour;
-					});
-
-					// Now assign session numbers in chronological order
-					const appointmentTraineeInserts: Array<{
-						appointment_id: number;
-						trainee_id: string;
-						purchase_id: string;
-						session_number: number;
-						total_sessions: number;
-					}> = [];
-
-					for (let i = 0; i < collectedAppointments.length; i++) {
-						const apt = collectedAppointments[i];
-						appointmentTraineeInserts.push({
-							appointment_id: apt.id,
-							trainee_id: traineeId,
-							purchase_id: purchaseId,
-							session_number: i + 1,
-							total_sessions: totalSessions
-						});
-					}
-
-					if (appointmentTraineeInserts.length === 0) {
-						return fail(400, {
-							success: false,
-							message: 'Seçilen zaman dilimleri için uygun randevu bulunamadı'
-						});
-					}
+					const appointmentTraineeInserts = collectedAppointments.map((apt, i) => ({
+						appointment_id: apt.id,
+						trainee_id: traineeId,
+						purchase_id: purchaseId,
+						session_number: i + 1,
+						total_sessions: totalSessions
+					}));
 
 					const { error: traineeError } = await supabase
 						.from('pe_appointment_trainees')
@@ -844,13 +848,11 @@ export const actions: Actions = {
 							message: 'Öğrenci randevulara atanamadı'
 						});
 					}
-
-					totalAppointmentsAssigned += appointmentTraineeInserts.length;
 				}
 
 				return {
 					success: true,
-					message: `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${totalAppointmentsAssigned / assignmentForm.trainee_ids.length} randevuya atandı.`
+					message: `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${collectedAppointments.length} randevuya atandı.`
 				};
 			} else if (isJoiningExistingGroupLesson) {
 				// For joining existing group: get upcoming appointments and assign trainees
