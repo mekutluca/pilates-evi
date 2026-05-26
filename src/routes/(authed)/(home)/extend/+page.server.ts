@@ -191,7 +191,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		throw error(404, 'Paket bilgisi bulunamadı');
 	}
 	const pkg = packageRes.data;
-	if (pkg.weeks_duration === null) {
+	const isGroup = pkg.package_type === 'group';
+	// Private packages have a fixed weeks_duration; group packages set duration per
+	// purchase at sign-up, so weeks_duration on the package is allowed to be null.
+	if (!isGroup && pkg.weeks_duration === null) {
 		throw error(400, 'Paket süresi belirsiz');
 	}
 	if (refAppointments.length === 0) {
@@ -201,8 +204,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	const refRoomId = refAppointments[0].room_id;
 	const refTrainerId = refAppointments[0].trainer_id;
 	const earliestStart = calculateExtensionStartDate(lastAppDate);
-	const isGroup = pkg.package_type === 'group';
-	const weeksDuration = pkg.weeks_duration;
+	const weeksDuration = pkg.weeks_duration ?? 0;
 
 	// Phase 2: dependent fetches, also parallelized.
 	const [chainDates, roomDataRes, trainerDataRes, slotsResult] = await Promise.all([
@@ -595,21 +597,17 @@ export const actions: Actions = {
 				message: 'Bu işlem sadece grup dersleri için geçerlidir'
 			});
 		}
-		if (packageInfo.weeks_duration === null) {
-			return fail(400, {
-				success: false,
-				message: 'Paket süresi belirsiz'
-			});
-		}
 
 		// Pull the trainee's actual upcoming group-lesson appointments (already filtered to
 		// canonical day/hour). Locate the chosen start, then join the next totalSessions rows.
+		// weeksDuration is unused by the group branch of getCanonicalPurchaseTimeSlots, so a
+		// null package weeks_duration (group packages set duration per purchase) is fine.
 		const startDate = parseLocalDate(startDateStr);
 		const { canonicalSlots, upcomingAppointments } = await getFutureGroupAppointments(
 			supabase,
 			lastPurchase.id,
 			startDate,
-			packageInfo.weeks_duration
+			packageInfo.weeks_duration ?? 0
 		);
 
 		if (canonicalSlots.length === 0 || upcomingAppointments.length === 0) {
