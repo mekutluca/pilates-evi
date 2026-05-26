@@ -35,6 +35,7 @@
 
 	let dateForDB = $derived(formatDateForDB(selectedDate));
 	let formattedDate = $derived(formatTurkishDate(dateForDB));
+	let conflictIds = $derived(conflicts.map((c) => c.appointmentId).join(','));
 
 	function handleDateSelect(date: Date) {
 		selectedDate = date;
@@ -181,6 +182,39 @@
 						{/if}
 					</div>
 				{/each}
+
+				<div class="space-y-2 border-t pt-3">
+					<p class="text-sm text-muted-foreground">Bu randevuları nasıl kaydıralım?</p>
+					<div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+						<form method="POST" action="?/cancelDay" use:enhance={handleSubmit}>
+							<input type="hidden" name="date" value={dateForDB} />
+							<input type="hidden" name="reason" value={reason} />
+							<input type="hidden" name="strategy" value="closest" />
+							<input type="hidden" name="appointmentIds" value={conflictIds} />
+							<Button type="submit" class="w-full sm:w-auto" disabled={formLoading}>
+								{#if formLoading}
+									<LoaderCircle size={16} class="animate-spin" />
+								{:else}
+									En yakın uygun randevuya kaydır
+								{/if}
+							</Button>
+						</form>
+						<form method="POST" action="?/cancelDay" use:enhance={handleSubmit}>
+							<input type="hidden" name="date" value={dateForDB} />
+							<input type="hidden" name="reason" value={reason} />
+							<input type="hidden" name="strategy" value="force" />
+							<input type="hidden" name="appointmentIds" value={conflictIds} />
+							<Button
+								type="submit"
+								variant="outline"
+								class="w-full sm:w-auto"
+								disabled={formLoading}
+							>
+								Çakışmaya rağmen kaydır
+							</Button>
+						</form>
+					</div>
+				</div>
 			</Card.Content>
 		</Card.Root>
 	{/if}

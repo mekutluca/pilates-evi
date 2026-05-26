@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { cancelDay } from '$lib/utils/day-cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
+import type { DayCancellationStrategy } from '$lib/types/Operation';
 
 export const load: PageServerLoad = async ({ locals: { user, userRole } }) => {
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
@@ -21,7 +22,20 @@ export const actions: Actions = {
 		const date = getRequiredFormDataString(formData, 'date');
 		const reason = getRequiredFormDataString(formData, 'reason');
 
-		const result = await cancelDay(supabase, { date });
+		const strategyRaw = formData.get('strategy')?.toString();
+		const strategy: DayCancellationStrategy =
+			strategyRaw === 'force' || strategyRaw === 'closest' ? strategyRaw : 'shift';
+
+		// Resolution passes restrict the operation to the previously-conflicting appointments.
+		const idsRaw = formData.get('appointmentIds')?.toString();
+		const appointmentIds = idsRaw
+			? idsRaw
+					.split(',')
+					.map(Number)
+					.filter((n) => Number.isFinite(n))
+			: undefined;
+
+		const result = await cancelDay(supabase, { date, appointmentIds, strategy });
 		if (result.error) {
 			return fail(400, { success: false, message: result.error });
 		}

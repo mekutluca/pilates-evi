@@ -171,11 +171,16 @@ async function findSeriesShiftConflicts(
  * Conflicts (room/trainer at the new slot, ignoring members of the same series) are
  * surfaced via the result without applying the shift. Updates are committed in reverse
  * order so intra-series collisions on `(date, hour)` never appear mid-write.
+ *
+ * With `options.force`, the shift is applied even when conflicts exist (the conflicts are
+ * still returned for the caller's reference) — used by the day-cancellation "shift anyway"
+ * resolution where the user has accepted the overlap.
  */
 export async function shiftSeriesBySlot(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
-	slots: number
+	slots: number,
+	options?: { force?: boolean }
 ): Promise<SeriesShiftResult> {
 	if (slots <= 0) {
 		return { error: 'Kaydırma sayısı pozitif olmalı', conflicts: [], shifted: [] };
@@ -219,7 +224,7 @@ export async function shiftSeriesBySlot(
 
 	const seriesIds = new Set(series.map((a) => a.id));
 	const conflicts = await findSeriesShiftConflicts(supabase, plan, seriesIds);
-	if (conflicts.length > 0) {
+	if (conflicts.length > 0 && !options?.force) {
 		return { error: null, conflicts, shifted: [] };
 	}
 
@@ -249,7 +254,7 @@ export async function shiftSeriesBySlot(
 		groupLessonId: step.source.group_lesson_id
 	}));
 
-	return { error: null, conflicts: [], shifted };
+	return { error: null, conflicts, shifted };
 }
 
 interface TraineeRecordRow {

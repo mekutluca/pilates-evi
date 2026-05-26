@@ -1,12 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
-import type { ShiftConflict } from '$lib/types/Schedule';
+import type { ShiftConflict, ShiftedAppointment } from '$lib/types/Schedule';
 import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
-import type { DayCancellationConflict, DayCancellationResult } from '$lib/types/Operation';
+import type {
+	DayCancellationConflict,
+	DayCancellationResult,
+	DayCancellationStrategy
+} from '$lib/types/Operation';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
+
+// How far ahead the "closest free occurrence" search walks through the recurring pattern
+// before giving up (≈ six months for a weekly slot).
+const CLOSEST_PROBE_LIMIT = 26;
 
 interface DayTrainee {
 	traineeId: string;
@@ -100,12 +108,14 @@ function describeAppointment(appt: DayAppointment): string {
 
 function buildPrivateConflict(
 	appt: DayAppointment,
-	conflicts: ShiftConflict[]
+	conflicts: ShiftConflict[],
+	reasonOverride?: string
 ): DayCancellationConflict {
 	const roomBusy = conflicts.some((c) => c.roomConflict);
 	const trainerBusy = conflicts.some((c) => c.trainerConflict);
 	const reason =
-		roomBusy && trainerBusy ? 'Oda ve eğitmen dolu' : roomBusy ? 'Oda dolu' : 'Eğitmen dolu';
+		reasonOverride ??
+		(roomBusy && trainerBusy ? 'Oda ve eğitmen dolu' : roomBusy ? 'Oda dolu' : 'Eğitmen dolu');
 	return {
 		appointmentId: appt.id,
 		date: appt.date,
@@ -137,17 +147,45 @@ interface ShiftOutcome {
 	error?: string;
 }
 
-// Shifts a private (purchase-backed) appointment's whole series forward by one slot, mirroring a
-// single appointment cancellation. The target slot is checked for room/trainer conflicts; on a
-// conflict nothing moves and the appointment is reported back for the user to resolve.
+function shiftedOutcome(appt: DayAppointment, shifted: ShiftedAppointment[]): ShiftOutcome {
+	const moved = shifted.find((s) => s.id === appt.id);
+	const notifications = moved ? buildNotifications(appt, moved.newDate, moved.newHour) : [];
+	return { shifted: true, notifications };
+}
+
+// Shifts a private (purchase-backed) appointment's whole series forward, mirroring a single
+// appointment cancellation. The target slot is checked for room/trainer conflicts:
+// - 'shift'   : shift by one slot; on a conflict nothing moves and it is reported to resolve.
+// - 'force'   : shift by one slot even if the target slot conflicts (user accepted the overlap).
+// - 'closest' : walk forward through the recurring pattern to the first conflict-free occurrence.
 async function shiftPrivateAppointment(
 	supabase: SupabaseClientType,
-	appt: DayAppointment
+	appt: DayAppointment,
+	strategy: DayCancellationStrategy
 ): Promise<ShiftOutcome> {
-	const result = await shiftSeriesBySlot(supabase, appt.id, 1);
-	if (result.error) {
-		return { shifted: false, notifications: [], error: result.error };
+	if (strategy === 'force') {
+		const result = await shiftSeriesBySlot(supabase, appt.id, 1, { force: true });
+		if (result.error) return { shifted: false, notifications: [], error: result.error };
+		return shiftedOutcome(appt, result.shifted);
 	}
+
+	if (strategy === 'closest') {
+		let lastConflicts: ShiftConflict[] = [];
+		for (let slots = 1; slots <= CLOSEST_PROBE_LIMIT; slots++) {
+			const result = await shiftSeriesBySlot(supabase, appt.id, slots);
+			if (result.error) return { shifted: false, notifications: [], error: result.error };
+			if (result.conflicts.length === 0) return shiftedOutcome(appt, result.shifted);
+			lastConflicts = result.conflicts;
+		}
+		return {
+			shifted: false,
+			notifications: [],
+			conflict: buildPrivateConflict(appt, lastConflicts, 'Uygun boş randevu bulunamadı')
+		};
+	}
+
+	const result = await shiftSeriesBySlot(supabase, appt.id, 1);
+	if (result.error) return { shifted: false, notifications: [], error: result.error };
 	if (result.conflicts.length > 0) {
 		return {
 			shifted: false,
@@ -155,9 +193,7 @@ async function shiftPrivateAppointment(
 			conflict: buildPrivateConflict(appt, result.conflicts)
 		};
 	}
-	const moved = result.shifted.find((s) => s.id === appt.id);
-	const notifications = moved ? buildNotifications(appt, moved.newDate, moved.newHour) : [];
-	return { shifted: true, notifications };
+	return shiftedOutcome(appt, result.shifted);
 }
 
 async function deleteEmptyAppointment(
@@ -217,18 +253,24 @@ async function shiftGroupAppointment(
 }
 
 /**
- * Cancels a whole day: every future appointment on `date` that has trainees is shifted forward by
- * one slot using the same machinery as a single appointment cancellation, so no trainee session is
- * lost. Appointments whose target slot conflicts with another room/trainer booking are left in
- * place and returned in `conflicts` for the caller to resolve. Empty slots are left untouched.
+ * Cancels a whole day: every future appointment on `date` that has trainees is shifted forward
+ * using the same machinery as a single appointment cancellation, so no trainee session is lost.
+ *
+ * The initial pass (`strategy: 'shift'`) skips appointments whose target slot conflicts with
+ * another room/trainer booking and returns them in `conflicts` for the user to resolve. A
+ * follow-up call with `appointmentIds` restricted to those conflicts and `strategy: 'force'`
+ * (shift anyway) or `'closest'` (nearest free occurrence) resolves them. Empty slots are left
+ * untouched.
  *
  * Notifications for the shifted appointments are returned (not sent) so the caller can dispatch
  * them with the WhatsApp repository and the user-supplied cause.
  */
 export async function cancelDay(
 	supabase: SupabaseClientType,
-	params: { date: string }
+	params: { date: string; appointmentIds?: number[]; strategy?: DayCancellationStrategy }
 ): Promise<DayCancellationResult> {
+	const strategy = params.strategy ?? 'shift';
+	const idFilter = params.appointmentIds ? new Set(params.appointmentIds) : null;
 	const appointments = await getDayAppointments(supabase, params.date);
 
 	const result: DayCancellationResult = {
@@ -240,12 +282,13 @@ export async function cancelDay(
 	};
 
 	for (const appt of appointments) {
+		if (idFilter && !idFilter.has(appt.id)) continue;
 		if (!isFuture(appt.date, appt.hour)) continue;
 		if (appt.trainees.length === 0) continue;
 
 		let outcome: ShiftOutcome | null = null;
 		if (appt.purchaseId) {
-			outcome = await shiftPrivateAppointment(supabase, appt);
+			outcome = await shiftPrivateAppointment(supabase, appt, strategy);
 		} else if (appt.groupLessonId) {
 			outcome = await shiftGroupAppointment(supabase, appt);
 		}
