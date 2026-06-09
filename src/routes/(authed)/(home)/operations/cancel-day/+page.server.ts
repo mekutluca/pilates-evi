@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { cancelDay } from '$lib/utils/day-cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
+import { formatDateForDB } from '$lib/utils/date-utils';
 import type { DayCancellationStrategy } from '$lib/types/Operation';
 
 export const load: PageServerLoad = async ({ locals: { user, userRole } }) => {
@@ -21,6 +22,15 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const date = getRequiredFormDataString(formData, 'date');
 		const reason = getRequiredFormDataString(formData, 'reason');
+
+		// Day cancellation only applies to future days; today and earlier are rejected (the UI
+		// also constrains the date picker, this is the backstop).
+		if (date <= formatDateForDB(new Date())) {
+			return fail(400, {
+				success: false,
+				message: 'Sadece yarın ve sonrası için gün iptali yapılabilir'
+			});
+		}
 
 		const strategyRaw = formData.get('strategy')?.toString();
 		const strategy: DayCancellationStrategy =

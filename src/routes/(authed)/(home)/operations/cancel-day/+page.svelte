@@ -24,7 +24,16 @@
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import type { DayCancellationConflict } from '$lib/types/Operation';
 
-	let selectedDate = $state(new Date());
+	// A day cancellation only makes sense for future days — shifting in-progress or past sessions
+	// is meaningless, so the picker starts on (and is bounded at) tomorrow.
+	function getTomorrow(): Date {
+		const now = new Date();
+		return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+	}
+
+	const minSelectableDate = getTomorrow();
+
+	let selectedDate = $state(getTomorrow());
 	let reason = $state('');
 	let showDatePicker = $state(false);
 	let showConfirm = $state(false);
@@ -104,6 +113,7 @@
 								value={selectedDate}
 								onDateSelect={handleDateSelect}
 								onClose={() => (showDatePicker = false)}
+								minDate={minSelectableDate}
 							/>
 						</div>
 					{/if}
