@@ -65,8 +65,7 @@ export const actions: Actions = {
 		if (result.conflicts.length > 0) {
 			parts.push(`${result.conflicts.length} randevu çakışma nedeniyle kaydırılamadı`);
 		}
-		const message =
-			parts.length > 0 ? `${parts.join(', ')}.` : 'Bu günde işlenecek randevu yok.';
+		const message = parts.length > 0 ? `${parts.join(', ')}.` : 'Bu günde işlenecek randevu yok.';
 
 		return {
 			success: true,

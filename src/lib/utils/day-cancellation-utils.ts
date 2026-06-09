@@ -8,6 +8,7 @@ import type {
 	DayCancellationStrategy
 } from '$lib/types/Operation';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
+import { deleteAppointment } from '$lib/utils/cancellation-utils';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
@@ -196,14 +197,6 @@ async function shiftPrivateAppointment(
 	return shiftedOutcome(appt, result.shifted);
 }
 
-async function deleteEmptyAppointment(
-	supabase: SupabaseClientType,
-	appointmentId: number
-): Promise<void> {
-	await supabase.from('pe_appointment_trainees').delete().eq('appointment_id', appointmentId);
-	await supabase.from('pe_appointments').delete().eq('id', appointmentId);
-}
-
 // Shifts each trainee on a group appointment forward by one slot within their own pattern, then
 // removes the now-empty original slot — exactly how a single group appointment is cancelled. Group
 // appointments target pre-existing slots, so they never produce room/trainer conflicts; a trainee
@@ -248,7 +241,8 @@ async function shiftGroupAppointment(
 		});
 	}
 
-	await deleteEmptyAppointment(supabase, appt.id);
+	const { error: deleteError } = await deleteAppointment(supabase, appt.id);
+	if (deleteError) return { shifted: false, notifications: [], error: deleteError };
 	return { shifted: true, notifications };
 }
 
@@ -288,8 +282,12 @@ export async function cancelDay(
 		if (appt.trainees.length === 0) {
 			// Empty slots (typically pre-created group lesson rows with no enrollments yet) on a
 			// cancelled day have no trainees to shift; just remove the row.
-			await deleteEmptyAppointment(supabase, appt.id);
-			result.deletedCount++;
+			const { error: deleteError } = await deleteAppointment(supabase, appt.id);
+			if (deleteError) {
+				result.warnings.push(`${describeAppointment(appt)}: ${deleteError}`);
+			} else {
+				result.deletedCount++;
+			}
 			continue;
 		}
 

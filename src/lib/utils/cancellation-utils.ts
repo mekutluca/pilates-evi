@@ -12,12 +12,14 @@ function isAppointmentFuture(date: string | null, hour: number | null): boolean 
 	return appointmentDateTime > new Date();
 }
 
-async function deleteAppointment(
+/**
+ * Removes an appointment row along with any remaining trainee links. Trainee links are deleted
+ * first to avoid leaving orphan `pe_appointment_trainees` rows when the FK lacks ON DELETE CASCADE.
+ */
+export async function deleteAppointment(
 	supabase: SupabaseClientType,
 	appointmentId: number
 ): Promise<{ error: string | null }> {
-	// Trainee links are removed first to avoid leaving orphan rows even if the
-	// appointment FK is missing ON DELETE CASCADE.
 	const { error: traineeError } = await supabase
 		.from('pe_appointment_trainees')
 		.delete()
