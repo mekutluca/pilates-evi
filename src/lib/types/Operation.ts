@@ -24,6 +24,8 @@ export interface DayCancellationConflict {
 export interface DayCancellationResult {
 	// Number of appointments whose series were shifted (and whose trainees were moved forward).
 	shiftedCount: number;
+	// Number of empty (no-trainee) slots removed from the cancelled day.
+	deletedCount: number;
 	// Resolvable room/trainer conflicts that were skipped (private appointments only).
 	conflicts: DayCancellationConflict[];
 	// Trainee notifications to send for the appointments that were shifted in this pass.

@@ -275,6 +275,7 @@ export async function cancelDay(
 
 	const result: DayCancellationResult = {
 		shiftedCount: 0,
+		deletedCount: 0,
 		conflicts: [],
 		notifications: [],
 		warnings: [],
@@ -284,7 +285,13 @@ export async function cancelDay(
 	for (const appt of appointments) {
 		if (idFilter && !idFilter.has(appt.id)) continue;
 		if (!isFuture(appt.date, appt.hour)) continue;
-		if (appt.trainees.length === 0) continue;
+		if (appt.trainees.length === 0) {
+			// Empty slots (typically pre-created group lesson rows with no enrollments yet) on a
+			// cancelled day have no trainees to shift; just remove the row.
+			await deleteEmptyAppointment(supabase, appt.id);
+			result.deletedCount++;
+			continue;
+		}
 
 		let outcome: ShiftOutcome | null = null;
 		if (appt.purchaseId) {

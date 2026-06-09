@@ -60,17 +60,19 @@ export const actions: Actions = {
 
 		const parts: string[] = [];
 		if (result.shiftedCount > 0) parts.push(`${result.shiftedCount} randevu kaydırıldı`);
+		if (result.deletedCount > 0) parts.push(`${result.deletedCount} boş randevu silindi`);
 		if (notifiedCount > 0) parts.push(`${notifiedCount} öğrenciye bilgi mesajı gönderildi`);
 		if (result.conflicts.length > 0) {
 			parts.push(`${result.conflicts.length} randevu çakışma nedeniyle kaydırılamadı`);
 		}
 		const message =
-			parts.length > 0 ? `${parts.join(', ')}.` : 'Bu günde kaydırılacak randevu yok.';
+			parts.length > 0 ? `${parts.join(', ')}.` : 'Bu günde işlenecek randevu yok.';
 
 		return {
 			success: true,
 			message,
 			shiftedCount: result.shiftedCount,
+			deletedCount: result.deletedCount,
 			notifiedCount,
 			conflicts: result.conflicts,
 			warnings: result.warnings
