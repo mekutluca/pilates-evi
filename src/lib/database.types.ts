@@ -662,6 +662,19 @@ export type Database = {
 				Args: { user_id: string };
 				Returns: number;
 			};
+			pe_create_assignment: {
+				Args: {
+					p_group_lesson: Json;
+					p_purchases: Json;
+					p_appointments: Json;
+					p_enrollments: Json;
+				};
+				Returns: {
+					group_lesson_id: string | null;
+					appointments_created: number;
+					enrollments_created: number;
+				};
+			};
 			pe_decrement_reschedule: { Args: { p_purchase_id: string }; Returns: number | null };
 			pe_extend_purchase: {
 				Args: { p_predecessor_id: string; p_reschedule_left: number; p_chunks: Json };

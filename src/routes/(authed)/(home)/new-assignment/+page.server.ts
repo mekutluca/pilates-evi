@@ -6,9 +6,15 @@ import type {
 	Appointment,
 	AvailableGroupTimeslot
 } from '$lib/types';
-import { randomUUID } from 'crypto';
 import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
+import { SchedulingService } from '$lib/server/services/scheduling-service';
+import type {
+	AssignmentGroupLessonPayload,
+	AssignmentPurchasePayload,
+	AssignmentAppointmentPayload,
+	AssignmentEnrollmentPayload
+} from '$lib/types/Assignment';
 import { isValidUuid } from '$lib/utils/validation';
 
 // Type for group lesson query result with joined tables
@@ -511,260 +517,68 @@ export const actions: Actions = {
 				});
 			}
 
-			// STEP 2a: Create group lesson entry if creating new group lesson
-			if (isCreatingNewGroupLesson) {
-				// Calculate start_date as the earliest selected timeslot
-				const earliestSlot = allAppointmentSlots.reduce((earliest, slot) => {
-					return slot.date < earliest.date ? slot : earliest;
-				});
+			// Build the transactional payload — nothing is written until the single
+			// SchedulingService.createAssignment call at the end, so a failure
+			// anywhere leaves no orphan rows.
+			const rescheduleLeft = packageData.reschedulable ? (packageData.reschedule_limit ?? 999) : 0;
+			let groupLessonPayload: AssignmentGroupLessonPayload | null = null;
+			const purchases: AssignmentPurchasePayload[] = [];
+			const newAppointments: AssignmentAppointmentPayload[] = [];
+			const enrollments: AssignmentEnrollmentPayload[] = [];
+			let successMessage: string;
 
-				const startDate = earliestSlot.date;
-				const endDate = new Date(startDate);
+			// Sort slots chronologically — session numbering follows array order
+			allAppointmentSlots.sort((a, b) => {
+				const dateCompare = a.date.localeCompare(b.date);
+				if (dateCompare !== 0) return dateCompare;
+				return a.hour - b.hour;
+			});
+
+			if (isCreatingNewGroupLesson) {
+				// start_date is the earliest selected timeslot (slots are sorted)
+				const startDate = allAppointmentSlots[0].date;
+				const endDate = parseLocalDate(startDate);
 				endDate.setDate(endDate.getDate() + 26 * 7); // 26 weeks from start
 
-				// Convert time_slots to timeslots JSON format
-				const timeslots = assignmentForm.time_slots.map((slot) => ({
-					day: slot.day,
-					hours: [slot.hour]
-				}));
-
-				// Merge hours for same days
+				// Merge hours of same days into the timeslots JSON shape
 				const mergedTimeslots: Record<string, number[]> = {};
-				timeslots.forEach((slot) => {
-					if (!mergedTimeslots[slot.day]) {
-						mergedTimeslots[slot.day] = [];
-					}
-					mergedTimeslots[slot.day].push(...slot.hours);
-				});
-
+				for (const slot of assignmentForm.time_slots) {
+					if (!mergedTimeslots[slot.day]) mergedTimeslots[slot.day] = [];
+					mergedTimeslots[slot.day].push(slot.hour);
+				}
 				const timeslotsArray = Object.entries(mergedTimeslots).map(([day, hours]) => ({
 					day,
 					hours: hours.sort((a, b) => a - b)
 				}));
 
-				const { data: groupLessonData, error: groupLessonError } = await supabase
-					.from('pe_group_lessons')
-					.insert({
-						package_id: assignmentForm.package_id,
-						room_id: assignmentForm.room_id,
-						trainer_id: assignmentForm.trainer_id,
-						start_date: startDate,
-						end_date: null, // Group lessons run indefinitely
-						appointments_created_until: formatDateForDB(endDate),
-						timeslots: timeslotsArray
-					})
-					.select('id')
-					.single();
-
-				if (groupLessonError) {
-					return fail(500, {
-						success: false,
-						message: 'Grup dersi oluşturulurken hata: ' + groupLessonError.message
-					});
-				}
-
-				groupLessonId = groupLessonData.id;
-			}
-
-			// STEP 2b: Create team and purchase for each trainee (for joining existing group lesson)
-			// OR create single team/purchase for private packages
-			const traineesPurchases: Array<{ traineeId: string; purchaseId: string; teamId: string }> =
-				[];
-
-			if (isJoiningExistingGroupLesson) {
-				// For joining existing group: create separate purchase for each trainee
-				for (const traineeId of assignmentForm.trainee_ids) {
-					const teamId = randomUUID();
-
-					// Create team entry for this trainee
-					const { error: teamError } = await supabase.from('pe_teams').insert({
-						id: teamId,
-						trainee_id: traineeId
-					});
-
-					if (teamError) {
-						return fail(500, {
-							success: false,
-							message: `Öğrenci takımı oluşturulurken hata: ${teamError.message}`
-						});
-					}
-
-					// Create purchase for this trainee
-					const rescheduleLeft = packageData.reschedulable
-						? (packageData.reschedule_limit ?? 999)
-						: 0;
-
-					const { data: purchaseData, error: purchaseError } = await supabase
-						.from('pe_purchases')
-						.insert({
-							package_id: assignmentForm.package_id,
-							team_id: teamId,
-							reschedule_left: rescheduleLeft,
-							successor_id: null
-						})
-						.select('id')
-						.single();
-
-					if (purchaseError) {
-						return fail(500, {
-							success: false,
-							message: `Satın alma oluşturulurken hata: ${purchaseError.message}`
-						});
-					}
-
-					traineesPurchases.push({
-						traineeId,
-						purchaseId: purchaseData.id,
-						teamId
-					});
-				}
-			} else if (!isCreatingNewGroupLesson && !isJoiningSelectedTimeslots) {
-				// For private packages: create single team with all trainees
-				const teamId = randomUUID();
-
-				// Save selected trainees to pe_teams table
-				const teamInserts = assignmentForm.trainee_ids.map((traineeId) => ({
-					id: teamId,
-					trainee_id: traineeId
-				}));
-
-				const { error: teamError } = await supabase.from('pe_teams').insert(teamInserts);
-
-				if (teamError) {
-					return fail(500, {
-						success: false,
-						message: 'Takım oluşturulurken hata: ' + teamError.message
-					});
-				}
-
-				// Create single purchase entry
-				const rescheduleLeft = packageData.reschedulable
-					? (packageData.reschedule_limit ?? 999)
-					: 0;
-
-				const { data: purchaseData, error: purchaseError } = await supabase
-					.from('pe_purchases')
-					.insert({
-						package_id: assignmentForm.package_id,
-						team_id: teamId,
-						reschedule_left: rescheduleLeft,
-						successor_id: null
-					})
-					.select('id')
-					.single();
-
-				if (purchaseError) {
-					return fail(500, {
-						success: false,
-						message: 'Satın alma oluşturulurken hata: ' + purchaseError.message
-					});
-				}
-
-				// All trainees share the same purchase
-				for (const traineeId of assignmentForm.trainee_ids) {
-					traineesPurchases.push({
-						traineeId,
-						purchaseId: purchaseData.id,
-						teamId
-					});
-				}
-			}
-
-			// STEP 5: Create appointments (only for new lessons, not joining existing)
-			let insertedAppointments: Array<{ id: string; date: string; hour: number }> = [];
-
-			if (!isJoiningExistingGroupLesson) {
-				// Sort appointment slots by date and hour to ensure correct session numbering
-				allAppointmentSlots.sort((a, b) => {
-					const dateCompare = a.date.localeCompare(b.date);
-					if (dateCompare !== 0) return dateCompare;
-					return a.hour - b.hour;
-				});
-
-				const appointmentInserts = allAppointmentSlots.map((slot) => ({
-					purchase_id: isCreatingNewGroupLesson
-						? null
-						: traineesPurchases.length > 0
-							? traineesPurchases[0].purchaseId
-							: null,
-					group_lesson_id: isCreatingNewGroupLesson ? groupLessonId : null,
+				groupLessonPayload = {
+					package_id: assignmentForm.package_id,
 					room_id: assignmentForm.room_id,
 					trainer_id: assignmentForm.trainer_id,
-					date: slot.date,
-					hour: slot.hour
-				}));
+					start_date: startDate,
+					appointments_created_until: formatDateForDB(endDate),
+					timeslots: timeslotsArray
+				};
 
-				const { data: createdAppointments, error: appointmentsError } = await supabase
-					.from('pe_appointments')
-					.insert(appointmentInserts)
-					.select('id, date, hour')
-					.order('date, hour');
+				newAppointments.push(
+					...allAppointmentSlots.map((slot, i) => ({
+						key: String(i),
+						room_id: assignmentForm.room_id,
+						trainer_id: assignmentForm.trainer_id,
+						date: slot.date,
+						hour: slot.hour,
+						in_group: true
+					}))
+				);
 
-				if (appointmentsError) {
-					return fail(500, {
-						success: false,
-						message: 'Randevular oluşturulurken hata: ' + appointmentsError.message
-					});
-				}
-
-				insertedAppointments = createdAppointments || [];
-			}
-
-			// STEP 6: Assign trainees to appointments
-			if (isJoiningSelectedTimeslots) {
-				// For joining specific timeslots from different group lessons
+				successMessage = `Grup dersi başarıyla oluşturuldu. ${newAppointments.length} randevu oluşturuldu.`;
+			} else if (isJoiningSelectedTimeslots) {
+				// Joining specific timeslots from (possibly several) group lessons
 				const now = new Date();
 				const todayStr = formatDateForDB(now);
 				const currentHour = now.getHours();
 				const durationWeeks = assignmentForm.duration_weeks || 4;
 				const selectedTimeslots = assignmentForm.selected_group_timeslots!;
-
-				// Create team and purchase for each trainee
-				for (const traineeId of assignmentForm.trainee_ids) {
-					const teamId = randomUUID();
-
-					// Create team entry for this trainee
-					const { error: teamError } = await supabase.from('pe_teams').insert({
-						id: teamId,
-						trainee_id: traineeId
-					});
-
-					if (teamError) {
-						return fail(500, {
-							success: false,
-							message: `Öğrenci takımı oluşturulurken hata: ${teamError.message}`
-						});
-					}
-
-					// Create purchase for this trainee
-					const rescheduleLeft = packageData.reschedulable
-						? (packageData.reschedule_limit ?? 999)
-						: 0;
-
-					const { data: purchaseData, error: purchaseError } = await supabase
-						.from('pe_purchases')
-						.insert({
-							package_id: assignmentForm.package_id,
-							team_id: teamId,
-							reschedule_left: rescheduleLeft,
-							successor_id: null
-						})
-						.select('id')
-						.single();
-
-					if (purchaseError) {
-						return fail(500, {
-							success: false,
-							message: `Satın alma oluşturulurken hata: ${purchaseError.message}`
-						});
-					}
-
-					traineesPurchases.push({
-						traineeId,
-						purchaseId: purchaseData.id,
-						teamId
-					});
-				}
 
 				// Map day names to JS day numbers
 				const dayNameToNumber: Record<string, number> = {
@@ -790,11 +604,11 @@ export const actions: Actions = {
 					Array<{ id: number; date: string; hour: number }>
 				>();
 
-				for (const groupLessonId of uniqueGroupLessonIds) {
+				for (const lessonId of uniqueGroupLessonIds) {
 					const { data, error: apptsError } = await supabase
 						.from('pe_appointments')
 						.select('id, date, hour')
-						.eq('group_lesson_id', groupLessonId)
+						.eq('group_lesson_id', lessonId)
 						.gte('date', todayStr)
 						.order('date', { ascending: true })
 						.order('hour', { ascending: true });
@@ -808,11 +622,10 @@ export const actions: Actions = {
 
 					const future: Array<{ id: number; date: string; hour: number }> = [];
 					for (const apt of data || []) {
-						if (!apt.date || apt.hour === null) continue;
 						if (apt.date === todayStr && apt.hour <= currentHour) continue;
 						future.push({ id: apt.id, date: apt.date, hour: apt.hour });
 					}
-					upcomingByGroupLesson.set(groupLessonId, future);
+					upcomingByGroupLesson.set(lessonId, future);
 				}
 
 				// Collect exact (day, hour) matches across all selected timeslots, sort
@@ -866,36 +679,31 @@ export const actions: Actions = {
 					});
 				}
 
-				for (const { traineeId, purchaseId } of traineesPurchases) {
-					const appointmentTraineeInserts = collectedAppointments.map((apt, i) => ({
-						appointment_id: apt.id,
-						trainee_id: traineeId,
-						purchase_id: purchaseId,
-						session_number: i + 1,
-						total_sessions: totalSessions
-					}));
-
-					const { error: traineeError } = await supabase
-						.from('pe_appointment_trainees')
-						.insert(appointmentTraineeInserts);
-
-					if (traineeError) {
-						return fail(500, {
-							success: false,
-							message: 'Öğrenci randevulara atanamadı'
-						});
-					}
+				// One purchase (with its own team) per trainee; enroll each into the
+				// collected appointments
+				for (const traineeId of assignmentForm.trainee_ids) {
+					purchases.push({
+						key: traineeId,
+						package_id: assignmentForm.package_id,
+						reschedule_left: rescheduleLeft,
+						trainee_ids: [traineeId]
+					});
+					enrollments.push(
+						...collectedAppointments.map((apt, i) => ({
+							purchase_key: traineeId,
+							trainee_id: traineeId,
+							appointment_id: apt.id,
+							session_number: i + 1,
+							total_sessions: totalSessions
+						}))
+					);
 				}
 
-				return {
-					success: true,
-					message: `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${collectedAppointments.length} randevuya atandı.`
-				};
+				successMessage = `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${collectedAppointments.length} randevuya atandı.`;
 			} else if (isJoiningExistingGroupLesson) {
-				// For joining existing group: get upcoming appointments and assign trainees
+				// Joining an existing group lesson: enroll into its upcoming appointments
 				const today = formatDateForDB(new Date());
 
-				// Get upcoming appointments for this group lesson
 				const { data: upcomingAppointments, error: appointmentsError } = await supabase
 					.from('pe_appointments')
 					.select('id, date, hour')
@@ -917,11 +725,9 @@ export const actions: Actions = {
 					});
 				}
 
-				// Calculate number of appointments each trainee should be assigned to
-				// For existing group lessons, use the group lesson's timeslots count
+				// Number of appointments per trainee follows the lesson's weekly slot count
 				const durationWeeks = assignmentForm.duration_weeks || 4;
 
-				// Get the group lesson to determine lessons per week
 				const { data: groupLessonData } = await supabase
 					.from('pe_group_lessons')
 					.select('timeslots')
@@ -951,77 +757,68 @@ export const actions: Actions = {
 					});
 				}
 
-				const appointmentTraineeInserts = [];
-
-				// For each trainee, assign to their appointments
-				for (const { traineeId, purchaseId } of traineesPurchases) {
-					const traineeAppointments = targetAppointments;
-
-					for (let i = 0; i < traineeAppointments.length; i++) {
-						appointmentTraineeInserts.push({
-							appointment_id: traineeAppointments[i].id,
+				// One purchase (with its own team) per trainee
+				for (const traineeId of assignmentForm.trainee_ids) {
+					purchases.push({
+						key: traineeId,
+						package_id: assignmentForm.package_id,
+						reschedule_left: rescheduleLeft,
+						trainee_ids: [traineeId]
+					});
+					enrollments.push(
+						...targetAppointments.map((apt, i) => ({
+							purchase_key: traineeId,
 							trainee_id: traineeId,
-							purchase_id: purchaseId,
+							appointment_id: apt.id,
 							session_number: i + 1,
 							total_sessions: appointmentsPerTrainee
-						});
-					}
+						}))
+					);
 				}
 
-				const { error: traineeError } = await supabase
-					.from('pe_appointment_trainees')
-					.insert(appointmentTraineeInserts);
-
-				if (traineeError) {
-					return fail(500, {
-						success: false,
-						message: 'Öğrenciler randevulara eklenirken hata: ' + traineeError.message
-					});
-				}
-
-				return {
-					success: true,
-					message: `${assignmentForm.trainee_ids.length} öğrenci grup dersine başarıyla eklendi. Her öğrenci ${appointmentsPerTrainee} randevuya atandı.`
-				};
-			} else if (!isCreatingNewGroupLesson) {
-				// For private packages: assign trainees to all created appointments
-				// Use the actual number of time slots selected
+				successMessage = `${assignmentForm.trainee_ids.length} öğrenci grup dersine başarıyla eklendi. Her öğrenci ${appointmentsPerTrainee} randevuya atandı.`;
+			} else {
+				// Private package: one shared team + purchase, new appointments, all
+				// trainees enrolled in every appointment
 				const lessonsPerWeek = assignmentForm.time_slots.length;
 				const totalSessions = (packageData.weeks_duration || 1) * lessonsPerWeek;
 
-				const appointmentTraineeInserts = [];
+				purchases.push({
+					key: 'main',
+					package_id: assignmentForm.package_id,
+					reschedule_left: rescheduleLeft,
+					trainee_ids: assignmentForm.trainee_ids
+				});
 
-				// For each appointment (already sorted by date and hour)
-				for (let sessionNumber = 1; sessionNumber <= insertedAppointments.length; sessionNumber++) {
-					const appointment = insertedAppointments[sessionNumber - 1];
-
-					// Add all trainees to this appointment with the same session number
-					for (const { traineeId, purchaseId } of traineesPurchases) {
-						appointmentTraineeInserts.push({
-							appointment_id: appointment.id,
-							trainee_id: traineeId,
-							purchase_id: purchaseId,
-							session_number: sessionNumber,
-							total_sessions: totalSessions
-						});
-					}
-				}
-
-				const { error: traineeError } = await supabase
-					.from('pe_appointment_trainees')
-					.insert(appointmentTraineeInserts);
-
-				if (traineeError) {
-					return fail(500, {
-						success: false,
-						message: 'Öğrenciler randevulara eklenirken hata: ' + traineeError.message
+				allAppointmentSlots.forEach((slot, i) => {
+					newAppointments.push({
+						key: String(i),
+						room_id: assignmentForm.room_id,
+						trainer_id: assignmentForm.trainer_id,
+						date: slot.date,
+						hour: slot.hour,
+						purchase_key: 'main'
 					});
-				}
+					enrollments.push(
+						...assignmentForm.trainee_ids.map((traineeId) => ({
+							purchase_key: 'main',
+							trainee_id: traineeId,
+							appointment_key: String(i),
+							session_number: i + 1,
+							total_sessions: totalSessions
+						}))
+					);
+				});
+
+				successMessage = `${newAppointments.length} randevu başarıyla oluşturuldu`;
 			}
 
-			const successMessage = isCreatingNewGroupLesson
-				? `Grup dersi başarıyla oluşturuldu. ${insertedAppointments.length} randevu oluşturuldu.`
-				: `${insertedAppointments.length} randevu başarıyla oluşturuldu`;
+			await new SchedulingService(supabase).createAssignment({
+				groupLesson: groupLessonPayload,
+				purchases,
+				appointments: newAppointments,
+				enrollments
+			});
 
 			return {
 				success: true,
