@@ -9,7 +9,7 @@ import type {
 } from '$lib/types/Operation';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { deleteAppointment } from '$lib/utils/cancellation-utils';
-import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
+import { formatShortTurkishDateTime, parseLocalDate } from '$lib/utils/date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
 
@@ -61,7 +61,7 @@ const DAY_APPOINTMENT_SELECT = `
 `;
 
 function isFuture(date: string, hour: number): boolean {
-	const dt = new Date(date);
+	const dt = parseLocalDate(date);
 	dt.setHours(hour, 0, 0, 0);
 	return dt > new Date();
 }

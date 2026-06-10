@@ -216,9 +216,9 @@ export function formatDisplayDate(dateString: string | null): string {
  * @returns New date string in YYYY-MM-DD format
  */
 export function addWeeksToDate(dateString: string, weeks: number): string {
-	const date = new Date(dateString);
+	const date = parseLocalDate(dateString);
 	date.setDate(date.getDate() + weeks * 7);
-	return date.toISOString().split('T')[0];
+	return formatDateForDB(date);
 }
 
 /**
@@ -253,7 +253,7 @@ export function buildAppointmentSlots(
 	const slots: Array<{ date: string; hour: number }> = [];
 
 	// Find which slot in the pattern corresponds to the start date
-	const startDayOfWeek = getDayOfWeekFromDate(startDate.toISOString().split('T')[0]);
+	const startDayOfWeek = getDayOfWeekFromDate(formatDateForDB(startDate));
 
 	// Find the starting slot index in the pattern
 	let startSlotIndex = timeSlots.findIndex((slot) => slot.day === startDayOfWeek);
@@ -285,14 +285,8 @@ export function buildAppointmentSlots(
 		slotDate.setDate(currentWeekStart.getDate() + weekNum * 7 + dayIndex);
 
 		// Only include if this date is at or after the start date
-		if (
-			slotsGenerated > 0 ||
-			slotDate.toISOString().split('T')[0] === startDate.toISOString().split('T')[0]
-		) {
-			const year = slotDate.getFullYear();
-			const month = String(slotDate.getMonth() + 1).padStart(2, '0');
-			const day = String(slotDate.getDate()).padStart(2, '0');
-			const dateString = `${year}-${month}-${day}`;
+		if (slotsGenerated > 0 || formatDateForDB(slotDate) === formatDateForDB(startDate)) {
+			const dateString = formatDateForDB(slotDate);
 
 			slots.push({
 				date: dateString,

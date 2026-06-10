@@ -2,12 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type { CancelTraineeAction } from '$lib/types/Schedule';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
+import { parseLocalDate } from '$lib/utils/date-utils';
 
 type SupabaseClientType = SupabaseClient<Database>;
 
 function isAppointmentFuture(date: string | null, hour: number | null): boolean {
 	if (!date || hour === null) return false;
-	const appointmentDateTime = new Date(date);
+	const appointmentDateTime = parseLocalDate(date);
 	appointmentDateTime.setHours(hour, 0, 0, 0);
 	return appointmentDateTime > new Date();
 }

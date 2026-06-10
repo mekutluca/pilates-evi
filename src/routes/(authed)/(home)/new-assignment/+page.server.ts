@@ -7,7 +7,7 @@ import type {
 	AvailableGroupTimeslot
 } from '$lib/types';
 import { randomUUID } from 'crypto';
-import { parseLocalDate, getDayOfWeekFromDate } from '$lib/utils/date-utils';
+import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { isValidUuid } from '$lib/utils/validation';
 
@@ -136,7 +136,7 @@ export const load: PageServerLoad = async ({
 			// trainees across different days that share the same hour.
 			const tomorrow = new Date();
 			tomorrow.setDate(tomorrow.getDate() + 1);
-			const tomorrowStr = tomorrow.toISOString().split('T')[0];
+			const tomorrowStr = formatDateForDB(tomorrow);
 
 			for (const gl of typedGroupLessons) {
 				const timeslots = gl.timeslots || [];
@@ -214,7 +214,7 @@ export const load: PageServerLoad = async ({
 
 	// If we have package details, fetch appointments for the specific date range and room/trainer
 	if (packageId && roomId && trainerId && startDateParam && weeksDuration) {
-		const start = new Date(startDateParam);
+		const start = parseLocalDate(startDateParam);
 		// Validate the start date
 		if (isNaN(start.getTime())) {
 			throw error(400, 'Geçersiz başlangıç tarihi');
@@ -234,8 +234,8 @@ export const load: PageServerLoad = async ({
 			`
 			)
 			.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
-			.gte('date', start.toISOString().split('T')[0])
-			.lt('date', end.toISOString().split('T')[0]);
+			.gte('date', formatDateForDB(start))
+			.lt('date', formatDateForDB(end));
 
 		if (appointmentsError) {
 			throw error(500, 'Randevular yüklenirken hata oluştu: ' + appointmentsError.message);
@@ -245,7 +245,7 @@ export const load: PageServerLoad = async ({
 	} else if (roomId && trainerId && startDateParam) {
 		// If we have room, trainer and start date but not weeks_duration, load with a default range
 		// This handles navigation state where duration hasn't been calculated yet
-		const start = new Date(startDateParam);
+		const start = parseLocalDate(startDateParam);
 		// Validate the start date
 		if (isNaN(start.getTime())) {
 			throw error(400, 'Geçersiz başlangıç tarihi');
@@ -265,8 +265,8 @@ export const load: PageServerLoad = async ({
 			`
 			)
 			.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
-			.gte('date', start.toISOString().split('T')[0])
-			.lt('date', end.toISOString().split('T')[0]);
+			.gte('date', formatDateForDB(start))
+			.lt('date', formatDateForDB(end));
 
 		if (!appointmentsError) {
 			appointments = fallbackAppointments || [];
@@ -458,7 +458,7 @@ export const actions: Actions = {
 						});
 					}
 
-					const slotDate = new Date(slot.date);
+					const slotDate = parseLocalDate(slot.date);
 
 					// Validate the date is valid
 					if (isNaN(slotDate.getTime())) {
@@ -473,7 +473,7 @@ export const actions: Actions = {
 					appointmentDate.setDate(slotDate.getDate() + week * 7);
 
 					allAppointmentSlots.push({
-						date: appointmentDate.toISOString().split('T')[0],
+						date: formatDateForDB(appointmentDate),
 						hour: slot.hour
 					});
 				}
@@ -537,7 +537,7 @@ export const actions: Actions = {
 						trainer_id: assignmentForm.trainer_id,
 						start_date: startDate,
 						end_date: null, // Group lessons run indefinitely
-						appointments_created_until: endDate.toISOString().split('T')[0],
+						appointments_created_until: formatDateForDB(endDate),
 						timeslots: timeslotsArray
 					})
 					.select('id')
@@ -701,7 +701,7 @@ export const actions: Actions = {
 			if (isJoiningSelectedTimeslots) {
 				// For joining specific timeslots from different group lessons
 				const now = new Date();
-				const todayStr = now.toISOString().split('T')[0];
+				const todayStr = formatDateForDB(now);
 				const currentHour = now.getHours();
 				const durationWeeks = assignmentForm.duration_weeks || 4;
 				const selectedTimeslots = assignmentForm.selected_group_timeslots!;
@@ -863,7 +863,7 @@ export const actions: Actions = {
 				};
 			} else if (isJoiningExistingGroupLesson) {
 				// For joining existing group: get upcoming appointments and assign trainees
-				const today = new Date().toISOString().split('T')[0];
+				const today = formatDateForDB(new Date());
 
 				// Get upcoming appointments for this group lesson
 				const { data: upcomingAppointments, error: appointmentsError } = await supabase

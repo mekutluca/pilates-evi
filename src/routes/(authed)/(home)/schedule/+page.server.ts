@@ -3,10 +3,11 @@ import type { Actions, PageServerLoad } from './$types';
 import type { Role } from '$lib/types';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
+import { formatShortTurkishDateTime, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
 import { cancelAppointment } from '$lib/utils/cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
+import { ConflictService } from '$lib/server/services/conflict-service';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -72,8 +73,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			)
 		`
 		)
-		.gte('date', weekStart.toISOString().split('T')[0])
-		.lte('date', weekEnd.toISOString().split('T')[0])
+		.gte('date', formatDateForDB(weekStart))
+		.lte('date', formatDateForDB(weekEnd))
 		.order('date, hour');
 
 	if (appointmentsError) {
@@ -201,7 +202,7 @@ export const actions: Actions = {
 		}
 
 		// Calculate the new appointment date based on the current appointment's week and new day of week
-		const currentAppointmentDate = new Date(currentAppointment.date);
+		const currentAppointmentDate = parseLocalDate(currentAppointment.date);
 
 		// Calculate week start for the current appointment
 		const weekStart = new Date(currentAppointmentDate);
@@ -225,19 +226,27 @@ export const actions: Actions = {
 		const daysToAdd = newDayNum === 0 ? 6 : newDayNum - 1; // Sunday is 6 days from Monday
 		newAppointmentDate.setDate(weekStart.getDate() + daysToAdd);
 
-		const newAppointmentDateString = newAppointmentDate.toISOString().split('T')[0];
+		const newAppointmentDateString = formatDateForDB(newAppointmentDate);
 
-		// Check if new time slot is available
-		const { data: conflictingAppointments } = await supabase
-			.from('pe_appointments')
-			.select('id')
-			.eq('room_id', newRoomId)
-			.eq('date', newAppointmentDateString)
-			.eq('hour', newHour)
-			.neq('id', appointmentId);
+		// Check if new time slot is available — the room and the appointment's
+		// trainer must both be free
+		const { roomConflict, trainerConflict } = await new ConflictService(
+			supabase
+		).checkAppointmentSlot({
+			date: newAppointmentDateString,
+			hour: newHour,
+			roomId: newRoomId,
+			trainerId: currentAppointment.trainer_id,
+			excludeAppointmentId: Number(appointmentId)
+		});
 
-		if (conflictingAppointments && conflictingAppointments.length > 0) {
-			return fail(400, { success: false, message: 'Yeni zaman dilimi zaten dolu' });
+		if (roomConflict || trainerConflict) {
+			return fail(400, {
+				success: false,
+				message: roomConflict
+					? 'Yeni zaman dilimi zaten dolu'
+					: 'Eğitmenin bu saatte başka bir randevusu var'
+			});
 		}
 
 		// Update appointment with new date, hour, and room

@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types';
 import type { User } from '@supabase/auth-js';
-import { getRequiredFormDataString } from '$lib/utils';
+import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -131,7 +131,7 @@ export const actions: Actions = {
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 
 		// Check if trainer has future appointments
-		const today = new Date().toISOString().split('T')[0];
+		const today = formatDateForDB(new Date());
 		const { data: futureAppointments, error: checkError } = await supabase
 			.from('pe_appointments')
 			.select('id')

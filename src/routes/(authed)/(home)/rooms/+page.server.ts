@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
+import { formatDateForDB } from '$lib/utils/date-utils';
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -69,7 +70,7 @@ export const actions: Actions = {
 		const roomId = getRequiredFormDataString(formData, 'roomId');
 
 		// Check if room has future appointments
-		const today = new Date().toISOString().split('T')[0];
+		const today = formatDateForDB(new Date());
 		const { data: futureAppointments, error: checkError } = await supabase
 			.from('pe_appointments')
 			.select('id')

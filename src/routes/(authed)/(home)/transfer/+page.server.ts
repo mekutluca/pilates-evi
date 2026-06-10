@@ -13,7 +13,8 @@ import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import {
 	addWeeksToDate,
 	getDayOfWeekFromDate,
-	formatShortTurkishDateTime
+	formatShortTurkishDateTime,
+	formatDateForDB
 } from '$lib/utils/date-utils';
 import type { DayOfWeek, ShiftedAppointment } from '$lib/types/Schedule';
 import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
@@ -403,7 +404,7 @@ export const load: PageServerLoad = async ({
 	}
 
 	// Get all appointments from today onwards
-	const today = new Date().toISOString().split('T')[0];
+	const today = formatDateForDB(new Date());
 	let allFromNowAppointments: AppointmentSummaryResult[] = [];
 
 	if (appointment.purchase_id) {
@@ -621,7 +622,7 @@ export const actions: Actions = {
 				);
 			}
 		} else if (scope === 'all_from_now') {
-			const today = new Date().toISOString().split('T')[0];
+			const today = formatDateForDB(new Date());
 
 			if (appointment.purchase_id) {
 				const purchaseChain = await getPurchaseSuccessorChain(supabase, appointment.purchase_id);
@@ -767,7 +768,7 @@ export const actions: Actions = {
 				);
 			}
 		} else if (scope === 'all_from_now') {
-			const today = new Date().toISOString().split('T')[0];
+			const today = formatDateForDB(new Date());
 
 			if (appointment.purchase_id) {
 				const purchaseChain = await getPurchaseSuccessorChain(supabase, appointment.purchase_id);

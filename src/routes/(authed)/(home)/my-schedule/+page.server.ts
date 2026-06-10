@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { formatDateForDB } from '$lib/utils/date-utils';
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
 	// Only allow trainer users
@@ -39,8 +40,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	weekEnd.setHours(23, 59, 59, 999);
 
 	// Fetch appointments for this trainer for the current week
-	const weekStartStr = weekStart.toISOString().split('T')[0];
-	const weekEndStr = weekEnd.toISOString().split('T')[0];
+	const weekStartStr = formatDateForDB(weekStart);
+	const weekEndStr = formatDateForDB(weekEnd);
 
 	const { data: appointments, error: appointmentsError } = await supabase
 		.from('pe_appointments')
