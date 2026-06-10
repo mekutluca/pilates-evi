@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type { Purchase } from '$lib/types';
+import type { ExtensionChunk, ExtensionResult } from '$lib/types/Extension';
 
 /**
  * Data access for pe_purchases. Successor chains (purchase → extension →
@@ -39,6 +40,28 @@ export class PurchaseRepository {
 		if (error || !data) {
 			console.error('Error fetching purchase in chain:', error);
 			return null;
+		}
+		return data;
+	}
+
+	/**
+	 * Extends the chain ending at `predecessorId` with one new purchase per
+	 * chunk — including successor links, appointments (private) or enrollments
+	 * into existing group appointments — in a single transaction. A failure
+	 * anywhere rolls the whole extension back (no orphan rows).
+	 */
+	async extend(
+		predecessorId: string,
+		rescheduleLeft: number,
+		chunks: ExtensionChunk[]
+	): Promise<ExtensionResult> {
+		const { data, error } = await this.supabase.rpc('pe_extend_purchase', {
+			p_predecessor_id: predecessorId,
+			p_reschedule_left: rescheduleLeft,
+			p_chunks: chunks
+		});
+		if (error) {
+			throw new Error(`Uzatma işlemi başarısız: ${error.message}`);
 		}
 		return data;
 	}

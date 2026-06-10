@@ -663,6 +663,14 @@ export type Database = {
 				Returns: number;
 			};
 			pe_decrement_reschedule: { Args: { p_purchase_id: string }; Returns: number | null };
+			pe_extend_purchase: {
+				Args: { p_predecessor_id: string; p_reschedule_left: number; p_chunks: Json };
+				Returns: {
+					purchases_created: number;
+					appointments_created: number;
+					enrollments_created: number;
+				};
+			};
 			pe_get_auth_org_id: { Args: never; Returns: string };
 			pe_get_auth_org_role: { Args: never; Returns: string };
 			pe_purchase_chain: { Args: { p_purchase_id: string }; Returns: string[] };

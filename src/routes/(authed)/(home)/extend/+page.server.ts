@@ -3,7 +3,12 @@ import type { PageServerLoad, Actions } from './$types';
 import type { DayOfWeek } from '$lib/types/Schedule';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
-import type { AppointmentRefInfo, PurchaseChainDates } from '$lib/types/Extension';
+import type {
+	AppointmentRefInfo,
+	PurchaseChainDates,
+	ExtensionChunk,
+	ExtensionResult
+} from '$lib/types/Extension';
 import {
 	findLastPurchaseInChain,
 	canExtendPurchase,
@@ -392,117 +397,34 @@ export const actions: Actions = {
 			}
 		}
 
-		// Get trainees from team
-		const { data: teamMembers, error: teamError } = await supabase
-			.from('pe_teams')
-			.select('trainee_id')
-			.eq('id', lastPurchase.team_id);
-
-		if (teamError || !teamMembers) {
-			return fail(500, {
-				success: false,
-				message: 'Takım üyeleri alınamadı'
-			});
-		}
-
 		const rescheduleLeft = packageInfo.reschedulable ? (packageInfo.reschedule_limit ?? 999) : 0;
 
-		// Chunk pre-built slots into one purchase per package, preserving chronological order
-		let previousPurchaseId = lastPurchase.id;
-		let totalAppointmentsCreated = 0;
+		// Chunk pre-built slots into one purchase per package (chronological order
+		// preserved) and create everything — purchases, successor links,
+		// appointments, enrollments — in one transaction.
+		const chunks: ExtensionChunk[] = Array.from({ length: packageCount }, (_, i) => ({
+			room_id: roomId,
+			trainer_id: trainerId,
+			slots: allAppointmentSlots.slice(i * slotsPerPurchase, (i + 1) * slotsPerPurchase)
+		}));
 
-		for (let i = 0; i < packageCount; i++) {
-			const purchaseSlots = allAppointmentSlots.slice(
-				i * slotsPerPurchase,
-				(i + 1) * slotsPerPurchase
+		let result: ExtensionResult;
+		try {
+			result = await new PurchaseRepository(supabase).extend(
+				lastPurchase.id,
+				rescheduleLeft,
+				chunks
 			);
-
-			const { data: newPurchase, error: newPurchaseError } = await supabase
-				.from('pe_purchases')
-				.insert({
-					package_id: lastPurchase.package_id,
-					team_id: lastPurchase.team_id,
-					reschedule_left: rescheduleLeft,
-					successor_id: null
-				})
-				.select('id')
-				.single();
-
-			if (newPurchaseError || !newPurchase) {
-				return fail(500, {
-					success: false,
-					message: `Satın alma ${i + 1} oluşturulamadı`
-				});
-			}
-
-			const { error: updateError } = await supabase
-				.from('pe_purchases')
-				.update({ successor_id: newPurchase.id })
-				.eq('id', previousPurchaseId);
-
-			if (updateError) {
-				return fail(500, {
-					success: false,
-					message: 'Satın alma zinciri güncellenemedi'
-				});
-			}
-
-			const appointmentInserts = purchaseSlots.map((slot) => ({
-				purchase_id: newPurchase.id,
-				room_id: roomId,
-				trainer_id: trainerId,
-				date: slot.date,
-				hour: slot.hour
-			}));
-
-			const { data: createdAppointments, error: appointmentsInsertError } = await supabase
-				.from('pe_appointments')
-				.insert(appointmentInserts)
-				.select('id, date, hour')
-				.order('date, hour');
-
-			if (appointmentsInsertError || !createdAppointments) {
-				return fail(500, {
-					success: false,
-					message: `Randevular oluşturulamadı (paket ${i + 1})`
-				});
-			}
-
-			const totalSessions = slotsPerPurchase;
-			const appointmentTraineeInserts = [];
-
-			for (let sessionNumber = 1; sessionNumber <= createdAppointments.length; sessionNumber++) {
-				const appointment = createdAppointments[sessionNumber - 1];
-
-				for (const member of teamMembers) {
-					appointmentTraineeInserts.push({
-						appointment_id: appointment.id,
-						trainee_id: member.trainee_id,
-						purchase_id: newPurchase.id,
-						session_number: sessionNumber,
-						total_sessions: totalSessions
-					});
-				}
-			}
-
-			const { error: traineeError } = await supabase
-				.from('pe_appointment_trainees')
-				.insert(appointmentTraineeInserts);
-
-			if (traineeError) {
-				return fail(500, {
-					success: false,
-					message: `Öğrenciler randevulara eklenemedi (paket ${i + 1})`
-				});
-			}
-
-			totalAppointmentsCreated += createdAppointments.length;
-			previousPurchaseId = newPurchase.id;
+		} catch (extendError) {
+			return fail(500, {
+				success: false,
+				message: extendError instanceof Error ? extendError.message : 'Uzatma işlemi başarısız'
+			});
 		}
 
 		return {
 			success: true,
-			message: `${packageCount} paket (${totalAppointmentsCreated} randevu) başarıyla oluşturuldu`
+			message: `${result.purchases_created} paket (${result.appointments_created} randevu) başarıyla oluşturuldu`
 		};
 	},
 
@@ -616,68 +538,18 @@ export const actions: Actions = {
 			});
 		}
 
-		const { data: teamMembers, error: teamError } = await supabase
-			.from('pe_teams')
-			.select('trainee_id')
-			.eq('id', lastPurchase.team_id);
-
-		if (teamError || !teamMembers || teamMembers.length === 0) {
-			return fail(500, {
-				success: false,
-				message: 'Takım üyeleri alınamadı'
-			});
-		}
-
 		const rescheduleLeft = packageInfo.reschedulable ? (packageInfo.reschedule_limit ?? 999) : 0;
 
-		const { data: newPurchase, error: newPurchaseError } = await supabase
-			.from('pe_purchases')
-			.insert({
-				package_id: lastPurchase.package_id,
-				team_id: lastPurchase.team_id,
-				reschedule_left: rescheduleLeft,
-				successor_id: null
-			})
-			.select('id')
-			.single();
-
-		if (newPurchaseError || !newPurchase) {
+		// New purchase, successor link, and enrollments into the existing group
+		// appointments happen in one transaction.
+		try {
+			await new PurchaseRepository(supabase).extend(lastPurchase.id, rescheduleLeft, [
+				{ appointment_ids: sessionsToJoin.map((apt) => apt.appointment_id) }
+			]);
+		} catch (extendError) {
 			return fail(500, {
 				success: false,
-				message: 'Satın alma oluşturulamadı'
-			});
-		}
-
-		const { error: updateError } = await supabase
-			.from('pe_purchases')
-			.update({ successor_id: newPurchase.id })
-			.eq('id', lastPurchase.id);
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Satın alma zinciri güncellenemedi'
-			});
-		}
-
-		const appointmentTraineeInserts = sessionsToJoin.flatMap((apt, idx) =>
-			teamMembers.map((member) => ({
-				appointment_id: apt.appointment_id,
-				trainee_id: member.trainee_id,
-				purchase_id: newPurchase.id,
-				session_number: idx + 1,
-				total_sessions: totalSessions
-			}))
-		);
-
-		const { error: traineeError } = await supabase
-			.from('pe_appointment_trainees')
-			.insert(appointmentTraineeInserts);
-
-		if (traineeError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenciler randevulara eklenemedi'
+				message: extendError instanceof Error ? extendError.message : 'Uzatma işlemi başarısız'
 			});
 		}
 
