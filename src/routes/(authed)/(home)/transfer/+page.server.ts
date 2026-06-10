@@ -28,6 +28,7 @@ import {
 	shiftTraineeRecordsBySlot
 } from '$lib/utils/shift-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
+import { ConflictService } from '$lib/server/services/conflict-service';
 
 const APPOINTMENT_SELECT_QUERY = `
 	*,
@@ -177,32 +178,13 @@ async function hasConflict(
 		return { roomConflict: false, trainerConflict: false };
 	}
 
-	let roomConflict = false;
-	let trainerConflict = false;
-
-	if (roomId) {
-		const { data } = await supabase
-			.from('pe_appointments')
-			.select('id')
-			.eq('room_id', roomId)
-			.eq('date', appointment.date)
-			.eq('hour', appointment.hour)
-			.neq('id', appointment.id);
-		roomConflict = !!(data && data.length > 0);
-	}
-
-	if (trainerId) {
-		const { data } = await supabase
-			.from('pe_appointments')
-			.select('id')
-			.eq('trainer_id', trainerId)
-			.eq('date', appointment.date)
-			.eq('hour', appointment.hour)
-			.neq('id', appointment.id);
-		trainerConflict = !!(data && data.length > 0);
-	}
-
-	return { roomConflict, trainerConflict };
+	return new ConflictService(supabase).checkAppointmentSlot({
+		date: appointment.date,
+		hour: appointment.hour,
+		roomId,
+		trainerId,
+		excludeAppointmentId: appointment.id
+	});
 }
 
 async function sendShiftNotifications(

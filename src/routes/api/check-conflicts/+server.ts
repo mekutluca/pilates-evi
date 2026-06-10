@@ -1,5 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { ConflictService } from '$lib/server/services/conflict-service';
+import { isValidUuid } from '$lib/utils/validation';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase, user, userRole } }) => {
 	// Ensure authenticated user
@@ -15,20 +17,17 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, user, userR
 	if (!roomId || !trainerId || !startDate || !endDate) {
 		throw error(400, 'Missing required parameters');
 	}
-
-	// Fetch appointments in the date range for the room or trainer
-	const { data: appointments, error: appointmentsError } = await supabase
-		.from('pe_appointments')
-		.select('id, room_id, trainer_id, date, hour')
-		.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
-		.gte('date', startDate)
-		.lte('date', endDate);
-
-	if (appointmentsError) {
-		throw error(500, 'Failed to fetch appointments');
+	if (!isValidUuid(roomId) || !isValidUuid(trainerId)) {
+		throw error(400, 'Invalid room or trainer id');
 	}
 
-	return json({
-		appointments: appointments || []
+	const conflictService = new ConflictService(supabase);
+	const appointments = await conflictService.getOccupiedSlots({
+		roomId,
+		trainerId,
+		startDate,
+		endDate
 	});
+
+	return json({ appointments });
 };

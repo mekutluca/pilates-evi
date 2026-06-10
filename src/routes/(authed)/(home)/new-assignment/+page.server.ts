@@ -8,6 +8,8 @@ import type {
 } from '$lib/types';
 import { randomUUID } from 'crypto';
 import { parseLocalDate, getDayOfWeekFromDate } from '$lib/utils/date-utils';
+import { ConflictService } from '$lib/server/services/conflict-service';
+import { isValidUuid } from '$lib/utils/validation';
 
 // Type for group lesson query result with joined tables
 interface GroupLessonQueryResult {
@@ -45,6 +47,13 @@ export const load: PageServerLoad = async ({
 	const trainerId = url.searchParams.get('trainer_id');
 	const weeksDuration = url.searchParams.get('weeks_duration');
 	const startDateParam = url.searchParams.get('start_date');
+
+	// IDs are spliced into PostgREST or() filters below — reject anything that isn't a UUID
+	for (const id of [packageId, roomId, trainerId]) {
+		if (id && !isValidUuid(id)) {
+			throw error(400, 'Geçersiz parametre');
+		}
+	}
 
 	let appointments: Appointment[] = [];
 	let existingGroupLessons: ExistingGroupLesson[] = [];
@@ -148,8 +157,7 @@ export const load: PageServerLoad = async ({
 						const targetDay = timeslot.day.toLowerCase();
 
 						const firstMatch = upcomingAppointments?.find(
-							(apt) =>
-								apt.hour === hour && apt.date && getDayOfWeekFromDate(apt.date) === targetDay
+							(apt) => apt.hour === hour && apt.date && getDayOfWeekFromDate(apt.date) === targetDay
 						);
 
 						const timeslotCapacity = firstMatch
@@ -471,24 +479,23 @@ export const actions: Actions = {
 				}
 			}
 
-			// Check for conflicts
-			for (const slot of allAppointmentSlots) {
-				const { data: conflictingAppointment } = await supabase
-					.from('pe_appointments')
-					.select('id')
-					.eq('room_id', assignmentForm.room_id)
-					.eq('trainer_id', assignmentForm.trainer_id)
-					.eq('date', slot.date)
-					.eq('hour', slot.hour)
-					.maybeSingle();
+			// Check for conflicts: room and trainer availability are independent —
+			// either one being taken blocks the slot
+			const conflictService = new ConflictService(supabase);
+			const slotConflicts = await conflictService.findSlotConflicts({
+				roomId: assignmentForm.room_id,
+				trainerId: assignmentForm.trainer_id,
+				slots: allAppointmentSlots
+			});
 
-				if (conflictingAppointment) {
-					const dateStr = new Date(slot.date).toLocaleDateString('tr-TR');
-					return fail(400, {
-						success: false,
-						message: `${dateStr} tarihindeki ${slot.hour}:00 zaman dilimi seçilen oda ve eğitmen için zaten dolu`
-					});
-				}
+			if (slotConflicts.length > 0) {
+				const first = slotConflicts[0];
+				const dateStr = parseLocalDate(first.date).toLocaleDateString('tr-TR');
+				const reason = first.roomConflict ? 'seçilen oda' : 'seçilen eğitmen';
+				return fail(400, {
+					success: false,
+					message: `${dateStr} tarihindeki ${first.hour}:00 zaman dilimi ${reason} için zaten dolu${slotConflicts.length > 1 ? ` (toplam ${slotConflicts.length} çakışma)` : ''}`
+				});
 			}
 
 			// STEP 2a: Create group lesson entry if creating new group lesson
