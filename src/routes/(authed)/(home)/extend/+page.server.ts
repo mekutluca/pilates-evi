@@ -3,21 +3,20 @@ import type { PageServerLoad, Actions } from './$types';
 import type { DayOfWeek } from '$lib/types/Schedule';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
-import type {
-	AppointmentRefInfo,
-	PurchaseChainDates,
-	PurchaseChainEntry
-} from '$lib/types/Extension';
+import type { AppointmentRefInfo, PurchaseChainDates } from '$lib/types/Extension';
 import {
 	findLastPurchaseInChain,
 	canExtendPurchase,
 	getLastAppointmentDate,
-	calculateExtensionStartDate,
-	getStartingAppointmentCandidates,
-	buildAppointmentSlotsFromStart,
 	getCanonicalPurchaseTimeSlots,
 	getFutureGroupAppointments
 } from '$lib/utils/extension-utils';
+import {
+	calculateExtensionStartDate,
+	getStartingAppointmentCandidates,
+	buildAppointmentSlotsFromStart
+} from '$lib/utils/slot-utils';
+import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { parseLocalDate } from '$lib/utils/date-utils';
 
 // Helper to get appointments for either private or group lessons
@@ -87,26 +86,6 @@ async function fetchTeamTrainees(
 		.in('id', traineeIds);
 
 	return trainees ?? [];
-}
-
-// Walk the successor chain forward from `startId`, collecting purchase ids in order.
-async function collectPurchaseChainIds(
-	supabase: SupabaseClient<Database>,
-	startId: string
-): Promise<string[]> {
-	const ids: string[] = [];
-	let currentId: string | null = startId;
-	while (currentId) {
-		const result: { data: PurchaseChainEntry | null } = await supabase
-			.from('pe_purchases')
-			.select('id, successor_id')
-			.eq('id', currentId)
-			.single();
-		if (!result.data) break;
-		ids.push(result.data.id);
-		currentId = result.data.successor_id;
-	}
-	return ids;
 }
 
 // Helper to get appointment dates for purchase chain
@@ -180,7 +159,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 	// Phase 1: independent fetches in parallel.
 	const [chainIds, packageRes, teamRes, refAppointments, lastAppDate] = await Promise.all([
-		collectPurchaseChainIds(supabase, purchaseId),
+		new PurchaseRepository(supabase).getSuccessorChain(purchaseId),
 		supabase.from('pe_packages').select('*').eq('id', lastPurchase.package_id).single(),
 		fetchTeamTrainees(supabase, lastPurchase.team_id),
 		getAppointmentsForPurchase(supabase, lastPurchase.id, 1),

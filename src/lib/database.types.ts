@@ -662,8 +662,10 @@ export type Database = {
 				Args: { user_id: string };
 				Returns: number;
 			};
+			pe_decrement_reschedule: { Args: { p_purchase_id: string }; Returns: number | null };
 			pe_get_auth_org_id: { Args: never; Returns: string };
 			pe_get_auth_org_role: { Args: never; Returns: string };
+			pe_purchase_chain: { Args: { p_purchase_id: string }; Returns: string[] };
 			pe_switch_organization: { Args: { p_org_id: string }; Returns: undefined };
 		};
 		Enums: {

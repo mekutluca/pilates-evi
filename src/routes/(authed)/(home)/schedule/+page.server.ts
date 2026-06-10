@@ -8,6 +8,7 @@ import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
 import { cancelAppointment } from '$lib/utils/cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { ConflictService } from '$lib/server/services/conflict-service';
+import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -249,22 +250,12 @@ export const actions: Actions = {
 			});
 		}
 
-		// Decrement reschedule_left count, but only if:
-		// 1. Purchase exists
-		// 2. User is not an admin (admins don't consume reschedule credits)
-		// 3. Reschedule count is not unlimited (999)
+		// Consume one reschedule credit atomically (admins don't consume credits;
+		// 999 means unlimited and is never decremented — handled inside the RPC).
 		if (purchase && userRole !== 'admin') {
-			const newRescheduleLeft = rescheduleLeft >= 999 ? 999 : Math.max(0, rescheduleLeft - 1);
-
-			const { error: decrementError } = await supabase
-				.from('pe_purchases')
-				.update({
-					reschedule_left: newRescheduleLeft
-				})
-				.eq('id', purchase.id)
-				.gt('reschedule_left', 0); // Only update if reschedule_left is greater than 0
-
-			if (decrementError) {
+			try {
+				await new PurchaseRepository(supabase).decrementRescheduleLeft(purchase.id);
+			} catch (decrementError) {
 				console.error('Error decrementing reschedule count:', decrementError);
 				// Don't fail the request if decrement fails, just log it
 			}

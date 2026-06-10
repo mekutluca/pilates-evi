@@ -11,7 +11,7 @@
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
 	import { parseLocalDate, formatTurkishDate } from '$lib/utils/date-utils';
-	import { buildAppointmentSlotsFromStart } from '$lib/utils/extension-utils';
+	import { buildAppointmentSlotsFromStart } from '$lib/utils/slot-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button/index.js';
