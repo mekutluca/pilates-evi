@@ -18,3 +18,9 @@ export interface OccupiedSlot {
 	date: string | null;
 	hour: number | null;
 }
+
+// Result of validating planned enrollments against existing appointments
+export interface EnrollmentTargetCheck {
+	duplicates: Array<{ appointmentId: number; traineeId: string }>;
+	overCapacity: Array<{ appointmentId: number; current: number; max: number }>;
+}

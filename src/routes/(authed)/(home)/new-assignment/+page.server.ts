@@ -836,6 +836,23 @@ export const actions: Actions = {
 					});
 				}
 
+				const enrollmentCheck = await conflictService.checkEnrollmentTargets({
+					appointmentIds: collectedAppointments.map((apt) => apt.id),
+					traineeIds: assignmentForm.trainee_ids
+				});
+				if (enrollmentCheck.duplicates.length > 0) {
+					return fail(400, {
+						success: false,
+						message: 'Seçilen öğrencilerden en az biri bu randevulara zaten kayıtlı'
+					});
+				}
+				if (enrollmentCheck.overCapacity.length > 0) {
+					return fail(400, {
+						success: false,
+						message: 'Seçilen zaman dilimlerinde yeterli kapasite yok'
+					});
+				}
+
 				for (const { traineeId, purchaseId } of traineesPurchases) {
 					const appointmentTraineeInserts = collectedAppointments.map((apt, i) => ({
 						appointment_id: apt.id,
@@ -903,11 +920,29 @@ export const actions: Actions = {
 				const lessonsPerWeek = timeslots.reduce((sum, ts) => sum + ts.hours.length, 0);
 				const appointmentsPerTrainee = durationWeeks * lessonsPerWeek;
 
+				const targetAppointments = upcomingAppointments.slice(0, appointmentsPerTrainee);
+				const enrollmentCheck = await conflictService.checkEnrollmentTargets({
+					appointmentIds: targetAppointments.map((apt) => apt.id),
+					traineeIds: assignmentForm.trainee_ids
+				});
+				if (enrollmentCheck.duplicates.length > 0) {
+					return fail(400, {
+						success: false,
+						message: 'Seçilen öğrencilerden en az biri bu grup dersine zaten kayıtlı'
+					});
+				}
+				if (enrollmentCheck.overCapacity.length > 0) {
+					return fail(400, {
+						success: false,
+						message: 'Grup dersinde yeterli kapasite yok'
+					});
+				}
+
 				const appointmentTraineeInserts = [];
 
 				// For each trainee, assign to their appointments
 				for (const { traineeId, purchaseId } of traineesPurchases) {
-					const traineeAppointments = upcomingAppointments.slice(0, appointmentsPerTrainee);
+					const traineeAppointments = targetAppointments;
 
 					for (let i = 0; i < traineeAppointments.length; i++) {
 						appointmentTraineeInserts.push({

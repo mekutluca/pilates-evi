@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
-import type { SlotRef, SlotConflict, OccupiedSlot } from '$lib/types/Conflict';
+import type {
+	SlotRef,
+	SlotConflict,
+	OccupiedSlot,
+	EnrollmentTargetCheck
+} from '$lib/types/Conflict';
 
 /**
  * Single source of truth for room/trainer booking conflicts.
@@ -94,6 +99,62 @@ export class ConflictService {
 		]);
 
 		return { roomConflict, trainerConflict };
+	}
+
+	/**
+	 * Validates planned enrollments of `traineeIds` into existing `appointmentIds`:
+	 * flags trainees already enrolled in a target appointment (regardless of which
+	 * purchase enrolled them) and appointments whose package max_capacity would be
+	 * exceeded once all the trainees are added. Two queries total.
+	 */
+	async checkEnrollmentTargets(params: {
+		appointmentIds: number[];
+		traineeIds: string[];
+	}): Promise<EnrollmentTargetCheck> {
+		const { appointmentIds, traineeIds } = params;
+		if (appointmentIds.length === 0 || traineeIds.length === 0) {
+			return { duplicates: [], overCapacity: [] };
+		}
+
+		const [targetsRes, enrollmentsRes] = await Promise.all([
+			this.supabase
+				.from('pe_appointments')
+				.select('id, pe_group_lessons(pe_packages(max_capacity))')
+				.in('id', appointmentIds),
+			this.supabase
+				.from('pe_appointment_trainees')
+				.select('appointment_id, trainee_id')
+				.in('appointment_id', appointmentIds)
+		]);
+
+		if (targetsRes.error)
+			throw new Error(`Randevular kontrol edilemedi: ${targetsRes.error.message}`);
+		if (enrollmentsRes.error)
+			throw new Error(`Kayıtlar kontrol edilemedi: ${enrollmentsRes.error.message}`);
+
+		const traineeSet = new Set(traineeIds);
+		const duplicates: EnrollmentTargetCheck['duplicates'] = [];
+		const occupancy = new Map<number, number>();
+
+		for (const row of enrollmentsRes.data ?? []) {
+			if (row.appointment_id === null) continue;
+			occupancy.set(row.appointment_id, (occupancy.get(row.appointment_id) ?? 0) + 1);
+			if (row.trainee_id && traineeSet.has(row.trainee_id)) {
+				duplicates.push({ appointmentId: row.appointment_id, traineeId: row.trainee_id });
+			}
+		}
+
+		const overCapacity: EnrollmentTargetCheck['overCapacity'] = [];
+		for (const target of targetsRes.data ?? []) {
+			const max = target.pe_group_lessons?.pe_packages?.max_capacity;
+			if (!max) continue;
+			const current = occupancy.get(target.id) ?? 0;
+			if (current + traineeIds.length > max) {
+				overCapacity.push({ appointmentId: target.id, current, max });
+			}
+		}
+
+		return { duplicates, overCapacity };
 	}
 
 	/**

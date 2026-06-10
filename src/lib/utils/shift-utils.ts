@@ -400,6 +400,70 @@ export async function buildTraineeEligibleByGroup(
 }
 
 /**
+ * Guards a single-trainee shift against two silent corruptions: enrolling the trainee
+ * twice into the same appointment (e.g. via a parallel purchase) and pushing a target
+ * appointment over its package's max_capacity. Seats freed by records that are moving
+ * out as part of the same shift are not counted as occupied.
+ * Returns an error message, or null when all targets are valid.
+ */
+async function checkTraineeShiftTargets(
+	supabase: SupabaseClientType,
+	traineeId: string,
+	shiftMap: ShiftedTraineeRecord[]
+): Promise<string | null> {
+	if (shiftMap.length === 0) return null;
+
+	const targetIds = [...new Set(shiftMap.map((s) => s.newAppointmentId))];
+	const movingRecordIds = new Set(shiftMap.map((s) => s.recordId));
+
+	const { data: targetRows, error: targetsError } = await supabase
+		.from('pe_appointments')
+		.select('id, pe_group_lessons(pe_packages(max_capacity))')
+		.in('id', targetIds);
+	if (targetsError) {
+		return 'Hedef randevular kontrol edilirken hata: ' + targetsError.message;
+	}
+
+	const { data: enrollmentRows, error: enrollmentsError } = await supabase
+		.from('pe_appointment_trainees')
+		.select('id, appointment_id, trainee_id')
+		.in('appointment_id', targetIds);
+	if (enrollmentsError) {
+		return 'Hedef randevu kayıtları kontrol edilirken hata: ' + enrollmentsError.message;
+	}
+
+	const staying = (enrollmentRows ?? []).filter((row) => !movingRecordIds.has(row.id));
+
+	const duplicate = staying.find((row) => row.trainee_id === traineeId);
+	if (duplicate) {
+		return 'Öğrenci hedef randevuya zaten kayıtlı';
+	}
+
+	const occupancy = new Map<number, number>();
+	for (const row of staying) {
+		if (row.appointment_id === null) continue;
+		occupancy.set(row.appointment_id, (occupancy.get(row.appointment_id) ?? 0) + 1);
+	}
+
+	const incoming = new Map<number, number>();
+	for (const step of shiftMap) {
+		incoming.set(step.newAppointmentId, (incoming.get(step.newAppointmentId) ?? 0) + 1);
+	}
+
+	for (const target of targetRows ?? []) {
+		const maxCapacity = target.pe_group_lessons?.pe_packages?.max_capacity;
+		if (!maxCapacity) continue;
+		const occupied = occupancy.get(target.id) ?? 0;
+		const arriving = incoming.get(target.id) ?? 0;
+		if (occupied + arriving > maxCapacity) {
+			return 'Hedef randevu kapasitesi dolu, kaydırma yapılamaz';
+		}
+	}
+
+	return null;
+}
+
+/**
  * Shifts a single trainee's records, starting at `fromAppointmentId`, forward by `slots`
  * positions in the trainee's *own* slot pattern within each group lesson they attend.
  *
@@ -470,6 +534,11 @@ export async function shiftTraineeRecordsBySlot(
 			oldAppointmentId: record.appointmentId,
 			newAppointmentId: eligible[targetIdx].id
 		});
+	}
+
+	const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);
+	if (guardError) {
+		return { error: guardError, shifted: [] };
 	}
 
 	for (const step of [...shiftMap].reverse()) {
