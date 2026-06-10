@@ -81,25 +81,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		console.error('Error fetching appointments:', appointmentsError);
 	}
 
-	// Also fetch all appointments for conflict checking during extensions
-	const { data: allAppointments, error: allAppointmentsError } = await supabase
-		.from('pe_appointments')
-		.select(
-			`
-			*,
-			pe_rooms(id),
-			pe_trainers(id)
-		`
-		)
-		.order('date, hour');
-
-	if (allAppointmentsError) {
-		console.error('Error fetching all appointments:', allAppointmentsError);
-	}
-
 	return {
-		appointments: appointments || [],
-		allAppointments: allAppointments || []
+		appointments: appointments || []
 	};
 };
 
