@@ -4,55 +4,108 @@ export type Database = {
 	// Allows to automatically instantiate createClient with right options
 	// instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
 	__InternalSupabase: {
-		PostgrestVersion: '12.2.3 (519615d)';
+		PostgrestVersion: '14.4';
 	};
 	public: {
 		Tables: {
-			it_entries: {
+			it_exchange_rates: {
 				Row: {
-					created_at: string;
-					final_balance: number;
-					for_week: string;
-					id: number;
-					start_balance: number;
+					date: string;
+					usd_try: number;
 				};
 				Insert: {
-					created_at?: string;
-					final_balance?: number;
-					for_week: string;
-					id?: number;
-					start_balance?: number;
+					date: string;
+					usd_try: number;
 				};
 				Update: {
-					created_at?: string;
-					final_balance?: number;
-					for_week?: string;
-					id?: number;
-					start_balance?: number;
+					date?: string;
+					usd_try?: number;
 				};
 				Relationships: [];
+			};
+			it_orders: {
+				Row: {
+					amount: number;
+					created_at: string;
+					id: number;
+					message: string | null;
+					status: Database['public']['Enums']['order_status'];
+					updated_at: string;
+					user_id: string;
+				};
+				Insert: {
+					amount: number;
+					created_at?: string;
+					id?: number;
+					message?: string | null;
+					status?: Database['public']['Enums']['order_status'];
+					updated_at?: string;
+					user_id: string;
+				};
+				Update: {
+					amount?: number;
+					created_at?: string;
+					id?: number;
+					message?: string | null;
+					status?: Database['public']['Enums']['order_status'];
+					updated_at?: string;
+					user_id?: string;
+				};
+				Relationships: [];
+			};
+			it_sheet_data: {
+				Row: {
+					id: number;
+					sheet_data: Json;
+					updated_at: string | null;
+					user_id: number;
+				};
+				Insert: {
+					id?: number;
+					sheet_data?: Json;
+					updated_at?: string | null;
+					user_id: number;
+				};
+				Update: {
+					id?: number;
+					sheet_data?: Json;
+					updated_at?: string | null;
+					user_id?: number;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'it_sheet_data_user_id_fkey';
+						columns: ['user_id'];
+						isOneToOne: true;
+						referencedRelation: 'it_users';
+						referencedColumns: ['id'];
+					}
+				];
 			};
 			it_users: {
 				Row: {
 					account_id: string | null;
 					current_balance: number;
+					email: string | null;
 					full_name: string | null;
 					id: number;
-					rate: number | null;
+					sheet_link: string | null;
 				};
 				Insert: {
 					account_id?: string | null;
 					current_balance?: number;
+					email?: string | null;
 					full_name?: string | null;
 					id?: number;
-					rate?: number | null;
+					sheet_link?: string | null;
 				};
 				Update: {
 					account_id?: string | null;
 					current_balance?: number;
+					email?: string | null;
 					full_name?: string | null;
 					id?: number;
-					rate?: number | null;
+					sheet_link?: string | null;
 				};
 				Relationships: [];
 			};
@@ -117,9 +170,9 @@ export type Database = {
 			};
 			pe_appointments: {
 				Row: {
-					date: string | null;
+					date: string;
 					group_lesson_id: string | null;
-					hour: number | null;
+					hour: number;
 					id: number;
 					organization_id: string;
 					purchase_id: string | null;
@@ -127,9 +180,9 @@ export type Database = {
 					trainer_id: string | null;
 				};
 				Insert: {
-					date?: string | null;
+					date: string;
 					group_lesson_id?: string | null;
-					hour?: number | null;
+					hour: number;
 					id?: number;
 					organization_id?: string;
 					purchase_id?: string | null;
@@ -137,9 +190,9 @@ export type Database = {
 					trainer_id?: string | null;
 				};
 				Update: {
-					date?: string | null;
+					date?: string;
 					group_lesson_id?: string | null;
-					hour?: number | null;
+					hour?: number;
 					id?: number;
 					organization_id?: string;
 					purchase_id?: string | null;
@@ -320,7 +373,6 @@ export type Database = {
 					description: string | null;
 					id: string;
 					is_active: boolean | null;
-					lessons_per_week: number;
 					max_capacity: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -336,7 +388,6 @@ export type Database = {
 					description?: string | null;
 					id?: string;
 					is_active?: boolean | null;
-					lessons_per_week?: number;
 					max_capacity?: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -352,7 +403,6 @@ export type Database = {
 					description?: string | null;
 					id?: string;
 					is_active?: boolean | null;
-					lessons_per_week?: number;
 					max_capacity?: number;
 					max_lessons_per_week?: number;
 					min_lessons_per_week?: number;
@@ -461,17 +511,17 @@ export type Database = {
 				Row: {
 					id: string;
 					organization_id: string;
-					trainee_id: string | null;
+					trainee_id: string;
 				};
 				Insert: {
 					id?: string;
 					organization_id?: string;
-					trainee_id?: string | null;
+					trainee_id: string;
 				};
 				Update: {
 					id?: string;
 					organization_id?: string;
-					trainee_id?: string | null;
+					trainee_id?: string;
 				};
 				Relationships: [
 					{
@@ -615,10 +665,8 @@ export type Database = {
 			pe_get_auth_org_id: { Args: never; Returns: string };
 			pe_get_auth_org_role: { Args: never; Returns: string };
 			pe_switch_organization: { Args: { p_org_id: string }; Returns: undefined };
-			populate_default_weekly_schedules: { Args: never; Returns: undefined };
 		};
 		Enums: {
-			appointment_status: 'scheduled' | 'completed' | 'cancelled';
 			day_of_week:
 				| 'monday'
 				| 'tuesday'
@@ -628,6 +676,7 @@ export type Database = {
 				| 'saturday'
 				| 'sunday';
 			group_type: 'individual' | 'fixed' | 'dynamic';
+			order_status: 'CREATED' | 'COMPLETED' | 'CANCELED' | 'REJECTED' | 'IN_TRANSIT';
 			package_type_enum: 'private' | 'group';
 		};
 		CompositeTypes: {
@@ -754,9 +803,9 @@ export type CompositeTypes<
 export const Constants = {
 	public: {
 		Enums: {
-			appointment_status: ['scheduled', 'completed', 'cancelled'],
 			day_of_week: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
 			group_type: ['individual', 'fixed', 'dynamic'],
+			order_status: ['CREATED', 'COMPLETED', 'CANCELED', 'REJECTED', 'IN_TRANSIT'],
 			package_type_enum: ['private', 'group']
 		}
 	}
