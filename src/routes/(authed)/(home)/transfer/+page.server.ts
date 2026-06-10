@@ -3,7 +3,7 @@ import type { PageServerLoad, Actions } from './$types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/database.types';
 import type {
-	AppointmentWithDetails,
+	AppointmentWithRelations,
 	AppointmentSummaryResult,
 	TraineeApptResult,
 	TraineeApptSummaryResult,
@@ -75,7 +75,7 @@ async function getFutureAppointmentsByPurchase(
 	supabase: SupabaseClient<Database>,
 	appointmentId: number,
 	purchaseId: string
-): Promise<AppointmentWithDetails[]> {
+): Promise<AppointmentWithRelations[]> {
 	const refDateTime = await getReferenceDateTime(supabase, appointmentId);
 	if (!refDateTime) return [];
 
@@ -87,7 +87,7 @@ async function getFutureAppointmentsByPurchase(
 		.order('date', { ascending: true })
 		.order('hour', { ascending: true });
 
-	let allAppointments = (appointments || []) as AppointmentWithDetails[];
+	let allAppointments = (appointments || []) as AppointmentWithRelations[];
 
 	const successorChain = await getPurchaseSuccessorChain(supabase, purchaseId);
 	for (const successorId of successorChain.slice(1)) {
@@ -99,7 +99,7 @@ async function getFutureAppointmentsByPurchase(
 			.order('hour', { ascending: true });
 
 		if (successorAppts) {
-			allAppointments = [...allAppointments, ...(successorAppts as AppointmentWithDetails[])];
+			allAppointments = [...allAppointments, ...(successorAppts as AppointmentWithRelations[])];
 		}
 	}
 
@@ -110,7 +110,7 @@ async function getFutureAppointmentsByGroupLesson(
 	supabase: SupabaseClient<Database>,
 	appointmentId: number,
 	groupLessonId: string
-): Promise<AppointmentWithDetails[]> {
+): Promise<AppointmentWithRelations[]> {
 	const refDateTime = await getReferenceDateTime(supabase, appointmentId);
 	if (!refDateTime) return [];
 
@@ -122,7 +122,7 @@ async function getFutureAppointmentsByGroupLesson(
 		.order('date', { ascending: true })
 		.order('hour', { ascending: true });
 
-	return (appointments || []) as AppointmentWithDetails[];
+	return (appointments || []) as AppointmentWithRelations[];
 }
 
 // Keeps only appointments whose (day-of-week, hour) is in the canonical slot set,
@@ -171,7 +171,7 @@ async function filterByGroupCanonicalSlots<
 
 async function hasConflict(
 	supabase: SupabaseClient<Database>,
-	appointment: AppointmentWithDetails,
+	appointment: AppointmentWithRelations,
 	roomId: string | null,
 	trainerId: string | null
 ): Promise<{ roomConflict: boolean; trainerConflict: boolean }> {
@@ -189,8 +189,8 @@ async function hasConflict(
 }
 
 async function sendShiftNotifications(
-	appointments: AppointmentWithDetails[],
-	getNewSlot: (apt: AppointmentWithDetails) => { date: string; hour: number },
+	appointments: AppointmentWithRelations[],
+	getNewSlot: (apt: AppointmentWithRelations) => { date: string; hour: number },
 	cause: string
 ): Promise<number> {
 	const entries: ShiftNotificationEntry[] = appointments.flatMap((apt) => {
@@ -220,7 +220,7 @@ async function sendShiftNotifications(
 async function loadAppointmentDetailsForSeries(
 	supabase: SupabaseClient<Database>,
 	fromAppointmentId: number
-): Promise<Map<number, AppointmentWithDetails>> {
+): Promise<Map<number, AppointmentWithRelations>> {
 	const { data: appt } = await supabase
 		.from('pe_appointments')
 		.select('purchase_id, group_lesson_id')
@@ -229,7 +229,7 @@ async function loadAppointmentDetailsForSeries(
 
 	if (!appt) return new Map();
 
-	let series: AppointmentWithDetails[] = [];
+	let series: AppointmentWithRelations[] = [];
 	if (appt.purchase_id) {
 		series = await getFutureAppointmentsByPurchase(supabase, fromAppointmentId, appt.purchase_id);
 	} else if (appt.group_lesson_id) {
@@ -247,13 +247,13 @@ async function loadAppointmentDetailsForSeries(
 
 async function sendSlotShiftNotifications(
 	shifted: ShiftedAppointment[],
-	detailsByAppt: Map<number, AppointmentWithDetails>,
+	detailsByAppt: Map<number, AppointmentWithRelations>,
 	cause: string
 ): Promise<number> {
 	const ordered = shifted
 		.map((s) => ({ shift: s, apt: detailsByAppt.get(s.id) }))
 		.filter(
-			(entry): entry is { shift: ShiftedAppointment; apt: AppointmentWithDetails } => !!entry.apt
+			(entry): entry is { shift: ShiftedAppointment; apt: AppointmentWithRelations } => !!entry.apt
 		);
 
 	return sendShiftNotifications(
@@ -332,7 +332,7 @@ export const load: PageServerLoad = async ({
 	const { rooms, trainers } = await parent();
 
 	// Get future appointments for both private and group (from selected onwards)
-	let futureAppointments: AppointmentWithDetails[] = [];
+	let futureAppointments: AppointmentWithRelations[] = [];
 
 	if (appointment.purchase_id) {
 		futureAppointments = await getFutureAppointmentsByPurchase(
@@ -380,7 +380,7 @@ export const load: PageServerLoad = async ({
 			if (traineeAppts) {
 				futureAppointments = (traineeAppts as TraineeApptResult[])
 					.map((t) => t.pe_appointments)
-					.filter((a): a is AppointmentWithDetails => {
+					.filter((a): a is AppointmentWithRelations => {
 						if (!a || !a.date || a.hour === null) return false;
 						return (
 							a.date > refDateTime.date ||
@@ -534,7 +534,7 @@ export const load: PageServerLoad = async ({
 	}
 
 	return {
-		appointment: appointment as AppointmentWithDetails,
+		appointment: appointment as AppointmentWithRelations,
 		rooms: rooms.filter((r) => r.is_active),
 		trainers: trainers.filter((t) => t.is_active),
 		traineeInfo,
@@ -595,7 +595,7 @@ export const actions: Actions = {
 		}
 
 		// Get appointments to transfer
-		let appointmentsToTransfer: AppointmentWithDetails[] = [];
+		let appointmentsToTransfer: AppointmentWithRelations[] = [];
 
 		if (scope === 'single') {
 			const { data: singleAppt } = await supabase
@@ -605,7 +605,7 @@ export const actions: Actions = {
 				.single();
 
 			if (singleAppt) {
-				appointmentsToTransfer = [singleAppt as AppointmentWithDetails];
+				appointmentsToTransfer = [singleAppt as AppointmentWithRelations];
 			}
 		} else if (scope === 'from_selected') {
 			if (appointment.purchase_id) {
@@ -633,7 +633,7 @@ export const actions: Actions = {
 					.gte('date', today);
 
 				if (chainAppts) {
-					appointmentsToTransfer = chainAppts as AppointmentWithDetails[];
+					appointmentsToTransfer = chainAppts as AppointmentWithRelations[];
 				}
 			} else if (appointment.group_lesson_id) {
 				const { data: groupAppts } = await supabase
@@ -643,7 +643,7 @@ export const actions: Actions = {
 					.gte('date', today);
 
 				if (groupAppts) {
-					appointmentsToTransfer = groupAppts as AppointmentWithDetails[];
+					appointmentsToTransfer = groupAppts as AppointmentWithRelations[];
 				}
 			}
 		}
@@ -741,7 +741,7 @@ export const actions: Actions = {
 		}
 
 		// Get appointments to shift
-		let appointmentsToShift: AppointmentWithDetails[] = [];
+		let appointmentsToShift: AppointmentWithRelations[] = [];
 
 		if (scope === 'single') {
 			const { data: singleAppt } = await supabase
@@ -751,7 +751,7 @@ export const actions: Actions = {
 				.single();
 
 			if (singleAppt) {
-				appointmentsToShift = [singleAppt as AppointmentWithDetails];
+				appointmentsToShift = [singleAppt as AppointmentWithRelations];
 			}
 		} else if (scope === 'from_selected') {
 			if (appointment.purchase_id) {
@@ -779,7 +779,7 @@ export const actions: Actions = {
 					.gte('date', today);
 
 				if (chainAppts) {
-					appointmentsToShift = chainAppts as AppointmentWithDetails[];
+					appointmentsToShift = chainAppts as AppointmentWithRelations[];
 				}
 			} else if (appointment.group_lesson_id) {
 				const { data: groupAppts } = await supabase
@@ -789,7 +789,7 @@ export const actions: Actions = {
 					.gte('date', today);
 
 				if (groupAppts) {
-					appointmentsToShift = groupAppts as AppointmentWithDetails[];
+					appointmentsToShift = groupAppts as AppointmentWithRelations[];
 				}
 			}
 		}

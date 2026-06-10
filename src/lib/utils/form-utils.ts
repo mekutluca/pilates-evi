@@ -25,27 +25,6 @@ export function getRequiredFormDataString(formData: FormData, key: string): stri
 }
 
 /**
- * Safely gets a required string value from FormData with error handling
- * @param formData - The FormData object
- * @param key - The key to get
- * @returns Success object with value or failure object with error
- */
-export function safeGetRequiredFormDataString(
-	formData: FormData,
-	key: string
-): { success: true; value: string } | { success: false; error: string } {
-	try {
-		const value = formData.get(key);
-		if (typeof value !== 'string' || !value.trim()) {
-			return { success: false, error: `Missing required field: ${key}` };
-		}
-		return { success: true, value };
-	} catch {
-		return { success: false, error: `Invalid form data for field: ${key}` };
-	}
-}
-
-/**
  * Safely gets an error message from action result data
  * @param result - The action result
  * @returns The error message or a default message

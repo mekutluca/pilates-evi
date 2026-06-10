@@ -15,6 +15,7 @@ import type {
 } from '$lib/types/WhatsApp';
 import { formatPhoneNumber } from '$lib/utils/phone-utils';
 import { formatTurkishDate } from '$lib/utils/date-utils';
+import { getTimeString } from '$lib/types/Schedule';
 
 const BASE_URL = 'https://api.chakrahq.com/v1/ext';
 
@@ -130,7 +131,7 @@ export class WhatsAppRepository {
 					date,
 					hour,
 					formattedDate: formatTurkishDate(date),
-					formattedTime: `${String(hour).padStart(2, '0')}:00`
+					formattedTime: getTimeString(hour)
 				};
 			});
 	}

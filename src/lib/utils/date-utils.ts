@@ -51,18 +51,6 @@ export function getWeekEnd(date: Date): Date {
 }
 
 /**
- * Checks if two dates are in the same week
- * @param date1 - First date
- * @param date2 - Second date
- * @returns True if dates are in the same week
- */
-export function isSameWeek(date1: Date, date2: Date): boolean {
-	const week1Start = getWeekStart(date1);
-	const week2Start = getWeekStart(date2);
-	return week1Start.getTime() === week2Start.getTime();
-}
-
-/**
  * Formats a date as YYYY-MM-DD for URL parameters
  * @param date - The date to format
  * @returns Formatted date string in YYYY-MM-DD format
@@ -151,23 +139,24 @@ export function getDayOfWeekFromDate(appointmentDate: string): string {
  * @param dateStr - The date string in YYYY-MM-DD format
  * @returns Formatted date string, e.g. "31 Mart 2026 Salı"
  */
+const TURKISH_MONTHS = [
+	'Ocak',
+	'Şubat',
+	'Mart',
+	'Nisan',
+	'Mayıs',
+	'Haziran',
+	'Temmuz',
+	'Ağustos',
+	'Eylül',
+	'Ekim',
+	'Kasım',
+	'Aralık'
+];
+
 export function formatTurkishDate(dateStr: string): string {
 	const date = new Date(dateStr + 'T00:00:00');
-	const months = [
-		'Ocak',
-		'Şubat',
-		'Mart',
-		'Nisan',
-		'Mayıs',
-		'Haziran',
-		'Temmuz',
-		'Ağustos',
-		'Eylül',
-		'Ekim',
-		'Kasım',
-		'Aralık'
-	];
-	return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
+	return `${date.getDate()} ${TURKISH_MONTHS[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
 }
 
 /**
@@ -178,21 +167,7 @@ export function formatTurkishDate(dateStr: string): string {
  */
 export function formatShortTurkishDateTime(dateStr: string, hour: number): string {
 	const date = new Date(dateStr + 'T00:00:00');
-	const months = [
-		'Ocak',
-		'Şubat',
-		'Mart',
-		'Nisan',
-		'Mayıs',
-		'Haziran',
-		'Temmuz',
-		'Ağustos',
-		'Eylül',
-		'Ekim',
-		'Kasım',
-		'Aralık'
-	];
-	return `${date.getDate()} ${months[date.getMonth()]} ${String(hour).padStart(2, '0')}:00`;
+	return `${date.getDate()} ${TURKISH_MONTHS[date.getMonth()]} ${String(hour).padStart(2, '0')}:00`;
 }
 
 /**

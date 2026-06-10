@@ -20,7 +20,7 @@ export type AppointmentSummary = {
 	trainer_name: string | null;
 };
 
-export type AppointmentWithDetails = {
+export type AppointmentWithRelations = {
 	id: number;
 	date: string | null;
 	hour: number | null;
@@ -63,7 +63,7 @@ export type AppointmentSummaryResult = {
 
 // Type for trainee appointment query results
 export type TraineeApptResult = {
-	pe_appointments: AppointmentWithDetails | null;
+	pe_appointments: AppointmentWithRelations | null;
 };
 
 // Type for trainee appointment summary query results
