@@ -14,9 +14,11 @@
 > - Phase 4 (partial): dead code removed (`isSameWeek`, `safeGetRequiredFormDataString`), Turkish month array deduped, `getTimeString` reused in WhatsAppRepository, `AppointmentWithDetails` name collision resolved (Transfer's renamed to `AppointmentWithRelations`).
 > - Phase 5 (core): dashboard last-lesson purchases batched (.in), admin/users switched from per-user getUserById to one listUsers call, new-assignment group-capacity loop batched (2 queries total), layout selects trimmed with a comment guard.
 >
+> **Progress part 3 (same day):** extend flow is now transactional — `pe_extend_purchase` plpgsql RPC creates purchases + successor links + appointments/enrollments atomically (private and group variants); both extend actions rewritten to a single `PurchaseRepository.extend()` call. §2.4 remains open only for new-assignment's createAssignment.
+>
 > **Remaining (next session):**
 >
-> - Phase 3: `AppointmentRepository`/`EnrollmentRepository` absorbing shift/cancellation utils; `SchedulingService` + transactional RPCs for createAssignment/extend (§2.4); `NotificationService`; CRUD repositories + thin route rewrites (transfer server is still 1,100+ lines).
+> - Phase 3: transactional RPC for new-assignment createAssignment (§2.4, last open correctness item); `AppointmentRepository`/`EnrollmentRepository` absorbing shift/cancellation utils; `NotificationService`; CRUD repositories + thin route rewrites (transfer server is still 1,100+ lines).
 > - Phase 4: client composables — week-navigation, CRUD modal manager, `use:enhance` factory, shared `getSlotData`/schedule-slot util, replace local `formatDate` copies in transfer/extend/trainees/admin-users pages.
 > - Phase 5: transfer's per-appointment UPDATE loop in series shifts → single batched update or RPC.
 > - Dashboard to-dos for the owner (not scriptable): enable leaked-password protection, lower OTP expiry below 1h.

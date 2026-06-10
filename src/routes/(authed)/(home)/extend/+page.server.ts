@@ -131,8 +131,8 @@ async function getAppointmentDatesForPurchase(
 	}
 
 	return {
-		start_date: new Date(dates[0]),
-		end_date: new Date(dates[dates.length - 1])
+		start_date: parseLocalDate(dates[0]),
+		end_date: parseLocalDate(dates[dates.length - 1])
 	};
 }
 
