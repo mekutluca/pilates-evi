@@ -26,21 +26,21 @@ export const load: PageServerLoad = async ({
 		throw error(500, 'Kullanıcılar yüklenirken hata oluştu: ' + usersError.message);
 	}
 
-	// Fetch auth user details for each user
-	const users = await Promise.all(
-		(orgUsers || []).map(async (orgUser) => {
-			const { data: authUser } = await admin.auth.admin.getUserById(orgUser.user_id);
-			const displayRole = orgUser.role.replace('pe_', '');
-			return {
-				id: orgUser.user_id,
-				email: authUser?.user?.email || '',
-				fullName: authUser?.user?.user_metadata?.fullName || '',
-				role: displayRole,
-				created_at: orgUser.created_at,
-				last_sign_in_at: authUser?.user?.last_sign_in_at
-			};
-		})
-	);
+	// Fetch all auth users in one call instead of one lookup per member
+	const { data: authUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+	const authUserById = new Map((authUsers?.users ?? []).map((u) => [u.id, u]));
+
+	const users = (orgUsers || []).map((orgUser) => {
+		const authUser = authUserById.get(orgUser.user_id);
+		return {
+			id: orgUser.user_id,
+			email: authUser?.email || '',
+			fullName: authUser?.user_metadata?.fullName || '',
+			role: orgUser.role.replace('pe_', ''),
+			created_at: orgUser.created_at,
+			last_sign_in_at: authUser?.last_sign_in_at
+		};
+	});
 
 	return {
 		users

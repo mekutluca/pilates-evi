@@ -136,44 +136,53 @@ export const load: PageServerLoad = async ({ locals: { supabase }, parent }) => 
 			}));
 		}) || [];
 
-	// Find trainees with last lessons (within 2 sessions of completion)
+	// Find trainees with last lessons (within 2 sessions of completion).
+	// Purchases for all candidates are fetched in one batched query.
+	const lastLessonCandidates = (appointmentTrainees || []).filter((at) => {
+		if (!at.trainee_id) return false;
+		const remainingSessions = at.total_sessions - at.session_number;
+		return remainingSessions <= 2 && remainingSessions >= 0;
+	});
+
+	const candidatePurchaseIds = [
+		...new Set(lastLessonCandidates.map((at) => at.purchase_id).filter(Boolean))
+	];
+	const { data: candidatePurchases } =
+		candidatePurchaseIds.length > 0
+			? await supabase
+					.from('pe_purchases')
+					.select('id, package_id, successor_id, pe_packages(*)')
+					.in('id', candidatePurchaseIds)
+			: { data: [] };
+	const purchaseById = new Map((candidatePurchases ?? []).map((p) => [p.id, p]));
+
 	const traineesWithLastLessons: TraineeWithLastLesson[] = [];
 	const processedTrainees = new Set<string>(); // Track to avoid duplicates
 
-	for (const at of appointmentTrainees || []) {
+	for (const at of lastLessonCandidates) {
 		if (!at.trainee_id || processedTrainees.has(at.trainee_id)) continue;
 
-		const remainingSessions = at.total_sessions - at.session_number;
+		const trainee = layoutData.trainees.find((t) => t.id === at.trainee_id);
+		if (!trainee) continue;
 
-		// Include if they have 2 or fewer sessions remaining
-		if (remainingSessions <= 2 && remainingSessions >= 0) {
-			const trainee = layoutData.trainees.find((t) => t.id === at.trainee_id);
-			if (!trainee) continue;
+		const purchaseData = at.purchase_id ? purchaseById.get(at.purchase_id) : undefined;
 
-			// Get the package and successor from the purchase
-			const { data: purchaseData } = await supabase
-				.from('pe_purchases')
-				.select('package_id, successor_id, pe_packages(*)')
-				.eq('id', at.purchase_id || '')
-				.single();
+		// Skip if the purchase has been extended (has a successor) — the trainee isn't
+		// actually nearing their last lesson, they continue in the successor purchase.
+		if (purchaseData?.successor_id) continue;
 
-			// Skip if the purchase has been extended (has a successor) — the trainee isn't
-			// actually nearing their last lesson, they continue in the successor purchase.
-			if (purchaseData?.successor_id) continue;
+		// Get appointment date
+		const appointment = appointments?.find((a) => a.id === at.appointment_id);
 
-			// Get appointment date
-			const appointment = appointments?.find((a) => a.id === at.appointment_id);
+		traineesWithLastLessons.push({
+			trainee,
+			session_number: at.session_number,
+			total_sessions: at.total_sessions,
+			package: purchaseData?.pe_packages || null,
+			appointment_date: appointment?.date || ''
+		});
 
-			traineesWithLastLessons.push({
-				trainee,
-				session_number: at.session_number,
-				total_sessions: at.total_sessions,
-				package: purchaseData?.pe_packages || null,
-				appointment_date: appointment?.date || ''
-			});
-
-			processedTrainees.add(at.trainee_id);
-		}
+		processedTrainees.add(at.trainee_id);
 	}
 
 	const stats: DashboardStats = {

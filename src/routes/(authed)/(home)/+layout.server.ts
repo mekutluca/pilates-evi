@@ -11,11 +11,23 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		throw error(401, 'Authentication required');
 	}
 
-	// Fetch essential data concurrently with proper error handling
+	// Fetch essential data concurrently with proper error handling.
+	// These run on every navigation — select only what the UI consumes.
 	const queries = [
-		{ name: 'trainers', query: supabase.from('pe_trainers').select('*') },
-		{ name: 'rooms', query: supabase.from('pe_rooms').select('*') },
-		{ name: 'trainees', query: supabase.from('pe_trainees').select('*') },
+		{
+			name: 'trainers',
+			query: supabase.from('pe_trainers').select('id, name, phone, is_active, organization_id')
+		},
+		{
+			name: 'rooms',
+			query: supabase.from('pe_rooms').select('id, name, capacity, is_active, organization_id')
+		},
+		{
+			name: 'trainees',
+			query: supabase
+				.from('pe_trainees')
+				.select('id, name, phone, email, notes, is_active, created_at, auth_id, organization_id')
+		},
 		{
 			name: 'packages',
 			query: supabase.from('pe_packages').select('*').order('created_at', { ascending: false })

@@ -106,27 +106,40 @@ export const load: PageServerLoad = async ({
 				};
 			});
 
-			// Get current capacity for each group lesson using appointment_trainees
-			for (const groupLesson of existingGroupLessons) {
-				// Get all appointments for this group lesson
-				const { data: appointments, error: apptsError } = await supabase
-					.from('pe_appointments')
-					.select('id')
-					.eq('group_lesson_id', groupLesson.group_lesson_id);
+			// Get current capacity for each group lesson using appointment_trainees.
+			// Two batched queries for all lessons instead of two per lesson.
+			const lessonIds = existingGroupLessons.map((gl) => gl.group_lesson_id);
+			const { data: lessonAppointments } = await supabase
+				.from('pe_appointments')
+				.select('id, group_lesson_id')
+				.in('group_lesson_id', lessonIds);
 
-				if (!apptsError && appointments && appointments.length > 0) {
-					const appointmentIds = appointments.map((apt) => apt.id);
+			const lessonByAppointment = new Map(
+				(lessonAppointments ?? []).map((apt) => [apt.id, apt.group_lesson_id])
+			);
 
-					const { data: appointmentTrainees, error: traineesError } = await supabase
-						.from('pe_appointment_trainees')
-						.select('trainee_id')
-						.in('appointment_id', appointmentIds);
+			if (lessonByAppointment.size > 0) {
+				const { data: lessonEnrollments } = await supabase
+					.from('pe_appointment_trainees')
+					.select('appointment_id, trainee_id')
+					.in('appointment_id', [...lessonByAppointment.keys()]);
 
-					if (!traineesError && appointmentTrainees) {
-						// Get unique trainee IDs for this group lesson
-						const uniqueTrainees = new Set(appointmentTrainees.map((at) => at.trainee_id));
-						groupLesson.current_capacity = uniqueTrainees.size;
+				const traineesByLesson = new Map<string, Set<string>>();
+				for (const enrollment of lessonEnrollments ?? []) {
+					if (enrollment.appointment_id === null || !enrollment.trainee_id) continue;
+					const lessonId = lessonByAppointment.get(enrollment.appointment_id);
+					if (!lessonId) continue;
+					let set = traineesByLesson.get(lessonId);
+					if (!set) {
+						set = new Set<string>();
+						traineesByLesson.set(lessonId, set);
 					}
+					set.add(enrollment.trainee_id);
+				}
+
+				for (const groupLesson of existingGroupLessons) {
+					groupLesson.current_capacity =
+						traineesByLesson.get(groupLesson.group_lesson_id)?.size ?? 0;
 				}
 			}
 
