@@ -8,8 +8,18 @@
 > - Phase 2: five `pe_`-scoped migrations applied & mirrored in `supabase/migrations/` — hot-path indexes, unique booking constraints (room/trainer per slot, one enrollment per trainee), `date`/`hour` NOT NULL, `pe_teams` PK, RLS initplan + policy consolidation (all pe* advisor warnings cleared), function search_path pinning, dead objects dropped (`check*\*`trigger fns,`populate_default_weekly_schedules`, `appointment_status`enum,`lessons_per_week`column).`database.types.ts` regenerated.
 > - Bonus: schedule page's all-time appointment fetch turned out to be entirely unused (and silently truncated at the API's 1,000-row cap) — deleted.
 >
-> **Next:** Phase 3 (repository layer) → Phase 4 (utils/client consolidation) → Phase 5 (remaining N+1s).
-> Dashboard to-dos for the owner (not scriptable): enable leaked-password protection, lower OTP expiry below 1h.
+> **Progress part 2 (same day):**
+>
+> - Phase 3 (started): `pe_purchase_chain` recursive-CTE RPC + `pe_decrement_reschedule` atomic RPC (fixes §2.6 race); `PurchaseRepository` created; the three duplicate chain-walkers reduced to one RPC-backed implementation; pure slot helpers moved to client-safe `slot-utils.ts`.
+> - Phase 4 (partial): dead code removed (`isSameWeek`, `safeGetRequiredFormDataString`), Turkish month array deduped, `getTimeString` reused in WhatsAppRepository, `AppointmentWithDetails` name collision resolved (Transfer's renamed to `AppointmentWithRelations`).
+> - Phase 5 (core): dashboard last-lesson purchases batched (.in), admin/users switched from per-user getUserById to one listUsers call, new-assignment group-capacity loop batched (2 queries total), layout selects trimmed with a comment guard.
+>
+> **Remaining (next session):**
+>
+> - Phase 3: `AppointmentRepository`/`EnrollmentRepository` absorbing shift/cancellation utils; `SchedulingService` + transactional RPCs for createAssignment/extend (§2.4); `NotificationService`; CRUD repositories + thin route rewrites (transfer server is still 1,100+ lines).
+> - Phase 4: client composables — week-navigation, CRUD modal manager, `use:enhance` factory, shared `getSlotData`/schedule-slot util, replace local `formatDate` copies in transfer/extend/trainees/admin-users pages.
+> - Phase 5: transfer's per-appointment UPDATE loop in series shifts → single batched update or RPC.
+> - Dashboard to-dos for the owner (not scriptable): enable leaked-password protection, lower OTP expiry below 1h.
 
 _Assessment date: 2026-06-10. Sources: full code audit (server routes, lib, pages), live database inspection (project `nhvzcpxkdjyftemalcki`), Supabase security & performance advisors._
 
