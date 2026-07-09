@@ -26,4 +26,21 @@ export class SchedulingService {
 		}
 		return data;
 	}
+
+	/**
+	 * Ends a group lesson on the given date: sets end_date and deletes the
+	 * pre-created empty appointments from that date on in a single
+	 * transaction. The RPC rejects end dates that are not strictly after the
+	 * lesson's last appointment with enrolled trainees.
+	 */
+	async endGroupLesson(groupLessonId: string, endDate: string): Promise<{ deleted_count: number }> {
+		const { data, error } = await this.supabase.rpc('pe_end_group_lesson', {
+			p_group_lesson_id: groupLessonId,
+			p_end_date: endDate
+		});
+		if (error) {
+			throw new Error(`Grup dersi sonlandırılamadı: ${error.message}`);
+		}
+		return data;
+	}
 }

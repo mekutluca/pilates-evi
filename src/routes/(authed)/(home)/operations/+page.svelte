@@ -2,6 +2,7 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import CalendarX2 from '@lucide/svelte/icons/calendar-x-2';
+	import CalendarOff from '@lucide/svelte/icons/calendar-off';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	const operations = [
@@ -11,6 +12,13 @@
 			description:
 				'Seçilen gündeki tüm randevuları bir sebeple iptal eder; dersler kaydırılır ve öğrencilere bilgi mesajı gönderilir.',
 			icon: CalendarX2
+		},
+		{
+			href: '/operations/end-group-lesson',
+			title: 'Grup Dersini Sonlandır',
+			description:
+				'Seçilen grup dersini belirtilen tarihte sonlandırır; o tarihten itibaren oluşturulmuş boş randevular silinir.',
+			icon: CalendarOff
 		}
 	];
 </script>

@@ -19,18 +19,14 @@
 	import {
 		formatDateForDB,
 		formatTurkishDate,
-		formatShortTurkishDateTime
+		formatShortTurkishDateTime,
+		getTomorrow
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import type { DayCancellationConflict } from '$lib/types/Operation';
 
 	// A day cancellation only makes sense for future days — shifting in-progress or past sessions
 	// is meaningless, so the picker starts on (and is bounded at) tomorrow.
-	function getTomorrow(): Date {
-		const now = new Date();
-		return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-	}
-
 	const minSelectableDate = getTomorrow();
 
 	let selectedDate = $state(getTomorrow());

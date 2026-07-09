@@ -676,6 +676,10 @@ export type Database = {
 				};
 			};
 			pe_decrement_reschedule: { Args: { p_purchase_id: string }; Returns: number | null };
+			pe_end_group_lesson: {
+				Args: { p_group_lesson_id: string; p_end_date: string };
+				Returns: { deleted_count: number };
+			};
 			pe_extend_purchase: {
 				Args: { p_predecessor_id: string; p_reschedule_left: number; p_chunks: Json };
 				Returns: {

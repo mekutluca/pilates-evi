@@ -13,6 +13,14 @@ export const TURKISH_DAYS = [
 ] as const;
 
 /**
+ * Returns tomorrow at local midnight.
+ */
+export function getTomorrow(): Date {
+	const now = new Date();
+	return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+}
+
+/**
  * Gets the start of the week (Monday) for a given date
  * @param date - The date to get the week start for
  * @returns Date object representing the start of the week

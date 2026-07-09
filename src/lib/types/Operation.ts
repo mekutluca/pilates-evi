@@ -21,6 +21,38 @@ export interface DayCancellationConflict {
 	reason: string; // human-readable, e.g. "Oda dolu", "Eğitmen dolu", "Oda ve eğitmen dolu"
 }
 
+// Query row for active group lessons with joined tables. The embedded
+// appointments carry only enrolled ones (via a nested !inner join).
+export interface GroupLessonQueryRow {
+	id: string;
+	start_date: string | null;
+	timeslots: Array<{ day: string; hours: number[] }> | null;
+	pe_packages: { name: string } | null;
+	pe_rooms: { name: string } | null;
+	pe_trainers: { name: string } | null;
+	pe_appointments: Array<{
+		date: string | null;
+		pe_appointment_trainees: Array<{ trainee_id: string | null }>;
+	}>;
+}
+
+// An active group lesson as listed on the end-group-lesson operation page.
+export interface EndableGroupLesson {
+	id: string;
+	packageName: string;
+	roomName: string;
+	trainerName: string;
+	startDate: string | null;
+	timeslots: Array<{ day: string; hours: number[] }>;
+	// Date of the lesson's last appointment that has enrolled trainees.
+	lastEnrolledDate: string | null;
+	// Distinct trainees enrolled in the lesson's appointments from today on.
+	traineeCount: number;
+	// Earliest selectable end date: the day after the last enrolled
+	// appointment, but never earlier than tomorrow.
+	minEndDate: string;
+}
+
 export interface DayCancellationResult {
 	// Number of appointments whose series were shifted (and whose trainees were moved forward).
 	shiftedCount: number;
