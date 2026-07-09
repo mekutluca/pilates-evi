@@ -3,91 +3,93 @@ import type { PageServerLoad, Actions } from './$types';
 import type { TraineePurchaseMembership, Package } from '$lib/types';
 import { getRequiredFormDataString } from '$lib/utils';
 
-export const load: PageServerLoad = async ({ params, locals: { supabase } }) => {
+export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
 
 	if (!traineeId) {
 		throw error(400, 'Geçersiz öğrenci ID');
 	}
 
-	// Get trainee details
-	const { data: trainee, error: traineeError } = await supabase
-		.from('pe_trainees')
-		.select('*')
-		.eq('id', traineeId)
-		.single();
+	// Trainee details — streamed so the page shell renders immediately
+	const loadTrainee = async () => {
+		const { data: trainee } = await supabase
+			.from('pe_trainees')
+			.select('*')
+			.eq('id', traineeId)
+			.maybeSingle();
 
-	if (traineeError || !trainee) {
-		throw error(404, 'Öğrenci bulunamadı');
-	}
+		return trainee;
+	};
 
-	// Get trainee's team memberships (purchases they're part of)
-	const { data: teamMemberships, error: teamError } = await supabase
-		.from('pe_teams')
-		.select('id, trainee_id')
-		.eq('trainee_id', traineeId);
+	// Purchase memberships with appointments — streamed; resolves to null on error
+	const loadPurchaseMemberships = async (): Promise<TraineePurchaseMembership[] | null> => {
+		// Get trainee's team memberships (purchases they're part of)
+		const { data: teamMemberships, error: teamError } = await supabase
+			.from('pe_teams')
+			.select('id, trainee_id')
+			.eq('trainee_id', traineeId);
 
-	if (teamError) {
-		console.error('Error fetching team memberships:', teamError);
-		throw error(500, 'Üyelik bilgileri yüklenirken hata oluştu');
-	}
+		if (teamError) {
+			console.error('Error fetching team memberships:', teamError);
+			return null;
+		}
 
-	const teamIds = teamMemberships?.map((tm) => tm.id) || [];
+		const teamIds = teamMemberships?.map((tm) => tm.id) || [];
 
-	// Get purchases for these teams with package info
-	const { data: purchases, error: purchasesError } = await supabase
-		.from('pe_purchases')
-		.select(
-			`
-			id,
-			created_at,
-			pe_packages (
+		// Get purchases for these teams with package info
+		const { data: purchases, error: purchasesError } = await supabase
+			.from('pe_purchases')
+			.select(
+				`
 				id,
-				name,
-				description,
-				weeks_duration,
-				min_lessons_per_week,
-				max_lessons_per_week,
-				max_capacity,
-				package_type,
-				reschedulable,
-				reschedule_limit
-			)
-		`
-		)
-		.in('team_id', teamIds)
-		.order('created_at', { ascending: false });
-
-	if (purchasesError) {
-		console.error('Error fetching purchases:', purchasesError);
-	}
-
-	// Get all appointments with their details for this trainee
-	const { data: detailedAppointments, error: detailedApptError } = await supabase
-		.from('pe_appointment_trainees')
-		.select(
+				created_at,
+				pe_packages (
+					id,
+					name,
+					description,
+					weeks_duration,
+					min_lessons_per_week,
+					max_lessons_per_week,
+					max_capacity,
+					package_type,
+					reschedulable,
+					reschedule_limit
+				)
 			`
-			appointment_id,
-			purchase_id,
-			pe_appointments!inner (
-				id,
-				date,
-				hour
 			)
-		`
-		)
-		.eq('trainee_id', traineeId)
-		.order('pe_appointments(date)', { ascending: true });
+			.in('team_id', teamIds)
+			.order('created_at', { ascending: false });
 
-	if (detailedApptError) {
-		console.error('Error fetching detailed appointments:', detailedApptError);
-	}
+		if (purchasesError) {
+			console.error('Error fetching purchases:', purchasesError);
+			return null;
+		}
 
-	// Build purchase memberships with appointments
-	const purchaseMemberships: TraineePurchaseMembership[] = [];
+		// Get all appointments with their details for this trainee
+		const { data: detailedAppointments, error: detailedApptError } = await supabase
+			.from('pe_appointment_trainees')
+			.select(
+				`
+				appointment_id,
+				purchase_id,
+				pe_appointments!inner (
+					id,
+					date,
+					hour
+				)
+			`
+			)
+			.eq('trainee_id', traineeId)
+			.order('pe_appointments(date)', { ascending: true });
 
-	if (purchases) {
-		for (const purchase of purchases) {
+		if (detailedApptError) {
+			console.error('Error fetching detailed appointments:', detailedApptError);
+		}
+
+		// Build purchase memberships with appointments
+		const purchaseMemberships: TraineePurchaseMembership[] = [];
+
+		for (const purchase of purchases ?? []) {
 			// Filter appointments for this purchase
 			const purchaseAppointments = detailedAppointments?.filter(
 				(apt) => apt.purchase_id === purchase.id
@@ -129,11 +131,13 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 				appointments: sortedAppointments
 			});
 		}
-	}
+
+		return purchaseMemberships;
+	};
 
 	return {
-		trainee,
-		groupMemberships: purchaseMemberships
+		trainee: loadTrainee(),
+		groupMemberships: loadPurchaseMemberships()
 	};
 };
 

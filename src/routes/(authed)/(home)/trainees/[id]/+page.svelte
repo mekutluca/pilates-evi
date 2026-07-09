@@ -15,7 +15,7 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
-	import type { ActionItem } from '$lib/types';
+	import type { ActionItem, Trainee } from '$lib/types';
 	import type { TraineePurchaseMembership } from '$lib/types';
 	import { formatDisplayDate, calculatePackageEndDate } from '$lib/utils';
 	import { enhance } from '$app/forms';
@@ -29,9 +29,29 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
+	import { CardSkeleton, PageHeaderSkeleton } from '$lib/components/skeletons/index.js';
 
 	let { data } = $props();
-	let { trainee, groupMemberships } = $derived(data);
+
+	// Streamed data resolved into local state. `undefined` = loading, `null` = not
+	// found / failed. Stale values are kept during invalidation to avoid flashing
+	// skeletons after form actions.
+	let trainee = $state<Trainee | null | undefined>(undefined);
+	let groupMemberships = $state<TraineePurchaseMembership[] | null | undefined>(undefined);
+
+	$effect(() => {
+		const promise = data.trainee;
+		promise.then((result) => {
+			if (data.trainee === promise) trainee = result;
+		});
+	});
+
+	$effect(() => {
+		const promise = data.groupMemberships;
+		promise.then((result) => {
+			if (data.groupMemberships === promise) groupMemberships = result;
+		});
+	});
 
 	// Edit mode state
 	let editMode = $state(false);
@@ -70,7 +90,7 @@
 
 	// Filter memberships with packages and sort by start date (descending)
 	const sortedPurchases = $derived(
-		groupMemberships
+		(groupMemberships ?? [])
 			.filter((membership) => membership.package)
 			.sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime())
 	);
@@ -139,8 +159,10 @@
 				<ActionMenu actions={menuActions} />
 			</div>
 		</div>
+	{:else if trainee === undefined}
+		<PageHeaderSkeleton actions />
 	{:else}
-		<PageHeader title="Öğrenci" subtitle="Yükleniyor..." />
+		<PageHeader title="Öğrenci" subtitle="Öğrenci Detayları" />
 	{/if}
 
 	{#if trainee}
@@ -272,10 +294,35 @@
 				</Card.Content>
 			</Card.Root>
 		</div>
+	{:else if trainee === undefined}
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+			<CardSkeleton class="lg:col-span-2" rows={3} />
+			<CardSkeleton rows={1} rowClass="h-24" />
+		</div>
+	{:else}
+		<Card.Root>
+			<Card.Content class="py-12 text-center">
+				<User size={48} class="mx-auto mb-4 text-muted-foreground/40" />
+				<h3 class="mb-2 text-lg font-semibold text-muted-foreground">Öğrenci bulunamadı</h3>
+				<p class="text-muted-foreground/70">Bu öğrenci mevcut değil veya kaldırılmış olabilir.</p>
+			</Card.Content>
+		</Card.Root>
 	{/if}
 
 	<!-- All Purchases -->
-	{#if sortedPurchases.length > 0}
+	{#if trainee === null}
+		<!-- Trainee not found; skip purchases -->
+	{:else if groupMemberships === undefined}
+		<CardSkeleton rows={3} rowClass="h-12" />
+	{:else if groupMemberships === null}
+		<Card.Root>
+			<Card.Content class="py-12 text-center">
+				<PackageIcon size={48} class="mx-auto mb-4 text-muted-foreground/40" />
+				<h3 class="mb-2 text-lg font-semibold text-muted-foreground">Satın alımlar yüklenemedi</h3>
+				<p class="text-muted-foreground/70">Lütfen sayfayı yenileyip tekrar deneyin.</p>
+			</Card.Content>
+		</Card.Root>
+	{:else if sortedPurchases.length > 0}
 		<Card.Root>
 			<Card.Header>
 				<Card.Title class="flex items-center gap-2 text-lg">
