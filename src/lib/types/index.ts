@@ -58,6 +58,11 @@ export interface ActionItem {
 	icon?: typeof Users;
 }
 
+// Context contract for the global action drawer (see $lib/stores/action-drawer.svelte.ts)
+export interface ActionDrawerContext {
+	openDrawer: (actions: ActionItem[]) => void;
+}
+
 // ===============================================
 // PURCHASE TYPES (replaces old group system)
 // ===============================================
@@ -155,6 +160,20 @@ export interface SelectedGroupTimeslot {
 	group_lesson_id: string;
 	day: string;
 	hour: number;
+}
+
+// Group lesson query row (with joined tables) used by the new-assignment flow
+export interface GroupLessonQueryResult {
+	id: string;
+	package_id: string | null;
+	start_date: string | null;
+	end_date: string | null;
+	room_id: string | null;
+	trainer_id: string | null;
+	timeslots: Array<{ day: string; hours: number[] }> | null;
+	pe_packages: { id: string; name: string; max_capacity: number } | null;
+	pe_rooms: { id: string; name: string } | null;
+	pe_trainers: { id: string; name: string } | null;
 }
 
 // Type for existing group lessons returned from server

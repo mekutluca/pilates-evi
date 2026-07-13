@@ -4,7 +4,8 @@ import type {
 	PackagePurchaseForm,
 	ExistingGroupLesson,
 	Appointment,
-	AvailableGroupTimeslot
+	AvailableGroupTimeslot,
+	GroupLessonQueryResult
 } from '$lib/types';
 import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
@@ -16,20 +17,6 @@ import type {
 	AssignmentEnrollmentPayload
 } from '$lib/types/Assignment';
 import { isValidUuid } from '$lib/utils/validation';
-
-// Type for group lesson query result with joined tables
-interface GroupLessonQueryResult {
-	id: string;
-	package_id: string | null;
-	start_date: string | null;
-	end_date: string | null;
-	room_id: string | null;
-	trainer_id: string | null;
-	timeslots: Array<{ day: string; hours: number[] }> | null;
-	pe_packages: { id: string; name: string; max_capacity: number } | null;
-	pe_rooms: { id: string; name: string } | null;
-	pe_trainers: { id: string; name: string } | null;
-}
 
 export const load: PageServerLoad = async ({
 	locals: { supabase, user, userRole },
@@ -580,17 +567,6 @@ export const actions: Actions = {
 				const durationWeeks = assignmentForm.duration_weeks || 4;
 				const selectedTimeslots = assignmentForm.selected_group_timeslots!;
 
-				// Map day names to JS day numbers
-				const dayNameToNumber: Record<string, number> = {
-					sunday: 0,
-					monday: 1,
-					tuesday: 2,
-					wednesday: 3,
-					thursday: 4,
-					friday: 5,
-					saturday: 6
-				};
-
 				// Fetch upcoming appointments for each involved group lesson once. We don't
 				// filter by hour: an exact (day, hour) match is required, but the absence of
 				// a match (e.g. a canceled or rescheduled slot) just leaves a gap that gets
@@ -637,12 +613,12 @@ export const actions: Actions = {
 				const allMatches: Array<{ id: number; date: string; hour: number }> = [];
 
 				for (const timeslot of selectedTimeslots) {
-					const targetDayNumber = dayNameToNumber[timeslot.day.toLowerCase()];
+					const targetDay = timeslot.day.toLowerCase();
 					const upcoming = upcomingByGroupLesson.get(timeslot.group_lesson_id) || [];
 
 					for (const apt of upcoming) {
 						if (apt.hour !== timeslot.hour) continue;
-						if (parseLocalDate(apt.date).getDay() !== targetDayNumber) continue;
+						if (getDayOfWeekFromDate(apt.date) !== targetDay) continue;
 						allMatches.push(apt);
 					}
 				}

@@ -1,13 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Json } from '$lib/database.types';
+import type { Json } from '$lib/database.types';
 import type { Purchase } from '$lib/types';
-import { DAYS_OF_WEEK, type DayOfWeek } from '$lib/types/Schedule';
+import type { SupabaseClientType } from '$lib/types/Supabase';
+import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
 import type { UpcomingGroupAppointment, GroupLessonTimeslot } from '$lib/types/Extension';
 import { parseLocalDate, formatDateForDB } from './date-utils';
-import { JS_DAY_TO_NAME } from './slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
-
-type SupabaseClientType = SupabaseClient<Database>;
 
 function isDayOfWeek(value: string): value is DayOfWeek {
 	return (DAYS_OF_WEEK as readonly string[]).includes(value);

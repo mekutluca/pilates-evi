@@ -1,55 +1,22 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { ShiftConflict, ShiftedAppointment } from '$lib/types/Schedule';
 import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
 import type {
+	DayAppointment,
 	DayCancellationConflict,
 	DayCancellationResult,
-	DayCancellationStrategy
+	DayCancellationStrategy,
+	DayTrainee,
+	RawDayRow,
+	ShiftOutcome
 } from '$lib/types/Operation';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { deleteAppointment } from '$lib/utils/cancellation-utils';
 import { formatShortTurkishDateTime, parseLocalDate } from '$lib/utils/date-utils';
 
-type SupabaseClientType = SupabaseClient<Database>;
-
 // How far ahead the "closest free occurrence" search walks through the recurring pattern
 // before giving up (≈ six months for a weekly slot).
 const CLOSEST_PROBE_LIMIT = 26;
-
-interface DayTrainee {
-	traineeId: string;
-	name: string;
-	phone: string | null;
-}
-
-interface DayAppointment {
-	id: number;
-	date: string;
-	hour: number;
-	purchaseId: string | null;
-	groupLessonId: string | null;
-	roomName: string;
-	trainerName: string;
-	packageName: string;
-	trainees: DayTrainee[];
-}
-
-interface RawDayRow {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-	pe_rooms: { name: string | null } | null;
-	pe_trainers: { name: string | null } | null;
-	pe_purchases: { pe_packages: { name: string | null } | null } | null;
-	pe_group_lessons: { pe_packages: { name: string | null } | null } | null;
-	pe_appointment_trainees: Array<{
-		trainee_id: string | null;
-		pe_trainees: { name: string | null; phone: string | null } | null;
-	}>;
-}
 
 const DAY_APPOINTMENT_SELECT = `
 	id, date, hour, purchase_id, group_lesson_id,
@@ -139,13 +106,6 @@ function buildNotifications(
 	return appt.trainees
 		.filter((t): t is DayTrainee & { phone: string } => !!t.phone)
 		.map((t) => ({ phone: t.phone, oldDateTime, newDateTime, packageName: appt.packageName }));
-}
-
-interface ShiftOutcome {
-	shifted: boolean;
-	notifications: ShiftNotificationEntry[];
-	conflict?: DayCancellationConflict;
-	error?: string;
 }
 
 function shiftedOutcome(appt: DayAppointment, shifted: ShiftedAppointment[]): ShiftOutcome {

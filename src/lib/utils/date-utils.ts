@@ -1,3 +1,5 @@
+import { JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
+
 // Constants
 /**
  * Turkish day names indexed by JavaScript Date.getDay() (0=Sunday, 1=Monday, etc.)
@@ -134,12 +136,10 @@ export function formatDayMonth(date: Date): string {
  * @param appointmentDate - The appointment date string (YYYY-MM-DD)
  * @returns Day of week as string (monday, tuesday, etc.)
  */
-export function getDayOfWeekFromDate(appointmentDate: string): string {
+export function getDayOfWeekFromDate(appointmentDate: string): DayOfWeek {
 	// Parse as UTC to avoid timezone issues with date strings
 	const date = new Date(appointmentDate + 'T00:00:00.000Z');
-	const dayIndex = date.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
-	const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-	return days[dayIndex];
+	return JS_DAY_TO_NAME[date.getUTCDay()];
 }
 
 /**
@@ -229,7 +229,7 @@ export function calculatePackageEndDate(
  * @returns Array of appointment slots with date and hour
  */
 export function buildAppointmentSlots(
-	timeSlots: Array<{ day: string; hour: number }>,
+	timeSlots: Array<{ day: DayOfWeek; hour: number }>,
 	startDate: Date,
 	totalSlots: number
 ): Array<{ date: string; hour: number }> {
@@ -252,17 +252,7 @@ export function buildAppointmentSlots(
 
 	while (slotsGenerated < totalSlots) {
 		const slot = timeSlots[slotIndexInPattern];
-
-		const dayMapping: Record<string, number> = {
-			sunday: 0,
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6
-		};
-		const dayIndex = dayMapping[slot.day] ?? 0;
+		const dayIndex = JS_DAY_TO_NAME.indexOf(slot.day);
 
 		const slotDate = new Date(currentWeekStart);
 		slotDate.setDate(currentWeekStart.getDate() + weekNum * 7 + dayIndex);

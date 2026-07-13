@@ -52,6 +52,53 @@ export interface TraineeShiftResult {
 	shifted: ShiftedTraineeRecord[];
 }
 
+// A fully-populated appointment row as required by series-shift operations.
+export interface ShiftableAppointment {
+	id: number;
+	date: string;
+	hour: number;
+	room_id: string | null;
+	trainer_id: string | null;
+	purchase_id: string | null;
+	group_lesson_id: string | null;
+}
+
+// Raw pe_appointments query row before null-completeness narrowing to ShiftableAppointment.
+export interface RawAppointmentRow {
+	id: number;
+	date: string | null;
+	hour: number | null;
+	room_id: string | null;
+	trainer_id: string | null;
+	purchase_id: string | null;
+	group_lesson_id: string | null;
+}
+
+// Raw pe_appointment_trainees query row (with joined appointment) for trainee shifts.
+export interface TraineeRecordRow {
+	id: number;
+	appointment_id: number | null;
+	purchase_id: string | null;
+	pe_appointments: {
+		id: number;
+		date: string | null;
+		hour: number | null;
+		group_lesson_id: string | null;
+	} | null;
+}
+
+// TraineeRecordRow narrowed and flattened, sorted chronologically for shifting.
+export interface SortedTraineeRecord {
+	recordId: number;
+	appointmentId: number;
+	date: string;
+	hour: number;
+	groupLessonId: string | null;
+}
+
+// Upcoming group appointment matching a trainee's own (day, hour) pattern.
+export type EligibleAppointment = { id: number; date: string; hour: number };
+
 // Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
@@ -236,6 +283,17 @@ export const DAYS_OF_WEEK: DayOfWeek[] = [
 	'friday',
 	'saturday',
 	'sunday'
+];
+
+// Maps JS Date.getDay() (0 = Sunday) to day names.
+export const JS_DAY_TO_NAME: DayOfWeek[] = [
+	'sunday',
+	'monday',
+	'tuesday',
+	'wednesday',
+	'thursday',
+	'friday',
+	'saturday'
 ];
 
 export const DAY_NAMES: Record<DayOfWeek, string> = {

@@ -37,7 +37,7 @@
 
 	{#if stats === undefined}
 		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-			{#each { length: 4 } as _, i (i)}
+			{#each { length: 4 }, i (i)}
 				<StatCardSkeleton />
 			{/each}
 		</div>

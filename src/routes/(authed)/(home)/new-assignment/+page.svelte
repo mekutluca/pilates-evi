@@ -40,22 +40,16 @@
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { cn } from '$lib/utils/class-utils';
+	import { DAY_ORDER } from '$lib/utils/slot-utils';
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
 	let existingGroupLessonTrainees = $derived(data.existingGroupLessonTrainees ?? []);
 	let availableGroupTimeslots = $derived(data.availableGroupTimeslots ?? []);
 
-	// Group timeslots by day and sort by hour within each day
-	const DAY_ORDER: Record<string, number> = {
-		monday: 1,
-		tuesday: 2,
-		wednesday: 3,
-		thursday: 4,
-		friday: 5,
-		saturday: 6,
-		sunday: 7
-	};
+	// Monday-first ordering for the timeslot day groups; AvailableGroupTimeslot.day is a
+	// plain string, hence the widened lookup with an end-of-list fallback for unknown days.
+	const dayOrder: Record<string, number> = DAY_ORDER;
 
 	let groupedTimeslots = $derived(() => {
 		const grouped: Record<string, AvailableGroupTimeslot[]> = {};
@@ -74,7 +68,7 @@
 
 		// Sort days and return as array of [day, timeslots]
 		return Object.entries(grouped).sort(
-			([dayA], [dayB]) => (DAY_ORDER[dayA] || 99) - (DAY_ORDER[dayB] || 99)
+			([dayA], [dayB]) => (dayOrder[dayA] || 99) - (dayOrder[dayB] || 99)
 		);
 	});
 

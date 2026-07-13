@@ -1,4 +1,4 @@
-import type { DayOfWeek } from '$lib/types/Schedule';
+import { JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
 import { formatDateForDB } from './date-utils';
 
@@ -13,20 +13,21 @@ export const DAY_ORDER: Record<DayOfWeek, number> = {
 	sunday: 7
 };
 
-// Maps JS Date.getDay() (0 = Sunday) to day names.
-export const JS_DAY_TO_NAME: DayOfWeek[] = [
-	'sunday',
-	'monday',
-	'tuesday',
-	'wednesday',
-	'thursday',
-	'friday',
-	'saturday'
-];
-
 export function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
 	return [...slots].sort((a, b) => {
 		const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
+		if (dayDiff !== 0) return dayDiff;
+		return a.hour - b.hour;
+	});
+}
+
+// Sunday-first ordering matching JS Date.getDay(). Required for patterns fed into
+// buildAppointmentSlots, whose week walk starts on the Sunday of the start week.
+export function sortTimeSlotsSundayFirst<T extends { day: DayOfWeek; hour: number }>(
+	slots: T[]
+): T[] {
+	return [...slots].sort((a, b) => {
+		const dayDiff = JS_DAY_TO_NAME.indexOf(a.day) - JS_DAY_TO_NAME.indexOf(b.day);
 		if (dayDiff !== 0) return dayDiff;
 		return a.hour - b.hour;
 	});

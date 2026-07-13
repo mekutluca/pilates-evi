@@ -33,7 +33,7 @@
 			{@render children()}
 		{:else}
 			<div class="space-y-3">
-				{#each { length: rows } as _, i (i)}
+				{#each { length: rows }, i (i)}
 					<Skeleton class={cn('h-14 w-full', rowClass)} />
 				{/each}
 			</div>

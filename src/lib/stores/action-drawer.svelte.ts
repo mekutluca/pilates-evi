@@ -1,9 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { ActionItem } from '$lib/types';
-
-interface ActionDrawerContext {
-	openDrawer: (actions: ActionItem[]) => void;
-}
+import type { ActionDrawerContext } from '$lib/types';
 
 const ACTION_DRAWER_KEY = Symbol('action-drawer');
 

@@ -1,11 +1,15 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	DayOfWeek,
+	EligibleAppointment,
+	RawAppointmentRow,
 	SeriesShiftResult,
+	ShiftableAppointment,
 	ShiftConflict,
 	ShiftedAppointment,
 	ShiftedTraineeRecord,
+	SortedTraineeRecord,
+	TraineeRecordRow,
 	TraineeShiftResult
 } from '$lib/types/Schedule';
 import {
@@ -13,44 +17,13 @@ import {
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
 import { buildAppointmentSlots, getDayOfWeekFromDate } from '$lib/utils/date-utils';
-
-type SupabaseClientType = SupabaseClient<Database>;
-
-interface ShiftableAppointment {
-	id: number;
-	date: string;
-	hour: number;
-	room_id: string | null;
-	trainer_id: string | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-}
-
-interface RawAppointmentRow {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	room_id: string | null;
-	trainer_id: string | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-}
+import { sortTimeSlotsSundayFirst } from '$lib/utils/slot-utils';
 
 const APPOINTMENT_FIELDS = 'id, date, hour, room_id, trainer_id, purchase_id, group_lesson_id';
 
 function isCompleteAppointment(row: RawAppointmentRow): row is ShiftableAppointment {
 	return !!row.date && row.hour !== null;
 }
-
-const DAY_ORDER: Record<DayOfWeek, number> = {
-	sunday: 0,
-	monday: 1,
-	tuesday: 2,
-	wednesday: 3,
-	thursday: 4,
-	friday: 5,
-	saturday: 6
-};
 
 function sortByDateHour<T extends { date: string; hour: number }>(items: T[]): T[] {
 	return [...items].sort((a, b) => {
@@ -106,16 +79,13 @@ async function getRecurringTimeSlots(
 	const seen = new Set<string>();
 	const result: Array<{ day: DayOfWeek; hour: number }> = [];
 	for (const apt of appointments) {
-		const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+		const day = getDayOfWeekFromDate(apt.date);
 		const key = `${day}-${apt.hour}`;
 		if (seen.has(key)) continue;
 		seen.add(key);
 		result.push({ day, hour: apt.hour });
 	}
-	return result.sort((a, b) => {
-		const d = DAY_ORDER[a.day] - DAY_ORDER[b.day];
-		return d !== 0 ? d : a.hour - b.hour;
-	});
+	return sortTimeSlotsSundayFirst(result);
 }
 
 async function findSeriesShiftConflicts(
@@ -257,26 +227,6 @@ export async function shiftSeriesBySlot(
 	return { error: null, conflicts, shifted };
 }
 
-interface TraineeRecordRow {
-	id: number;
-	appointment_id: number | null;
-	purchase_id: string | null;
-	pe_appointments: {
-		id: number;
-		date: string | null;
-		hour: number | null;
-		group_lesson_id: string | null;
-	} | null;
-}
-
-interface SortedTraineeRecord {
-	recordId: number;
-	appointmentId: number;
-	date: string;
-	hour: number;
-	groupLessonId: string | null;
-}
-
 async function getTraineeRecordsForChain(
 	supabase: SupabaseClientType,
 	traineeId: string,
@@ -353,8 +303,6 @@ export async function renumberTraineeSessionsInChain(
 	}
 	return { error: null };
 }
-
-export type EligibleAppointment = { id: number; date: string; hour: number };
 
 /**
  * For each group lesson the trainee attends within these records, returns the upcoming

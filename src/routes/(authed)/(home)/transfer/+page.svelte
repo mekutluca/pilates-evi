@@ -23,6 +23,7 @@
 		addWeeksToDate,
 		buildAppointmentSlots
 	} from '$lib/utils/date-utils';
+	import { sortTimeSlotsSundayFirst } from '$lib/utils/slot-utils';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -273,35 +274,22 @@
 				}));
 			} else if (isShiftBySlotMode) {
 				// Extract the time slot pattern (day of week + hour) from existing appointments
-				const timeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
+				const rawTimeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 				const seenSlots = new Set<string>();
 
 				for (const apt of validAppointments) {
-					const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+					const day = getDayOfWeekFromDate(apt.date);
 					const slotKey = `${day}-${apt.hour}`;
 
 					if (!seenSlots.has(slotKey)) {
 						seenSlots.add(slotKey);
-						timeSlots.push({ day, hour: apt.hour });
+						rawTimeSlots.push({ day, hour: apt.hour });
 					}
 				}
 
-				// Sort time slots by day of week and hour to ensure consistent ordering
-				const dayOrder = {
-					sunday: 0,
-					monday: 1,
-					tuesday: 2,
-					wednesday: 3,
-					thursday: 4,
-					friday: 5,
-					saturday: 6
-				};
-				timeSlots.sort((a, b) => {
-					const dayDiff = dayOrder[a.day] - dayOrder[b.day];
-					if (dayDiff !== 0) return dayDiff;
-					return a.hour - b.hour;
-				});
+				// Order the pattern as buildAppointmentSlots expects (Sunday-first week walk)
+				const timeSlots = sortTimeSlotsSundayFirst(rawTimeSlots);
 
 				// Build slots: existing + enough new ones to cover the shift
 				const firstAppointmentDate = new Date(validAppointments[0].date);
@@ -811,37 +799,25 @@
 									// Use the canonical schedule from pe_group_lessons.timeslots when available
 									// (group lessons), otherwise infer from the appointment list (private). This
 									// keeps one-off reschedules from polluting the slot-shift sequence.
-									let timeSlots: Array<{ day: DayOfWeek; hour: number }>;
+									let rawTimeSlots: Array<{ day: DayOfWeek; hour: number }>;
 									if (data.canonicalTimeslots && data.canonicalTimeslots.length > 0) {
-										timeSlots = [...data.canonicalTimeslots];
+										rawTimeSlots = [...data.canonicalTimeslots];
 									} else {
-										timeSlots = [];
+										rawTimeSlots = [];
 										const seenSlots = new Set<string>();
 										for (const apt of appointments) {
 											if (!apt.date || apt.hour === null) continue;
-											const day = getDayOfWeekFromDate(apt.date) as DayOfWeek;
+											const day = getDayOfWeekFromDate(apt.date);
 											const slotKey = `${day}-${apt.hour}`;
 											if (!seenSlots.has(slotKey)) {
 												seenSlots.add(slotKey);
-												timeSlots.push({ day, hour: apt.hour });
+												rawTimeSlots.push({ day, hour: apt.hour });
 											}
 										}
 									}
 
-									const dayOrder = {
-										sunday: 0,
-										monday: 1,
-										tuesday: 2,
-										wednesday: 3,
-										thursday: 4,
-										friday: 5,
-										saturday: 6
-									};
-									timeSlots.sort((a, b) => {
-										const dayDiff = dayOrder[a.day] - dayOrder[b.day];
-										if (dayDiff !== 0) return dayDiff;
-										return a.hour - b.hour;
-									});
+									// Order the pattern as buildAppointmentSlots expects (Sunday-first week walk)
+									const timeSlots = sortTimeSlotsSundayFirst(rawTimeSlots);
 
 									const firstDate = new Date(appointments[0].date);
 									const totalSlotsNeeded = appointments.length + slotsToShift;

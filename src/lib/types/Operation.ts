@@ -21,6 +21,51 @@ export interface DayCancellationConflict {
 	reason: string; // human-readable, e.g. "Oda dolu", "Eğitmen dolu", "Oda ve eğitmen dolu"
 }
 
+// A trainee attached to an appointment on a day being cancelled.
+export interface DayTrainee {
+	traineeId: string;
+	name: string;
+	phone: string | null;
+}
+
+// An appointment on a day being cancelled, flattened for the cancellation flow.
+export interface DayAppointment {
+	id: number;
+	date: string;
+	hour: number;
+	purchaseId: string | null;
+	groupLessonId: string | null;
+	roomName: string;
+	trainerName: string;
+	packageName: string;
+	trainees: DayTrainee[];
+}
+
+// Raw pe_appointments query row (with joins) before flattening to DayAppointment.
+export interface RawDayRow {
+	id: number;
+	date: string | null;
+	hour: number | null;
+	purchase_id: string | null;
+	group_lesson_id: string | null;
+	pe_rooms: { name: string | null } | null;
+	pe_trainers: { name: string | null } | null;
+	pe_purchases: { pe_packages: { name: string | null } | null } | null;
+	pe_group_lessons: { pe_packages: { name: string | null } | null } | null;
+	pe_appointment_trainees: Array<{
+		trainee_id: string | null;
+		pe_trainees: { name: string | null; phone: string | null } | null;
+	}>;
+}
+
+// Result of attempting to shift one appointment during a day cancellation.
+export interface ShiftOutcome {
+	shifted: boolean;
+	notifications: ShiftNotificationEntry[];
+	conflict?: DayCancellationConflict;
+	error?: string;
+}
+
 // Query row for active group lessons with joined tables. The embedded
 // appointments carry only enrolled ones (via a nested !inner join).
 export interface GroupLessonQueryRow {
