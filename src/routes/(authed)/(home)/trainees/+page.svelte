@@ -141,6 +141,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Öğrenciler · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader title="Öğrenciler" subtitle="Bu sayfada öğrencileri yönetin" />
 

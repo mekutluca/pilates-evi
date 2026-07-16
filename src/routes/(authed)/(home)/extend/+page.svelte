@@ -227,6 +227,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Paket Uzatma · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-4">
 	<div class="mx-auto max-w-7xl">
 		<!-- Header with Submit Button -->

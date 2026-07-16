@@ -478,6 +478,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Randevu Değiştir · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-4">
 	<div class="mx-auto max-w-7xl">
 		<!-- Header with Action Button -->

@@ -137,6 +137,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Haftalık Programım · Pilates Evi</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="px-6 pt-6">
 		<PageHeader title="Haftalık Programım" subtitle="Bu hafta derslerinizi görüntüleyin" />

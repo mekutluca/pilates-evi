@@ -260,6 +260,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Dersler · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader title="Dersler" subtitle="Kurumunuzda verilen dersler ekleyin ve yönetin" />
 

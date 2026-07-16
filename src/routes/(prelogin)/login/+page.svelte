@@ -5,6 +5,10 @@
 	let { supabase } = $derived(data);
 </script>
 
+<svelte:head>
+	<title>Giriş Yap · Pilates Evi</title>
+</svelte:head>
+
 <div class="grid min-h-svh lg:grid-cols-1">
 	<div class="flex flex-col gap-4 p-6 md:p-10">
 		<div class="flex justify-center gap-2 md:justify-start">

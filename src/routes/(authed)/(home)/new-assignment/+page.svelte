@@ -957,6 +957,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Yeni Kayıt · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-4">
 	<div class="mx-auto max-w-6xl">
 		<!-- Header -->

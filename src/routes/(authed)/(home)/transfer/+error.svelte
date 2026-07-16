@@ -8,6 +8,10 @@
 	const errorMessage = $derived($page.error?.message || 'Bir hata oluştu');
 </script>
 
+<svelte:head>
+	<title>Randevu Değiştir · Pilates Evi</title>
+</svelte:head>
+
 <div class="flex min-h-[60vh] items-center justify-center p-4">
 	<div class="flex max-w-md flex-col items-center text-center">
 		<AlertTriangle class="h-16 w-16 text-warning" />

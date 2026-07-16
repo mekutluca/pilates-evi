@@ -32,6 +32,10 @@
 	const weekRange = formatWeekRange(weekStart);
 </script>
 
+<svelte:head>
+	<title>Panel · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader title="Bu Hafta" subtitle={weekRange} />
 

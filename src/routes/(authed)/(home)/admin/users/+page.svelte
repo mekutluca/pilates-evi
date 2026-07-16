@@ -148,6 +148,10 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Yetkili Kullanıcılar · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader
 		title="Yetkili Kullanıcılar"

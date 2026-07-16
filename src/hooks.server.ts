@@ -122,7 +122,10 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		redirect(303, '/');
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+	// Private app: keep all pages out of search engine indexes
+	response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+	return response;
 };
 
 export const handle: Handle = sequence(supabase, authGuard);

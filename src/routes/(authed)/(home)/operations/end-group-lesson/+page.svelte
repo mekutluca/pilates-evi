@@ -109,6 +109,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Grup Dersini Sonlandır · Pilates Evi</title>
+</svelte:head>
+
 <div class="space-y-6 p-6">
 	<div>
 		<Button variant="ghost" size="sm" href="/operations" class="mb-2 -ml-2">

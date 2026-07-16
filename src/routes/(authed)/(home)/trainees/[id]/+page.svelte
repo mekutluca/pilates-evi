@@ -120,6 +120,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{trainee ? `${trainee.name} · ` : ''}Öğrenci Detayları · Pilates Evi</title>
+</svelte:head>
+
 <div class="space-y-6 p-6">
 	<!-- Back button -->
 	<Button variant="ghost" size="sm" onclick={() => history.back()}>

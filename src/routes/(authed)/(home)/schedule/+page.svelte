@@ -374,6 +374,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Haftalık Program · Pilates Evi</title>
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="px-6 pt-6">
 		<div class="flex flex-col justify-between md:flex-row md:items-center">

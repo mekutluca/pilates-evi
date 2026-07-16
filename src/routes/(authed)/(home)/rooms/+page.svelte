@@ -111,6 +111,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Odalar · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader title="Odalar" subtitle="Bu sayfada odaları yönetin" />
 

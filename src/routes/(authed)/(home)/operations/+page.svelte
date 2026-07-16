@@ -23,6 +23,10 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Operasyonlar · Pilates Evi</title>
+</svelte:head>
+
 <div class="p-6">
 	<PageHeader title="Operasyonlar" subtitle="Toplu işlemleri buradan yönetin." />
 
