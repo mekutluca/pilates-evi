@@ -9,6 +9,7 @@
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
 	import type { User } from '$lib/types';
+	import { roleLabels, type Role } from '$lib/types/Role';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
@@ -132,19 +133,12 @@
 	}
 
 	function getRoleDisplayName(role: string): string {
-		switch (role) {
-			case 'admin':
-				return 'Admin';
-			case 'coordinator':
-				return 'Koordinatör';
-			default:
-				return role;
-		}
+		return roleLabels[role as Role] ?? role;
 	}
 
 	const roleOptions = [
-		{ value: 'admin', label: 'Admin' },
-		{ value: 'coordinator', label: 'Koordinatör' }
+		{ value: 'admin', label: roleLabels.admin },
+		{ value: 'coordinator', label: roleLabels.coordinator }
 	];
 </script>
 

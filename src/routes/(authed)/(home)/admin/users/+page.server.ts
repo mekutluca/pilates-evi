@@ -83,7 +83,9 @@ export const actions: Actions = {
 		const { data: userData, error: createError } = await admin.auth.admin.createUser({
 			email,
 			password,
-			user_metadata: { fullName },
+			// `app` marks the user as pilates-evi's in the shared Supabase project
+			// so branded auth email templates can branch on it
+			user_metadata: { fullName, app: 'pilates-evi' },
 			email_confirm: true
 		});
 
