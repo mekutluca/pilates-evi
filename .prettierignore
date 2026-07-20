@@ -7,3 +7,8 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Agent skills (vendored) and local tooling
+/.agents/
+skills-lock.json
+.claude/settings.local.json

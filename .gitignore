@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 # VS Code / Cursor
 .vscode/settings.json
+
+# Claude Code local settings
+.claude/settings.local.json
