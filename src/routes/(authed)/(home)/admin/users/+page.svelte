@@ -7,6 +7,7 @@
 	import SearchInput from '$lib/components/search-input.svelte';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Key from '@lucide/svelte/icons/key';
+	import UserMinus from '@lucide/svelte/icons/user-minus';
 	import { enhance } from '$app/forms';
 	import type { User } from '$lib/types';
 	import { roleLabels, type Role } from '$lib/types/Role';
@@ -31,6 +32,7 @@
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
 	let showResetPasswordModal = $state(false);
+	let showRemoveModal = $state(false);
 	let selectedUser = $state<User | null>(null);
 	let formLoading = $state(false);
 
@@ -41,24 +43,41 @@
 	let role = $state('coordinator');
 	let newPassword = $state('');
 
-	const tableActions: ActionItem[] = [
-		{
-			label: 'Düzenle',
-			handler: (id) => {
-				const user = users.find((u) => u.id === String(id));
-				if (user) openEditModal(user);
+	const getTableActions = (user: User): ActionItem[] => {
+		const baseActions: ActionItem[] = [
+			{
+				label: 'Düzenle',
+				handler: (id) => {
+					const u = users.find((u) => u.id === String(id));
+					if (u) openEditModal(u);
+				},
+				icon: Edit
 			},
-			icon: Edit
-		},
-		{
-			label: 'Şifre Sıfırla',
-			handler: (id) => {
-				const user = users.find((u) => u.id === String(id));
-				if (user) openResetPasswordModal(user);
-			},
-			icon: Key
+			{
+				label: 'Şifre Sıfırla',
+				handler: (id) => {
+					const u = users.find((u) => u.id === String(id));
+					if (u) openResetPasswordModal(u);
+				},
+				icon: Key
+			}
+		];
+
+		// Users can't remove themselves from the organization
+		if (user.id !== currentUser?.id) {
+			baseActions.push({
+				label: 'Kaldır',
+				handler: (id) => {
+					const u = users.find((u) => u.id === String(id));
+					if (u) openRemoveModal(u);
+				},
+				class: 'text-destructive',
+				icon: UserMinus
+			});
 		}
-	];
+
+		return baseActions;
+	};
 
 	const tableColumns = [
 		{
@@ -111,6 +130,11 @@
 		email = user.email;
 		newPassword = '';
 		showResetPasswordModal = true;
+	}
+
+	function openRemoveModal(user: User) {
+		selectedUser = user;
+		showRemoveModal = true;
 	}
 
 	function resetForm() {
@@ -176,7 +200,7 @@
 		emptyMessage="Henüz kullanıcı bulunmuyor"
 		defaultSortKey="id"
 		defaultSortOrder="asc"
-		actions={tableActions}
+		actions={getTableActions}
 	/>
 </div>
 
@@ -402,6 +426,58 @@
 					<Key size={16} />
 				{/if}
 				Şifreyi Sıfırla
+			</Button>
+		</div>
+	</form>
+</Modal>
+
+<!-- Remove User Modal -->
+<Modal bind:open={showRemoveModal} title="Kullanıcıyı Kaldır" onClose={resetForm}>
+	<p class="mb-4">
+		<strong>{selectedUser?.fullName}</strong> adlı kullanıcıyı organizasyondan kaldırmak istediğinizden
+		emin misiniz? Kullanıcı artık bu organizasyona giriş yapamayacak.
+	</p>
+	<form
+		method="POST"
+		action="?/removeUser"
+		class="space-y-4"
+		use:enhance={() => {
+			formLoading = true;
+			return async ({ result, update }) => {
+				formLoading = false;
+
+				if (result.type === 'success') {
+					toast.success('Kullanıcı organizasyondan kaldırıldı');
+					showRemoveModal = false;
+					resetForm();
+				} else if (result.type === 'failure') {
+					toast.error(getActionErrorMessage(result));
+				}
+
+				await update();
+			};
+		}}
+	>
+		<input type="hidden" name="userId" value={selectedUser?.id} />
+
+		<div class="flex justify-end gap-2">
+			<Button
+				type="button"
+				variant="outline"
+				onclick={() => {
+					showRemoveModal = false;
+					resetForm();
+				}}
+			>
+				İptal
+			</Button>
+			<Button type="submit" variant="destructive" disabled={formLoading}>
+				{#if formLoading}
+					<LoaderCircle size={16} class="animate-spin" />
+				{:else}
+					<UserMinus size={16} />
+				{/if}
+				Kaldır
 			</Button>
 		</div>
 	</form>

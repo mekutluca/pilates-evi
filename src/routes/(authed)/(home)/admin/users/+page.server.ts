@@ -187,6 +187,60 @@ export const actions: Actions = {
 		};
 	},
 
+	removeUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
+		// Ensure only admin users can perform this action
+		if (!user || userRole !== 'admin') {
+			return fail(403, {
+				success: false,
+				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
+			});
+		}
+
+		if (!organizationId) {
+			return fail(400, {
+				success: false,
+				message: 'Organizasyon bilgisi bulunamadı'
+			});
+		}
+
+		const formData = await request.formData();
+		const userId = formData.get('userId') as string;
+
+		if (!userId) {
+			return fail(400, {
+				success: false,
+				message: 'Kullanıcı ID gereklidir'
+			});
+		}
+
+		if (userId === user.id) {
+			return fail(400, {
+				success: false,
+				message: 'Kendinizi organizasyondan kaldıramazsınız'
+			});
+		}
+
+		// Deactivate the membership rather than deleting the auth account, since the
+		// same account may belong to other organizations.
+		const { error: removeError } = await admin
+			.from('pe_user_organizations')
+			.update({ is_active: false })
+			.eq('user_id', userId)
+			.eq('organization_id', organizationId);
+
+		if (removeError) {
+			return fail(500, {
+				success: false,
+				message: 'Kullanıcı kaldırılırken hata: ' + removeError.message
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Kullanıcı organizasyondan kaldırıldı'
+		};
+	},
+
 	resetPassword: async ({ request, locals: { admin, user, userRole } }) => {
 		// Ensure only admin users can perform this action
 		if (!user || userRole !== 'admin') {
