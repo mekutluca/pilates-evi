@@ -22,7 +22,11 @@
 		formatDateParam,
 		getDayOfWeekFromDate
 	} from '$lib/utils/date-utils';
-	import { createAppointmentDetails } from '$lib/utils/appointment-utils';
+	import {
+		createAppointmentDetails,
+		computeAppointmentWarnings,
+		getAppointmentWarningLabel
+	} from '$lib/utils/appointment-utils';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
@@ -32,6 +36,10 @@
 	// Extract data
 	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
 	let trainerName = $derived(data.trainerName);
+
+	// Capacity/timeslot-collision flags for the week's appointments, computed once across the
+	// whole set so collisions can be detected across rooms and trainers.
+	let appointmentWarnings = $derived(computeAppointmentWarnings(appointments));
 
 	// Week navigation state
 	let currentWeekStart = $derived(() => {
@@ -50,6 +58,7 @@
 		if (appointment) {
 			const appointmentDetails = createAppointmentDetails(appointment);
 			const isEmpty = (appointmentDetails.trainee_count ?? 0) === 0;
+			const warningLabel = getAppointmentWarningLabel(appointmentWarnings.get(appointment.id));
 			return {
 				variant: 'appointment',
 				day,
@@ -58,7 +67,8 @@
 				title: appointmentDetails.room_name || '',
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
-				color: 'primary',
+				warning: warningLabel,
+				color: warningLabel ? 'error' : 'primary',
 				clickable: true,
 				dimmed: isEmpty,
 				data: appointmentDetails
@@ -149,7 +159,7 @@
 	</div>
 
 	<!-- Week Navigation -->
-	<Card.Root class="mb-6">
+	<Card.Root class="mb-6 overflow-visible">
 		<Card.Content>
 			<div class="flex items-center justify-center gap-4">
 				<Button variant="outline" size="sm" onclick={goToPreviousWeek}>
