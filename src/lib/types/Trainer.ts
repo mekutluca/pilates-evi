@@ -1,2 +1,2 @@
 // Re-export from consolidated types
-export type { Trainer } from './index';
+export type { Trainer, TrainerWithEmail } from './index';

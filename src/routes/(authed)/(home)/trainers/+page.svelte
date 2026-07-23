@@ -10,7 +10,7 @@
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import Key from '@lucide/svelte/icons/key';
 	import { enhance } from '$app/forms';
-	import type { Trainer } from '$lib/types';
+	import type { TrainerWithEmail } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
@@ -26,7 +26,7 @@
 
 	let showArchived = $state(false);
 	let hasArchivedTrainers = $derived((initialTrainers || []).some((t) => !t.is_active));
-	let trainers = $derived<Trainer[]>(
+	let trainers = $derived<TrainerWithEmail[]>(
 		showArchived ? initialTrainers || [] : (initialTrainers || []).filter((t) => t.is_active)
 	);
 	let searchTerm = $state('');
@@ -35,7 +35,7 @@
 	let showArchiveModal = $state(false);
 	let showRestoreModal = $state(false);
 	let showResetPasswordModal = $state(false);
-	let selectedTrainer = $state<Trainer | null>(null);
+	let selectedTrainer = $state<TrainerWithEmail | null>(null);
 	let formLoading = $state(false);
 
 	// Form data for add/edit trainer
@@ -45,7 +45,7 @@
 	let password = $state('');
 	let newPassword = $state('');
 
-	const getTableActions = (trainer: Trainer): ActionItem[] => {
+	const getTableActions = (trainer: TrainerWithEmail): ActionItem[] => {
 		if (userRole !== 'admin') return [];
 
 		const baseActions: ActionItem[] = [
@@ -103,14 +103,14 @@
 		{
 			key: 'phone',
 			title: 'Telefon',
-			render: (trainer: Trainer) =>
+			render: (trainer: TrainerWithEmail) =>
 				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainer.phone}</a>`
 		},
 		{
 			key: 'active_appointments',
 			title: 'Durum',
 			sortable: false,
-			render: (trainer: Trainer) => {
+			render: (trainer: TrainerWithEmail) => {
 				return trainer.is_active
 					? '<span class="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Aktif</span>'
 					: '<span class="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Pasif</span>';
@@ -118,24 +118,25 @@
 		}
 	];
 
-	function openEditModal(trainer: Trainer) {
+	function openEditModal(trainer: TrainerWithEmail) {
 		selectedTrainer = trainer;
 		name = trainer.name ?? '';
 		phone = trainer.phone;
+		email = trainer.email ?? '';
 		showEditModal = true;
 	}
 
-	function openArchiveModal(trainer: Trainer) {
+	function openArchiveModal(trainer: TrainerWithEmail) {
 		selectedTrainer = trainer;
 		showArchiveModal = true;
 	}
 
-	function openRestoreModal(trainer: Trainer) {
+	function openRestoreModal(trainer: TrainerWithEmail) {
 		selectedTrainer = trainer;
 		showRestoreModal = true;
 	}
 
-	function openResetPasswordModal(trainer: Trainer) {
+	function openResetPasswordModal(trainer: TrainerWithEmail) {
 		selectedTrainer = trainer;
 		newPassword = '';
 		showResetPasswordModal = true;
@@ -330,6 +331,11 @@
 				maxlength={validation.phone.maxlength}
 				required
 			/>
+		</div>
+
+		<div class="grid gap-2">
+			<Label for="edit-trainer-email">E-posta</Label>
+			<Input id="edit-trainer-email" type="email" value={email} disabled />
 		</div>
 
 		<div class="flex justify-end gap-2">

@@ -16,6 +16,10 @@ export type Team = Tables<'pe_teams'>;
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentTrainee = Tables<'pe_appointment_trainees'>;
 
+// Trainer accounts' emails live in auth.users, not pe_trainers, so they're
+// merged in at load time rather than being part of the base row type.
+export type TrainerWithEmail = Trainer & { email: string | null };
+
 // Insert and update types
 export type PurchaseInsert = TablesInsert<'pe_purchases'>;
 export type PurchaseUpdate = TablesUpdate<'pe_purchases'>;

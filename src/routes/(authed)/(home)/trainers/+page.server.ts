@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
-import type { Actions } from './$types';
-import type { Role } from '$lib/types';
+import type { Actions, PageServerLoad } from './$types';
+import type { Role, TrainerWithEmail } from '$lib/types';
 import type { User } from '@supabase/auth-js';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 
@@ -14,6 +14,22 @@ function validateUserPermission(user: User | null, userRole: Role | null) {
 	}
 	return null;
 }
+
+export const load: PageServerLoad = async ({ locals: { admin }, parent }) => {
+	const { trainers } = await parent();
+
+	// Trainer emails live in auth.users; fetch all org users in one call
+	// instead of one lookup per trainer.
+	const { data: authUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+	const authUserById = new Map((authUsers?.users ?? []).map((u) => [u.id, u]));
+
+	const trainersWithEmail: TrainerWithEmail[] = trainers.map((trainer) => ({
+		...trainer,
+		email: authUserById.get(trainer.id)?.email ?? null
+	}));
+
+	return { trainers: trainersWithEmail };
+};
 
 export const actions: Actions = {
 	createTrainer: async ({
