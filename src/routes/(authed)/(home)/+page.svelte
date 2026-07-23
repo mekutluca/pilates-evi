@@ -2,23 +2,29 @@
 	import PageHeader from '$lib/components/page-header.svelte';
 	import StatCard from '$lib/components/stat-card.svelte';
 	import Calendar from '@lucide/svelte/icons/calendar';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import Users from '@lucide/svelte/icons/users';
 	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 	import AlertCircle from '@lucide/svelte/icons/alert-circle';
 	import CheckCircle from '@lucide/svelte/icons/check-circle';
 	import Info from '@lucide/svelte/icons/info';
-	import { getWeekStart, formatWeekRange, formatDisplayDate } from '$lib/utils/date-utils';
+	import {
+		getWeekStart,
+		formatWeekRange,
+		formatDisplayDate,
+		formatShortTurkishDateTime
+	} from '$lib/utils/date-utils';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { CardSkeleton, StatCardSkeleton } from '$lib/components/skeletons/index.js';
-	import type { DashboardStats } from '$lib/types/Dashboard';
+	import type { AnyDashboardStats } from '$lib/types/Dashboard';
 
 	let { data } = $props();
 
 	// Streamed data resolved into local state. `undefined` = loading, `null` =
 	// failed. Stale values are kept during invalidation to avoid flashing skeletons.
-	let stats = $state<DashboardStats | null | undefined>(undefined);
+	let stats = $state<AnyDashboardStats | null | undefined>(undefined);
 
 	$effect(() => {
 		const promise = data.stats;
@@ -30,6 +36,7 @@
 	const now = new Date();
 	const weekStart = getWeekStart(now);
 	const weekRange = formatWeekRange(weekStart);
+	const isTrainer = $derived(data.userRole === 'trainer');
 </script>
 
 <svelte:head>
@@ -40,14 +47,20 @@
 	<PageHeader title="Bu Hafta" subtitle={weekRange} />
 
 	{#if stats === undefined}
-		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-			{#each { length: 4 }, i (i)}
+		<div
+			class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 {isTrainer
+				? 'lg:grid-cols-3'
+				: 'lg:grid-cols-4'}"
+		>
+			{#each { length: isTrainer ? 3 : 4 }, i (i)}
 				<StatCardSkeleton />
 			{/each}
 		</div>
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+		<div class="grid grid-cols-1 gap-6 {isTrainer ? '' : 'lg:grid-cols-2'}">
 			<CardSkeleton rows={3} rowClass="h-16" />
-			<CardSkeleton rows={3} rowClass="h-16" />
+			{#if !isTrainer}
+				<CardSkeleton rows={3} rowClass="h-16" />
+			{/if}
 		</div>
 	{:else if stats === null}
 		<Alert.Root variant="destructive">
@@ -56,6 +69,62 @@
 				Panel verileri yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.
 			</Alert.Description>
 		</Alert.Root>
+	{:else if stats.kind === 'trainer'}
+		<!-- Trainer Statistics Cards -->
+		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+			<StatCard title="Bugünkü Dersler" value={stats.todayAppointmentsCount} icon={Calendar} />
+			<StatCard
+				title="Bu Hafta Dersleriniz"
+				value={stats.weekAppointmentsCount}
+				icon={CalendarClock}
+			/>
+			<StatCard title="Katılan Öğrenciler" value={stats.uniqueTraineesCount} icon={Users} />
+		</div>
+
+		<!-- This Week's Lessons -->
+		<Card.Root class="flex max-h-[60vh] flex-col">
+			<Card.Header class="flex flex-row items-center justify-between space-y-0">
+				<Card.Title class="flex items-center gap-2 text-lg">
+					<CalendarClock size={20} />
+					Bu Hafta Dersleriniz
+				</Card.Title>
+				{#if stats.weeklyAppointments.length > 0}
+					<Badge variant="outline">{stats.weeklyAppointments.length}</Badge>
+				{/if}
+			</Card.Header>
+
+			<Card.Content class="min-h-0 flex-1 overflow-y-auto">
+				{#if stats.weeklyAppointments.length === 0}
+					<div class="flex flex-col items-center justify-center py-8">
+						<CheckCircle class="mb-3 h-12 w-12 text-muted-foreground" />
+						<div class="text-center font-semibold text-muted-foreground">
+							Bu hafta dersiniz bulunmuyor
+						</div>
+					</div>
+				{:else}
+					<ul class="space-y-2">
+						{#each stats.weeklyAppointments as appointment (appointment.id)}
+							<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
+								<div class="flex-1">
+									<p class="font-medium">
+										{appointment.date
+											? formatShortTurkishDateTime(appointment.date, appointment.hour ?? 0)
+											: '-'}
+									</p>
+									<p class="text-sm text-muted-foreground">{appointment.room_name}</p>
+								</div>
+								<div class="text-right">
+									<p class="font-medium">{appointment.package_name || 'Ders Bilgisi Yok'}</p>
+									<p class="text-sm text-muted-foreground">
+										{appointment.trainee_count || 0} öğrenci
+									</p>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	{:else}
 		<!-- Statistics Cards -->
 		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

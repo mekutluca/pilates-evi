@@ -1,13 +1,75 @@
 import type { PageServerLoad } from './$types';
 import type {
+	AnyDashboardStats,
 	DashboardStats,
+	TrainerDashboardStats,
 	PurchaseWithDetails,
 	TraineeWithLastLesson,
 	TraineeFromQuery
 } from '$lib/types/Dashboard';
+import type { AppointmentWithRelations } from '$lib/types/Schedule';
 import { getWeekStart, getWeekEnd, formatDateForDB } from '$lib/utils/date-utils';
+import { createAppointmentDetails } from '$lib/utils/appointment-utils';
+import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
 
-export const load: PageServerLoad = ({ locals: { supabase }, parent }) => {
+export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, parent }) => {
+	// Trainer-scoped stats: only this trainer's own lessons this week, RLS-compatible
+	// (no purchases/last-session widgets — those aren't shown to trainers).
+	const loadTrainerStats = async (): Promise<TrainerDashboardStats | null> => {
+		if (!user) return null;
+
+		const { data: trainerData, error: trainerError } = await supabase
+			.from('pe_trainers')
+			.select('id')
+			.eq('id', user.id)
+			.single();
+
+		if (trainerError || !trainerData) {
+			console.error('Error loading trainer record:', trainerError);
+			return null;
+		}
+
+		const now = new Date();
+		const weekStart = getWeekStart(now);
+		const weekEnd = getWeekEnd(now);
+		const weekStartStr = formatDateForDB(weekStart);
+		const weekEndStr = formatDateForDB(weekEnd);
+		const todayStr = formatDateForDB(now);
+
+		const { data: appointments, error: appointmentsError } = await supabase
+			.from('pe_appointments')
+			.select(TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT)
+			.eq('trainer_id', trainerData.id)
+			.gte('date', weekStartStr)
+			.lte('date', weekEndStr)
+			.order('date', { ascending: true })
+			.order('hour', { ascending: true });
+
+		if (appointmentsError) {
+			console.error('Error loading trainer appointments:', appointmentsError);
+			return null;
+		}
+
+		const rows = (appointments || []) as AppointmentWithRelations[];
+		const weeklyAppointments = rows.map((a) => createAppointmentDetails(a));
+		const todayAppointmentsCount = weeklyAppointments.filter((a) => a.date === todayStr).length;
+
+		const uniqueTraineeIds = new Set<string>();
+		rows.forEach((a) => {
+			(a.pe_appointment_trainees || []).forEach((at) => {
+				if (at.pe_trainees?.id) uniqueTraineeIds.add(at.pe_trainees.id);
+			});
+		});
+
+		return {
+			kind: 'trainer',
+			weekAppointmentsCount: weeklyAppointments.length,
+			todayAppointmentsCount,
+			uniqueTraineesCount: uniqueTraineeIds.size,
+			weeklyAppointments
+		};
+	};
+
 	// Dashboard statistics — streamed so the page shell renders immediately;
 	// resolves to null on error
 	const loadStats = async (): Promise<DashboardStats | null> => {
@@ -188,6 +250,7 @@ export const load: PageServerLoad = ({ locals: { supabase }, parent }) => {
 		}
 
 		return {
+			kind: 'org',
 			appointmentsCount,
 			uniqueTraineesCount,
 			purchasesThisWeek,
@@ -195,7 +258,10 @@ export const load: PageServerLoad = ({ locals: { supabase }, parent }) => {
 		};
 	};
 
+	const stats: Promise<AnyDashboardStats | null> =
+		userRole === 'trainer' ? loadTrainerStats() : loadStats();
+
 	return {
-		stats: loadStats()
+		stats
 	};
 };

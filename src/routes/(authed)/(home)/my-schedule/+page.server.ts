@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { formatDateForDB } from '$lib/utils/date-utils';
+import { getWeekStart, getWeekEnd, formatDateForDB } from '$lib/utils/date-utils';
+import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
 	// Only allow trainer users
@@ -29,15 +30,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	}
 
 	// Calculate start and end of the week (Monday to Sunday)
-	const weekStart = new Date(currentDate);
-	const day = weekStart.getDay();
-	const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-	weekStart.setDate(diff);
-	weekStart.setHours(0, 0, 0, 0);
-
-	const weekEnd = new Date(weekStart);
-	weekEnd.setDate(weekStart.getDate() + 6);
-	weekEnd.setHours(23, 59, 59, 999);
+	const weekStart = getWeekStart(currentDate);
+	const weekEnd = getWeekEnd(currentDate);
 
 	// Fetch appointments for this trainer for the current week
 	const weekStartStr = formatDateForDB(weekStart);
@@ -45,31 +39,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 	const { data: appointments, error: appointmentsError } = await supabase
 		.from('pe_appointments')
-		.select(
-			`
-			*,
-			pe_purchases(
-				id,
-				reschedule_left,
-				successor_id,
-				pe_packages(id, name, package_type, reschedulable, weeks_duration, min_lessons_per_week, max_lessons_per_week)
-			),
-			pe_group_lessons(
-				id,
-				pe_packages(id, name, package_type, reschedulable, weeks_duration, min_lessons_per_week, max_lessons_per_week)
-			),
-			pe_rooms(id, name, capacity),
-			pe_trainers(id, name),
-			pe_appointment_trainees(
-				id,
-				session_number,
-				total_sessions,
-				purchase_id,
-				pe_trainees(id, name),
-				pe_purchases(successor_id)
-			)
-		`
-		)
+		.select(TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT)
 		.eq('trainer_id', trainerData.id)
 		.gte('date', weekStartStr)
 		.lte('date', weekEndStr)

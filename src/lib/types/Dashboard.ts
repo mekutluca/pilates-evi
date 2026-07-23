@@ -1,4 +1,5 @@
 import type { Package, Trainee } from './index';
+import type { AppointmentWithDetails } from './Schedule';
 
 // ===============================================
 // DASHBOARD STATISTICS TYPES
@@ -30,10 +31,22 @@ export interface TraineeWithLastLesson {
 	appointment_date: string;
 }
 
-// Overall dashboard statistics for the current week
+// Overall dashboard statistics for the current week (admin/coordinator/trainee view)
 export interface DashboardStats {
+	kind: 'org';
 	appointmentsCount: number;
 	uniqueTraineesCount: number;
 	purchasesThisWeek: PurchaseWithDetails[];
 	traineesWithLastLessons: TraineeWithLastLesson[];
 }
+
+// Dashboard statistics scoped to a single trainer's own lessons this week
+export interface TrainerDashboardStats {
+	kind: 'trainer';
+	weekAppointmentsCount: number;
+	todayAppointmentsCount: number;
+	uniqueTraineesCount: number;
+	weeklyAppointments: AppointmentWithDetails[];
+}
+
+export type AnyDashboardStats = DashboardStats | TrainerDashboardStats;

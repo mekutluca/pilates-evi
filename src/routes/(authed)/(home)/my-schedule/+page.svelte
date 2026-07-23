@@ -49,6 +49,7 @@
 
 		if (appointment) {
 			const appointmentDetails = createAppointmentDetails(appointment);
+			const isEmpty = (appointmentDetails.trainee_count ?? 0) === 0;
 			return {
 				variant: 'appointment',
 				day,
@@ -59,6 +60,7 @@
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
 				color: 'primary',
 				clickable: true,
+				dimmed: isEmpty,
 				data: appointmentDetails
 			};
 		} else {
