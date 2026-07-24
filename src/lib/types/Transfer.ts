@@ -82,3 +82,13 @@ export type RecordWithAppt = {
 		group_lesson_id: string | null;
 	} | null;
 };
+
+// Type for the trainee's own appointment_trainee row when starting a weeks-based shift
+export type TraineeShiftSourceRecord = {
+	purchase_id: string | null;
+	pe_appointments: {
+		date: string | null;
+		hour: number | null;
+		group_lesson_id: string | null;
+	} | null;
+};

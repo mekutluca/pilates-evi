@@ -2,6 +2,7 @@ import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	DayOfWeek,
 	EligibleAppointment,
+	GroupLessonHorizonInfo,
 	RawAppointmentRow,
 	SeriesShiftResult,
 	ShiftableAppointment,
@@ -10,13 +11,15 @@ import type {
 	ShiftedTraineeRecord,
 	SortedTraineeRecord,
 	TraineeRecordRow,
-	TraineeShiftResult
+	TraineeShiftResult,
+	WeeklyShiftCandidate,
+	WeeklyShiftResolution
 } from '$lib/types/Schedule';
 import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
-import { buildAppointmentSlots, getDayOfWeekFromDate } from '$lib/utils/date-utils';
+import { addWeeksToDate, buildAppointmentSlots, getDayOfWeekFromDate } from '$lib/utils/date-utils';
 import { sortTimeSlotsSundayFirst } from '$lib/utils/slot-utils';
 
 const APPOINTMENT_FIELDS = 'id, date, hour, room_id, trainer_id, purchase_id, group_lesson_id';
@@ -347,6 +350,98 @@ export async function buildTraineeEligibleByGroup(
 	return eligibleByGroup;
 }
 
+async function getGroupLessonHorizonInfo(
+	supabase: SupabaseClientType,
+	groupLessonId: string,
+	cache: Map<string, GroupLessonHorizonInfo | null>
+): Promise<GroupLessonHorizonInfo | null> {
+	if (!cache.has(groupLessonId)) {
+		const { data: lesson } = await supabase
+			.from('pe_group_lessons')
+			.select('room_id, trainer_id, organization_id, appointments_created_until, end_date')
+			.eq('id', groupLessonId)
+			.single();
+		cache.set(groupLessonId, lesson);
+	}
+	return cache.get(groupLessonId) ?? null;
+}
+
+/**
+ * Resolves each candidate's target appointment for a weeks-based trainee shift.
+ *
+ * Group lesson appointments are only pre-generated up to `appointments_created_until`
+ * (rolling ~26-week horizon, topped up weekly by cron). When the target date/hour has no
+ * row yet:
+ * - if it's beyond that horizon (and still within the lesson's `end_date`, if any), the
+ *   slot just hasn't been created yet — it's created now, matching the lesson's room/trainer;
+ * - otherwise the slot existed and was actively cancelled (e.g. a holiday) — the candidate
+ *   is skipped rather than aborting the whole shift.
+ */
+export async function resolveWeeklyShiftTargets(
+	supabase: SupabaseClientType,
+	candidates: WeeklyShiftCandidate[],
+	weeks: number
+): Promise<WeeklyShiftResolution> {
+	const lessonCache = new Map<string, GroupLessonHorizonInfo | null>();
+	const shiftMap: ShiftedTraineeRecord[] = [];
+	let skippedCount = 0;
+
+	for (const candidate of candidates) {
+		const targetDate = addWeeksToDate(candidate.date, weeks);
+
+		const { data: targetAppt } = await supabase
+			.from('pe_appointments')
+			.select('id')
+			.eq('group_lesson_id', candidate.groupLessonId)
+			.eq('date', targetDate)
+			.eq('hour', candidate.hour)
+			.single();
+
+		if (targetAppt) {
+			shiftMap.push({
+				recordId: candidate.recordId,
+				oldAppointmentId: candidate.appointmentId,
+				newAppointmentId: targetAppt.id
+			});
+			continue;
+		}
+
+		const lesson = await getGroupLessonHorizonInfo(supabase, candidate.groupLessonId, lessonCache);
+		const beyondHorizon =
+			!!lesson?.appointments_created_until && targetDate > lesson.appointments_created_until;
+		const withinLessonLifetime = !lesson?.end_date || targetDate <= lesson.end_date;
+
+		if (lesson && beyondHorizon && withinLessonLifetime && lesson.room_id && lesson.trainer_id) {
+			const { data: created } = await supabase
+				.from('pe_appointments')
+				.insert({
+					room_id: lesson.room_id,
+					trainer_id: lesson.trainer_id,
+					organization_id: lesson.organization_id,
+					group_lesson_id: candidate.groupLessonId,
+					date: targetDate,
+					hour: candidate.hour
+				})
+				.select('id')
+				.single();
+
+			if (created) {
+				shiftMap.push({
+					recordId: candidate.recordId,
+					oldAppointmentId: candidate.appointmentId,
+					newAppointmentId: created.id
+				});
+				continue;
+			}
+			// Insert failed (e.g. room/trainer already booked at that slot) — treat as skip.
+		}
+
+		skippedCount++;
+	}
+
+	return { shiftMap, skippedCount };
+}
+
 /**
  * Guards a single-trainee shift against two silent corruptions: enrolling the trainee
  * twice into the same appointment (e.g. via a parallel purchase) and pushing a target
@@ -354,7 +449,7 @@ export async function buildTraineeEligibleByGroup(
  * out as part of the same shift are not counted as occupied.
  * Returns an error message, or null when all targets are valid.
  */
-async function checkTraineeShiftTargets(
+export async function checkTraineeShiftTargets(
 	supabase: SupabaseClientType,
 	traineeId: string,
 	shiftMap: ShiftedTraineeRecord[]

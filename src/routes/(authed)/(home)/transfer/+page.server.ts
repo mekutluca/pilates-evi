@@ -7,7 +7,8 @@ import type {
 	AppointmentSummaryResult,
 	TraineeApptResult,
 	TraineeApptSummaryResult,
-	RecordWithAppt
+	RecordWithAppt,
+	TraineeShiftSourceRecord
 } from '$lib/types/Transfer';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import {
@@ -16,7 +17,7 @@ import {
 	formatShortTurkishDateTime,
 	formatDateForDB
 } from '$lib/utils/date-utils';
-import type { DayOfWeek, ShiftedAppointment } from '$lib/types/Schedule';
+import type { DayOfWeek, ShiftedAppointment, WeeklyShiftCandidate } from '$lib/types/Schedule';
 import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
 import {
 	getGroupLessonCanonicalSlots,
@@ -24,7 +25,9 @@ import {
 } from '$lib/utils/extension-utils';
 import {
 	buildTraineeEligibleByGroup,
+	checkTraineeShiftTargets,
 	renumberTraineeSessionsInChain,
+	resolveWeeklyShiftTargets,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsBySlot
 } from '$lib/utils/shift-utils';
@@ -957,14 +960,15 @@ export const actions: Actions = {
 		const weeks = Number(getRequiredFormDataString(formData, 'weeks'));
 
 		// Get the trainee's current appointment_trainee record for this appointment
-		const { data: currentRecord } = await supabase
+		const { data: currentRecordRaw } = await supabase
 			.from('pe_appointment_trainees')
-			.select('*, pe_appointments(group_lesson_id, date, hour)')
+			.select('purchase_id, pe_appointments(group_lesson_id, date, hour)')
 			.eq('appointment_id', appointmentId)
 			.eq('trainee_id', traineeId)
 			.single();
+		const currentRecord = currentRecordRaw as TraineeShiftSourceRecord | null;
 
-		if (!currentRecord || !currentRecord.pe_appointments) {
+		if (!currentRecord || !currentRecord.pe_appointments || !currentRecord.purchase_id) {
 			return fail(404, { success: false, message: 'Öğrenci kaydı bulunamadı' });
 		}
 
@@ -1009,39 +1013,37 @@ export const actions: Actions = {
 				return (a.pe_appointments?.hour ?? 0) - (b.pe_appointments?.hour ?? 0);
 			});
 
-		// Find target appointments (shifted by N weeks). Each record uses its OWN
-		// group_lesson_id — a trainee may attend multiple group lessons under one purchase
-		// chain, so we can't pin every lookup to the clicked appointment's group.
-		const shiftMap: Array<{ recordId: number; newAppointmentId: number }> = [];
-
-		for (const record of recordsToShift) {
-			const currentDate = record.pe_appointments?.date;
-			const currentHour = record.pe_appointments?.hour;
+		// Each record uses its OWN group_lesson_id — a trainee may attend multiple group
+		// lessons under one purchase chain, so we can't pin every lookup to the clicked
+		// appointment's group.
+		const candidates: WeeklyShiftCandidate[] = recordsToShift.flatMap((record) => {
+			const date = record.pe_appointments?.date;
+			const hour = record.pe_appointments?.hour;
 			const recordGroupLessonId = record.pe_appointments?.group_lesson_id ?? groupLessonId;
-			if (!currentDate || currentHour === null) continue;
+			if (!date || hour == null) return [];
+			return [
+				{
+					recordId: record.id,
+					appointmentId: record.appointment_id,
+					date,
+					hour,
+					groupLessonId: recordGroupLessonId
+				}
+			];
+		});
 
-			const targetDate = addWeeksToDate(currentDate, weeks);
+		const { shiftMap, skippedCount } = await resolveWeeklyShiftTargets(supabase, candidates, weeks);
 
-			// Find appointment at target date/hour
-			const { data: targetAppt } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('group_lesson_id', recordGroupLessonId)
-				.eq('date', targetDate)
-				.eq('hour', currentHour)
-				.single();
-
-			if (!targetAppt) {
-				return fail(400, {
-					success: false,
-					message: `${targetDate} tarihinde ${currentHour}:00 saatinde uygun randevu bulunamadı`
-				});
-			}
-
-			shiftMap.push({
-				recordId: record.id,
-				newAppointmentId: targetAppt.id
+		if (recordsToShift.length > 0 && shiftMap.length === 0) {
+			return fail(400, {
+				success: false,
+				message: 'Kaydırılacak randevu bulunamadı; hedef tarihlerin tümü iptal edilmiş görünüyor'
 			});
+		}
+
+		const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);
+		if (guardError) {
+			return fail(400, { success: false, message: guardError });
 		}
 
 		// Update all records
@@ -1054,7 +1056,7 @@ export const actions: Actions = {
 			if (updateError) {
 				return fail(500, {
 					success: false,
-					message: 'Öğrenci kaydırma sırasında hata oluştu'
+					message: 'Öğrenci kaydırma sırasında hata oluştu: ' + updateError.message
 				});
 			}
 		}
@@ -1066,7 +1068,7 @@ export const actions: Actions = {
 			}
 		}
 
-		throw redirect(303, '/schedule');
+		throw redirect(303, `/schedule?skipped=${skippedCount}`);
 	},
 
 	shift_trainee_by_slot: async ({ request, locals: { supabase, user, userRole } }) => {

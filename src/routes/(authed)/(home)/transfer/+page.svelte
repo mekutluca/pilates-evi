@@ -446,7 +446,11 @@
 						? ` ${notified} öğrenciye bilgilendirme mesajı gönderildi.`
 						: '';
 				url.searchParams.delete('notified');
-				toast.success(successMessage + notifiedMessage);
+				const skipped = url.searchParams.get('skipped');
+				const skippedMessage =
+					skipped && Number(skipped) > 0 ? ` ${skipped} randevu iptal edildiği için atlandı.` : '';
+				url.searchParams.delete('skipped');
+				toast.success(successMessage + notifiedMessage + skippedMessage);
 				goto(url.pathname + url.search);
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || 'Bir hata oluştu');

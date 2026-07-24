@@ -99,6 +99,34 @@ export interface SortedTraineeRecord {
 // Upcoming group appointment matching a trainee's own (day, hour) pattern.
 export type EligibleAppointment = { id: number; date: string; hour: number };
 
+// A trainee's appointment record queued for a weeks-based shift, with its group lesson
+// resolved (the joined appointment's own group_lesson_id, falling back to the originating
+// appointment's when a record's own row lacks one).
+export interface WeeklyShiftCandidate {
+	recordId: number;
+	appointmentId: number;
+	date: string;
+	hour: number;
+	groupLessonId: string;
+}
+
+// Outcome of resolving weekly-shift targets: successfully mapped records plus a count of
+// candidates skipped because their target occurrence was cancelled and not recreated.
+export interface WeeklyShiftResolution {
+	shiftMap: ShiftedTraineeRecord[];
+	skippedCount: number;
+}
+
+// Group lesson fields needed to decide whether a missing target appointment slot should be
+// auto-created (beyond the generation horizon) or left absent (a cancelled occurrence).
+export interface GroupLessonHorizonInfo {
+	room_id: string | null;
+	trainer_id: string | null;
+	organization_id: string;
+	appointments_created_until: string | null;
+	end_date: string | null;
+}
+
 // Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
 export type AppointmentInsert = TablesInsert<'pe_appointments'>;
