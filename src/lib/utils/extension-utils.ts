@@ -367,28 +367,6 @@ export async function getGroupLessonCanonicalSlots(
 	return { slots, slotKeys };
 }
 
-/**
- * Gets the last appointment date for a group lesson
- */
-export async function getLastGroupLessonAppointmentDate(
-	supabase: SupabaseClientType,
-	groupLessonId: string
-): Promise<Date | null> {
-	const { data, error } = await supabase
-		.from('pe_appointments')
-		.select('date')
-		.eq('group_lesson_id', groupLessonId)
-		.order('date', { ascending: false })
-		.limit(1)
-		.single();
-
-	if (error || !data || !data.date) {
-		return null;
-	}
-
-	return parseLocalDate(data.date);
-}
-
 // calculateExtensionStartDate, getStartingAppointmentCandidates and
 // buildAppointmentSlotsFromStart are pure helpers shared with client code;
 // they live in $lib/utils/slot-utils.

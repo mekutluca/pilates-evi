@@ -751,7 +751,7 @@
 				date: dateString,
 				title: 'Dolu',
 				subtitle: '',
-				color: 'error',
+				color: 'destructive',
 				clickable: false
 			};
 		} else if (isSelected) {
@@ -786,7 +786,7 @@
 				date: dateString,
 				title: 'Dolu',
 				subtitle: '',
-				color: 'error',
+				color: 'destructive',
 				clickable: false
 			};
 		} else {

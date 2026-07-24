@@ -1,5 +1,5 @@
 // Centralized type exports for the Pilates Evi application
-import type { Tables, TablesInsert, TablesUpdate } from '$lib/database.types';
+import type { Tables } from '$lib/database.types';
 import Users from '@lucide/svelte/icons/users';
 
 // ===============================================
@@ -14,18 +14,10 @@ export type Package = Tables<'pe_packages'>;
 export type Purchase = Tables<'pe_purchases'>;
 export type Team = Tables<'pe_teams'>;
 export type Appointment = Tables<'pe_appointments'>;
-export type AppointmentTrainee = Tables<'pe_appointment_trainees'>;
 
 // Trainer accounts' emails live in auth.users, not pe_trainers, so they're
 // merged in at load time rather than being part of the base row type.
 export type TrainerWithEmail = Trainer & { email: string | null };
-
-// Insert and update types
-export type PurchaseInsert = TablesInsert<'pe_purchases'>;
-export type PurchaseUpdate = TablesUpdate<'pe_purchases'>;
-export type TeamInsert = TablesInsert<'pe_teams'>;
-export type AppointmentInsert = TablesInsert<'pe_appointments'>;
-export type AppointmentTraineeInsert = TablesInsert<'pe_appointment_trainees'>;
 
 // ===============================================
 // APPLICATION TYPES
@@ -65,6 +57,16 @@ export interface ActionItem {
 // Context contract for the global action drawer (see $lib/stores/action-drawer.svelte.ts)
 export interface ActionDrawerContext {
 	openDrawer: (actions: ActionItem[]) => void;
+}
+
+// Column config for sortable-table.svelte
+export interface Column<T> {
+	key: string;
+	title: string;
+	sortable?: boolean;
+	render?: (item: T, index?: number) => string;
+	renderComponent?: import('svelte').Component<{ item: T; index: number }>;
+	class?: string;
 }
 
 // ===============================================

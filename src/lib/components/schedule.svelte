@@ -7,17 +7,8 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import type { ScheduleSlot, DayOfWeek } from '$lib/types/Schedule';
+	import type { ScheduleSlot, DayOfWeek, SlotColor } from '$lib/types/Schedule';
 	import type { Snippet } from 'svelte';
-
-	type ScheduleColor =
-		| 'primary'
-		| 'secondary'
-		| 'accent'
-		| 'info'
-		| 'success'
-		| 'warning'
-		| 'destructive';
 
 	// Component props
 	interface Props {
@@ -28,7 +19,7 @@
 		entityName: string;
 		entityBadge?: {
 			text: string;
-			color?: ScheduleColor;
+			color?: SlotColor;
 		};
 
 		// Slot data provider - called for each day/hour combination
@@ -54,7 +45,7 @@
 		alertBanner
 	}: Props = $props();
 
-	const colorClasses: Record<ScheduleColor, { solid: string; soft: string; text: string }> = {
+	const colorClasses: Record<SlotColor, { solid: string; soft: string; text: string }> = {
 		primary: {
 			solid: 'bg-primary text-primary-foreground',
 			soft: 'bg-primary/15 hover:bg-primary/25',
@@ -92,10 +83,9 @@
 		}
 	};
 
-	function getColor(color: string | undefined): ScheduleColor {
+	function getColor(color: string | undefined): SlotColor {
 		if (!color) return 'primary';
-		if (color === 'error') return 'destructive';
-		if (color in colorClasses) return color as ScheduleColor;
+		if (color in colorClasses) return color as SlotColor;
 		return 'primary';
 	}
 

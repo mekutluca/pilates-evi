@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { Role } from '$lib/types';
-import type { User } from '@supabase/auth-js';
+import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatShortTurkishDateTime, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';

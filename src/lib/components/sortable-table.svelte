@@ -2,25 +2,16 @@
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ActionMenu from './action-menu.svelte';
-	import type { ActionItem } from '$lib/types';
+	import type { ActionItem, Column } from '$lib/types';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import { cn } from '$lib/utils/class-utils';
 
-	interface Column {
-		key: string;
-		title: string;
-		sortable?: boolean;
-		render?: (item: T, index?: number) => string;
-		renderComponent?: import('svelte').Component<{ item: T; index: number }>;
-		class?: string;
-	}
-
 	interface Props {
 		data: T[];
-		columns: Column[];
+		columns: Column<T>[];
 		searchTerm?: string;
 		emptyMessage?: string;
 		defaultSortKey?: string;
@@ -115,7 +106,7 @@
 		}
 	}
 
-	function getColumnValue(item: T, column: Column, index?: number): string {
+	function getColumnValue(item: T, column: Column<T>, index?: number): string {
 		if (column.render) {
 			return column.render(item, index);
 		}
@@ -187,7 +178,7 @@
 		return sortOrder === 'asc' ? ChevronUp : ChevronDown;
 	}
 
-	function isColumnSortable(column: Column): boolean {
+	function isColumnSortable(column: Column<T>): boolean {
 		return column.sortable !== false;
 	}
 

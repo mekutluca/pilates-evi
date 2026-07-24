@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { Role, TrainerWithEmail } from '$lib/types';
-import type { User } from '@supabase/auth-js';
+import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 
 // Helper function to validate user permissions

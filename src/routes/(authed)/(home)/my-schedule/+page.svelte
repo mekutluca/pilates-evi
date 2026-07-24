@@ -68,7 +68,7 @@
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
 				warning: warningLabel,
-				color: warningLabel ? 'error' : 'primary',
+				color: warningLabel ? 'destructive' : 'primary',
 				clickable: true,
 				dimmed: isEmpty,
 				data: appointmentDetails

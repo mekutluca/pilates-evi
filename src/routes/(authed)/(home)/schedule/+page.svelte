@@ -309,7 +309,7 @@
 				subtitle: appointmentDetails.package_name || '',
 				badge: appointmentDetails.has_last_session ? 'Son ders' : undefined,
 				warning: warningLabel,
-				color: isBeingRescheduled ? 'warning' : warningLabel ? 'error' : 'primary',
+				color: isBeingRescheduled ? 'warning' : warningLabel ? 'destructive' : 'primary',
 				clickable: !rescheduleMode,
 				dimmed: isEmpty,
 				data: appointmentDetails
@@ -332,7 +332,11 @@
 					date: dateString,
 					label: 'Seç',
 					clickable: true,
-					data: { roomId: viewMode === 'room' ? selectedRoomId : selectedTrainerId, day, hour }
+					data: {
+						roomId: viewMode === 'room' ? selectedRoomId : (selectedAppointment?.room_id ?? ''),
+						day,
+						hour
+					}
 				};
 			} else if (isRescheduleRestricted) {
 				return {

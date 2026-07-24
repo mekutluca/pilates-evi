@@ -1,4 +1,4 @@
-import type { Tables, TablesInsert, TablesUpdate } from '$lib/database.types';
+import type { Tables } from '$lib/database.types';
 
 export type DayOfWeek =
 	| 'monday'
@@ -8,7 +8,6 @@ export type DayOfWeek =
 	| 'friday'
 	| 'saturday'
 	| 'sunday';
-export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 
 // Decision applied to trainees attached to an appointment that is being cancelled
 export type CancelTraineeAction = 'shift' | 'remove';
@@ -129,8 +128,6 @@ export interface GroupLessonHorizonInfo {
 
 // Core appointment type from database
 export type Appointment = Tables<'pe_appointments'>;
-export type AppointmentInsert = TablesInsert<'pe_appointments'>;
-export type AppointmentUpdate = TablesUpdate<'pe_appointments'>;
 
 // Types for appointment trainee relations
 export interface AppointmentTraineeRelation {
@@ -140,12 +137,6 @@ export interface AppointmentTraineeRelation {
 	purchase_id: string | null;
 	pe_trainees: { id: string; name: string } | null;
 	pe_purchases: { successor_id: string | null } | null;
-}
-
-// Time slot pattern for schedule (now stored as JSON in pe_purchases)
-export interface TimeSlotPattern {
-	day: DayOfWeek;
-	hour: number;
 }
 
 // Package info with complete type definitions
@@ -215,93 +206,6 @@ export interface AppointmentWithDetails {
 	total_sessions?: number | null;
 }
 
-export interface WeeklyScheduleSlot {
-	room_id: string;
-	room_name: string;
-	hour: number;
-	is_available: boolean;
-	appointment?: AppointmentWithDetails;
-}
-
-export interface ScheduleGrid {
-	[roomId: string]: {
-		room_name: string;
-		slots: {
-			[day: string]: {
-				[hour: number]: WeeklyScheduleSlot;
-			};
-		};
-	};
-}
-
-// Type for existing appointment series used in purchase selection
-export interface ExistingPurchaseSeries {
-	purchase_id: string;
-	package_id: string;
-	room_name: string;
-	trainer_name: string;
-	current_capacity: number;
-	max_capacity: number;
-	day_time_combinations: {
-		day: number;
-		hours: number[];
-	}[];
-}
-
-// Server-side query result types (now using appointment_trainees)
-export interface AppointmentTraineeData {
-	pe_trainees: { id: string; name: string } | null;
-	session_number: number | null;
-	total_sessions: number | null;
-}
-
-export interface AppointmentSeriesData {
-	id: string;
-	date: string;
-	hour: number;
-	room_id: string;
-	trainer_id: string;
-	purchase_id?: string | null;
-	group_lesson_id?: string | null;
-	pe_purchases?: {
-		pe_packages?: { id: string; max_capacity: number } | null;
-	} | null;
-	pe_group_lessons?: {
-		pe_packages?: { id: string; max_capacity: number } | null;
-	} | null;
-	pe_appointment_trainees?: AppointmentTraineeData[];
-	pe_rooms?: { name: string } | null;
-	pe_trainers?: { name: string } | null;
-}
-
-export interface ProcessedPurchaseData {
-	purchase_id: string;
-	package_id: string;
-	room_name?: string;
-	trainer_name?: string;
-	current_capacity: number;
-	max_capacity: number;
-	day_time_slots: Map<number, Set<number>>;
-}
-
-// Types for package extension and conflict detection
-export interface ExtensionRange {
-	start: string;
-	end: string;
-}
-
-export interface ConflictDetail {
-	date: string;
-	hour: number;
-	day: DayOfWeek;
-}
-
-export interface ExtensionConflict {
-	packageIndex: number;
-	range: ExtensionRange;
-	conflicts: ConflictDetail[];
-}
-
 // Constants
 export const DAYS_OF_WEEK: DayOfWeek[] = [
 	'monday',
@@ -336,12 +240,6 @@ export const DAY_NAMES: Record<DayOfWeek, string> = {
 
 export const SCHEDULE_HOURS = Array.from({ length: 14 }, (_, i) => i + 9); // 9-22 (9 AM to 10 PM)
 
-export const STATUS_NAMES: Record<AppointmentStatus, string> = {
-	scheduled: 'Planlandı',
-	completed: 'Tamamlandı',
-	cancelled: 'İptal Edildi'
-};
-
 // Utility functions
 export function getTimeString(hour: number): string {
 	return `${hour.toString().padStart(2, '0')}:00`;
@@ -351,15 +249,18 @@ export function getTimeRangeString(hour: number): string {
 	return `${getTimeString(hour)} - ${getTimeString(hour + 1)}`;
 }
 
-export function getDayIndex(day: DayOfWeek): number {
-	return DAYS_OF_WEEK.indexOf(day);
-}
-
 // ===============================================
 // SCHEDULE SLOT TYPES (used by the Schedule component)
 // ===============================================
 
-export type SlotVariant = 'empty' | 'appointment' | 'available' | 'disabled' | 'custom';
+export type SlotColor =
+	| 'primary'
+	| 'secondary'
+	| 'accent'
+	| 'info'
+	| 'success'
+	| 'warning'
+	| 'destructive';
 
 export interface RescheduleSlotData {
 	roomId: string;
@@ -384,7 +285,7 @@ export interface AppointmentSlot extends BaseSlotData {
 	subtitle?: string; // Optional subtitle (e.g., package name)
 	badge?: string; // Optional badge text (e.g., "Son ders")
 	warning?: string; // Optional conflict notation (e.g., "Kapasite aşıldı", "Çakışma")
-	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+	color?: SlotColor;
 	clickable?: boolean;
 	dimmed?: boolean; // Visually de-emphasize the slot (e.g., empty group lesson)
 	data?: AppointmentWithDetails | Appointment;
@@ -395,7 +296,7 @@ export interface AvailableSlot extends BaseSlotData {
 	label?: string; // Optional label like "Seç" or "Müsait"
 	clickable?: boolean;
 	disabled?: boolean;
-	color?: 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+	color?: SlotColor;
 	data?: RescheduleSlotData;
 }
 

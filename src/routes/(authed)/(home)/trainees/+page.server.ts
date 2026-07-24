@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { Role } from '$lib/types';
-import type { User } from '@supabase/auth-js';
+import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
 
 // Helper function to validate user permissions

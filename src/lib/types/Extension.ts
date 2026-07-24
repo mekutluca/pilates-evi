@@ -21,11 +21,6 @@ export interface AppointmentRefInfo {
 	hour: number;
 }
 
-export interface PurchaseChainEntry {
-	id: string;
-	successor_id: string | null;
-}
-
 export interface PurchaseChainDates {
 	start_date: Date | null;
 	end_date: Date | null;

@@ -12,14 +12,6 @@ export type TransferConflict = {
 	trainerConflict: boolean;
 };
 
-export type AppointmentSummary = {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	room_name: string | null;
-	trainer_name: string | null;
-};
-
 export type AppointmentWithRelations = {
 	id: number;
 	date: string | null;
