@@ -18,13 +18,19 @@ function validateUserPermission(user: User | null, userRole: Role | null) {
 	return null;
 }
 
-export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
+export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url, parent }) => {
 	const permissionError = validateUserPermission(user, userRole);
 	if (permissionError) {
 		return {
-			appointments: []
+			appointments: [],
+			rooms: [],
+			trainers: []
 		};
 	}
+
+	const { rooms, trainers } = await parent();
+	const activeRooms = rooms.filter((r) => r.is_active);
+	const activeTrainers = trainers.filter((t) => t.is_active);
 
 	// Get week parameter from URL or default to current week
 	const weekParam = url.searchParams.get('week');
@@ -83,7 +89,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	}
 
 	return {
-		appointments: appointments || []
+		appointments: appointments || [],
+		rooms: activeRooms,
+		trainers: activeTrainers
 	};
 };
 

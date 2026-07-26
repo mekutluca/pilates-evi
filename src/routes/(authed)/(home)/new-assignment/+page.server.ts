@@ -29,10 +29,18 @@ export const load: PageServerLoad = async ({
 	}
 
 	// Get all layout data (packages, trainers, rooms, trainees are inherited from parent layout)
-	const { packages: allPackages } = await parent();
+	const {
+		packages: allPackages,
+		rooms: allRooms,
+		trainers: allTrainers,
+		trainees: allTrainees
+	} = await parent();
 	const packages = allPackages
 		.filter((pkg) => pkg.is_active !== false)
 		.sort((a, b) => a.name.localeCompare(b.name));
+	const rooms = allRooms.filter((r) => r.is_active);
+	const trainers = allTrainers.filter((t) => t.is_active);
+	const trainees = allTrainees.filter((t) => t.is_active);
 
 	// Check if we have query parameters for dynamic appointment loading
 	const packageId = url.searchParams.get('package_id');
@@ -281,6 +289,9 @@ export const load: PageServerLoad = async ({
 
 	return {
 		packages: packages || [],
+		rooms,
+		trainers,
+		trainees,
 		appointments,
 		existingGroupLessons,
 		existingGroupLessonTrainees,
