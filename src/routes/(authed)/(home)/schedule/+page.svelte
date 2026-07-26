@@ -40,6 +40,7 @@
 	} from '$lib/utils/appointment-utils';
 	import { page } from '$app/state';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -552,6 +553,7 @@
 <!-- Appointment Details Modal -->
 <Modal
 	bind:open={showAppointmentDetailsModal}
+	title="Randevu Detayları"
 	size="lg"
 	onClose={() => {
 		// Keep selectedAppointment when transitioning to reschedule or cancel flows
@@ -560,20 +562,17 @@
 		}
 	}}
 >
-	{#snippet header()}
-		<div class="flex items-center justify-between">
-			<h3 class="text-lg font-bold">Randevu Detayları</h3>
-			{#if selectedAppointment && selectedAppointment.purchase_id}
-				<Button
-					href="/extend?purchase_id={selectedAppointment.purchase_id}"
-					size="sm"
-					class="bg-warning text-warning-foreground hover:bg-warning/80"
-				>
-					<Plus size={16} />
-					Paketi Uzat
-				</Button>
-			{/if}
-		</div>
+	{#snippet headerActions()}
+		{#if selectedAppointment && selectedAppointment.purchase_id}
+			<Button
+				href="/extend?purchase_id={selectedAppointment.purchase_id}"
+				size="sm"
+				class="bg-warning text-warning-foreground hover:bg-warning/80"
+			>
+				<Plus size={16} />
+				Paketi Uzat
+			</Button>
+		{/if}
 	{/snippet}
 	{#if selectedAppointment}
 		<div class="space-y-4">
@@ -674,7 +673,7 @@
 		</div>
 	{/if}
 
-	<div class="flex justify-end gap-2 pt-4">
+	<ModalFooter>
 		{#if selectedAppointment && (data.userRole === 'admin' || data.userRole === 'coordinator') && !isAppointmentInPast(selectedAppointment)}
 			<Button
 				variant="destructive"
@@ -706,7 +705,7 @@
 				{/if}
 			</Button>
 		{/if}
-	</div>
+	</ModalFooter>
 </Modal>
 
 <!-- Reschedule Confirmation Modal -->
@@ -879,7 +878,7 @@
 					</div>
 				{/if}
 
-				<div class="flex justify-end gap-2">
+				<ModalFooter>
 					<Button
 						type="button"
 						variant="outline"
@@ -900,7 +899,7 @@
 							Onayla
 						{/if}
 					</Button>
-				</div>
+				</ModalFooter>
 			</form>
 		</div>
 	{/if}
@@ -1012,7 +1011,7 @@
 						</RadioGroup>
 					</div>
 				{/if}
-				<div class="flex justify-end gap-2">
+				<ModalFooter>
 					<Button
 						type="button"
 						variant="outline"
@@ -1030,7 +1029,7 @@
 							Randevuyu İptal Et
 						{/if}
 					</Button>
-				</div>
+				</ModalFooter>
 			</form>
 		</div>
 	{/if}

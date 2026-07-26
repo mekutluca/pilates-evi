@@ -11,6 +11,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/types/Schedule';
 	import DatePicker from '$lib/components/date-picker.svelte';
@@ -215,14 +216,12 @@
 <!-- Appointment Details Modal -->
 <Modal
 	bind:open={showAppointmentDetailsModal}
+	title="Randevu Detayları"
 	size="lg"
 	onClose={() => {
 		selectedAppointment = null;
 	}}
 >
-	{#snippet header()}
-		<h3 class="text-lg font-bold">Randevu Detayları</h3>
-	{/snippet}
 	{#if selectedAppointment}
 		<div class="space-y-4">
 			<!-- Extension Alert Strip - Only for private lessons with last session -->
@@ -300,7 +299,7 @@
 		</div>
 	{/if}
 
-	<div class="flex justify-end gap-2 pt-4">
+	<ModalFooter>
 		<Button
 			variant="outline"
 			onclick={() => {
@@ -309,5 +308,5 @@
 		>
 			Kapat
 		</Button>
-	</div>
+	</ModalFooter>
 </Modal>

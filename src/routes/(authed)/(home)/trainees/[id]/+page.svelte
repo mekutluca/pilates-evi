@@ -14,6 +14,7 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
 	import type { ActionItem, Trainee } from '$lib/types';
 	import type { TraineePurchaseMembership } from '$lib/types';
@@ -427,7 +428,7 @@
 			};
 		}}
 	>
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showArchiveModal = false)}>
 				İptal
 			</Button>
@@ -439,7 +440,7 @@
 				{/if}
 				Arşivle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -466,7 +467,7 @@
 			};
 		}}
 	>
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showRestoreModal = false)}>
 				İptal
 			</Button>
@@ -478,6 +479,6 @@
 				{/if}
 				Geri Yükle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>

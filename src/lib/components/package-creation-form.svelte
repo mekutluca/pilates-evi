@@ -2,6 +2,7 @@
 	import type { CreatePackageForm } from '$lib/types';
 	import Medal from '@lucide/svelte/icons/medal';
 	import CalendarSync from '@lucide/svelte/icons/calendar-sync';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -257,8 +258,8 @@
 	</div>
 
 	<!-- Form Actions -->
-	<div class="flex justify-end gap-2">
+	<ModalFooter>
 		<Button type="button" variant="ghost" onclick={onCancel}>İptal</Button>
 		<Button type="submit" disabled={!canProceedLocal}>Dersi Oluştur</Button>
-	</div>
+	</ModalFooter>
 </form>

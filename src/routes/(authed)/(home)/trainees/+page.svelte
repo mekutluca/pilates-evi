@@ -15,6 +15,7 @@
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -247,7 +248,7 @@
 			/>
 		</div>
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -266,7 +267,7 @@
 				{/if}
 				Ekle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -337,7 +338,7 @@
 			/>
 		</div>
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -356,7 +357,7 @@
 				{/if}
 				Güncelle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -386,7 +387,7 @@
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -405,7 +406,7 @@
 				{/if}
 				Arşivle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -435,7 +436,7 @@
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -454,6 +455,6 @@
 				{/if}
 				Geri Yükle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>

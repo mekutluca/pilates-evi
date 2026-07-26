@@ -13,6 +13,7 @@
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -183,7 +184,7 @@
 			<Input id="add-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
 		</div>
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -202,7 +203,7 @@
 				{/if}
 				Ekle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -238,7 +239,7 @@
 			<Input id="edit-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
 		</div>
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -257,7 +258,7 @@
 				{/if}
 				Güncelle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -287,7 +288,7 @@
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -306,7 +307,7 @@
 				{/if}
 				Arşivle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -336,7 +337,7 @@
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -355,6 +356,6 @@
 				{/if}
 				Geri Yükle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>

@@ -15,6 +15,7 @@
 	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -454,7 +455,7 @@
 		</div>
 	{/if}
 
-	<div class="flex justify-end gap-2 pt-4">
+	<ModalFooter>
 		<Button variant="ghost" onclick={closeEditModal} disabled={formLoading}>İptal</Button>
 		<Button onclick={handleEditPackage} disabled={formLoading || !editName.trim()}>
 			{#if formLoading}
@@ -464,7 +465,7 @@
 			{/if}
 			Güncelle
 		</Button>
-	</div>
+	</ModalFooter>
 </Modal>
 
 <!-- Archive Package Modal -->
@@ -494,7 +495,7 @@
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -513,7 +514,7 @@
 				{/if}
 				Arşivle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>
 
@@ -544,7 +545,7 @@
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
-		<div class="flex justify-end gap-2">
+		<ModalFooter>
 			<Button
 				type="button"
 				variant="outline"
@@ -563,6 +564,6 @@
 				{/if}
 				Geri Yükle
 			</Button>
-		</div>
+		</ModalFooter>
 	</form>
 </Modal>

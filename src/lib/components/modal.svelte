@@ -9,7 +9,8 @@
 		title?: string;
 		size?: 'sm' | 'md' | 'lg' | 'xl';
 		children: Snippet;
-		header?: Snippet;
+		/** Actions rendered next to the title; kept clear of the close button. */
+		headerActions?: Snippet;
 	}
 
 	let {
@@ -18,7 +19,7 @@
 		title,
 		size = 'md',
 		children,
-		header
+		headerActions
 	}: Props = $props();
 
 	const sizeClasses = {
@@ -38,13 +39,19 @@
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
 	<Dialog.Content class={cn(sizeClasses[size])}>
-		{#if header}
+		{#if title || headerActions}
 			<Dialog.Header>
-				{@render header()}
-			</Dialog.Header>
-		{:else if title}
-			<Dialog.Header>
-				<Dialog.Title>{title}</Dialog.Title>
+				<!-- pr-8 reserves space for the absolutely positioned close button -->
+				<div class="flex items-center justify-between gap-2 pr-8">
+					{#if title}
+						<Dialog.Title>{title}</Dialog.Title>
+					{/if}
+					{#if headerActions}
+						<div class="flex shrink-0 items-center gap-2">
+							{@render headerActions()}
+						</div>
+					{/if}
+				</div>
 			</Dialog.Header>
 		{/if}
 		{@render children()}

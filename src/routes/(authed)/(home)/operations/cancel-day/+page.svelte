@@ -2,6 +2,7 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -248,7 +249,7 @@
 		<form method="POST" action="?/cancelDay" use:enhance={handleSubmit}>
 			<input type="hidden" name="date" value={dateForDB} />
 			<input type="hidden" name="reason" value={reason} />
-			<div class="flex justify-end gap-2">
+			<ModalFooter>
 				<Button type="button" variant="outline" onclick={() => (showConfirm = false)}>Vazgeç</Button
 				>
 				<Button type="submit" variant="destructive" disabled={formLoading}>
@@ -259,7 +260,7 @@
 						Onayla
 					{/if}
 				</Button>
-			</div>
+			</ModalFooter>
 		</form>
 	</div>
 </Modal>

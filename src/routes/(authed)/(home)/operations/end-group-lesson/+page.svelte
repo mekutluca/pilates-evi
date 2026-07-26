@@ -3,6 +3,7 @@
 	import type { PageData } from './$types';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import Modal from '$lib/components/modal.svelte';
+	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import DatePicker from '$lib/components/date-picker.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -243,7 +244,7 @@
 		<form method="POST" action="?/endGroupLesson" use:enhance={handleSubmit}>
 			<input type="hidden" name="groupLessonId" value={selectedLessonId} />
 			<input type="hidden" name="endDate" value={dateForDB} />
-			<div class="flex justify-end gap-2">
+			<ModalFooter>
 				<Button type="button" variant="outline" onclick={() => (showConfirm = false)}>Vazgeç</Button
 				>
 				<Button type="submit" variant="destructive" disabled={formLoading}>
@@ -254,7 +255,7 @@
 						Onayla
 					{/if}
 				</Button>
-			</div>
+			</ModalFooter>
 		</form>
 	</div>
 </Modal>
