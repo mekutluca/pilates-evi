@@ -10,7 +10,8 @@
 	import { enhance } from '$app/forms';
 	import type { Room } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types';
+	import ReorderCell from '$lib/components/reorder-cell.svelte';
+	import type { ActionItem, ReorderContext } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
@@ -18,6 +19,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
+	import { setContext } from 'svelte';
 
 	let { data } = $props();
 	let { rooms: initialRooms, userRole } = $derived(data);
@@ -27,6 +29,15 @@
 	let rooms = $derived<Room[]>(
 		showArchived ? initialRooms || [] : (initialRooms || []).filter((r) => r.is_active)
 	);
+
+	let reorderBusy = $state(false);
+	setContext<ReorderContext>('reorder', {
+		action: '?/moveRoom',
+		total: () => rooms.length,
+		busy: () => reorderBusy,
+		setBusy: (value) => (reorderBusy = value)
+	});
+
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -79,12 +90,21 @@
 	const tableColumns = [
 		{
 			key: 'name',
-			title: 'Ad'
+			title: 'Ad',
+			sortable: false
 		},
 		{
 			key: 'capacity',
 			title: 'Kapasite',
+			sortable: false,
 			render: (room: Room) => String(room.capacity ?? '-')
+		},
+		{
+			key: 'sort_order',
+			title: 'Sıra',
+			sortable: false,
+			renderComponent: ReorderCell,
+			class: 'w-24'
 		}
 	];
 
@@ -148,7 +168,7 @@
 		columns={tableColumns}
 		{searchTerm}
 		emptyMessage="Henüz oda bulunmuyor"
-		defaultSortKey="id"
+		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
 	/>

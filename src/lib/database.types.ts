@@ -482,6 +482,7 @@ export type Database = {
 					is_active: boolean;
 					name: string | null;
 					organization_id: string;
+					sort_order: number;
 				};
 				Insert: {
 					capacity?: number | null;
@@ -489,6 +490,7 @@ export type Database = {
 					is_active?: boolean;
 					name?: string | null;
 					organization_id?: string;
+					sort_order?: number;
 				};
 				Update: {
 					capacity?: number | null;
@@ -496,6 +498,7 @@ export type Database = {
 					is_active?: boolean;
 					name?: string | null;
 					organization_id?: string;
+					sort_order?: number;
 				};
 				Relationships: [
 					{
@@ -591,6 +594,7 @@ export type Database = {
 					name: string | null;
 					organization_id: string;
 					phone: string;
+					sort_order: number;
 				};
 				Insert: {
 					id: string;
@@ -598,6 +602,7 @@ export type Database = {
 					name?: string | null;
 					organization_id?: string;
 					phone: string;
+					sort_order?: number;
 				};
 				Update: {
 					id?: string;
@@ -605,6 +610,7 @@ export type Database = {
 					name?: string | null;
 					organization_id?: string;
 					phone?: string;
+					sort_order?: number;
 				};
 				Relationships: [
 					{

@@ -72,18 +72,14 @@
 	// Initialize selectedRoomId when rooms data is available
 	$effect(() => {
 		if (rooms.length > 0 && selectedRoomId === '') {
-			const sortedRooms = rooms.toSorted((a, b) => (a.name || '').localeCompare(b.name || ''));
-			selectedRoomId = sortedRooms[0].id;
+			selectedRoomId = rooms[0].id;
 		}
 	});
 
 	// Initialize selectedTrainerId when trainers data is available
 	$effect(() => {
 		if (trainers.length > 0 && selectedTrainerId === '') {
-			const sortedTrainers = trainers.toSorted((a, b) =>
-				(a.name || '').localeCompare(b.name || '')
-			);
-			selectedTrainerId = sortedTrainers[0].id;
+			selectedTrainerId = trainers[0].id;
 		}
 	});
 	// Initialize week from URL parameter or current date - make it reactive to URL changes
@@ -417,7 +413,7 @@
 					<div class="flex flex-col gap-2">
 						<Label for="room-select" class="font-semibold">Oda Seçin</Label>
 						<NativeSelect id="room-select" bind:value={selectedRoomId} class="w-full max-w-xs">
-							{#each rooms.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as room (room.id)}
+							{#each rooms as room (room.id)}
 								<option value={room.id}>{room.name}</option>
 							{/each}
 						</NativeSelect>
@@ -430,7 +426,7 @@
 							bind:value={selectedTrainerId}
 							class="w-full max-w-xs"
 						>
-							{#each trainers.toSorted( (a, b) => (a.name || '').localeCompare(b.name || '') ) as trainer (trainer.id)}
+							{#each trainers as trainer (trainer.id)}
 								<option value={trainer.id}>{trainer.name}</option>
 							{/each}
 						</NativeSelect>

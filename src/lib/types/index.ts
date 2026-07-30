@@ -69,6 +69,18 @@ export interface Column<T> {
 	class?: string;
 }
 
+// Svelte context contract consumed by reorder-cell.svelte (see $lib/components/reorder-cell.svelte)
+export interface ReorderContext {
+	// SvelteKit form action to submit moves to, e.g. '?/moveRoom'
+	action: string;
+	total: () => number;
+	busy: () => boolean;
+	setBusy: (value: boolean) => void;
+}
+
+// Tables with a manually-managed sort_order column (see $lib/server/reorder.ts)
+export type ReorderableTable = 'pe_rooms' | 'pe_trainers';
+
 // ===============================================
 // PURCHASE TYPES (replaces old group system)
 // ===============================================

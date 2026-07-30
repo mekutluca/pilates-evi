@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import type { Role, TrainerWithEmail } from '$lib/types';
 import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
+import { moveRow, nextSortOrder } from '$lib/server/reorder';
 
 // Helper function to validate user permissions
 function validateUserPermission(user: User | null, userRole: Role | null) {
@@ -87,10 +88,12 @@ export const actions: Actions = {
 		}
 
 		// Create trainer in pe_trainers table using auth user id
+		const sortOrder = await nextSortOrder(supabase, 'pe_trainers');
 		const { error: createError } = await supabase.from('pe_trainers').insert({
 			id: userData.user.id,
 			name,
-			phone
+			phone,
+			sort_order: sortOrder
 		});
 
 		if (createError) {
@@ -278,5 +281,12 @@ export const actions: Actions = {
 			success: true,
 			message: 'Şifre başarıyla sıfırlandı'
 		};
+	},
+
+	moveTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
+
+		return moveRow(supabase, 'pe_trainers', request);
 	}
 };

@@ -1,25 +1,36 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import type { Role } from '$lib/types';
+import type { User } from '@supabase/supabase-js';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB } from '$lib/utils/date-utils';
+import { moveRow, nextSortOrder } from '$lib/server/reorder';
+
+function validateUserPermission(user: User | null, userRole: Role | null) {
+	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+		return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
+	}
+	return null;
+}
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
 
 		const name = getRequiredFormDataString(formData, 'name');
 		const capacityStr = getFormDataString(formData, 'capacity');
 		const capacity = capacityStr ? Number(capacityStr) : null;
+		const sortOrder = await nextSortOrder(supabase, 'pe_rooms');
 
 		const { data: roomData, error: createError } = await supabase
 			.from('pe_rooms')
 			.insert({
 				name,
-				capacity
+				capacity,
+				sort_order: sortOrder
 			})
 			.select()
 			.single();
@@ -35,9 +46,8 @@ export const actions: Actions = {
 	},
 
 	updateRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
 
@@ -62,9 +72,8 @@ export const actions: Actions = {
 	},
 
 	archiveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
 		const roomId = getRequiredFormDataString(formData, 'roomId');
@@ -109,9 +118,8 @@ export const actions: Actions = {
 	},
 
 	restoreRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
 		const roomId = getRequiredFormDataString(formData, 'roomId');
@@ -129,5 +137,12 @@ export const actions: Actions = {
 		}
 
 		return { success: true, message: 'Oda başarıyla geri yüklendi' };
+	},
+
+	moveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
+		const permissionError = validateUserPermission(user, userRole);
+		if (permissionError) return permissionError;
+
+		return moveRow(supabase, 'pe_rooms', request);
 	}
 };

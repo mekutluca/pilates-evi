@@ -12,7 +12,8 @@
 	import { enhance } from '$app/forms';
 	import type { TrainerWithEmail } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
-	import type { ActionItem } from '$lib/types';
+	import ReorderCell from '$lib/components/reorder-cell.svelte';
+	import type { ActionItem, ReorderContext } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
@@ -21,6 +22,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
+	import { setContext } from 'svelte';
 
 	let { data } = $props();
 	let { trainers: initialTrainers, userRole } = $derived(data);
@@ -30,6 +32,15 @@
 	let trainers = $derived<TrainerWithEmail[]>(
 		showArchived ? initialTrainers || [] : (initialTrainers || []).filter((t) => t.is_active)
 	);
+
+	let reorderBusy = $state(false);
+	setContext<ReorderContext>('reorder', {
+		action: '?/moveTrainer',
+		total: () => trainers.length,
+		busy: () => reorderBusy,
+		setBusy: (value) => (reorderBusy = value)
+	});
+
 	let searchTerm = $state('');
 	let showAddModal = $state(false);
 	let showEditModal = $state(false);
@@ -99,11 +110,13 @@
 	const tableColumns = [
 		{
 			key: 'name',
-			title: 'Ad'
+			title: 'Ad',
+			sortable: false
 		},
 		{
 			key: 'phone',
 			title: 'Telefon',
+			sortable: false,
 			render: (trainer: TrainerWithEmail) =>
 				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainer.phone}</a>`
 		},
@@ -116,6 +129,13 @@
 					? '<span class="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Aktif</span>'
 					: '<span class="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Pasif</span>';
 			}
+		},
+		{
+			key: 'sort_order',
+			title: 'Sıra',
+			sortable: false,
+			renderComponent: ReorderCell,
+			class: 'w-24'
 		}
 	];
 
@@ -190,7 +210,7 @@
 		columns={tableColumns}
 		{searchTerm}
 		emptyMessage="Henüz eğitmen bulunmuyor"
-		defaultSortKey="id"
+		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
 	/>

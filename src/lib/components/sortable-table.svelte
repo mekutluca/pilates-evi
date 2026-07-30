@@ -1,6 +1,8 @@
 <script lang="ts" generics="T">
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import { flip } from 'svelte/animate';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import ActionMenu from './action-menu.svelte';
 	import type { ActionItem, Column } from '$lib/types';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -235,8 +237,13 @@
 					<Table.Body>
 						{#each paginatedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
 							{@const globalIndex = (currentPage - 1) * pageSize + index}
-							<Table.Row
-								class={onRowClick ? 'cursor-pointer' : ''}
+							<tr
+								data-slot="table-row"
+								class={cn(
+									'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
+									onRowClick ? 'cursor-pointer' : ''
+								)}
+								animate:flip={{ duration: prefersReducedMotion.current ? 0 : 220 }}
 								onclick={() => onRowClick?.(item)}
 							>
 								{#each columns as column (column.key)}
@@ -271,7 +278,7 @@
 										/>
 									</Table.Cell>
 								{/if}
-							</Table.Row>
+							</tr>
 						{/each}
 					</Table.Body>
 				</Table.Root>
