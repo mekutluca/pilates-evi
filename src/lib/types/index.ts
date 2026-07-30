@@ -211,6 +211,12 @@ export interface AvailableGroupTimeslot {
 	current_capacity: number; // Number of trainees currently assigned to this specific timeslot
 }
 
+// Unique trainer entry derived from AvailableGroupTimeslot, used for the Program Seçimi trainer filter
+export interface GroupTrainerOption {
+	id: string;
+	name: string;
+}
+
 // ===============================================
 // WHATSAPP TYPES
 // ===============================================

@@ -17,7 +17,8 @@
 		SelectedTimeSlot,
 		PackagePurchaseForm,
 		AvailableGroupTimeslot,
-		SelectedGroupTimeslot
+		SelectedGroupTimeslot,
+		GroupTrainerOption
 	} from '$lib/types';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
@@ -39,6 +40,7 @@
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
+	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import { cn } from '$lib/utils/class-utils';
 	import { DAY_ORDER } from '$lib/utils/slot-utils';
 
@@ -51,10 +53,35 @@
 	// plain string, hence the widened lookup with an end-of-list fallback for unknown days.
 	const dayOrder: Record<string, number> = DAY_ORDER;
 
+	// Trainer filter for the "Program Seçimi" timeslot list, keyed by trainer_id ('' = Tümü)
+	let trainerFilter = $state('');
+
+	let availableGroupTrainers = $derived(() => {
+		const seen: Record<string, boolean> = {};
+		const result: GroupTrainerOption[] = [];
+		for (const ts of availableGroupTimeslots) {
+			if (!seen[ts.trainer_id]) {
+				seen[ts.trainer_id] = true;
+				result.push({ id: ts.trainer_id, name: ts.trainer_name });
+			}
+		}
+		return result.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+	});
+
+	// Drop a stale filter (e.g. left over from a previously selected package)
+	$effect(() => {
+		if (trainerFilter && !availableGroupTrainers().some((t) => t.id === trainerFilter)) {
+			trainerFilter = '';
+		}
+	});
+
 	let groupedTimeslots = $derived(() => {
 		const grouped: Record<string, AvailableGroupTimeslot[]> = {};
+		const filteredTimeslots = trainerFilter
+			? availableGroupTimeslots.filter((ts) => ts.trainer_id === trainerFilter)
+			: availableGroupTimeslots;
 
-		for (const ts of availableGroupTimeslots) {
+		for (const ts of filteredTimeslots) {
 			if (!grouped[ts.day]) {
 				grouped[ts.day] = [];
 			}
@@ -1189,6 +1216,36 @@
 											{formatSelectionCounter(selectedGroupTimeslots.length, selectedPackage)} seçildi
 										</div>
 									</div>
+
+									{#if availableGroupTrainers().length > 1}
+										<div class="flex flex-wrap items-center gap-2">
+											<span class="text-sm font-medium text-muted-foreground">
+												Eğitmene göre filtrele
+											</span>
+											{#if availableGroupTrainers().length > 6}
+												<NativeSelect bind:value={trainerFilter} class="w-full max-w-xs">
+													<option value="">Tümü</option>
+													{#each availableGroupTrainers() as trainer (trainer.id)}
+														<option value={trainer.id}>{trainer.name}</option>
+													{/each}
+												</NativeSelect>
+											{:else}
+												<ToggleGroup.Root
+													type="single"
+													bind:value={trainerFilter}
+													variant="outline"
+													size="sm"
+													spacing={2}
+													class="flex-wrap"
+												>
+													<ToggleGroup.Item value="">Tümü</ToggleGroup.Item>
+													{#each availableGroupTrainers() as trainer (trainer.id)}
+														<ToggleGroup.Item value={trainer.id}>{trainer.name}</ToggleGroup.Item>
+													{/each}
+												</ToggleGroup.Root>
+											{/if}
+										</div>
+									{/if}
 
 									<div class="rounded-lg border border-border bg-card p-4">
 										<div class="text-sm text-muted-foreground">
