@@ -2,6 +2,7 @@ import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { CancelTraineeAction } from '$lib/types/Schedule';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { parseLocalDate } from '$lib/utils/date-utils';
+import { isNonNull } from '$lib/utils/type-guards';
 
 function isAppointmentFuture(date: string | null, hour: number | null): boolean {
 	if (!date || hour === null) return false;
@@ -58,9 +59,7 @@ async function shiftGroupTraineesByOne(
 		.select('trainee_id')
 		.eq('appointment_id', cancelledAppointmentId);
 
-	const validTrainees = (trainees ?? [])
-		.map((t) => t.trainee_id)
-		.filter((id): id is string => !!id);
+	const validTrainees = (trainees ?? []).map((t) => t.trainee_id).filter(isNonNull);
 
 	for (const traineeId of validTrainees) {
 		const result = await shiftTraineeRecordsBySlot(supabase, cancelledAppointmentId, traineeId, 1);

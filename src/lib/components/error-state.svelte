@@ -9,19 +9,18 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import { defaultErrorMessage } from '$lib/utils/errors';
+	import type { ErrorKind } from '$lib/types/ErrorState';
 
 	let { status, message }: { status: number; message?: string } = $props();
 
-	type Kind = 'notFound' | 'forbidden' | 'server';
-
 	// 401 is folded into forbidden: the auth guard redirects unauthenticated
 	// visitors, so a 401 that reaches the page is an authorization problem.
-	let kind = $derived<Kind>(
+	let kind = $derived<ErrorKind>(
 		status === 404 ? 'notFound' : status === 401 || status === 403 ? 'forbidden' : 'server'
 	);
 
 	// `tab` is the document title, `title` the headline.
-	const COPY: Record<Kind, { icon: Component; tab: string; title: string }> = {
+	const COPY: Record<ErrorKind, { icon: Component; tab: string; title: string }> = {
 		notFound: { icon: CircleAlert, tab: 'Sayfa bulunamadı', title: 'Bu adreste bir sayfa yok' },
 		forbidden: { icon: Lock, tab: 'Erişim yok', title: 'Bu alana erişim yetkiniz yok' },
 		server: { icon: TriangleAlert, tab: 'Bir hata oluştu', title: 'Bir şeyler ters gitti' }

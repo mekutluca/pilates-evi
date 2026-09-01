@@ -1,4 +1,4 @@
-import type { Tables } from '$lib/database.types';
+import type { Appointment } from './index';
 
 export type DayOfWeek =
 	| 'monday'
@@ -126,12 +126,9 @@ export interface GroupLessonHorizonInfo {
 	end_date: string | null;
 }
 
-// Core appointment type from database
-export type Appointment = Tables<'pe_appointments'>;
-
 // Types for appointment trainee relations
 interface AppointmentTraineeRelation {
-	id: string;
+	id: number;
 	session_number: number | null;
 	total_sessions: number | null;
 	purchase_id: string | null;
@@ -144,7 +141,6 @@ interface PackageInfo {
 	id?: string;
 	name?: string;
 	package_type?: string;
-	reschedulable?: boolean;
 	weeks_duration?: number | null;
 	min_lessons_per_week?: number;
 	max_lessons_per_week?: number;
@@ -177,8 +173,8 @@ interface GroupLessonRelation {
 export type AppointmentWithRelations = Appointment & {
 	pe_purchases?: PurchaseRelation | null;
 	pe_group_lessons?: GroupLessonRelation | null;
-	pe_rooms?: { id: string; name: string; capacity: number | null } | null;
-	pe_trainers?: { id: string; name: string } | null;
+	pe_rooms?: { id: string; name: string | null } | null;
+	pe_trainers?: { id: string; name: string | null } | null;
 	pe_appointment_trainees?: AppointmentTraineeRelation[];
 };
 

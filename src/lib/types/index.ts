@@ -40,12 +40,6 @@ export interface User {
 // UI COMPONENT TYPES
 // ===============================================
 
-// Form action results - compatible with SvelteKit result.data
-export interface ActionResult {
-	message?: string;
-	success?: boolean;
-}
-
 // Unified interface for action items - flexible handler for both menu and table actions
 export interface ActionItem {
 	label: string;
@@ -95,15 +89,6 @@ type PurchaseWithTrainees = Purchase & {
 	pe_packages?: Package | null;
 };
 
-// Helper type for trainee purchases/memberships (via teams junction table)
-export type TraineePurchase = Team & {
-	pe_purchases:
-		| (Purchase & {
-				pe_packages: Package | null;
-		  })
-		| null;
-};
-
 // Type for trainee purchase memberships with extended fields for UI
 export interface TraineePurchaseMembership {
 	id: string;
@@ -125,7 +110,7 @@ export interface TraineePurchaseMembership {
 	is_extension?: boolean;
 	extension_number?: number;
 	appointments?: Array<{
-		id: string;
+		id: number;
 		date: string;
 		hour: number;
 	}>;
@@ -228,22 +213,3 @@ export interface GroupTrainerOption {
 	id: string;
 	name: string;
 }
-
-// ===============================================
-// WHATSAPP TYPES
-// ===============================================
-
-export type {
-	TemplateMapping,
-	WhatsAppConfig,
-	SendTemplateMessageParams,
-	SendTextMessageParams,
-	TemplateMessageBody,
-	SessionMessageBody,
-	ChakraResponse,
-	TemplateMessageData,
-	SessionMessageData,
-	WhatsAppAppointmentData,
-	AppointmentQueryRow,
-	RescheduleNotificationParams
-} from './WhatsApp';

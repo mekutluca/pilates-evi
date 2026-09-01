@@ -18,7 +18,6 @@
 	import {
 		type DayOfWeek,
 		type AppointmentWithDetails,
-		type AppointmentWithRelations,
 		type CancelTraineeAction,
 		type ScheduleSlot,
 		DAY_NAMES,
@@ -57,7 +56,7 @@
 	const { data, form }: { data: PageData; form: ActionResult } = $props();
 
 	// Extract data reactively
-	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
+	let appointments = $derived(data.appointments);
 	let rooms = $derived(data.rooms);
 	let trainers = $derived(data.trainers);
 

@@ -10,6 +10,7 @@ import type {
 import type { AppointmentWithRelations } from '$lib/types/Schedule';
 import { getWeekStart, getWeekEnd, formatDateForDB } from '$lib/utils/date-utils';
 import { createAppointmentDetails } from '$lib/utils/appointment-utils';
+import { isNonNull } from '$lib/utils/type-guards';
 import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
 
 export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, parent }) => {
@@ -118,18 +119,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 				created_at,
 				package_id,
 				team_id,
-				pe_packages (
-					id,
-					name,
-					package_type,
-					min_lessons_per_week,
-					max_lessons_per_week,
-					weeks_duration,
-					max_capacity,
-					is_active,
-					reschedulable,
-					reschedule_limit
-				)
+				pe_packages (*)
 			`
 			)
 			.gte('created_at', weekStart.toISOString())
@@ -142,7 +132,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		}
 
 		// Get team IDs from purchases
-		const teamIds = purchases?.map((p) => p.team_id).filter(Boolean) || [];
+		const teamIds = purchases?.map((p) => p.team_id).filter(isNonNull) || [];
 
 		// Query teams to get trainees
 		const { data: teams, error: teamsError } = await supabase
@@ -183,7 +173,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 
 		// Get unique trainee IDs from appointment trainees
 		const uniqueTraineeIds = new Set(
-			appointmentTrainees?.map((at) => at.trainee_id).filter(Boolean) || []
+			appointmentTrainees?.map((at) => at.trainee_id).filter(isNonNull) || []
 		);
 		const uniqueTraineesCount = uniqueTraineeIds.size;
 
@@ -202,14 +192,23 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 
 		// Find trainees with last lessons (within 2 sessions of completion).
 		// Purchases for all candidates are fetched in one batched query.
-		const lastLessonCandidates = (appointmentTrainees || []).filter((at) => {
-			if (!at.trainee_id) return false;
-			const remainingSessions = at.total_sessions - at.session_number;
-			return remainingSessions <= 2 && remainingSessions >= 0;
-		});
+		const lastLessonCandidates = (appointmentTrainees || []).filter(
+			(
+				at
+			): at is typeof at & {
+				trainee_id: string;
+				session_number: number;
+				total_sessions: number;
+			} => {
+				if (!at.trainee_id || at.session_number === null || at.total_sessions === null)
+					return false;
+				const remainingSessions = at.total_sessions - at.session_number;
+				return remainingSessions <= 2 && remainingSessions >= 0;
+			}
+		);
 
 		const candidatePurchaseIds = [
-			...new Set(lastLessonCandidates.map((at) => at.purchase_id).filter(Boolean))
+			...new Set(lastLessonCandidates.map((at) => at.purchase_id).filter(isNonNull))
 		];
 		const { data: candidatePurchases } =
 			candidatePurchaseIds.length > 0
@@ -224,7 +223,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		const processedTrainees = new Set<string>(); // Track to avoid duplicates
 
 		for (const at of lastLessonCandidates) {
-			if (!at.trainee_id || processedTrainees.has(at.trainee_id)) continue;
+			if (processedTrainees.has(at.trainee_id)) continue;
 
 			const trainee = layoutData.trainees.find((t) => t.id === at.trainee_id);
 			if (!trainee) continue;

@@ -9,7 +9,7 @@ const FORBIDDEN_MESSAGE = 'Bu işlemi gerçekleştirmek için yetkiniz yok';
  * lacks one of `roles`, otherwise `null`. Use as
  * `const denied = requireRole(user, userRole, [...]); if (denied) return denied;`
  */
-export function requireRole(user: User | null, userRole: Role | null, roles: Role[]) {
+function requireRole(user: User | null, userRole: Role | null, roles: Role[]) {
 	if (!user || !userRole || !roles.includes(userRole)) {
 		return fail(403, { success: false, message: FORBIDDEN_MESSAGE });
 	}

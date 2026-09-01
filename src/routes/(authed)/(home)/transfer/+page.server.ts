@@ -528,7 +528,7 @@ export const load: PageServerLoad = async ({
 			.eq('trainee_id', traineeId)
 			.single();
 
-		if (traineeData && traineeData.pe_trainees) {
+		if (traineeData?.pe_trainees && traineeData.trainee_id && traineeData.purchase_id) {
 			traineeInfo = {
 				id: traineeData.trainee_id,
 				name: traineeData.pe_trainees.name,

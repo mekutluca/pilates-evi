@@ -61,7 +61,7 @@
 
 	async function logout() {
 		try {
-			await supabase.auth.signOut();
+			await supabase.auth.signOut({ scope: 'local' });
 			// Navigation will be handled by the auth state change listener
 		} catch (error) {
 			console.error('Logout failed:', error);

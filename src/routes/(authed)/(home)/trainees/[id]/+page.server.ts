@@ -100,9 +100,9 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 			const sortedAppointments =
 				purchaseAppointments
 					?.map((apt) => ({
-						id: apt.pe_appointments?.id || '',
-						date: apt.pe_appointments?.date || '',
-						hour: apt.pe_appointments?.hour || 0
+						id: apt.pe_appointments.id,
+						date: apt.pe_appointments.date,
+						hour: apt.pe_appointments.hour
 					}))
 					.sort((a, b) => {
 						const dateCompare = a.date.localeCompare(b.date);

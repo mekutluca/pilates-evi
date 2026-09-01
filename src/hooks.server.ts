@@ -114,7 +114,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		const normalizedPathname = event.url.pathname.replace(/\/+$/, '') || '/';
 		const matchedRoute = allRoutes.find((route) => route.href === normalizedPathname);
 		if (matchedRoute && (!userRole || !matchedRoute.availableToRoles.includes(userRole))) {
-			await event.locals.supabase.auth.signOut();
+			await event.locals.supabase.auth.signOut({ scope: 'local' });
 			redirect(303, '/login');
 		}
 	}

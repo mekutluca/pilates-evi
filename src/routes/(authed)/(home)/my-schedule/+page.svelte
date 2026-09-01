@@ -1,10 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import type {
-		AppointmentWithRelations,
-		DayOfWeek,
-		AppointmentWithDetails
-	} from '$lib/types/Schedule';
+	import type { DayOfWeek, AppointmentWithDetails } from '$lib/types/Schedule';
 	import { DAY_NAMES, getTimeRangeString } from '$lib/types/Schedule';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
@@ -37,7 +33,7 @@
 	let { data }: { data: PageData } = $props();
 
 	// Extract data
-	let appointments = $derived(data.appointments as AppointmentWithRelations[]);
+	let appointments = $derived(data.appointments);
 	let trainerName = $derived(data.trainerName);
 
 	// Capacity/timeslot-collision flags for the week's appointments, computed once across the

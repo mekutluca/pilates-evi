@@ -1,9 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import type { Trainer } from '$lib/types';
-import type { Room } from '$lib/types/Room.js';
-import type { Trainee } from '$lib/types/Trainee.js';
-import type { Package } from '$lib/types/Package.js';
+import type { Trainer, Room, Trainee, Package } from '$lib/types';
 
 export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
 	// Ensure user is authenticated

@@ -61,7 +61,7 @@
 
 		if (!userOrgs || userOrgs.length === 0) {
 			toast.error('Aktif bir organizasyona üye değilsiniz. Lütfen yönetici ile iletişime geçin.');
-			await supabase.auth.signOut();
+			await supabase.auth.signOut({ scope: 'local' });
 			inProgress = false;
 			return;
 		}

@@ -8,6 +8,7 @@ import type {
 	GroupLessonQueryResult
 } from '$lib/types';
 import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
+import { isNonNull } from '$lib/utils/type-guards';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import type {
@@ -177,9 +178,7 @@ export const load: PageServerLoad = async ({
 
 						const timeslotCapacity = firstMatch
 							? new Set(
-									firstMatch.pe_appointment_trainees.map(
-										(t: { trainee_id: string }) => t.trainee_id
-									)
+									firstMatch.pe_appointment_trainees.map((t) => t.trainee_id).filter(isNonNull)
 								).size
 							: 0;
 
@@ -220,7 +219,9 @@ export const load: PageServerLoad = async ({
 
 				if (!traineesError && appointmentTrainees) {
 					// Get unique trainee IDs
-					const uniqueTrainees = new Set(appointmentTrainees.map((at) => at.trainee_id));
+					const uniqueTrainees = new Set(
+						appointmentTrainees.map((at) => at.trainee_id).filter(isNonNull)
+					);
 					existingGroupLessonTrainees = Array.from(uniqueTrainees);
 				}
 			}
