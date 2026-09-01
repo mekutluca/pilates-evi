@@ -1,6 +1,5 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import type { Purchase } from '$lib/types';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { ExtensionChunk, ExtensionResult } from '$lib/types/Extension';
 
 /**
@@ -9,7 +8,7 @@ import type { ExtensionChunk, ExtensionResult } from '$lib/types/Extension';
  * single round-trip instead of one query per link.
  */
 export class PurchaseRepository {
-	constructor(private supabase: SupabaseClient<Database>) {}
+	constructor(private supabase: SupabaseClientType) {}
 
 	/**
 	 * Every purchase id reachable from the given one by following successor_id

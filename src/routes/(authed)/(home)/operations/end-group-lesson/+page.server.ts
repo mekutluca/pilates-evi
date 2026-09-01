@@ -1,7 +1,6 @@
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import type { EndableGroupLesson, GroupLessonQueryRow } from '$lib/types/Operation';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB, getTomorrow, parseLocalDate } from '$lib/utils/date-utils';
@@ -18,7 +17,7 @@ function dayAfter(dateStr: string): string {
 // Active group lessons with their earliest end dates — streamed so the page
 // shell renders immediately; resolves to null on error.
 async function loadGroupLessons(
-	supabase: SupabaseClient<Database>
+	supabase: SupabaseClientType
 ): Promise<EndableGroupLesson[] | null> {
 	// One roundtrip: lessons with their enrolled appointments embedded. The
 	// nested !inner join keeps only appointments that have at least one

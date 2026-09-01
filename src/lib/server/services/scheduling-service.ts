@@ -1,13 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import type { AssignmentPayload, AssignmentResult } from '$lib/types/Assignment';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 
 /**
  * Orchestrates multi-step scheduling writes. Each operation maps to one
  * transactional RPC, so a failure anywhere leaves no orphan rows.
  */
 export class SchedulingService {
-	constructor(private supabase: SupabaseClient<Database>) {}
+	constructor(private supabase: SupabaseClientType) {}
 
 	/**
 	 * Creates a new assignment — optional group lesson, teams + purchases,

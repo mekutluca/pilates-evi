@@ -1,13 +1,12 @@
 import { fail } from '@sveltejs/kit';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { ReorderableTable } from '$lib/types';
 
 /**
  * New rows go to the end of the list: current max sort_order + 1.
  */
 export async function nextSortOrder(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	table: ReorderableTable
 ): Promise<number> {
 	const { data } = await supabase
@@ -26,7 +25,7 @@ export async function nextSortOrder(
  * gapped or duplicate sort_order values along the way.
  */
 export async function moveRow(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	table: ReorderableTable,
 	request: Request
 ) {

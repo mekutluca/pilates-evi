@@ -1,5 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	SlotRef,
 	SlotConflict,
@@ -13,7 +12,7 @@ import type {
  * at the same date and hour — the two resources are checked independently.
  */
 export class ConflictService {
-	constructor(private supabase: SupabaseClient<Database>) {}
+	constructor(private supabase: SupabaseClientType) {}
 
 	/**
 	 * Batched conflict check: 2 queries total regardless of slot count.

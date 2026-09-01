@@ -20,7 +20,7 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 
 - `src/hooks.server.ts` - Server hooks handling auth and route protection
 - `src/lib/types/Route.ts` - Route definitions with role-based access control
-- `src/lib/supabaseClient.ts` - Client-side Supabase client
+- `src/routes/+layout.ts` - Creates the typed browser/server Supabase client exposed to pages as `data.supabase`
 - `src/lib/database.types.ts` - TypeScript types generated from Supabase schema
 
 ### Component Architecture

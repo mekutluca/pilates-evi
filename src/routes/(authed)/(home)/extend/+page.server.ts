@@ -1,8 +1,7 @@
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import type { DayOfWeek } from '$lib/types/Schedule';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import type {
 	AppointmentRefInfo,
 	PurchaseChainDates,
@@ -27,7 +26,7 @@ import { requireStaff } from '$lib/server/permissions';
 
 // Helper to get appointments for either private or group lessons
 async function getAppointmentsForPurchase(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	purchaseId: string,
 	limit?: number
 ): Promise<AppointmentRefInfo[]> {
@@ -76,7 +75,7 @@ async function getAppointmentsForPurchase(
 
 // Fetches team trainees with name+id, flattening the join into a clean array.
 async function fetchTeamTrainees(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	teamId: string
 ): Promise<Array<{ id: string; name: string }>> {
 	const { data: members } = await supabase.from('pe_teams').select('trainee_id').eq('id', teamId);
@@ -96,7 +95,7 @@ async function fetchTeamTrainees(
 
 // Helper to get appointment dates for purchase chain
 async function getAppointmentDatesForPurchase(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	purchaseId: string
 ): Promise<PurchaseChainDates> {
 	const dates: string[] = [];

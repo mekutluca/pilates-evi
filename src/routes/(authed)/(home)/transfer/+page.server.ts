@@ -1,7 +1,6 @@
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '$lib/database.types';
 import type {
 	AppointmentWithRelations,
 	AppointmentSummaryResult,
@@ -59,7 +58,7 @@ const APPOINTMENT_SUMMARY_SELECT_QUERY = `
 `;
 
 async function getReferenceDateTime(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	appointmentId: number
 ): Promise<{ date: string; hour: number } | null> {
 	const { data } = await supabase
@@ -76,7 +75,7 @@ async function getReferenceDateTime(
 }
 
 async function getFutureAppointmentsByPurchase(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	appointmentId: number,
 	purchaseId: string
 ): Promise<AppointmentWithRelations[]> {
@@ -111,7 +110,7 @@ async function getFutureAppointmentsByPurchase(
 }
 
 async function getFutureAppointmentsByGroupLesson(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	appointmentId: number,
 	groupLessonId: string
 ): Promise<AppointmentWithRelations[]> {
@@ -148,11 +147,7 @@ function filterToCanonicalSlots<T extends { date: string | null; hour: number | 
 // the trainee attends several group lessons under one purchase chain).
 async function filterByGroupCanonicalSlots<
 	T extends { date: string | null; hour: number | null; group_lesson_id: string | null }
->(
-	supabase: SupabaseClient<Database>,
-	appointments: T[],
-	cache: Map<string, Set<string>>
-): Promise<T[]> {
+>(supabase: SupabaseClientType, appointments: T[], cache: Map<string, Set<string>>): Promise<T[]> {
 	const groupIds = new Set<string>();
 	for (const apt of appointments) {
 		if (apt.group_lesson_id && !cache.has(apt.group_lesson_id)) {
@@ -174,7 +169,7 @@ async function filterByGroupCanonicalSlots<
 }
 
 async function hasConflict(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	appointment: AppointmentWithRelations,
 	roomId: string | null,
 	trainerId: string | null
@@ -222,7 +217,7 @@ async function sendShiftNotifications(
 // appointment details (rooms/trainers/packages/trainees) so we can build WhatsApp
 // notifications that reference the package name and the trainees on each appointment.
 async function loadAppointmentDetailsForSeries(
-	supabase: SupabaseClient<Database>,
+	supabase: SupabaseClientType,
 	fromAppointmentId: number
 ): Promise<Map<number, AppointmentWithRelations>> {
 	const { data: appt } = await supabase

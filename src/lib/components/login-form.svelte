@@ -1,7 +1,7 @@
 <script lang="ts">
+	import type { SupabaseClientType } from '$lib/types/Supabase';
 	import { cn } from '$lib/utils/class-utils';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import Modal from './modal.svelte';
@@ -18,7 +18,7 @@
 	}: {
 		class?: string;
 		formType: 'login' | 'forgot-password' | 'reset-password';
-		supabase: SupabaseClient;
+		supabase: SupabaseClientType;
 	} = $props();
 
 	let inProgress = $state(false);
