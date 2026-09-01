@@ -5,6 +5,7 @@ import { cancelDay } from '$lib/utils/day-cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { formatDateForDB } from '$lib/utils/date-utils';
 import type { DayCancellationStrategy } from '$lib/types/Operation';
+import { requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({ locals: { user, userRole } }) => {
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
@@ -15,9 +16,8 @@ export const load: PageServerLoad = async ({ locals: { user, userRole } }) => {
 
 export const actions: Actions = {
 	cancelDay: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const date = getRequiredFormDataString(formData, 'date');

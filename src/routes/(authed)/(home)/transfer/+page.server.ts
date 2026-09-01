@@ -33,6 +33,7 @@ import {
 } from '$lib/utils/shift-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { ConflictService } from '$lib/server/services/conflict-service';
+import { requireStaff } from '$lib/server/permissions';
 
 const APPOINTMENT_SELECT_QUERY = `
 	*,
@@ -566,9 +567,8 @@ export const load: PageServerLoad = async ({
 
 export const actions: Actions = {
 	transfer: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Unauthorized' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
@@ -707,9 +707,8 @@ export const actions: Actions = {
 	},
 
 	shift_by_time: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Unauthorized' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
@@ -895,9 +894,8 @@ export const actions: Actions = {
 	},
 
 	shift_by_slot: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Unauthorized' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
@@ -947,12 +945,8 @@ export const actions: Actions = {
 	},
 
 	shift_trainee_by_time: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));
@@ -1072,12 +1066,8 @@ export const actions: Actions = {
 	},
 
 	shift_trainee_by_slot: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointment_id'));

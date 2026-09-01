@@ -17,6 +17,7 @@ import type {
 	AssignmentEnrollmentPayload
 } from '$lib/types/Assignment';
 import { isValidUuid } from '$lib/utils/validation';
+import { requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
 	locals: { supabase, user, userRole },
@@ -301,13 +302,8 @@ export const load: PageServerLoad = async ({
 
 export const actions: Actions = {
 	createAssignment: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Ensure admin and coordinator users can perform this action
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const assignmentFormJson = formData.get('assignmentData') as string;

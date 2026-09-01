@@ -7,6 +7,7 @@ import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB, getTomorrow, parseLocalDate } from '$lib/utils/date-utils';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import { isValidUuid } from '$lib/utils/validation';
+import { requireStaff } from '$lib/server/permissions';
 
 function dayAfter(dateStr: string): string {
 	const date = parseLocalDate(dateStr);
@@ -87,9 +88,8 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole } }) =
 
 export const actions: Actions = {
 	endGroupLesson: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const groupLessonId = getRequiredFormDataString(formData, 'groupLessonId');

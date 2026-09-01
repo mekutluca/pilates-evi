@@ -23,6 +23,7 @@
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { DAYS_OF_WEEK, DAY_NAMES, type DayOfWeek } from '$lib/types/Schedule';
 	import type { EndableGroupLesson } from '$lib/types/Operation';
+	import { clickOutside } from '$lib/utils/click-outside';
 
 	const { data }: { data: PageData } = $props();
 
@@ -78,19 +79,6 @@
 		selectedDate = date;
 		showDatePicker = false;
 	}
-
-	$effect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Element;
-			if (!target.closest('.date-picker-container') && showDatePicker) {
-				showDatePicker = false;
-			}
-		}
-		if (showDatePicker) {
-			document.addEventListener('click', handleClickOutside);
-			return () => document.removeEventListener('click', handleClickOutside);
-		}
-	});
 
 	function handleSubmit() {
 		formLoading = true;
@@ -186,7 +174,7 @@
 			<Card.Content class="space-y-6">
 				<div class="grid gap-2">
 					<Label class="font-semibold">Bitiş Tarihi</Label>
-					<div class="date-picker-container relative w-fit">
+					<div class="relative w-fit" use:clickOutside={() => (showDatePicker = false)}>
 						<Button variant="outline" onclick={() => (showDatePicker = !showDatePicker)}>
 							<CalendarIcon size={16} />
 							{formattedDate}

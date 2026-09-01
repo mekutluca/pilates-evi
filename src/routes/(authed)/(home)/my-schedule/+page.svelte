@@ -21,7 +21,8 @@
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDayOfWeekFromDate
+		getDayOfWeekFromDate,
+		addDays
 	} from '$lib/utils/date-utils';
 	import {
 		createAppointmentDetails,
@@ -31,6 +32,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
+	import { clickOutside } from '$lib/utils/click-outside';
 
 	let { data }: { data: PageData } = $props();
 
@@ -99,17 +101,11 @@
 	}
 
 	function goToPreviousWeek() {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
-		const newWeekStart = new Date(currentWeekStart().getTime());
-		newWeekStart.setDate(newWeekStart.getDate() - 7);
-		navigateToWeek(newWeekStart);
+		navigateToWeek(addDays(currentWeekStart(), -7));
 	}
 
 	function goToNextWeek() {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
-		const newWeekStart = new Date(currentWeekStart().getTime());
-		newWeekStart.setDate(newWeekStart.getDate() + 7);
-		navigateToWeek(newWeekStart);
+		navigateToWeek(addDays(currentWeekStart(), 7));
 	}
 
 	function goToCurrentWeek() {
@@ -130,24 +126,6 @@
 	function toggleDatePicker() {
 		showDatePicker = !showDatePicker;
 	}
-
-	// Handle click outside to close date picker
-	$effect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Element;
-			const datePickerElement = target.closest('.date-picker-container');
-			if (!datePickerElement && showDatePicker) {
-				showDatePicker = false;
-			}
-		}
-
-		if (showDatePicker) {
-			document.addEventListener('click', handleClickOutside);
-			return () => {
-				document.removeEventListener('click', handleClickOutside);
-			};
-		}
-	});
 </script>
 
 <svelte:head>
@@ -167,7 +145,7 @@
 					<ChevronLeft size={16} />
 				</Button>
 
-				<div class="date-picker-container relative w-64 text-center">
+				<div class="relative w-64 text-center" use:clickOutside={() => (showDatePicker = false)}>
 					<button
 						type="button"
 						class="cursor-pointer text-lg font-semibold transition-all hover:underline"

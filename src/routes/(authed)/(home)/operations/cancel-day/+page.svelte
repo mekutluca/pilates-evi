@@ -25,6 +25,7 @@
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import type { DayCancellationConflict } from '$lib/types/Operation';
+	import { clickOutside } from '$lib/utils/click-outside';
 
 	// A day cancellation only makes sense for future days — shifting in-progress or past sessions
 	// is meaningless, so the picker starts on (and is bounded at) tomorrow.
@@ -47,19 +48,6 @@
 		selectedDate = date;
 		showDatePicker = false;
 	}
-
-	$effect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Element;
-			if (!target.closest('.date-picker-container') && showDatePicker) {
-				showDatePicker = false;
-			}
-		}
-		if (showDatePicker) {
-			document.addEventListener('click', handleClickOutside);
-			return () => document.removeEventListener('click', handleClickOutside);
-		}
-	});
 
 	function handleSubmit() {
 		formLoading = true;
@@ -103,7 +91,7 @@
 		<Card.Content class="space-y-6">
 			<div class="grid gap-2">
 				<Label class="font-semibold">Gün</Label>
-				<div class="date-picker-container relative w-fit">
+				<div class="relative w-fit" use:clickOutside={() => (showDatePicker = false)}>
 					<Button variant="outline" onclick={() => (showDatePicker = !showDatePicker)}>
 						<CalendarIcon size={16} />
 						{formattedDate}

@@ -2,7 +2,6 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { SvelteDate } from 'svelte/reactivity';
 	import Plus from '@lucide/svelte/icons/plus';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -21,12 +20,13 @@
 		GroupTrainerOption
 	} from '$lib/types';
 	import type { DayOfWeek } from '$lib/types/Schedule';
-	import { DAY_NAMES } from '$lib/types/Schedule';
+	import { DAY_NAMES, JS_DAY_TO_NAME } from '$lib/types/Schedule';
 	import {
 		getWeekStart,
 		formatWeekRange,
 		formatDateParam,
-		getDateForDayOfWeek
+		getDateForDayOfWeek,
+		addDays
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Schedule from '$lib/components/schedule.svelte';
@@ -43,6 +43,7 @@
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import { cn } from '$lib/utils/class-utils';
 	import { DAY_ORDER } from '$lib/utils/slot-utils';
+	import { clickOutside } from '$lib/utils/click-outside';
 
 	let { data } = $props();
 	let { packages, appointments } = $derived(data);
@@ -290,18 +291,12 @@
 	});
 
 	async function goToPreviousWeek() {
-		const currentWeek = currentWeekStart;
-		const newWeekStart = new SvelteDate(currentWeek.getTime());
-		newWeekStart.setDate(newWeekStart.getDate() - 7);
-		assignmentForm.start_date = formatDateParam(newWeekStart);
+		assignmentForm.start_date = formatDateParam(addDays(currentWeekStart, -7));
 		await reloadAppointments();
 	}
 
 	async function goToNextWeek() {
-		const currentWeek = currentWeekStart;
-		const newWeekStart = new SvelteDate(currentWeek.getTime());
-		newWeekStart.setDate(newWeekStart.getDate() + 7);
-		assignmentForm.start_date = formatDateParam(newWeekStart);
+		assignmentForm.start_date = formatDateParam(addDays(currentWeekStart, 7));
 		await reloadAppointments();
 	}
 
@@ -326,24 +321,6 @@
 	const isCurrentWeek = $derived(() => {
 		const now = getWeekStart(new Date());
 		return currentWeekStart.getTime() === now.getTime();
-	});
-
-	// Handle click outside to close date picker
-	$effect(() => {
-		function handleClickOutside(event: MouseEvent) {
-			const target = event.target as Element;
-			const datePickerElement = target.closest('.date-picker-container');
-			if (!datePickerElement && showDatePicker) {
-				showDatePicker = false;
-			}
-		}
-
-		if (showDatePicker) {
-			document.addEventListener('click', handleClickOutside);
-			return () => {
-				document.removeEventListener('click', handleClickOutside);
-			};
-		}
 	});
 
 	// Only reload appointments explicitly, not in effects to avoid navigation loops
@@ -658,27 +635,16 @@
 		if (!assignmentForm.start_date) return false;
 
 		const startDate = new Date(assignmentForm.start_date);
-		const dayMapping: Record<DayOfWeek, number> = {
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6,
-			sunday: 0
-		};
-
 		// Calculate the actual date for this slot in the first week
-		const slotDate = new SvelteDate(startDate.getTime());
 		const startDayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-		const targetDayOfWeek = dayMapping[day];
+		const targetDayOfWeek = JS_DAY_TO_NAME.indexOf(day);
 
 		// Calculate days to add from start date to target day
 		let daysToAdd = targetDayOfWeek - startDayOfWeek;
 		if (targetDayOfWeek === 0) daysToAdd = 7 - startDayOfWeek; // Sunday case
 		if (daysToAdd < 0) daysToAdd += 7; // Next week if day already passed
 
-		slotDate.setDate(startDate.getDate() + daysToAdd);
+		const slotDate = addDays(startDate, daysToAdd);
 		slotDate.setHours(hour, 0, 0, 0); // Set the specific hour
 
 		// Check if this slot would be in the past (including current time)
@@ -1460,7 +1426,10 @@
 											<ChevronLeft size={16} />
 										</Button>
 
-										<div class="date-picker-container relative w-64 text-center">
+										<div
+											class="relative w-64 text-center"
+											use:clickOutside={() => (showDatePicker = false)}
+										>
 											<button
 												class="cursor-pointer text-lg font-semibold transition-all hover:underline"
 												onclick={toggleDatePicker}

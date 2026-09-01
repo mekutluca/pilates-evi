@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import type { TraineePurchaseMembership, Package } from '$lib/types';
 import { getRequiredFormDataString } from '$lib/utils';
+import { requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -174,10 +175,8 @@ export const actions: Actions = {
 	},
 
 	archiveTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
-		// Check permissions - only admin and coordinator can archive trainees
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const traineeId = params.id;
 
@@ -199,10 +198,8 @@ export const actions: Actions = {
 	},
 
 	restoreTrainee: async ({ params, locals: { supabase, user, userRole } }) => {
-		// Check permissions - only admin and coordinator can restore trainees
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const traineeId = params.id;
 

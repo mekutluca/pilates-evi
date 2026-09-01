@@ -21,6 +21,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import { formatShortDisplayDateTime } from '$lib/utils/date-utils';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -107,13 +108,15 @@
 		{
 			key: 'created_at',
 			title: 'Kayıt Tarihi',
-			render: (user: User) => formatDate(user.created_at)
+			render: (user: User) => formatShortDisplayDateTime(user.created_at)
 		},
 		{
 			key: 'last_sign_in_at',
 			title: 'Son Giriş',
 			render: (user: User) =>
-				user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Hiç giriş yapmamış'
+				user.last_sign_in_at
+					? formatShortDisplayDateTime(user.last_sign_in_at)
+					: 'Hiç giriş yapmamış'
 		}
 	];
 
@@ -145,16 +148,6 @@
 		role = 'coordinator';
 		newPassword = '';
 		selectedUser = null;
-	}
-
-	function formatDate(dateString: string) {
-		return new Date(dateString).toLocaleDateString('tr-TR', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
 	}
 
 	function getRoleDisplayName(role: string): string {

@@ -13,7 +13,7 @@ export const DAY_ORDER: Record<DayOfWeek, number> = {
 	sunday: 7
 };
 
-export function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
+function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
 	return [...slots].sort((a, b) => {
 		const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
 		if (dayDiff !== 0) return dayDiff;
@@ -33,7 +33,7 @@ export function sortTimeSlotsSundayFirst<T extends { day: DayOfWeek; hour: numbe
 	});
 }
 
-export function getMondayOf(date: Date): Date {
+function getMondayOf(date: Date): Date {
 	const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 	const dayOfWeek = d.getDay();
 	const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;

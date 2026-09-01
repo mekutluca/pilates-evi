@@ -10,7 +10,7 @@
 	import Play from '@lucide/svelte/icons/play';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
-	import { parseLocalDate, formatTurkishDate } from '$lib/utils/date-utils';
+	import { parseLocalDate, formatTurkishDate, formatShortDisplayDate } from '$lib/utils/date-utils';
 	import { buildAppointmentSlotsFromStart } from '$lib/utils/slot-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { cn } from '$lib/utils';
@@ -216,15 +216,6 @@
 			isSubmitting = false;
 		}
 	}
-
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('tr-TR', {
-			day: 'numeric',
-			month: 'short',
-			year: 'numeric'
-		});
-	}
 </script>
 
 <svelte:head>
@@ -415,7 +406,7 @@
 						{#if lastAppointmentDate}
 							<div class="border-t border-border pt-2">
 								<div class="text-xs text-muted-foreground">Son Randevu</div>
-								<div class="font-medium">{formatDate(lastAppointmentDate)}</div>
+								<div class="font-medium">{formatShortDisplayDate(lastAppointmentDate)}</div>
 							</div>
 						{/if}
 
@@ -438,11 +429,13 @@
 											></span>
 											<div class="text-xs">
 												{#if purchase.start_date && purchase.end_date}
-													{formatDate(purchase.start_date)} - {formatDate(purchase.end_date)}
+													{formatShortDisplayDate(purchase.start_date)} - {formatShortDisplayDate(
+														purchase.end_date
+													)}
 												{:else if purchase.start_date}
-													{formatDate(purchase.start_date)}
+													{formatShortDisplayDate(purchase.start_date)}
 												{:else if purchase.end_date}
-													{formatDate(purchase.end_date)}
+													{formatShortDisplayDate(purchase.end_date)}
 												{/if}
 												{#if index === 0}
 													<div class="text-xs text-muted-foreground/80">
@@ -569,7 +562,7 @@
 											<div class="flex items-start justify-between">
 												<div class="flex-1">
 													<div class="text-sm font-medium">
-														{formatDate(appointment.date)}
+														{formatShortDisplayDate(appointment.date)}
 													</div>
 													<div class="mt-1 text-xs text-muted-foreground">
 														{DAY_NAMES[appointment.day]} • {appointment.hour}:00 • Hafta {appointment.weekNumber}

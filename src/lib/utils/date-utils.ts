@@ -1,10 +1,10 @@
-import { JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
+import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
 
 // Constants
 /**
  * Turkish day names indexed by JavaScript Date.getDay() (0=Sunday, 1=Monday, etc.)
  */
-export const TURKISH_DAYS = [
+const TURKISH_DAYS = [
 	'Pazar',
 	'Pazartesi',
 	'Salı',
@@ -13,6 +13,15 @@ export const TURKISH_DAYS = [
 	'Cuma',
 	'Cumartesi'
 ] as const;
+
+/**
+ * Returns a copy of `date` shifted by `days` (negative to go back).
+ */
+export function addDays(date: Date, days: number): Date {
+	const d = new Date(date);
+	d.setDate(d.getDate() + days);
+	return d;
+}
 
 /**
  * Returns tomorrow at local midnight.
@@ -105,21 +114,8 @@ export function parseLocalDate(dateString: string): Date {
  * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)
  * @returns Date object for the specified day
  */
-export function getDateForDayOfWeek(weekStart: Date, dayOfWeek: string): Date {
-	const dayMapping = {
-		monday: 0,
-		tuesday: 1,
-		wednesday: 2,
-		thursday: 3,
-		friday: 4,
-		saturday: 5,
-		sunday: 6
-	};
-
-	const targetDate = new Date(weekStart);
-	const daysToAdd = dayMapping[dayOfWeek as keyof typeof dayMapping] || 0;
-	targetDate.setDate(weekStart.getDate() + daysToAdd);
-	return targetDate;
+export function getDateForDayOfWeek(weekStart: Date, dayOfWeek: DayOfWeek): Date {
+	return addDays(weekStart, DAYS_OF_WEEK.indexOf(dayOfWeek));
 }
 
 /**
@@ -189,6 +185,30 @@ export function formatDisplayDate(dateString: string | null): string {
 		year: 'numeric',
 		month: 'long',
 		day: 'numeric'
+	});
+}
+
+/**
+ * Short Turkish date for tables and summaries, e.g. "5 Eyl 2026".
+ */
+export function formatShortDisplayDate(dateString: string): string {
+	return new Date(dateString).toLocaleDateString('tr-TR', {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric'
+	});
+}
+
+/**
+ * Short Turkish date with time, e.g. "5 Eyl 2026 14:30".
+ */
+export function formatShortDisplayDateTime(dateString: string): string {
+	return new Date(dateString).toLocaleDateString('tr-TR', {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit'
 	});
 }
 

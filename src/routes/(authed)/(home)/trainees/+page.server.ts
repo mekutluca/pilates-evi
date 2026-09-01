@@ -1,20 +1,11 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import type { Role } from '$lib/types';
-import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
-
-// Helper function to validate user permissions
-function validateUserPermission(user: User | null, userRole: Role | null) {
-	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-		return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-	}
-	return null;
-}
+import { requireStaff } from '$lib/server/permissions';
 
 export const actions: Actions = {
 	createTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -51,7 +42,7 @@ export const actions: Actions = {
 	},
 
 	updateTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -88,7 +79,7 @@ export const actions: Actions = {
 	},
 
 	archiveTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -110,7 +101,7 @@ export const actions: Actions = {
 	},
 
 	restoreTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();

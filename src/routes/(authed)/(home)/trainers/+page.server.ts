@@ -1,20 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { Role, TrainerWithEmail } from '$lib/types';
-import type { User } from '@supabase/supabase-js';
+import type { TrainerWithEmail } from '$lib/types';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
-
-// Helper function to validate user permissions
-function validateUserPermission(user: User | null, userRole: Role | null) {
-	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-		return fail(403, {
-			success: false,
-			message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-		});
-	}
-	return null;
-}
+import { requireAdmin, requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({ locals: { admin }, parent }) => {
 	const { trainers } = await parent();
@@ -37,7 +26,7 @@ export const actions: Actions = {
 		request,
 		locals: { supabase, admin, user, userRole, organizationId }
 	}) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		if (!organizationId) {
@@ -113,7 +102,7 @@ export const actions: Actions = {
 	},
 
 	updateTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -145,7 +134,7 @@ export const actions: Actions = {
 	},
 
 	archiveTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -207,7 +196,7 @@ export const actions: Actions = {
 	},
 
 	restoreTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -245,13 +234,8 @@ export const actions: Actions = {
 	},
 
 	resetPassword: async ({ request, locals: { admin, user, userRole } }) => {
-		// Ensure only admin users can perform this action
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
@@ -284,7 +268,7 @@ export const actions: Actions = {
 	},
 
 	moveTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		return moveRow(supabase, 'pe_trainers', request);

@@ -12,7 +12,7 @@ export type Trainer = Tables<'pe_trainers'>;
 export type Trainee = Tables<'pe_trainees'>;
 export type Package = Tables<'pe_packages'>;
 export type Purchase = Tables<'pe_purchases'>;
-export type Team = Tables<'pe_teams'>;
+type Team = Tables<'pe_teams'>;
 export type Appointment = Tables<'pe_appointments'>;
 
 // Trainer accounts' emails live in auth.users, not pe_trainers, so they're
@@ -86,7 +86,7 @@ export type ReorderableTable = 'pe_rooms' | 'pe_trainers';
 // ===============================================
 
 // Helper type for purchase with trainees (via teams junction table)
-export type PurchaseWithTrainees = Purchase & {
+type PurchaseWithTrainees = Purchase & {
 	pe_teams: Array<
 		Team & {
 			pe_trainees: Trainee | null;

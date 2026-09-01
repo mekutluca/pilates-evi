@@ -1,7 +1,5 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { Role } from '$lib/types';
-import type { User } from '@supabase/supabase-js';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatShortTurkishDateTime, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
@@ -9,17 +7,14 @@ import { cancelAppointment } from '$lib/utils/cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
+import { requireStaff } from '$lib/server/permissions';
 
-// Helper function to validate user permissions
-function validateUserPermission(user: User | null, userRole: Role | null) {
-	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-		return fail(403, { success: false, message: 'Bu işlemi gerçekleştirmek için yetkiniz yok' });
-	}
-	return null;
-}
-
-export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url, parent }) => {
-	const permissionError = validateUserPermission(user, userRole);
+export const load: PageServerLoad = async ({
+	locals: { supabase, user, userRole },
+	url,
+	parent
+}) => {
+	const permissionError = requireStaff(user, userRole);
 	if (permissionError) {
 		return {
 			appointments: [],
@@ -97,7 +92,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 export const actions: Actions = {
 	rescheduleAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -311,7 +306,7 @@ export const actions: Actions = {
 	},
 
 	cancelAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = validateUserPermission(user, userRole);
+		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();

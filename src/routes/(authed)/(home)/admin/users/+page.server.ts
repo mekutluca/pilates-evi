@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
+import { requireAdmin } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
 	locals: { admin, user, userRole, organizationId }
@@ -49,13 +50,8 @@ export const load: PageServerLoad = async ({
 
 export const actions: Actions = {
 	createUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
-		// Ensure only admin users can perform this action
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		if (!organizationId) {
 			return fail(400, {
@@ -119,13 +115,8 @@ export const actions: Actions = {
 	},
 
 	updateUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
-		// Ensure only admin users can perform this action
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		if (!organizationId) {
 			return fail(400, {
@@ -188,13 +179,8 @@ export const actions: Actions = {
 	},
 
 	removeUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
-		// Ensure only admin users can perform this action
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		if (!organizationId) {
 			return fail(400, {
@@ -213,7 +199,7 @@ export const actions: Actions = {
 			});
 		}
 
-		if (userId === user.id) {
+		if (userId === user?.id) {
 			return fail(400, {
 				success: false,
 				message: 'Kendinizi organizasyondan kaldıramazsınız'
@@ -242,13 +228,8 @@ export const actions: Actions = {
 	},
 
 	resetPassword: async ({ request, locals: { admin, user, userRole } }) => {
-		// Ensure only admin users can perform this action
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const userId = formData.get('userId') as string;

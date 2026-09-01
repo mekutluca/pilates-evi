@@ -22,6 +22,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
+	import { formatShortDisplayDate } from '$lib/utils/date-utils';
 
 	let { data } = $props();
 	let { trainees: initialTrainees, userRole } = $derived(data);
@@ -102,7 +103,8 @@
 		{
 			key: 'created_at',
 			title: 'Kayıt Tarihi',
-			render: (trainee: Trainee) => (trainee.created_at ? formatDate(trainee.created_at) : '-')
+			render: (trainee: Trainee) =>
+				trainee.created_at ? formatShortDisplayDate(trainee.created_at) : '-'
 		}
 	];
 
@@ -131,14 +133,6 @@
 		phone = '';
 		notes = '';
 		selectedTrainee = null;
-	}
-
-	function formatDate(dateString: string) {
-		return new Date(dateString).toLocaleDateString('tr-TR', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric'
-		});
 	}
 </script>
 

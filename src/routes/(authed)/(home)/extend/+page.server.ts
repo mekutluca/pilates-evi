@@ -23,6 +23,7 @@ import {
 } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { parseLocalDate } from '$lib/utils/date-utils';
+import { requireStaff } from '$lib/server/permissions';
 
 // Helper to get appointments for either private or group lessons
 async function getAppointmentsForPurchase(
@@ -260,12 +261,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 
 export const actions: Actions = {
 	extendPrivate: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const purchaseId = formData.get('purchase_id') as string;
@@ -429,12 +426,8 @@ export const actions: Actions = {
 	},
 
 	extendGroup: async ({ request, locals: { supabase, user, userRole } }) => {
-		if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const purchaseId = formData.get('purchase_id') as string;

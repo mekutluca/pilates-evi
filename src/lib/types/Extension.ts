@@ -33,13 +33,13 @@ export interface GroupLessonTimeslot {
 }
 
 // Inputs/outputs for the transactional pe_extend_purchase RPC
-export type ExtensionSlotChunk = {
+type ExtensionSlotChunk = {
 	room_id: string;
 	trainer_id: string;
 	slots: Array<{ date: string; hour: number }>;
 };
 
-export type ExtensionJoinChunk = {
+type ExtensionJoinChunk = {
 	appointment_ids: number[];
 };
 

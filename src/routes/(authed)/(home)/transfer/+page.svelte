@@ -21,7 +21,8 @@
 	import {
 		getDayOfWeekFromDate,
 		addWeeksToDate,
-		buildAppointmentSlots
+		buildAppointmentSlots,
+		formatShortDisplayDate
 	} from '$lib/utils/date-utils';
 	import { sortTimeSlotsSundayFirst } from '$lib/utils/slot-utils';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -466,18 +467,9 @@
 		}
 	}
 
-	function formatDate(dateString: string): string {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('tr-TR', {
-			day: 'numeric',
-			month: 'short',
-			year: 'numeric'
-		});
-	}
-
 	function formatDateWithDay(dateString: string): string {
 		const dayOfWeek = getDayOfWeekFromDate(dateString);
-		const formattedDate = formatDate(dateString);
+		const formattedDate = formatShortDisplayDate(dateString);
 		return dayOfWeek ? `${formattedDate}, ${DAY_NAMES[dayOfWeek as DayOfWeek]}` : formattedDate;
 	}
 </script>
@@ -962,7 +954,7 @@
 												<Table.Row>
 													<Table.Cell class="text-xs">
 														{#if conflict.date}
-															{formatDate(conflict.date)}
+															{formatShortDisplayDate(conflict.date)}
 														{:else}
 															-
 														{/if}

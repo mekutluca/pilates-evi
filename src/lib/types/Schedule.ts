@@ -130,7 +130,7 @@ export interface GroupLessonHorizonInfo {
 export type Appointment = Tables<'pe_appointments'>;
 
 // Types for appointment trainee relations
-export interface AppointmentTraineeRelation {
+interface AppointmentTraineeRelation {
 	id: string;
 	session_number: number | null;
 	total_sessions: number | null;
@@ -140,7 +140,7 @@ export interface AppointmentTraineeRelation {
 }
 
 // Package info with complete type definitions
-export interface PackageInfo {
+interface PackageInfo {
 	id?: string;
 	name?: string;
 	package_type?: string;
@@ -160,7 +160,7 @@ export interface AppointmentWarning {
 }
 
 // Purchase relation for appointments
-export interface PurchaseRelation {
+interface PurchaseRelation {
 	id: string;
 	reschedule_left: number | null;
 	successor_id?: string | null;
@@ -168,7 +168,7 @@ export interface PurchaseRelation {
 }
 
 // Group lesson relation for appointments
-export interface GroupLessonRelation {
+interface GroupLessonRelation {
 	id: string;
 	pe_packages?: PackageInfo | null;
 }
@@ -262,24 +262,24 @@ export type SlotColor =
 	| 'warning'
 	| 'destructive';
 
-export interface RescheduleSlotData {
+interface RescheduleSlotData {
 	roomId: string;
 	day: DayOfWeek;
 	hour: number;
 }
 
-export interface BaseSlotData {
+interface BaseSlotData {
 	day: DayOfWeek;
 	hour: number;
 	date: string; // ISO date string
 }
 
-export interface EmptySlot extends BaseSlotData {
+interface EmptySlot extends BaseSlotData {
 	variant: 'empty';
 	label?: string; // Optional label like "-" or "Müsait"
 }
 
-export interface AppointmentSlot extends BaseSlotData {
+interface AppointmentSlot extends BaseSlotData {
 	variant: 'appointment';
 	title: string; // Main text (e.g., trainer/room name)
 	subtitle?: string; // Optional subtitle (e.g., package name)
@@ -291,7 +291,7 @@ export interface AppointmentSlot extends BaseSlotData {
 	data?: AppointmentWithDetails | Appointment;
 }
 
-export interface AvailableSlot extends BaseSlotData {
+interface AvailableSlot extends BaseSlotData {
 	variant: 'available';
 	label?: string; // Optional label like "Seç" or "Müsait"
 	clickable?: boolean;
@@ -300,13 +300,13 @@ export interface AvailableSlot extends BaseSlotData {
 	data?: RescheduleSlotData;
 }
 
-export interface DisabledSlot extends BaseSlotData {
+interface DisabledSlot extends BaseSlotData {
 	variant: 'disabled';
 	label?: string; // Optional label like "Geçmiş" or "23s"
 	reason?: string; // Why it's disabled (for tooltip/accessibility)
 }
 
-export interface CustomSlot extends BaseSlotData {
+interface CustomSlot extends BaseSlotData {
 	variant: 'custom';
 	clickable?: boolean;
 	data?: Record<string, never>;

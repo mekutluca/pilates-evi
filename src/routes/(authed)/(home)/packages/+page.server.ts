@@ -1,16 +1,12 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { CreatePackageForm } from '$lib/types';
+import { requireAdmin } from '$lib/server/permissions';
 
 export const actions: Actions = {
 	createPackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Only admin users can create packages
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const packageFormJson = formData.get('packageData') as string;
@@ -98,13 +94,8 @@ export const actions: Actions = {
 	},
 
 	editPackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Only admin users can edit packages
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const packageId = formData.get('packageId') as string;
@@ -179,13 +170,8 @@ export const actions: Actions = {
 	},
 
 	archivePackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Only admin users can archive packages
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const packageId = formData.get('packageId') as string;
@@ -216,13 +202,8 @@ export const actions: Actions = {
 	},
 
 	restorePackage: async ({ request, locals: { supabase, user, userRole } }) => {
-		// Only admin users can restore packages
-		if (!user || userRole !== 'admin') {
-			return fail(403, {
-				success: false,
-				message: 'Bu işlemi gerçekleştirmek için yetkiniz yok'
-			});
-		}
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const packageId = formData.get('packageId') as string;
