@@ -44,6 +44,7 @@
 		reschedule_limit = undefined;
 	}
 
+	// svelte-ignore state_referenced_locally
 	let previouslyVisible = $state(isVisible);
 
 	$effect(() => {

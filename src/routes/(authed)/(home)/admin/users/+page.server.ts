@@ -1,15 +1,17 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { requireAdmin } from '$lib/server/permissions';
+import { requireAdmin, requireAdminClient } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
-	locals: { admin, user, userRole, organizationId }
+	locals: { admin: adminClient, user, userRole, organizationId }
 }) => {
 	// Ensure only admin users can access this page
 	if (!user || userRole !== 'admin') {
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
+
+	const admin = requireAdminClient(adminClient);
 
 	if (!organizationId) {
 		throw error(400, 'Organizasyon bilgisi bulunamadı');
@@ -49,9 +51,14 @@ export const load: PageServerLoad = async ({
 };
 
 export const actions: Actions = {
-	createUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
+	createUser: async ({
+		request,
+		locals: { admin: adminClient, user, userRole, organizationId }
+	}) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
+
+		const admin = requireAdminClient(adminClient);
 
 		if (!organizationId) {
 			return fail(400, {
@@ -114,9 +121,14 @@ export const actions: Actions = {
 		};
 	},
 
-	updateUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
+	updateUser: async ({
+		request,
+		locals: { admin: adminClient, user, userRole, organizationId }
+	}) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
+
+		const admin = requireAdminClient(adminClient);
 
 		if (!organizationId) {
 			return fail(400, {
@@ -178,9 +190,14 @@ export const actions: Actions = {
 		};
 	},
 
-	removeUser: async ({ request, locals: { admin, user, userRole, organizationId } }) => {
+	removeUser: async ({
+		request,
+		locals: { admin: adminClient, user, userRole, organizationId }
+	}) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
+
+		const admin = requireAdminClient(adminClient);
 
 		if (!organizationId) {
 			return fail(400, {
@@ -227,9 +244,11 @@ export const actions: Actions = {
 		};
 	},
 
-	resetPassword: async ({ request, locals: { admin, user, userRole } }) => {
+	resetPassword: async ({ request, locals: { admin: adminClient, user, userRole } }) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
+
+		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId') as string;

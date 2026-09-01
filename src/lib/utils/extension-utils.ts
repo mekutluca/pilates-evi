@@ -1,4 +1,4 @@
-import type { Json } from '$lib/database.types';
+import type { Json } from '$lib/types/database.types';
 import type { Purchase } from '$lib/types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';

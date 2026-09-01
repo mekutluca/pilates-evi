@@ -21,7 +21,7 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 - `src/hooks.server.ts` - Server hooks handling auth and route protection
 - `src/lib/types/Route.ts` - Route definitions with role-based access control
 - `src/routes/+layout.ts` - Creates the typed browser/server Supabase client exposed to pages as `data.supabase`
-- `src/lib/database.types.ts` - TypeScript types generated from Supabase schema
+- `src/lib/types/database.types.ts` - TypeScript types generated from Supabase schema (regenerate with `npm run gen:db-types`; filtered to `pe_`-prefixed objects)
 
 ### Component Architecture
 

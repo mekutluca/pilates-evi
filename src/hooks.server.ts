@@ -1,12 +1,25 @@
 import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import { PRIVATE_SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { PRIVATE_SUPABASE_SECRET_KEY } from '$env/static/private';
 import type { Role } from '$lib/types';
-import type { Database } from '$lib/database.types';
+import type { Database } from '$lib/types/database.types';
 import { allRoutes } from '$lib/types/Route';
 import { defaultErrorMessage } from '$lib/utils/errors';
+
+// Privileged client for server-only user management (creating accounts,
+// pe_user_organizations membership, admin password resets). Deliberately
+// sessionless: giving it the request cookies would make it send the signed-in
+// user's JWT instead of the secret key, re-enabling RLS. Never expose it to the
+// client and never use it for reads the RLS client can do. With the key unset
+// the rest of the app still works; only the user-management actions fail.
+const adminClient = PRIVATE_SUPABASE_SECRET_KEY
+	? createClient<Database>(PUBLIC_SUPABASE_URL, PRIVATE_SUPABASE_SECRET_KEY, {
+			auth: { autoRefreshToken: false, persistSession: false }
+		})
+	: undefined;
 
 const supabase: Handle = async ({ event, resolve }) => {
 	/**
@@ -34,30 +47,7 @@ const supabase: Handle = async ({ event, resolve }) => {
 		}
 	);
 
-	/**
-	 * Creates a Supabase client specific to this server request.
-	 *
-	 * The Supabase client gets the Auth token from the request cookies.
-	 */
-	event.locals.admin = createServerClient<Database>(
-		PUBLIC_SUPABASE_URL,
-		PRIVATE_SUPABASE_SERVICE_ROLE_KEY,
-		{
-			cookies: {
-				getAll: () => event.cookies.getAll(),
-				/**
-				 * SvelteKit's cookies API requires `path` to be explicitly set in
-				 * the cookie options. Setting `path` to `/` replicates previous/
-				 * standard behavior.
-				 */
-				setAll: (cookiesToSet) => {
-					cookiesToSet.forEach(({ name, value, options }) => {
-						event.cookies.set(name, value, { ...options, path: '/' });
-					});
-				}
-			}
-		}
-	);
+	event.locals.admin = adminClient;
 
 	/**
 	 * Unlike `supabase.auth.getSession()`, which returns the session _without_
@@ -105,8 +95,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	let organizationId: string | null = null;
 	if (user) {
 		const appMetadata = user.app_metadata as
-			| { organization_role?: string; organization_id?: string }
-			| undefined;
+			{ organization_role?: string; organization_id?: string } | undefined;
 		const role = appMetadata?.organization_role?.replace('pe_', '');
 		userRole = role ? (role as Role) : null;
 		organizationId = appMetadata?.organization_id ?? null;

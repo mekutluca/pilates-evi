@@ -1,5 +1,5 @@
 // Centralized type exports for the Pilates Evi application
-import type { Tables } from '$lib/database.types';
+import type { Tables } from '$lib/types/database.types';
 import Users from '@lucide/svelte/icons/users';
 
 // ===============================================

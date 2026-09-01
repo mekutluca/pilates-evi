@@ -23,7 +23,8 @@ export class SchedulingService {
 		if (error) {
 			throw new Error(`Atama oluşturulamadı: ${error.message}`);
 		}
-		return data;
+		// The RPC returns jsonb; its shape is fixed by the SQL function body.
+		return data as AssignmentResult;
 	}
 
 	/**
@@ -40,6 +41,7 @@ export class SchedulingService {
 		if (error) {
 			throw new Error(`Grup dersi sonlandırılamadı: ${error.message}`);
 		}
-		return data;
+		// The RPC returns jsonb; its shape is fixed by the SQL function body.
+		return data as { deleted_count: number };
 	}
 }

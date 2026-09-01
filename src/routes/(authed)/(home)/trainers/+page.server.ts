@@ -3,9 +3,10 @@ import type { Actions, PageServerLoad } from './$types';
 import type { TrainerWithEmail } from '$lib/types';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
-import { requireAdmin, requireStaff } from '$lib/server/permissions';
+import { requireAdmin, requireAdminClient, requireStaff } from '$lib/server/permissions';
 
-export const load: PageServerLoad = async ({ locals: { admin }, parent }) => {
+export const load: PageServerLoad = async ({ locals: { admin: adminClient }, parent }) => {
+	const admin = requireAdminClient(adminClient);
 	const { trainers } = await parent();
 
 	// Trainer emails live in auth.users; fetch all org users in one call
@@ -24,10 +25,12 @@ export const load: PageServerLoad = async ({ locals: { admin }, parent }) => {
 export const actions: Actions = {
 	createTrainer: async ({
 		request,
-		locals: { supabase, admin, user, userRole, organizationId }
+		locals: { supabase, admin: adminClient, user, userRole, organizationId }
 	}) => {
 		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
+
+		const admin = requireAdminClient(adminClient);
 
 		if (!organizationId) {
 			return fail(400, {
@@ -133,9 +136,11 @@ export const actions: Actions = {
 		};
 	},
 
-	archiveTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
+	archiveTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
 		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
+
+		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
@@ -195,9 +200,11 @@ export const actions: Actions = {
 		};
 	},
 
-	restoreTrainer: async ({ request, locals: { supabase, admin, user, userRole } }) => {
+	restoreTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
 		const permissionError = requireStaff(user, userRole);
 		if (permissionError) return permissionError;
+
+		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
@@ -233,9 +240,11 @@ export const actions: Actions = {
 		};
 	},
 
-	resetPassword: async ({ request, locals: { admin, user, userRole } }) => {
+	resetPassword: async ({ request, locals: { admin: adminClient, user, userRole } }) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
+
+		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');

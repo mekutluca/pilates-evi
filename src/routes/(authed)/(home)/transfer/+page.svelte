@@ -42,8 +42,10 @@
 	const isTraineeShiftMode = $derived(!!data.traineeInfo);
 
 	// Form state - initialize based on trainee mode
+	// svelte-ignore state_referenced_locally
 	let operation = $state<TransferOperation>(data.traineeInfo ? 'shift' : 'transfer');
 	let shiftMode = $state<ShiftMode>('by_time');
+	// svelte-ignore state_referenced_locally
 	let scope = $state<TransferScope>(data.traineeInfo ? 'from_selected' : 'single');
 	let selectedRoomId = $state('');
 	let selectedTrainerId = $state('');
@@ -98,7 +100,6 @@
 
 	// Auto-check conflicts when selections change
 	$effect(() => {
-		/* eslint-disable @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity */
 		operation;
 		shiftMode;
 		scope;
@@ -106,7 +107,6 @@
 		selectedTrainerId;
 		weeksToShift;
 		slotsToShift;
-		/* eslint-enable @typescript-eslint/no-unused-expressions */
 
 		const bothSelected = untrack(() => hasBothSelected);
 		const shiftByTime = untrack(() => isShiftByTimeMode);
@@ -276,7 +276,6 @@
 			} else if (isShiftBySlotMode) {
 				// Extract the time slot pattern (day of week + hour) from existing appointments
 				const rawTimeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
-				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 				const seenSlots = new Set<string>();
 
 				for (const apt of validAppointments) {

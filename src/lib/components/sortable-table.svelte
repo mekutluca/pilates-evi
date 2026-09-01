@@ -37,9 +37,12 @@
 		itemsPerPage = 10
 	}: Props = $props();
 
+	// svelte-ignore state_referenced_locally
 	let sortKey = $state(defaultSortKey);
+	// svelte-ignore state_referenced_locally
 	let sortOrder = $state<'asc' | 'desc'>(defaultSortOrder);
 	let currentPage = $state(1);
+	// svelte-ignore state_referenced_locally
 	let pageSize = $state(itemsPerPage);
 
 	const filteredAndSortedData = $derived(() => {
@@ -170,7 +173,6 @@
 	}
 
 	$effect(() => {
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity
 		searchTerm;
 		currentPage = 1;
 	});
@@ -252,7 +254,6 @@
 											{@const Component = column.renderComponent}
 											<Component {item} index={globalIndex} />
 										{:else if column.render}
-											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 											{@html getColumnValue(item, column, globalIndex)}
 										{:else}
 											{getColumnValue(item, column, globalIndex)}
@@ -263,18 +264,16 @@
 									{@const itemActions = typeof actions === 'function' ? actions(item) : actions}
 									<Table.Cell class="text-right" onclick={(e: MouseEvent) => e.stopPropagation()}>
 										<ActionMenu
-											actions={itemActions.map(
-												(action): ActionItem => ({
-													...action,
-													handler: async () => {
-														const id =
-															typeof item === 'object' && item && 'id' in item
-																? (item.id as number | string)
-																: undefined;
-														await action.handler(id);
-													}
-												})
-											)}
+											actions={itemActions.map((action): ActionItem => ({
+												...action,
+												handler: async () => {
+													const id =
+														typeof item === 'object' && item && 'id' in item
+															? (item.id as number | string)
+															: undefined;
+													await action.handler(id);
+												}
+											}))}
 										/>
 									</Table.Cell>
 								{/if}

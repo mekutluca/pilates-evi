@@ -20,6 +20,7 @@
 		return d.toDate(getLocalTimeZone());
 	}
 
+	// svelte-ignore state_referenced_locally
 	let calendarValue = $state<DateValue>(dateToCalendarDate(value));
 	let minValue = $derived(minDate ? dateToCalendarDate(minDate) : undefined);
 	let todayDisabled = $derived(!!minValue && today(getLocalTimeZone()).compare(minValue) < 0);

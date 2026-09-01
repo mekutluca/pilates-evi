@@ -489,8 +489,7 @@
 <!-- Reset Password Modal -->
 <Modal bind:open={showResetPasswordModal} title="Şifre Sıfırla" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainer?.name}</strong> adlı eğitmenin şifresini sıfırlamak istediğinizden emin
-		misiniz?
+		<strong>{selectedTrainer?.name}</strong> adlı eğitmenin şifresini sıfırlamak istediğinizden emin misiniz?
 	</p>
 	<form
 		method="POST"

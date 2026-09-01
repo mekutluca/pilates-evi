@@ -266,8 +266,7 @@ export const actions: Actions = {
 
 		// Send WhatsApp reschedule notification
 		const appointmentTrainees = currentAppointment.pe_appointment_trainees as
-			| Array<{ pe_trainees: { phone: string } | null }>
-			| undefined;
+			Array<{ pe_trainees: { phone: string } | null }> | undefined;
 		const trainees = (appointmentTrainees ?? [])
 			.map((at) => at.pe_trainees)
 			.filter((t): t is { phone: string } => t !== null && !!t.phone);

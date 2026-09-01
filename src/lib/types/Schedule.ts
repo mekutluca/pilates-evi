@@ -1,13 +1,7 @@
 import type { Appointment } from './index';
 
 export type DayOfWeek =
-	| 'monday'
-	| 'tuesday'
-	| 'wednesday'
-	| 'thursday'
-	| 'friday'
-	| 'saturday'
-	| 'sunday';
+	'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 // Decision applied to trainees attached to an appointment that is being cancelled
 export type CancelTraineeAction = 'shift' | 'remove';
@@ -250,13 +244,7 @@ export function getTimeRangeString(hour: number): string {
 // ===============================================
 
 export type SlotColor =
-	| 'primary'
-	| 'secondary'
-	| 'accent'
-	| 'info'
-	| 'success'
-	| 'warning'
-	| 'destructive';
+	'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'destructive';
 
 interface RescheduleSlotData {
 	roomId: string;

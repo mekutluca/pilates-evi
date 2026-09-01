@@ -676,7 +676,6 @@
 		const slotDates: string[] = [];
 
 		for (let week = 0; week < weeksDuration; week++) {
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local computation, not reactive state
 			const weekStart = new Date(startDate);
 			weekStart.setDate(startDate.getDate() + week * 7);
 			const slotDate = getDateForDayOfWeek(weekStart, day);
@@ -820,7 +819,6 @@
 
 	// Reset page when search term changes
 	$effect(() => {
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- Dependency tracking for Svelte 5 reactivity
 		traineeSearchTerm;
 		traineeCurrentPage = 1;
 	});
@@ -1376,8 +1374,7 @@
 									{#if selectedPackage.package_type === 'group' && createNewGroupLesson}
 										{selectedTimeSlots.length} zaman dilimi seçildi
 									{:else}
-										{formatSelectionCounter(selectedTimeSlots.length, selectedPackage)} zaman dilimi
-										seçildi
+										{formatSelectionCounter(selectedTimeSlots.length, selectedPackage)} zaman dilimi seçildi
 									{/if}
 								</div>
 							{/if}

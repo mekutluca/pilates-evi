@@ -62,7 +62,8 @@ export class PurchaseRepository {
 		if (error) {
 			throw new Error(`Uzatma işlemi başarısız: ${error.message}`);
 		}
-		return data;
+		// The RPC returns jsonb; its shape is fixed by the SQL function body.
+		return data as ExtensionResult;
 	}
 
 	/**
