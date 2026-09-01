@@ -21,6 +21,12 @@ const adminClient = PRIVATE_SUPABASE_SECRET_KEY
 		})
 	: undefined;
 
+// adapter-node runs a long-lived process: an unhandled rejection would exit it
+// (Node's default) and take every in-flight request down. Log instead.
+process.on('unhandledRejection', (reason) => {
+	console.error('Unhandled rejection (server kept alive):', reason);
+});
+
 const supabase: Handle = async ({ event, resolve }) => {
 	/**
 	 * Creates a Supabase client specific to this server request.

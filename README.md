@@ -1,38 +1,29 @@
-# sv
+# pilates-evi
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
+Pilates studio management app — SvelteKit 2 / Svelte 5, Supabase, Tailwind 4 + shadcn-svelte.
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
 ```sh
+npm install
+cp .env.example .env   # fill in the Supabase keys
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+`npm run check` type-checks, `npm run lint` runs Prettier, `npm run gen:db-types`
+regenerates `src/lib/types/database.types.ts` from the linked Supabase project.
 
-To create a production version of your app:
+## Deploying (adapter-node)
 
 ```sh
+npm ci
 npm run build
+node --env-file=.env build   # serves on PORT (default 3000)
 ```
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+The built server in `build/` reads its configuration from the process environment:
+`PUBLIC_SUPABASE_*` and `PRIVATE_SUPABASE_SECRET_KEY` are baked in at build time
+(`$env/static/*`), while `ORIGIN`, `PORT`, `HOST` and `BODY_SIZE_LIMIT` are read at
+runtime. Set `ORIGIN` to the public URL (e.g. `https://pilates.example.com`) or form
+submissions are rejected as cross-site. Put it behind a reverse proxy (nginx/Caddy)
+that terminates TLS and forwards to `PORT`, and keep it alive with systemd or pm2.
