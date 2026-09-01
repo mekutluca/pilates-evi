@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="tr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="theme-color" content="#c2410c" />
+		<title>Hata %sveltekit.status% · Pilates Evi</title>
+		<!--
+			Last-resort fallback: served only when the app shell itself cannot render
+			(root layout failing, error page crashing). Colors follow the app's
+			stone/orange palette from src/app.css.
+		-->
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+			html,
+			body {
+				height: 100%;
+				font-family:
+					-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+				background: #ffffff;
+				color: #1c1917;
+				-webkit-font-smoothing: antialiased;
+			}
+			body {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+				padding-top: max(24px, env(safe-area-inset-top));
+				padding-bottom: max(24px, env(safe-area-inset-bottom));
+			}
+			main {
+				text-align: center;
+				max-width: 320px;
+			}
+			.brand {
+				font-size: 1.125rem;
+				font-weight: 600;
+				margin-bottom: 24px;
+			}
+			.code {
+				font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+				font-size: 0.75rem;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				color: #a8a29e;
+				margin-bottom: 8px;
+			}
+			h1 {
+				font-size: 1.375rem;
+				font-weight: 700;
+				margin-bottom: 8px;
+				letter-spacing: -0.01em;
+			}
+			p {
+				font-size: 0.95rem;
+				color: #78716c;
+				line-height: 1.5;
+				margin-bottom: 24px;
+			}
+			a.button {
+				display: inline-block;
+				background: #c2410c;
+				color: #ffffff;
+				text-decoration: none;
+				border-radius: 10px;
+				padding: 12px 28px;
+				font-size: 0.95rem;
+				font-weight: 600;
+				transition: opacity 0.15s;
+			}
+			a.button:hover,
+			a.button:focus-visible {
+				opacity: 0.88;
+			}
+			a.button:active {
+				opacity: 0.75;
+			}
+			@media (prefers-color-scheme: dark) {
+				html,
+				body {
+					background: #0c0a09;
+					color: #fafaf9;
+				}
+				p {
+					color: #a8a29e;
+				}
+				.code {
+					color: #78716c;
+				}
+				a.button {
+					background: #9a3412;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<div class="brand">Pilates Evi</div>
+			<div class="code">Hata %sveltekit.status%</div>
+			<h1>Bir şeyler ters gitti</h1>
+			<p>%sveltekit.error.message%</p>
+			<a class="button" href="/">Ana sayfaya dön</a>
+		</main>
+	</body>
+</html>

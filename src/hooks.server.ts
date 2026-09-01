@@ -1,10 +1,11 @@
-import { redirect, type Handle } from '@sveltejs/kit';
+import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { createServerClient } from '@supabase/ssr';
 import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { PRIVATE_SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import type { Role } from '$lib/types';
 import { allRoutes } from '$lib/types/Route';
+import { defaultErrorMessage } from '$lib/utils/errors';
 
 const supabase: Handle = async ({ event, resolve }) => {
 	/**
@@ -129,3 +130,13 @@ const authGuard: Handle = async ({ event, resolve }) => {
 };
 
 export const handle: Handle = sequence(supabase, authGuard);
+
+// Unexpected server errors (thrown by `load`/actions, or an unhandled 404)
+// render +error.svelte; log everything but 404s and hand the page a generic
+// Turkish message instead of SvelteKit's English default.
+export const handleError: HandleServerError = ({ error, event, status, message }) => {
+	if (status !== 404) {
+		console.error(`[${status}] ${event.request.method} ${event.url.pathname}: ${message}`, error);
+	}
+	return { message: defaultErrorMessage(status) };
+};
