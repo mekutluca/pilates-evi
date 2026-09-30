@@ -1,21 +1,15 @@
 <script lang="ts">
+	import type { SearchInputProps } from '$lib/types/ComponentProps';
 	import X from '@lucide/svelte/icons/x';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-
-	interface Props {
-		value: string;
-		placeholder?: string;
-		clearTitle?: string;
-		classes?: string;
-	}
 
 	let {
 		value = $bindable(''),
 		placeholder = '',
 		clearTitle = 'Aramayı temizle',
 		classes = ''
-	}: Props = $props();
+	}: SearchInputProps = $props();
 
 	function clear() {
 		value = '';

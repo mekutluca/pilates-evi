@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ScheduleProps } from '$lib/types/ComponentProps';
 	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
 	import { getDateForDayOfWeek, formatDayMonth } from '$lib/utils';
 	import { cn } from '$lib/utils';
@@ -7,33 +8,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import type { ScheduleSlot, DayOfWeek, SlotColor } from '$lib/types/Schedule';
-	import type { Snippet } from 'svelte';
-
-	// Component props
-	interface Props {
-		// Week to display
-		weekStart: Date;
-
-		// Header info (shown above the schedule grid)
-		entityName: string;
-		entityBadge?: {
-			text: string;
-			color?: SlotColor;
-		};
-
-		// Slot data provider - called for each day/hour combination
-		getSlotData: (day: DayOfWeek, hour: number, date: string) => ScheduleSlot;
-
-		// Event handlers
-		onSlotClick?: (slot: ScheduleSlot) => void;
-
-		// Optional custom slot renderer (for 'custom' variant)
-		customSlotRenderer?: Snippet<[ScheduleSlot]>;
-
-		// Optional alert banner above schedule (for reschedule mode, etc.)
-		alertBanner?: Snippet;
-	}
+	import type { ScheduleSlot, SlotColor } from '$lib/types/Schedule';
 
 	let {
 		weekStart,
@@ -43,7 +18,7 @@
 		onSlotClick,
 		customSlotRenderer,
 		alertBanner
-	}: Props = $props();
+	}: ScheduleProps = $props();
 
 	const colorClasses: Record<SlotColor, { solid: string; soft: string; text: string }> = {
 		primary: {

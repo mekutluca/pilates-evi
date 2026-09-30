@@ -1,15 +1,8 @@
 <script lang="ts">
-	import type { ActionItem } from '$lib/types';
+	import type { StatCardProps } from '$lib/types/ComponentProps';
 	import * as Card from '$lib/components/ui/card/index.js';
 
-	interface Props {
-		title: string;
-		value: number | string;
-		icon: ActionItem['icon'];
-		description?: string;
-	}
-
-	let { title, value, icon, description }: Props = $props();
+	let { title, value, icon, description }: StatCardProps = $props();
 </script>
 
 <Card.Root>

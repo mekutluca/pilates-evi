@@ -1,22 +1,16 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { CardSkeletonProps } from '$lib/types/ComponentProps';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { cn } from '$lib/utils';
 
-	interface Props {
-		/** Number of placeholder rows rendered when no children are provided */
-		rows?: number;
-		/** Classes applied to each placeholder row (e.g. to change height) */
-		rowClass?: string;
-		/** Render a card title placeholder */
-		title?: boolean;
-		class?: string;
-		/** Custom skeleton content replacing the default rows */
-		children?: Snippet;
-	}
-
-	let { rows = 3, rowClass, title = true, class: className, children }: Props = $props();
+	let {
+		rows = 3,
+		rowClass,
+		title = true,
+		class: className,
+		children
+	}: CardSkeletonProps = $props();
 </script>
 
 <Card.Root class={className}>

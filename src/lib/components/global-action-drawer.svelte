@@ -1,15 +1,11 @@
 <script lang="ts">
+	import type { GlobalActionDrawerProps } from '$lib/types/ComponentProps';
 	import type { ActionItem } from '$lib/types';
 	import * as Drawer from '$lib/components/ui/drawer/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { cn } from '$lib/utils/class-utils';
 
-	interface Props {
-		isOpen: boolean;
-		actions: ActionItem[];
-	}
-
-	let { isOpen = $bindable(), actions }: Props = $props();
+	let { isOpen = $bindable(), actions }: GlobalActionDrawerProps = $props();
 
 	async function handleAction(action: ActionItem) {
 		try {

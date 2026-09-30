@@ -12,7 +12,6 @@
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import CalendarX2 from '@lucide/svelte/icons/calendar-x-2';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
-	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { enhance } from '$app/forms';
@@ -76,16 +75,11 @@
 </svelte:head>
 
 <div class="space-y-6 p-6">
-	<div>
-		<Button variant="ghost" size="sm" href="/operations" class="mb-2 -ml-2">
-			<ChevronLeft size={16} />
-			Operasyonlar
-		</Button>
-		<PageHeader
-			title="Günü İptal Et"
-			subtitle="Seçilen gündeki tüm randevular bir sonraki uygun zamana kaydırılır ve öğrencilere bilgi mesajı gönderilir."
-		/>
-	</div>
+	<PageHeader
+		back={{ href: '/operations', label: 'Operasyonlar' }}
+		title="Günü İptal Et"
+		subtitle="Seçilen gündeki tüm randevular bir sonraki uygun zamana kaydırılır ve öğrencilere bilgi mesajı gönderilir."
+	/>
 
 	<Card.Root class="overflow-visible">
 		<Card.Content class="space-y-6">

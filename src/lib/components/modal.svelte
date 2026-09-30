@@ -1,17 +1,7 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { ModalProps } from '$lib/types/ComponentProps';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { cn } from '$lib/utils/class-utils';
-
-	interface Props {
-		open: boolean;
-		onClose?: () => void;
-		title?: string;
-		size?: 'sm' | 'md' | 'lg' | 'xl';
-		children: Snippet;
-		/** Actions rendered next to the title; kept clear of the close button. */
-		headerActions?: Snippet;
-	}
 
 	let {
 		open = $bindable(),
@@ -20,7 +10,7 @@
 		size = 'md',
 		children,
 		headerActions
-	}: Props = $props();
+	}: ModalProps = $props();
 
 	const sizeClasses = {
 		sm: 'max-w-sm',

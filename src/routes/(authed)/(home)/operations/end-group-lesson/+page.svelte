@@ -13,7 +13,6 @@
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import CalendarOff from '@lucide/svelte/icons/calendar-off';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
-	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { enhance } from '$app/forms';
@@ -103,16 +102,11 @@
 </svelte:head>
 
 <div class="space-y-6 p-6">
-	<div>
-		<Button variant="ghost" size="sm" href="/operations" class="mb-2 -ml-2">
-			<ChevronLeft size={16} />
-			Operasyonlar
-		</Button>
-		<PageHeader
-			title="Grup Dersini Sonlandır"
-			subtitle="Seçilen grup dersi belirtilen tarihte sonlandırılır; o tarihten itibaren oluşturulmuş boş randevular silinir."
-		/>
-	</div>
+	<PageHeader
+		back={{ href: '/operations', label: 'Operasyonlar' }}
+		title="Grup Dersini Sonlandır"
+		subtitle="Seçilen grup dersi belirtilen tarihte sonlandırılır; o tarihten itibaren oluşturulmuş boş randevular silinir."
+	/>
 
 	<div class="grid gap-2">
 		<Label id="group-lesson-label" class="font-semibold">Grup Dersi</Label>

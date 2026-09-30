@@ -1,4 +1,5 @@
 <script lang="ts">
+	import BackButton from '$lib/components/back-button.svelte';
 	import type { PageData } from './$types';
 	import type {
 		TransferScope,
@@ -482,6 +483,7 @@
 		<!-- Header with Action Button -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 			<div>
+				<BackButton href="/schedule" label="Haftalık Program" />
 				<h1 class="flex items-center gap-2 text-2xl font-bold">
 					{#if isShiftMode}
 						<CalendarArrowUp class="h-6 w-6 text-warning" />

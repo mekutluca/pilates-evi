@@ -1,12 +1,8 @@
 <script lang="ts">
+	import type { PageHeaderSkeletonProps } from '$lib/types/ComponentProps';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 
-	interface Props {
-		subtitle?: boolean;
-		actions?: boolean;
-	}
-
-	let { subtitle = true, actions = false }: Props = $props();
+	let { subtitle = true, actions = false }: PageHeaderSkeletonProps = $props();
 </script>
 
 <div class="flex items-center justify-between">

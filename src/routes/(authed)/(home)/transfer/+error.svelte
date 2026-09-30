@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import { Button } from '$lib/components/ui/button/index.js';
 
-	const errorStatus = $derived($page.status);
-	const errorMessage = $derived($page.error?.message || 'Bir hata oluştu');
+	const errorStatus = $derived(page.status);
+	const errorMessage = $derived(page.error?.message || 'Bir hata oluştu');
 </script>
 
 <svelte:head>

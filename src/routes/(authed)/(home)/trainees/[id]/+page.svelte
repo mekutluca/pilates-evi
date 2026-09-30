@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
 	import Calendar from '@lucide/svelte/icons/calendar';
@@ -13,6 +12,7 @@
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import BackButton from '$lib/components/back-button.svelte';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
@@ -126,49 +126,47 @@
 </svelte:head>
 
 <div class="space-y-6 p-6">
-	<!-- Back button -->
-	<Button variant="ghost" size="sm" onclick={() => history.back()}>
-		<ChevronLeft size={20} />
-	</Button>
+	<div>
+		<BackButton href="/trainees" label="Öğrenciler" />
+		{#if trainee}
+			<!-- Header -->
+			<div class="flex items-center justify-between">
+				<div class="flex items-center gap-3">
+					<PageHeader title={trainee.name} subtitle="Öğrenci Detayları" />
+					{#if !trainee.is_active}
+						<Badge variant="destructive">Arşivlendi</Badge>
+					{/if}
+				</div>
+				<div class="flex gap-2">
+					{#if editMode}
+						<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={saving}>
+							<X size={16} />
+							İptal
+						</Button>
+						<Button type="submit" form="trainee-form" size="sm" disabled={saving}>
+							{#if saving}
+								<LoaderCircle size={16} class="animate-spin" />
+							{:else}
+								<Save size={16} />
+							{/if}
+							Kaydet
+						</Button>
+					{:else}
+						<Button size="sm" onclick={toggleEditMode} disabled={saving}>
+							<Edit size={16} />
+							Düzenle
+						</Button>
+					{/if}
 
-	{#if trainee}
-		<!-- Header -->
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-3">
-				<PageHeader title={trainee.name} subtitle="Öğrenci Detayları" />
-				{#if !trainee.is_active}
-					<Badge variant="destructive">Arşivlendi</Badge>
-				{/if}
+					<ActionMenu actions={menuActions} />
+				</div>
 			</div>
-			<div class="flex gap-2">
-				{#if editMode}
-					<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={saving}>
-						<X size={16} />
-						İptal
-					</Button>
-					<Button type="submit" form="trainee-form" size="sm" disabled={saving}>
-						{#if saving}
-							<LoaderCircle size={16} class="animate-spin" />
-						{:else}
-							<Save size={16} />
-						{/if}
-						Kaydet
-					</Button>
-				{:else}
-					<Button size="sm" onclick={toggleEditMode} disabled={saving}>
-						<Edit size={16} />
-						Düzenle
-					</Button>
-				{/if}
-
-				<ActionMenu actions={menuActions} />
-			</div>
-		</div>
-	{:else if trainee === undefined}
-		<PageHeaderSkeleton actions />
-	{:else}
-		<PageHeader title="Öğrenci" subtitle="Öğrenci Detayları" />
-	{/if}
+		{:else if trainee === undefined}
+			<PageHeaderSkeleton actions />
+		{:else}
+			<PageHeader title="Öğrenci" subtitle="Öğrenci Detayları" />
+		{/if}
+	</div>
 
 	{#if trainee}
 		<!-- Personal Details and Notes Row -->

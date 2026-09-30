@@ -1,18 +1,12 @@
 <script lang="ts">
+	import type { ActionMenuProps } from '$lib/types/ComponentProps';
 	import MoreVertical from '@lucide/svelte/icons/more-vertical';
 	import { getActionDrawerContext } from '$lib/stores/action-drawer.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 
-	interface Props {
-		actions: ActionItem[];
-		trigger?: ActionItem['icon'];
-		triggerClass?: string;
-		onOpenDrawer?: (detail: { actions: ActionItem[] }) => void;
-	}
-
-	let { actions, trigger = MoreVertical, triggerClass, onOpenDrawer }: Props = $props();
+	let { actions, trigger = MoreVertical, triggerClass, onOpenDrawer }: ActionMenuProps = $props();
 
 	const drawerContext = getActionDrawerContext();
 

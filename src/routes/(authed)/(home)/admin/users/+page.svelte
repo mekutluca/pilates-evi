@@ -166,6 +166,7 @@
 
 <div class="p-6">
 	<PageHeader
+		back={{ href: '/', label: 'Panel' }}
 		title="Yetkili Kullanıcılar"
 		subtitle="Bu sayfada adminleri ve koordinatörleri yönetin"
 	/>

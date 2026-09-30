@@ -1,16 +1,14 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { PageHeaderProps } from '$lib/types/ComponentProps';
+	import BackButton from '$lib/components/back-button.svelte';
 
-	interface Props {
-		title: string;
-		subtitle?: string;
-		children?: Snippet;
-	}
-
-	let { title, subtitle = '', children }: Props = $props();
+	let { title, subtitle = '', back, children }: PageHeaderProps = $props();
 </script>
 
 <div class="mb-6">
+	{#if back}
+		<BackButton href={back.href} label={back.label} />
+	{/if}
 	<h1 class="text-3xl font-bold">{title}</h1>
 	{#if subtitle}
 		<p class="mt-2 text-muted-foreground">{subtitle}</p>

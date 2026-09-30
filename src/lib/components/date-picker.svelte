@@ -1,16 +1,10 @@
 <script lang="ts">
+	import type { DatePickerProps } from '$lib/types/ComponentProps';
 	import { Calendar } from '$lib/components/ui/calendar/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { CalendarDate, type DateValue, getLocalTimeZone, today } from '@internationalized/date';
 
-	interface Props {
-		value: Date;
-		onDateSelect: (date: Date) => void;
-		onClose?: () => void;
-		minDate?: Date;
-	}
-
-	let { value, onDateSelect, onClose, minDate }: Props = $props();
+	let { value, onDateSelect, onClose, minDate }: DatePickerProps = $props();
 
 	function dateToCalendarDate(d: Date): CalendarDate {
 		return new CalendarDate(d.getFullYear(), d.getMonth() + 1, d.getDate());

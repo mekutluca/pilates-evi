@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CreatePackageForm } from '$lib/types';
+	import type { PackageCreationFormProps } from '$lib/types/ComponentProps';
 	import Medal from '@lucide/svelte/icons/medal';
 	import CalendarSync from '@lucide/svelte/icons/calendar-sync';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
@@ -12,14 +12,7 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 
-	// Props
-	interface Props {
-		onSubmit: (form: CreatePackageForm) => void;
-		onCancel: () => void;
-		isVisible?: boolean;
-	}
-
-	const { onSubmit, onCancel, isVisible = true }: Props = $props();
+	const { onSubmit, onCancel, isVisible = true }: PackageCreationFormProps = $props();
 
 	// Local state for form fields
 	let name = $state('');

@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+	import type { SortableTableProps } from '$lib/types/ComponentProps';
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { flip } from 'svelte/animate';
@@ -11,19 +12,6 @@
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import { cn } from '$lib/utils/class-utils';
 
-	interface Props {
-		data: T[];
-		columns: Column<T>[];
-		searchTerm?: string;
-		emptyMessage?: string;
-		defaultSortKey?: string;
-		defaultSortOrder?: 'asc' | 'desc';
-		actions?: ActionItem[] | ((item: T) => ActionItem[]);
-		actionsTitle?: string;
-		onRowClick?: (item: T) => void;
-		itemsPerPage?: number;
-	}
-
 	let {
 		data,
 		columns,
@@ -35,7 +23,7 @@
 		actionsTitle = 'İşlemler',
 		onRowClick,
 		itemsPerPage = 10
-	}: Props = $props();
+	}: SortableTableProps<T> = $props();
 
 	// svelte-ignore state_referenced_locally
 	let sortKey = $state(defaultSortKey);
@@ -191,6 +179,18 @@
 		pageSize = Number(target.value);
 		currentPage = 1;
 	}
+
+	// Links and buttons inside a row (e.g. mailto/tel anchors injected via render)
+	// handle their own click; don't also trigger the row action.
+	function handleRowClick(e: MouseEvent, item: T) {
+		if (
+			e.target instanceof Element &&
+			e.target.closest('a, button, input, label, select, textarea')
+		) {
+			return;
+		}
+		onRowClick?.(item);
+	}
 </script>
 
 <Card.Root>
@@ -246,7 +246,7 @@
 									onRowClick ? 'cursor-pointer' : ''
 								)}
 								animate:flip={{ duration: prefersReducedMotion.current ? 0 : 220 }}
-								onclick={() => onRowClick?.(item)}
+								onclick={(e: MouseEvent) => handleRowClick(e, item)}
 							>
 								{#each columns as column (column.key)}
 									<Table.Cell class={column.class || ''}>
