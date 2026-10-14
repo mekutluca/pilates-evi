@@ -109,11 +109,39 @@ export interface TraineePurchaseMembership {
 	purchase_start_date?: string | null;
 	is_extension?: boolean;
 	extension_number?: number;
-	appointments?: Array<{
-		id: number;
-		date: string;
-		hour: number;
-	}>;
+	appointments?: PurchaseAppointment[];
+	// Other trainees who share this purchase's upcoming appointments (private team lessons).
+	// Empty for group lessons, where each trainee attends under their own purchase.
+	shared_trainees?: SharedTrainee[];
+}
+
+// One appointment of a trainee's purchase, as listed on the trainee detail page.
+export interface PurchaseAppointment {
+	id: number;
+	date: string;
+	hour: number;
+}
+
+// A teammate attached to the same private purchase appointments as the trainee being viewed.
+export interface SharedTrainee {
+	id: string;
+	name: string;
+}
+
+// Who loses the upcoming private-lesson appointments when a purchase's remaining lessons are
+// deleted: only the viewed trainee, or every trainee attached to those appointments.
+export type RemainingLessonsScope = 'trainee' | 'all';
+
+// A trainee's upcoming appointment link under a purchase, queued for deletion.
+export interface RemainingLessonRecord {
+	recordId: number;
+	appointmentId: number;
+	isGroup: boolean;
+}
+
+export interface DeleteRemainingLessonsResult {
+	deletedCount: number;
+	error: string | null;
 }
 
 // ===============================================

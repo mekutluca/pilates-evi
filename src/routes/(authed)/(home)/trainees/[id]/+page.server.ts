@@ -1,8 +1,14 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type { TraineePurchaseMembership, Package } from '$lib/types';
-import { getRequiredFormDataString } from '$lib/utils';
+import type {
+	TraineePurchaseMembership,
+	Package,
+	RemainingLessonsScope,
+	SharedTrainee
+} from '$lib/types';
+import { getRequiredFormDataString, isAppointmentFuture } from '$lib/utils';
 import { requireStaff } from '$lib/server/permissions';
+import { deleteRemainingLessons } from '$lib/utils/purchase-deletion-utils';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -44,6 +50,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				`
 				id,
 				created_at,
+				successor_id,
 				pe_packages (
 					id,
 					name,
@@ -87,6 +94,37 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 			console.error('Error fetching detailed appointments:', detailedApptError);
 		}
 
+		// Teammates on the same private purchases (upcoming appointments only). Group lessons
+		// never match here because each attendee is linked under their own purchase.
+		const purchaseIds = (purchases ?? []).map((p) => p.id);
+		const sharedByPurchase = new Map<string, Map<string, SharedTrainee>>();
+
+		if (purchaseIds.length > 0) {
+			const { data: teammateRows, error: teammateError } = await supabase
+				.from('pe_appointment_trainees')
+				.select(
+					`
+					purchase_id,
+					pe_trainees (id, name),
+					pe_appointments!inner (date, hour)
+				`
+				)
+				.in('purchase_id', purchaseIds)
+				.neq('trainee_id', traineeId);
+
+			if (teammateError) {
+				console.error('Error fetching purchase teammates:', teammateError);
+			}
+
+			for (const row of teammateRows ?? []) {
+				if (!row.purchase_id || !row.pe_trainees) continue;
+				if (!isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) continue;
+				const bucket = sharedByPurchase.get(row.purchase_id) ?? new Map<string, SharedTrainee>();
+				bucket.set(row.pe_trainees.id, { id: row.pe_trainees.id, name: row.pe_trainees.name });
+				sharedByPurchase.set(row.purchase_id, bucket);
+			}
+		}
+
 		// Build purchase memberships with appointments
 		const purchaseMemberships: TraineePurchaseMembership[] = [];
 
@@ -120,7 +158,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				pe_purchases: {
 					id: purchase.id,
 					created_at: purchase.created_at,
-					successor_id: null,
+					successor_id: purchase.successor_id,
 					reschedule_left: null,
 					pe_packages: purchase.pe_packages as Package | null
 				},
@@ -129,7 +167,8 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				purchase_id: purchase.id,
 				purchase_start_date: firstDate || null,
 				purchase_end_date: lastDate || null,
-				appointments: sortedAppointments
+				appointments: sortedAppointments,
+				shared_trainees: [...(sharedByPurchase.get(purchase.id)?.values() ?? [])]
 			});
 		}
 
@@ -218,5 +257,29 @@ export const actions: Actions = {
 		}
 
 		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
+	},
+
+	deleteRemainingLessons: async ({ request, params, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const traineeId = params.id;
+
+		if (!traineeId) {
+			throw error(400, 'Geçersiz öğrenci ID');
+		}
+
+		const formData = await request.formData();
+		const purchaseId = getRequiredFormDataString(formData, 'purchaseId');
+		const scope: RemainingLessonsScope =
+			formData.get('scope')?.toString() === 'all' ? 'all' : 'trainee';
+
+		const result = await deleteRemainingLessons(supabase, purchaseId, traineeId, scope);
+
+		if (result.error) {
+			return fail(400, { success: false, message: result.error });
+		}
+
+		return { success: true, message: `${result.deletedCount} ders silindi` };
 	}
 };

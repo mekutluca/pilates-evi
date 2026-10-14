@@ -109,6 +109,24 @@ export function parseLocalDate(dateString: string): Date {
 }
 
 /**
+ * Local start time of an appointment slot (YYYY-MM-DD date + starting hour).
+ */
+export function getAppointmentDateTime(date: string, hour: number): Date {
+	const dateTime = parseLocalDate(date);
+	dateTime.setHours(hour, 0, 0, 0);
+	return dateTime;
+}
+
+/**
+ * Whether an appointment slot is still ahead of "now". Hour-aware so today's already-started
+ * lessons count as past; a slot with no date or hour is never future.
+ */
+export function isAppointmentFuture(date: string | null, hour: number | null): boolean {
+	if (!date || hour === null) return false;
+	return getAppointmentDateTime(date, hour) > new Date();
+}
+
+/**
  * Gets the date for a specific day of the week within a given week
  * @param weekStart - The start date of the week (Monday)
  * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)

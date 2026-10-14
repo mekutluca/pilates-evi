@@ -1,38 +1,40 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { CancelTraineeAction } from '$lib/types/Schedule';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
-import { parseLocalDate } from '$lib/utils/date-utils';
+import { isAppointmentFuture } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 
-function isAppointmentFuture(date: string | null, hour: number | null): boolean {
-	if (!date || hour === null) return false;
-	const appointmentDateTime = parseLocalDate(date);
-	appointmentDateTime.setHours(hour, 0, 0, 0);
-	return appointmentDateTime > new Date();
-}
-
 /**
- * Removes an appointment row along with any remaining trainee links. Trainee links are deleted
+ * Removes appointment rows along with any remaining trainee links. Trainee links are deleted
  * first to avoid leaving orphan `pe_appointment_trainees` rows when the FK lacks ON DELETE CASCADE.
  */
-export async function deleteAppointment(
+export async function deleteAppointments(
 	supabase: SupabaseClientType,
-	appointmentId: number
+	appointmentIds: number[]
 ): Promise<{ error: string | null }> {
+	if (appointmentIds.length === 0) return { error: null };
+
 	const { error: traineeError } = await supabase
 		.from('pe_appointment_trainees')
 		.delete()
-		.eq('appointment_id', appointmentId);
+		.in('appointment_id', appointmentIds);
 
 	if (traineeError) {
 		return { error: traineeError.message };
 	}
 
-	const { error } = await supabase.from('pe_appointments').delete().eq('id', appointmentId);
+	const { error } = await supabase.from('pe_appointments').delete().in('id', appointmentIds);
 	if (error) {
 		return { error: error.message };
 	}
 	return { error: null };
+}
+
+export function deleteAppointment(
+	supabase: SupabaseClientType,
+	appointmentId: number
+): Promise<{ error: string | null }> {
+	return deleteAppointments(supabase, [appointmentId]);
 }
 
 function formatConflictMessage(count: number): string {

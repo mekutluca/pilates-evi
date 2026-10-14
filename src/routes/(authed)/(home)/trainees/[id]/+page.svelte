@@ -11,14 +11,16 @@
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import BackButton from '$lib/components/back-button.svelte';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
-	import type { ActionItem, Trainee } from '$lib/types';
+	import type { ActionItem, PurchaseAppointment, RemainingLessonsScope, Trainee } from '$lib/types';
 	import type { TraineePurchaseMembership } from '$lib/types';
-	import { formatDisplayDate, calculatePackageEndDate } from '$lib/utils';
+	import { formatDisplayDate, calculatePackageEndDate, isAppointmentFuture } from '$lib/utils';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
@@ -30,6 +32,8 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import { CardSkeleton, PageHeaderSkeleton } from '$lib/components/skeletons/index.js';
 
 	let { data } = $props();
@@ -63,6 +67,45 @@
 	let showRestoreModal = $state(false);
 	let archiving = $state(false);
 
+	// Delete remaining lessons state
+	let showDeleteLessonsModal = $state(false);
+	let deleteTarget = $state<TraineePurchaseMembership | null>(null);
+	let deleteScope = $state<RemainingLessonsScope>('trainee');
+	let deletingLessons = $state(false);
+
+	// Upcoming appointments of a purchase: the ones "Kalan Dersleri Sil" removes.
+	function getRemainingAppointments(membership: TraineePurchaseMembership): PurchaseAppointment[] {
+		return (membership.appointments ?? []).filter((a) => isAppointmentFuture(a.date, a.hour));
+	}
+
+	function openDeleteLessons(membership: TraineePurchaseMembership) {
+		deleteTarget = membership;
+		deleteScope = 'trainee';
+		showDeleteLessonsModal = true;
+	}
+
+	function closeDeleteLessons() {
+		showDeleteLessonsModal = false;
+		deleteTarget = null;
+		deleteScope = 'trainee';
+	}
+
+	function getPurchaseActions(membership: TraineePurchaseMembership): ActionItem[] {
+		return [
+			{
+				label: 'Kalan Dersleri Sil',
+				handler: () => openDeleteLessons(membership),
+				icon: Trash2,
+				class: 'text-destructive'
+			}
+		];
+	}
+
+	function formatNames(names: string[]): string {
+		if (names.length <= 1) return names[0] ?? '';
+		return `${names.slice(0, -1).join(', ')} ve ${names[names.length - 1]}`;
+	}
+
 	// Action menu items
 	const menuActions = $derived<ActionItem[]>(
 		trainee
@@ -94,6 +137,11 @@
 		(groupMemberships ?? [])
 			.filter((membership) => membership.package)
 			.sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime())
+	);
+
+	// When any row has actions, every row reserves the menu slot so chevrons stay in one column.
+	const hasPurchaseActions = $derived(
+		sortedPurchases.some((p) => getRemainingAppointments(p).length > 0)
 	);
 
 	function toggleEditMode() {
@@ -336,27 +384,54 @@
 			<Card.Content>
 				<Accordion.Root type="multiple" class="space-y-2">
 					{#each sortedPurchases as purchase (purchase.id)}
+						{@const remainingCount = getRemainingAppointments(purchase).length}
 						<Accordion.Item
 							value={String(purchase.id)}
 							class="rounded-lg border border-border px-4"
 						>
-							<Accordion.Trigger class="hover:no-underline">
-								<div class="flex w-full items-center justify-between pr-2">
-									<div class="flex items-center gap-3">
-										<h4 class="font-semibold">{purchase.package?.name}</h4>
-										<Badge variant="secondary">
-											{purchase.package?.package_type === 'private' ? 'Özel' : 'Grup'}
-										</Badge>
+							<!-- The kebab sits beside the trigger, not inside it, so it stays a separate control.
+							     bits-ui renders the accordion header as a div[role=heading]; stretch it to fill the row. -->
+							<div
+								class="flex items-center gap-1 [&>[role=heading]]:min-w-0 [&>[role=heading]]:flex-1"
+							>
+								<Accordion.Trigger class="min-w-0 items-center gap-3 hover:no-underline">
+									<div
+										class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+									>
+										<div class="flex min-w-0 items-center gap-3">
+											<span class="truncate font-semibold">{purchase.package?.name}</span>
+											<Badge variant="secondary">
+												{purchase.package?.package_type === 'private' ? 'Özel' : 'Grup'}
+											</Badge>
+										</div>
+										<div
+											class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground tabular-nums sm:shrink-0"
+										>
+											{#if remainingCount > 0}
+												<span>{remainingCount} ders kaldı</span>
+											{/if}
+											<!-- Each date stays whole; a narrow row breaks only at the range dash -->
+											<span>
+												<span class="whitespace-nowrap">
+													{purchase.purchase_start_date
+														? formatDisplayDate(purchase.purchase_start_date)
+														: formatDisplayDate(purchase.joined_at)}
+												</span>
+												-
+												<span class="whitespace-nowrap">{getMembershipDisplayDate(purchase)}</span>
+											</span>
+										</div>
 									</div>
-									<span class="text-sm text-muted-foreground">
-										{purchase.purchase_start_date
-											? formatDisplayDate(purchase.purchase_start_date)
-											: formatDisplayDate(purchase.joined_at)}
-										-
-										{getMembershipDisplayDate(purchase)}
-									</span>
-								</div>
-							</Accordion.Trigger>
+								</Accordion.Trigger>
+								{#if hasPurchaseActions}
+									<!-- -mr-2 pulls the icon button into the row padding so the glyph mirrors the left inset -->
+									<div class="-mr-2 flex size-8 shrink-0 items-center justify-center">
+										{#if remainingCount > 0}
+											<ActionMenu actions={getPurchaseActions(purchase)} />
+										{/if}
+									</div>
+								{/if}
+							</div>
 							<Accordion.Content>
 								{#if purchase.appointments && purchase.appointments.length > 0}
 									<div class="rounded-lg border border-border">
@@ -373,10 +448,10 @@
 																{formatDisplayDate(appointment.date)} - {appointment.hour}:00
 															</span>
 														</div>
-														{#if new Date(appointment.date) < new Date()}
-															<Badge variant="outline">Geçmiş</Badge>
-														{:else}
+														{#if isAppointmentFuture(appointment.date, appointment.hour)}
 															<Badge>Gelecek</Badge>
+														{:else}
+															<Badge variant="outline">Geçmiş</Badge>
 														{/if}
 													</div>
 												{/each}
@@ -479,4 +554,120 @@
 			</Button>
 		</ModalFooter>
 	</form>
+</Modal>
+
+<!-- Delete Remaining Lessons Modal -->
+<Modal bind:open={showDeleteLessonsModal} title="Kalan Dersleri Sil" onClose={closeDeleteLessons}>
+	{#if deleteTarget}
+		{@const remaining = getRemainingAppointments(deleteTarget)}
+		{@const isGroup = deleteTarget.package?.package_type === 'group'}
+		{@const teammates = deleteTarget.shared_trainees ?? []}
+		{@const teammateNames = formatNames(teammates.map((t) => t.name))}
+		{@const isShared = !isGroup && teammates.length > 0}
+		{@const first = remaining[0]}
+		{@const last = remaining[remaining.length - 1]}
+		<div class="space-y-4">
+			<Alert.Root variant="destructive">
+				<TriangleAlert size={16} />
+				<Alert.Description>Bu işlem geri alınamaz. Geçmiş dersler etkilenmez.</Alert.Description>
+			</Alert.Root>
+
+			<div class="rounded-lg bg-muted p-4 text-sm">
+				<div class="flex items-center justify-between gap-3">
+					<div class="flex min-w-0 items-center gap-2">
+						<span class="truncate font-semibold">{deleteTarget.package?.name}</span>
+						<Badge variant="secondary">{isGroup ? 'Grup' : 'Özel'}</Badge>
+					</div>
+					<span class="shrink-0 font-medium tabular-nums">{remaining.length} ders</span>
+				</div>
+				{#if first && last}
+					<p class="mt-1 text-muted-foreground">
+						{#if remaining.length === 1}
+							{formatDisplayDate(first.date)} · {first.hour}:00
+						{:else}
+							{formatDisplayDate(first.date)} - {formatDisplayDate(last.date)}
+						{/if}
+					</p>
+				{/if}
+				{#if deleteTarget.pe_purchases?.successor_id}
+					<p class="mt-2 text-xs text-muted-foreground">
+						Bu satın alımın bir uzatması var; uzatmadaki dersler etkilenmez.
+					</p>
+				{/if}
+			</div>
+
+			<form
+				method="POST"
+				action="?/deleteRemainingLessons"
+				class="space-y-4"
+				use:enhance={() => {
+					deletingLessons = true;
+					return async ({ result, update }) => {
+						deletingLessons = false;
+						if (result.type === 'success') {
+							const data = result.data as { message?: string } | undefined;
+							toast.success(data?.message || 'Kalan dersler silindi');
+							closeDeleteLessons();
+						} else if (result.type === 'failure') {
+							toast.error(getActionErrorMessage(result));
+						}
+						await update();
+					};
+				}}
+			>
+				<input type="hidden" name="purchaseId" value={deleteTarget.id} />
+				{#if isShared}
+					<input type="hidden" name="scope" value={deleteScope} />
+					<div class="grid gap-2">
+						<Label>Bu derslere {teammateNames} de katılıyor</Label>
+						<RadioGroup
+							value={deleteScope}
+							onValueChange={(v) => (deleteScope = v as RemainingLessonsScope)}
+							class="space-y-2"
+						>
+							<label class="flex cursor-pointer items-start gap-3">
+								<RadioGroupItem value="trainee" class="mt-0.5" />
+								<div class="flex flex-col">
+									<span class="text-sm">Yalnızca {trainee?.name} çıkarılsın</span>
+									<span class="text-xs text-muted-foreground">
+										Randevular {teammateNames} için takvimde kalır
+									</span>
+								</div>
+							</label>
+							<label class="flex cursor-pointer items-start gap-3">
+								<RadioGroupItem value="all" class="mt-0.5" />
+								<div class="flex flex-col">
+									<span class="text-sm">Randevular tamamen silinsin</span>
+									<span class="text-xs text-muted-foreground">
+										{teammateNames} de bu dersleri kaybeder; oda ve eğitmen saatleri boşalır
+									</span>
+								</div>
+							</label>
+						</RadioGroup>
+					</div>
+				{:else if isGroup}
+					<p class="text-sm text-muted-foreground">
+						{trainee?.name} kalan grup derslerinden çıkarılır. Grup dersi diğer öğrenciler için devam
+						eder.
+					</p>
+				{:else}
+					<p class="text-sm text-muted-foreground">
+						Bu derslerde başka öğrenci yok. Randevular takvimden silinir; oda ve eğitmen saatleri
+						boşalır.
+					</p>
+				{/if}
+				<ModalFooter>
+					<Button type="button" variant="outline" onclick={closeDeleteLessons}>Vazgeç</Button>
+					<Button type="submit" variant="destructive" disabled={deletingLessons}>
+						{#if deletingLessons}
+							<LoaderCircle size={16} class="animate-spin" />
+						{:else}
+							<Trash2 size={16} />
+						{/if}
+						{remaining.length} Dersi Sil
+					</Button>
+				</ModalFooter>
+			</form>
+		</div>
+	{/if}
 </Modal>

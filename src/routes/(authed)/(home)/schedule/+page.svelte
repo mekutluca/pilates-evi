@@ -30,7 +30,9 @@
 		getDateForDayOfWeek,
 		getDayOfWeekFromDate,
 		formatDayMonth,
-		addDays
+		addDays,
+		getAppointmentDateTime,
+		isAppointmentFuture
 	} from '$lib/utils/date-utils';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import {
@@ -191,35 +193,21 @@
 		return hoursUntil < 23;
 	}
 
-	// Check if an appointment is in the past
+	// Check if an appointment is in the past; a slot with no date or hour is not
 	function isAppointmentInPast(appointment: AppointmentWithDetails): boolean {
-		const now = new SvelteDate();
-		if (appointment.date && appointment.hour !== null) {
-			const appointmentDateTime = new SvelteDate(appointment.date);
-			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
-			return appointmentDateTime < now;
-		}
-
-		return false;
+		if (!appointment.date || appointment.hour === null) return false;
+		return !isAppointmentFuture(appointment.date, appointment.hour);
 	}
 
 	// Check if an appointment can be rescheduled based on user role and reschedule limits
 	function canRescheduleAppointment(appointment: AppointmentWithDetails): boolean {
-		if (isAppointmentInPast(appointment)) {
+		if (!appointment.date || appointment.hour === null || isAppointmentInPast(appointment)) {
 			return false;
 		}
 
-		const now = new SvelteDate();
-		let appointmentDateTime: SvelteDate;
-
-		if (appointment.date && appointment.hour !== null) {
-			appointmentDateTime = new SvelteDate(appointment.date);
-			appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
-		} else {
-			return false;
-		}
-
-		const hoursUntil = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+		const hoursUntil =
+			(getAppointmentDateTime(appointment.date, appointment.hour).getTime() - Date.now()) /
+			(1000 * 60 * 60);
 
 		if (data.userRole === 'admin') {
 			return hoursUntil > 0;

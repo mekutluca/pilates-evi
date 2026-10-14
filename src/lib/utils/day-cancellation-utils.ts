@@ -12,7 +12,7 @@ import type {
 } from '$lib/types/Operation';
 import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
 import { deleteAppointment } from '$lib/utils/cancellation-utils';
-import { formatShortTurkishDateTime, parseLocalDate } from '$lib/utils/date-utils';
+import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
 
 // How far ahead the "closest free occurrence" search walks through the recurring pattern
 // before giving up (≈ six months for a weekly slot).
@@ -26,12 +26,6 @@ const DAY_APPOINTMENT_SELECT = `
 	pe_group_lessons(pe_packages(name)),
 	pe_appointment_trainees(trainee_id, pe_trainees(name, phone))
 `;
-
-function isFuture(date: string, hour: number): boolean {
-	const dt = parseLocalDate(date);
-	dt.setHours(hour, 0, 0, 0);
-	return dt > new Date();
-}
 
 async function getDayAppointments(
 	supabase: SupabaseClientType,
@@ -238,7 +232,7 @@ export async function cancelDay(
 
 	for (const appt of appointments) {
 		if (idFilter && !idFilter.has(appt.id)) continue;
-		if (!isFuture(appt.date, appt.hour)) continue;
+		if (!isAppointmentFuture(appt.date, appt.hour)) continue;
 		if (appt.trainees.length === 0) {
 			// Empty slots (typically pre-created group lesson rows with no enrollments yet) on a
 			// cancelled day have no trainees to shift; just remove the row.

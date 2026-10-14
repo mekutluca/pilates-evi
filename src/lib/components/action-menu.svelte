@@ -40,7 +40,8 @@
 				</Button>
 			{/snippet}
 		</DropdownMenu.Trigger>
-		<DropdownMenu.Content align="end">
+		<!-- w-auto: size to the longest label, not to the narrow icon trigger -->
+		<DropdownMenu.Content align="end" class="w-auto">
 			{#each actions as action (action.label)}
 				<DropdownMenu.Item onclick={() => handleAction(action)} class={action.class || ''}>
 					{#if action.icon}

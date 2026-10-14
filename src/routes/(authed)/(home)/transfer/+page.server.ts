@@ -10,6 +10,7 @@ import type {
 	TraineeShiftSourceRecord
 } from '$lib/types/Transfer';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
+import { isAppointmentFuture } from '$lib/utils/date-utils';
 import {
 	addWeeksToDate,
 	getDayOfWeekFromDate,
@@ -316,15 +317,12 @@ export const load: PageServerLoad = async ({
 		throw error(404, 'Randevu bulunamadı');
 	}
 
-	// Check if appointment is in the past
-	if (appointment.date && appointment.hour !== null) {
-		const appointmentDateTime = new Date(appointment.date);
-		appointmentDateTime.setHours(appointment.hour, 0, 0, 0);
-		const now = new Date();
-
-		if (appointmentDateTime < now) {
-			throw error(400, 'Geçmiş randevular değiştirilemez');
-		}
+	if (
+		appointment.date &&
+		appointment.hour !== null &&
+		!isAppointmentFuture(appointment.date, appointment.hour)
+	) {
+		throw error(400, 'Geçmiş randevular değiştirilemez');
 	}
 
 	// Get rooms and trainers from parent layout
