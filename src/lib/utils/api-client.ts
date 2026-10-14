@@ -1,14 +1,7 @@
 import { deserialize } from '$app/forms';
 import type { ActionResult } from '@sveltejs/kit';
-import type { CapacityIssue, OccupiedSlot } from '$lib/types/Conflict';
-
-// What every form action returns: a message to show and, for flows that end on another
-// page, where to go next.
-export type ActionPayload = {
-	success?: boolean;
-	message?: string;
-	redirectTo?: string;
-};
+import type { ActionPayload } from '$lib/types/Api';
+import type { CapacityIssue, OccupiedSlot, SlotRange } from '$lib/types/Conflict';
 
 /**
  * Posts to a form action of the current page outside `use:enhance` and decodes the
@@ -32,8 +25,6 @@ export function actionResultMessage(result: ActionResult<ActionPayload, ActionPa
 	if (result.type === 'error') return result.error?.message ?? 'Bir hata oluştu';
 	return 'Bir hata oluştu';
 }
-
-type SlotRange = { roomId: string; trainerId: string; startDate: string; endDate: string };
 
 function rangeQuery({ roomId, trainerId, startDate, endDate }: SlotRange): string {
 	return new URLSearchParams({

@@ -5,9 +5,10 @@ import type {
 	TrainerDashboardStats,
 	PurchaseWithDetails,
 	TraineeWithLastLesson,
-	TraineeFromQuery
+	TraineeFromQuery,
+	UpcomingEnrollmentRow
 } from '$lib/types/Dashboard';
-import type { AppointmentWithRelations } from '$lib/types/Schedule';
+import type { AppointmentWithRelations, SlotRef } from '$lib/types/Schedule';
 import {
 	getWeekStart,
 	getWeekEnd,
@@ -15,7 +16,7 @@ import {
 	isAppointmentFuture
 } from '$lib/utils/date-utils';
 import { createAppointmentDetails } from '$lib/utils/appointment-utils';
-import { isNonNull } from '$lib/utils/type-guards';
+import { compareSlots } from '$lib/utils/slot-utils';
 import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
 
 const ROW_PAGE = 1000;
@@ -139,7 +140,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		}
 
 		// Get team IDs from purchases
-		const teamIds = purchases?.map((p) => p.team_id).filter(isNonNull) || [];
+		const teamIds = purchases?.map((p) => p.team_id) ?? [];
 
 		// Query teams to get trainees (skipped in a week without purchases: an empty
 		// uuid list has no valid placeholder)
@@ -183,9 +184,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		const appointmentsCount = appointments?.length || 0;
 
 		// Get unique trainee IDs from appointment trainees
-		const uniqueTraineeIds = new Set(
-			appointmentTrainees?.map((at) => at.trainee_id).filter(isNonNull) || []
-		);
+		const uniqueTraineeIds = new Set(appointmentTrainees?.map((at) => at.trainee_id) ?? []);
 		const uniqueTraineesCount = uniqueTraineeIds.size;
 
 		// Process purchases to get details
@@ -216,11 +215,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 
 		// Paged: the API caps a response at 1000 rows, and a cut-off list would make
 		// trainees look like they are running out of lessons
-		const upcomingRows: Array<{
-			trainee_id: string;
-			purchase_id: string;
-			pe_appointments: { date: string; hour: number };
-		}> = [];
+		const upcomingRows: UpcomingEnrollmentRow[] = [];
 		const today = formatDateForDB(new Date());
 		for (let from = 0; purchaseById.size > 0; from += ROW_PAGE) {
 			const { data: page } = await supabase
@@ -233,7 +228,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 			upcomingRows.push(...(page ?? []));
 			if ((page ?? []).length < ROW_PAGE) break;
 		}
-		const upcomingByPair = new Map<string, Array<{ date: string; hour: number }>>();
+		const upcomingByPair = new Map<string, SlotRef[]>();
 		for (const row of upcomingRows) {
 			if (!isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) continue;
 			const key = `${row.trainee_id}|${row.purchase_id}`;
@@ -247,7 +242,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 			if (!purchase || processedTrainees.has(at.trainee_id)) continue;
 
 			const upcoming = (upcomingByPair.get(`${at.trainee_id}|${at.purchase_id}`) ?? []).sort(
-				(a, b) => a.date.localeCompare(b.date) || a.hour - b.hour
+				compareSlots
 			);
 			if (upcoming.length > 2) continue;
 

@@ -203,15 +203,13 @@
 		return hoursUntil < 23;
 	}
 
-	// Check if an appointment is in the past; a slot with no date or hour is not
 	function isAppointmentInPast(appointment: AppointmentWithDetails): boolean {
-		if (!appointment.date || appointment.hour === null) return false;
 		return !isAppointmentFuture(appointment.date, appointment.hour);
 	}
 
 	// Check if an appointment can be rescheduled based on user role and reschedule limits
 	function canRescheduleAppointment(appointment: AppointmentWithDetails): boolean {
-		if (!appointment.date || appointment.hour === null || isAppointmentInPast(appointment)) {
+		if (isAppointmentInPast(appointment)) {
 			return false;
 		}
 
@@ -579,9 +577,7 @@
 					<div>
 						<div class="text-xs text-muted-foreground">Saat</div>
 						<div class="font-medium">
-							{selectedAppointment.hour !== null
-								? getTimeRangeString(selectedAppointment.hour)
-								: '-'}
+							{getTimeRangeString(selectedAppointment.hour)}
 						</div>
 					</div>
 				</div>
@@ -740,9 +736,7 @@
 								<div class="font-semibold">-</div>
 							{/if}
 							<div class="text-xs text-muted-foreground">
-								{selectedAppointment.hour !== null
-									? getTimeRangeString(selectedAppointment.hour)
-									: '-'}
+								{getTimeRangeString(selectedAppointment.hour)}
 							</div>
 						</div>
 					</div>
@@ -907,7 +901,7 @@
 					</div>
 					<div>
 						<strong>Saat:</strong>
-						{selectedAppointment.hour !== null ? getTimeRangeString(selectedAppointment.hour) : '-'}
+						{getTimeRangeString(selectedAppointment.hour)}
 					</div>
 					{#if selectedAppointment.package_name}
 						<div class="col-span-2">

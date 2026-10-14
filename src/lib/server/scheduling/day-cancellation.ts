@@ -1,13 +1,14 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { ShiftConflict, ShiftedTraineeRecord } from '$lib/types/Schedule';
+import type { ShiftedTraineeRecord } from '$lib/types/Schedule';
+import type { SlotConflict } from '$lib/types/Conflict';
 import type { ScheduleChange } from '$lib/types/WhatsApp';
 import type {
 	DayAppointment,
 	DayCancellationConflict,
 	DayCancellationResult,
+	CloseDayParams,
 	DayCancellationStrategy,
-	DayTrainee,
-	RawDayRow,
+	MovedTrainee,
 	ShiftOutcome
 } from '$lib/types/Operation';
 import {
@@ -32,7 +33,7 @@ const DAY_APPOINTMENT_SELECT = `
 	pe_purchases(pe_packages(name)),
 	pe_group_lessons(pe_packages(name)),
 	pe_appointment_trainees(trainee_id, pe_trainees(name, phone))
-`;
+` as const;
 
 async function getDayAppointments(
 	supabase: SupabaseClientType,
@@ -44,30 +45,21 @@ async function getDayAppointments(
 		.eq('date', date)
 		.order('hour', { ascending: true });
 
-	const rows = (data as RawDayRow[] | null) ?? [];
-	const appointments: DayAppointment[] = [];
-	for (const row of rows) {
-		if (!row.date || row.hour === null) continue;
-		appointments.push({
-			id: row.id,
-			date: row.date,
-			hour: row.hour,
-			purchaseId: row.purchase_id,
-			groupLessonId: row.group_lesson_id,
-			roomName: row.pe_rooms?.name ?? '',
-			trainerName: row.pe_trainers?.name ?? '',
-			packageName:
-				row.pe_purchases?.pe_packages?.name ?? row.pe_group_lessons?.pe_packages?.name ?? '',
-			trainees: (row.pe_appointment_trainees ?? [])
-				.filter((t) => t.trainee_id)
-				.map((t) => ({
-					traineeId: t.trainee_id as string,
-					name: t.pe_trainees?.name ?? '',
-					phone: t.pe_trainees?.phone ?? null
-				}))
-		});
-	}
-	return appointments;
+	return (data ?? []).map((row) => ({
+		id: row.id,
+		date: row.date,
+		hour: row.hour,
+		purchaseId: row.purchase_id,
+		groupLessonId: row.group_lesson_id,
+		roomName: row.pe_rooms.name ?? '',
+		trainerName: row.pe_trainers.name ?? '',
+		packageName: row.pe_purchases?.pe_packages.name ?? row.pe_group_lessons?.pe_packages.name ?? '',
+		trainees: row.pe_appointment_trainees.map((t) => ({
+			traineeId: t.trainee_id,
+			name: t.pe_trainees.name,
+			phone: t.pe_trainees.phone
+		}))
+	}));
 }
 
 function describeAppointment(appt: DayAppointment): string {
@@ -77,7 +69,7 @@ function describeAppointment(appt: DayAppointment): string {
 
 function buildPrivateConflict(
 	appt: DayAppointment,
-	conflicts: ShiftConflict[],
+	conflicts: SlotConflict[],
 	reasonOverride?: string
 ): DayCancellationConflict {
 	const roomBusy = conflicts.some((c) => c.roomConflict);
@@ -136,7 +128,7 @@ async function shiftGroupAppointment(
 ): Promise<ShiftOutcome> {
 	// Plan every trainee first and move them all in one transaction, so a failure on one
 	// trainee never leaves the others moved and the slot half-emptied.
-	const moved: Array<{ trainee: DayTrainee; newAppointmentId: number }> = [];
+	const moved: MovedTrainee[] = [];
 	const moves: ShiftedTraineeRecord[] = [];
 	for (const trainee of appt.trainees) {
 		const plan = await planTraineeSlotShift(supabase, appt.id, trainee.traineeId, 1);
@@ -168,7 +160,7 @@ async function shiftGroupAppointment(
 
 	const notifications: ScheduleChange[] = moved.flatMap(({ trainee, newAppointmentId }) => {
 		const slot = newSlotById.get(newAppointmentId);
-		if (!trainee.phone || !slot) return [];
+		if (!slot) return [];
 		return [
 			{
 				phone: trainee.phone,
@@ -201,7 +193,7 @@ async function shiftGroupAppointment(
  */
 export async function cancelDay(
 	supabase: SupabaseClientType,
-	params: { date: string; appointmentIds?: number[]; strategy?: DayCancellationStrategy }
+	params: CloseDayParams
 ): Promise<DayCancellationResult> {
 	const strategy = params.strategy ?? 'shift';
 	const idFilter = params.appointmentIds ? new Set(params.appointmentIds) : null;

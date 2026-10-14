@@ -2,7 +2,8 @@ import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { requireAdmin } from '$lib/server/permissions';
-import { OrgUserService, type MemberRole } from '$lib/server/services/org-user-service';
+import { OrgUserService } from '$lib/server/services/org-user-service';
+import type { MemberRole } from '$lib/types/OrgUser';
 
 const STAFF_ROLES = new Map<string, MemberRole>([
 	['admin', 'pe_admin'],

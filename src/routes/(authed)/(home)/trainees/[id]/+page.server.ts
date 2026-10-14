@@ -10,6 +10,7 @@ import { getRequiredFormDataString, isAppointmentFuture } from '$lib/utils';
 import { requireStaff } from '$lib/server/permissions';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
+import { compareSlots } from '$lib/utils/slot-utils';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -145,11 +146,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 						date: apt.pe_appointments.date,
 						hour: apt.pe_appointments.hour
 					}))
-					.sort((a, b) => {
-						const dateCompare = a.date.localeCompare(b.date);
-						if (dateCompare !== 0) return dateCompare;
-						return a.hour - b.hour;
-					}) || [];
+					.sort(compareSlots) || [];
 
 			// Get first and last appointment dates
 			const firstDate = sortedAppointments[0]?.date;

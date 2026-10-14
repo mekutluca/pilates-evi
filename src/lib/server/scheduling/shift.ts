@@ -1,18 +1,19 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	AppointmentMove,
-	DayOfWeek,
-	EligibleAppointment,
+	AppointmentSlotRef,
 	GroupLessonHorizonInfo,
-	ShiftConflict,
+	MoveTargets,
 	ShiftedTraineeRecord,
+	SlotShiftContext,
 	SortedTraineeRecord,
+	TraineeGroupSlot,
 	TraineeShiftResult,
 	WeeklyShiftCandidate,
 	WeeklyShiftResolution
 } from '$lib/types/Schedule';
-import type { MovedAppointment, MoveOutcome, SeriesAppointment } from '$lib/types/Transfer';
-import type { PlannedMove } from '$lib/types/Conflict';
+import type { MovedAppointment, MoveOutcome, MoveResources } from '$lib/types/Transfer';
+import type { PlannedMove, SlotConflict } from '$lib/types/Conflict';
 import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
@@ -20,26 +21,13 @@ import {
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { addWeeksToDate, getDayOfWeekFromDate, parseLocalDate } from '$lib/utils/date-utils';
+import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 import {
 	buildAppointmentSlotsFromStart,
+	compareSlots,
 	isSlotInPattern,
 	sortTimeSlots
 } from '$lib/utils/slot-utils';
-
-function sortByDateHour<T extends { date: string; hour: number }>(items: T[]): T[] {
-	return [...items].sort((a, b) => {
-		const dc = a.date.localeCompare(b.date);
-		if (dc !== 0) return dc;
-		return a.hour - b.hour;
-	});
-}
-
-// A series loaded once for slot-shift planning: its appointments from the anchor on and
-// the recurring weekly pattern they follow.
-type SlotShiftContext = {
-	series: SeriesAppointment[];
-	timeSlots: Array<{ day: DayOfWeek; hour: number }>;
-};
 
 async function loadSlotShiftContext(
 	supabase: SupabaseClientType,
@@ -90,6 +78,11 @@ function planSlotShift({ series, timeSlots }: SlotShiftContext, slots: number): 
 	}));
 }
 
+/** A move that failed before anything was written. */
+export function moveFailure(error: string): MoveOutcome {
+	return { error, conflicts: [], moved: [] };
+}
+
 function toPlannedMoves(moved: MovedAppointment[]): PlannedMove[] {
 	return moved.map(({ appointment, newDate, newHour }) => ({
 		id: appointment.id,
@@ -105,7 +98,7 @@ function toPlannedMoves(moved: MovedAppointment[]): PlannedMove[] {
  * moving rows before placing them, so a series moved onto its own later slots never trips
  * the unique slot indexes; any real collision rolls the whole move back.
  */
-export async function applyAppointmentMoves(
+async function applyAppointmentMoves(
 	supabase: SupabaseClientType,
 	moves: AppointmentMove[]
 ): Promise<string | null> {
@@ -136,10 +129,10 @@ export async function applyEnrollmentMoves(
 export async function applyPlannedMoves(
 	supabase: SupabaseClientType,
 	moved: MovedAppointment[],
-	resources?: { roomId?: string; trainerId?: string }
+	resources?: MoveResources
 ): Promise<MoveOutcome> {
 	if (moved.length === 0) {
-		return { error: 'Taşınacak randevu bulunamadı', conflicts: [], moved: [] };
+		return moveFailure('Taşınacak randevu bulunamadı');
 	}
 	const planned = toPlannedMoves(moved).map((m) => ({
 		...m,
@@ -161,7 +154,7 @@ export async function applyPlannedMoves(
 		}))
 	);
 	if (moveError) {
-		return { error: 'Taşıma sırasında hata oluştu: ' + moveError, conflicts: [], moved: [] };
+		return moveFailure('Taşıma sırasında hata oluştu: ' + moveError);
 	}
 	return { error: null, conflicts: [], moved };
 }
@@ -178,10 +171,10 @@ export async function shiftSeriesBySlot(
 	slots: number
 ): Promise<MoveOutcome> {
 	if (slots <= 0) {
-		return { error: 'Kaydırma sayısı pozitif olmalı', conflicts: [], moved: [] };
+		return moveFailure('Kaydırma sayısı pozitif olmalı');
 	}
 	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
-	if (typeof context === 'string') return { error: context, conflicts: [], moved: [] };
+	if (typeof context === 'string') return moveFailure(context);
 
 	return applyPlannedMoves(supabase, planSlotShift(context, slots));
 }
@@ -197,10 +190,10 @@ export async function shiftSeriesToFirstFreeSlot(
 	maxSlots: number
 ): Promise<MoveOutcome> {
 	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
-	if (typeof context === 'string') return { error: context, conflicts: [], moved: [] };
+	if (typeof context === 'string') return moveFailure(context);
 
 	const conflictService = new ConflictService(supabase);
-	let lastConflicts: ShiftConflict[] = [];
+	let lastConflicts: SlotConflict[] = [];
 	for (let slots = 1; slots <= maxSlots; slots++) {
 		const moved = planSlotShift(context, slots);
 		lastConflicts = await conflictService.findMoveConflicts(toPlannedMoves(moved));
@@ -233,7 +226,7 @@ async function getTraineeRecordsForChain(
 			groupLessonId: apt.group_lesson_id
 		});
 	}
-	return sortByDateHour(usable);
+	return usable.sort(compareSlots);
 }
 
 /**
@@ -244,9 +237,9 @@ async function getTraineeRecordsForChain(
  */
 export async function buildTraineeEligibleByGroup(
 	supabase: SupabaseClientType,
-	records: Array<{ groupLessonId: string | null; date: string; hour: number }>,
+	records: TraineeGroupSlot[],
 	fromDate: string
-): Promise<Map<string, EligibleAppointment[]>> {
+): Promise<Map<string, AppointmentSlotRef[]>> {
 	const slotKeysByGroup = new Map<string, Set<string>>();
 	for (const record of records) {
 		if (!record.groupLessonId) continue;
@@ -258,7 +251,7 @@ export async function buildTraineeEligibleByGroup(
 		set.add(`${getDayOfWeekFromDate(record.date)}-${record.hour}`);
 	}
 
-	const eligibleByGroup = new Map<string, EligibleAppointment[]>();
+	const eligibleByGroup = new Map<string, AppointmentSlotRef[]>();
 	for (const [groupLessonId, slotKeys] of slotKeysByGroup) {
 		const { data: groupAppts } = await supabase
 			.from('pe_appointments')
@@ -268,11 +261,9 @@ export async function buildTraineeEligibleByGroup(
 			.order('date', { ascending: true })
 			.order('hour', { ascending: true });
 
-		const eligible = (
-			(groupAppts as Array<{ id: number; date: string | null; hour: number | null }> | null) ?? []
-		)
-			.filter((a): a is EligibleAppointment => !!a.date && a.hour !== null)
-			.filter((a) => slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`));
+		const eligible: AppointmentSlotRef[] = (groupAppts ?? []).filter((a) =>
+			slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`)
+		);
 
 		eligibleByGroup.set(groupLessonId, eligible);
 	}
@@ -306,7 +297,7 @@ async function getGroupLessonHorizonInfo(
  * - otherwise the slot existed and was actively cancelled (e.g. a holiday) — the candidate
  *   is skipped rather than aborting the whole shift.
  */
-export async function resolveWeeklyShiftTargets(
+async function resolveWeeklyShiftTargets(
 	supabase: SupabaseClientType,
 	candidates: WeeklyShiftCandidate[],
 	weeks: number
@@ -371,15 +362,6 @@ export async function resolveWeeklyShiftTargets(
 	return { shiftMap, skippedCount };
 }
 
-type MoveTargets = {
-	targetRows: Array<{
-		id: number;
-		pe_group_lessons: { pe_packages: { max_capacity: number } } | null;
-	}>;
-	// Enrollments in the target appointments that are not moving as part of the shift
-	staying: Array<{ id: number; appointment_id: number | null; trainee_id: string }>;
-};
-
 async function loadMoveTargets(
 	supabase: SupabaseClientType,
 	shiftMap: ShiftedTraineeRecord[]
@@ -443,7 +425,7 @@ function findCapacityError(
  * out as part of the same shift are not counted as occupied.
  * Returns an error message, or null when all targets are valid.
  */
-export async function checkTraineeShiftTargets(
+async function checkTraineeShiftTargets(
 	supabase: SupabaseClientType,
 	traineeId: string,
 	shiftMap: ShiftedTraineeRecord[]
@@ -586,12 +568,8 @@ export async function shiftTraineeRecordsByWeeks(
 	traineeId: string,
 	weeks: number
 ): Promise<TraineeShiftResult & { skippedCount: number }> {
-	if (!Number.isInteger(weeks) || weeks === 0 || weeks < -52 || weeks > 52) {
-		return {
-			error: 'Kaydırma süresi -52 ile 52 hafta arasında olmalı',
-			shifted: [],
-			skippedCount: 0
-		};
+	if (!isValidWeekShift(weeks)) {
+		return { error: WEEK_SHIFT_ERROR, shifted: [], skippedCount: 0 };
 	}
 
 	const { data: currentRecord } = await supabase

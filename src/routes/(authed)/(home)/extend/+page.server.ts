@@ -1,7 +1,7 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { getTimeString, type DayOfWeek } from '$lib/types/Schedule';
+import { getTimeString, type DayOfWeek, type WeeklySlot } from '$lib/types/Schedule';
 import type {
 	AppointmentRefInfo,
 	PurchaseChainDates,
@@ -41,10 +41,7 @@ async function getAppointmentsForPurchase(
 		.limit(limit || 10);
 
 	if (directAppointments && directAppointments.length > 0) {
-		return directAppointments.filter(
-			(a): a is AppointmentRefInfo =>
-				a.room_id !== null && a.trainer_id !== null && a.date !== null && a.hour !== null
-		);
+		return directAppointments;
 	}
 
 	// Try via pe_appointment_trainees (for group lessons)
@@ -60,14 +57,7 @@ async function getAppointmentsForPurchase(
 		for (const row of traineeAppointments) {
 			const apt = row.pe_appointments;
 			if (!apt || Array.isArray(apt)) continue;
-			if (apt.room_id && apt.trainer_id && apt.date && apt.hour !== null) {
-				result.push({
-					room_id: apt.room_id,
-					trainer_id: apt.trainer_id,
-					date: apt.date,
-					hour: apt.hour
-				});
-			}
+			result.push(apt);
 		}
 		return result;
 	}
@@ -202,7 +192,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 			: getCanonicalPurchaseTimeSlots(supabase, lastPurchase.id, 'private', weeksDuration)
 	]);
 
-	let timeSlots: Array<{ day: DayOfWeek; hour: number }>;
+	let timeSlots: WeeklySlot[];
 	let startCandidates: Array<{ date: string; hour: number; day: DayOfWeek }>;
 
 	if ('canonicalSlots' in slotsResult) {

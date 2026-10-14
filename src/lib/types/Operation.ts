@@ -24,7 +24,13 @@ export interface DayCancellationConflict {
 export interface DayTrainee {
 	traineeId: string;
 	name: string;
-	phone: string | null;
+	phone: string;
+}
+
+// A trainee of a closed group slot and the appointment they move into
+export interface MovedTrainee {
+	trainee: DayTrainee;
+	newAppointmentId: number;
 }
 
 // An appointment on a day being cancelled, flattened for the cancellation flow.
@@ -40,44 +46,12 @@ export interface DayAppointment {
 	trainees: DayTrainee[];
 }
 
-// Raw pe_appointments query row (with joins) before flattening to DayAppointment.
-export interface RawDayRow {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-	pe_rooms: { name: string | null } | null;
-	pe_trainers: { name: string | null } | null;
-	pe_purchases: { pe_packages: { name: string | null } | null } | null;
-	pe_group_lessons: { pe_packages: { name: string | null } | null } | null;
-	pe_appointment_trainees: Array<{
-		trainee_id: string | null;
-		pe_trainees: { name: string | null; phone: string | null } | null;
-	}>;
-}
-
 // Result of attempting to shift one appointment during a day cancellation.
 export interface ShiftOutcome {
 	shifted: boolean;
 	notifications: ScheduleChange[];
 	conflict?: DayCancellationConflict;
 	error?: string;
-}
-
-// Query row for active group lessons with joined tables. The embedded
-// appointments carry only enrolled ones (via a nested !inner join).
-export interface GroupLessonQueryRow {
-	id: string;
-	start_date: string | null;
-	timeslots: Array<{ day: string; hours: number[] }> | null;
-	pe_packages: { name: string } | null;
-	pe_rooms: { name: string } | null;
-	pe_trainers: { name: string } | null;
-	pe_appointments: Array<{
-		date: string | null;
-		pe_appointment_trainees: Array<{ trainee_id: string | null }>;
-	}>;
 }
 
 // An active group lesson as listed on the end-group-lesson operation page.
@@ -110,4 +84,11 @@ export interface DayCancellationResult {
 	warnings: string[];
 	// Fatal error that aborted the whole operation (e.g. an invalid/past day).
 	error: string | null;
+}
+
+// SchedulingService.closeDay; a resolution pass restricts it to the given appointments
+export interface CloseDayParams {
+	date: string;
+	appointmentIds?: number[];
+	strategy?: DayCancellationStrategy;
 }

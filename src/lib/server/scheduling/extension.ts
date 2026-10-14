@@ -1,7 +1,7 @@
 import type { Json } from '$lib/types/database.types';
 import type { Purchase } from '$lib/types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
+import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek, type WeeklySlot } from '$lib/types/Schedule';
 import type { UpcomingGroupAppointment, GroupLessonTimeslot } from '$lib/types/Extension';
 import { parseLocalDate, formatDateForDB } from '$lib/utils/date-utils';
 import { sortTimeSlots } from '$lib/utils/slot-utils';
@@ -11,7 +11,8 @@ function isDayOfWeek(value: string): value is DayOfWeek {
 	return (DAYS_OF_WEEK as readonly string[]).includes(value);
 }
 
-function parseGroupLessonTimeslots(raw: Json | null): GroupLessonTimeslot[] {
+/** Reads pe_group_lessons.timeslots (jsonb), skipping malformed entries. */
+export function parseGroupLessonTimeslots(raw: Json | null): GroupLessonTimeslot[] {
 	if (!Array.isArray(raw)) return [];
 	const result: GroupLessonTimeslot[] = [];
 	for (const item of raw) {
@@ -153,7 +154,7 @@ export async function getCanonicalPurchaseTimeSlots(
 	packageType: 'private' | 'group',
 	weeksDuration: number
 ): Promise<{
-	slots: Array<{ day: DayOfWeek; hour: number }>;
+	slots: WeeklySlot[];
 	timeslotGroupLessons: Map<string, string>;
 }> {
 	if (packageType === 'group') {
@@ -172,7 +173,7 @@ export async function getCanonicalPurchaseTimeSlots(
 		for (const t of traineeApps) {
 			const apt = t.pe_appointments;
 			if (!apt || Array.isArray(apt)) continue;
-			if (!apt.group_lesson_id || !apt.date || apt.hour == null) continue;
+			if (!apt.group_lesson_id) continue;
 
 			const dayName = JS_DAY_TO_NAME[parseLocalDate(apt.date).getDay()];
 			const slotKey = `${dayName}-${apt.hour}`;
@@ -200,7 +201,7 @@ export async function getCanonicalPurchaseTimeSlots(
 			return { slots: [], timeslotGroupLessons: new Map() };
 		}
 
-		const slots: Array<{ day: DayOfWeek; hour: number }> = [];
+		const slots: WeeklySlot[] = [];
 		const seen = new Set<string>();
 		const timeslotGroupLessons = new Map<string, string>();
 
@@ -243,7 +244,6 @@ export async function getCanonicalPurchaseTimeSlots(
 	const counts = new Map<string, { day: DayOfWeek; hour: number; count: number }>();
 
 	for (const apt of apts) {
-		if (!apt.date || apt.hour == null) continue;
 		const day = JS_DAY_TO_NAME[parseLocalDate(apt.date).getDay()];
 		const key = `${day}-${apt.hour}`;
 		const existing = counts.get(key);
@@ -284,7 +284,7 @@ export async function getFutureGroupAppointments(
 	fromDate: Date,
 	weeksDuration: number
 ): Promise<{
-	canonicalSlots: Array<{ day: DayOfWeek; hour: number }>;
+	canonicalSlots: WeeklySlot[];
 	upcomingAppointments: UpcomingGroupAppointment[];
 }> {
 	const { slots: canonicalSlots, timeslotGroupLessons } = await getCanonicalPurchaseTimeSlots(
@@ -316,7 +316,7 @@ export async function getFutureGroupAppointments(
 	const upcoming: UpcomingGroupAppointment[] = [];
 
 	for (const apt of rows) {
-		if (!apt.date || apt.hour == null || !apt.group_lesson_id) continue;
+		if (!apt.group_lesson_id) continue;
 		const dayIdx = parseLocalDate(apt.date).getDay();
 		const expectedGroupLesson = timeslotGroupLessons.get(`${dayIdx}-${apt.hour}`);
 		if (expectedGroupLesson !== apt.group_lesson_id) continue;
@@ -342,7 +342,7 @@ export async function getGroupLessonCanonicalSlots(
 	supabase: SupabaseClientType,
 	groupLessonId: string
 ): Promise<{
-	slots: Array<{ day: DayOfWeek; hour: number }>;
+	slots: WeeklySlot[];
 	slotKeys: Set<string>;
 }> {
 	const { data } = await supabase
@@ -353,7 +353,7 @@ export async function getGroupLessonCanonicalSlots(
 
 	if (!data) return { slots: [], slotKeys: new Set() };
 
-	const slots: Array<{ day: DayOfWeek; hour: number }> = [];
+	const slots: WeeklySlot[] = [];
 	const slotKeys = new Set<string>();
 	for (const ts of parseGroupLessonTimeslots(data.timeslots)) {
 		if (!isDayOfWeek(ts.day)) continue;

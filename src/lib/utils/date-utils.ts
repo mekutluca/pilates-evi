@@ -104,10 +104,9 @@ export function getAppointmentDateTime(date: string, hour: number): Date {
 
 /**
  * Whether an appointment slot is still ahead of "now". Hour-aware so today's already-started
- * lessons count as past; a slot with no date or hour is never future.
+ * lessons count as past.
  */
-export function isAppointmentFuture(date: string | null, hour: number | null): boolean {
-	if (!date || hour === null) return false;
+export function isAppointmentFuture(date: string, hour: number): boolean {
 	return getAppointmentDateTime(date, hour) > new Date();
 }
 

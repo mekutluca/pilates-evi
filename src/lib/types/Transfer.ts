@@ -1,5 +1,5 @@
 import type { Database } from '$lib/types/database.types';
-import type { ShiftConflict } from '$lib/types/Schedule';
+import type { SlotConflict } from '$lib/types/Conflict';
 
 type PackageType = Database['public']['Enums']['package_type_enum'];
 
@@ -11,8 +11,8 @@ export type ShiftMode = 'by_time' | 'by_slot';
 
 export type TransferConflict = {
 	appointmentId: number;
-	date: string | null;
-	hour: number | null;
+	date: string;
+	hour: number;
 	roomConflict: boolean;
 	trainerConflict: boolean;
 };
@@ -49,6 +49,12 @@ export type SeriesAppointment = {
 	}>;
 };
 
+// Room and/or trainer the moved appointments get (omitted = unchanged)
+export interface MoveResources {
+	roomId?: string;
+	trainerId?: string;
+}
+
 // An appointment a scheduling operation moved, with where it went.
 export type MovedAppointment = {
 	appointment: SeriesAppointment;
@@ -59,14 +65,30 @@ export type MovedAppointment = {
 // Result of a series move: conflicts (nothing written) or the moved appointments.
 export type MoveOutcome = {
 	error: string | null;
-	conflicts: ShiftConflict[];
+	conflicts: SlotConflict[];
 	moved: MovedAppointment[];
 };
 
-export type ExistingAppointment = {
+// SchedulingService.reschedule: move one appointment, optionally spending a credit
+export interface RescheduleParams {
+	appointmentId: number;
 	date: string;
 	hour: number;
-	room_id: string;
-	trainer_id: string;
-	id: number;
-};
+	roomId: string;
+	consumeCredit: boolean;
+}
+
+// SchedulingService.transferResources: move appointments to another room and/or trainer
+export interface TransferParams {
+	appointmentId: number;
+	scope: TransferScope;
+	roomId?: string;
+	trainerId?: string;
+}
+
+// SchedulingService.shiftSeriesByWeeks
+export interface ShiftByWeeksParams {
+	appointmentId: number;
+	scope: TransferScope;
+	weeks: number;
+}

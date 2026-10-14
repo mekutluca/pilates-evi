@@ -1,7 +1,8 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { EndableGroupLesson, GroupLessonQueryRow } from '$lib/types/Operation';
+import type { EndableGroupLesson } from '$lib/types/Operation';
+import { parseGroupLessonTimeslots } from '$lib/server/scheduling/extension';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB, getTomorrow, parseLocalDate } from '$lib/utils/date-utils';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
@@ -42,33 +43,31 @@ async function loadGroupLessons(
 		return null;
 	}
 
-	const typedLessons = (lessons as GroupLessonQueryRow[] | null) ?? [];
 	const today = formatDateForDB(new Date());
 	const tomorrow = formatDateForDB(getTomorrow());
 
-	return typedLessons
+	return (lessons ?? [])
 		.map((gl) => {
 			let lastEnrolledDate: string | null = null;
 			const activeTrainees = new Set<string>();
 			for (const appointment of gl.pe_appointments) {
-				if (!appointment.date) continue;
 				if (!lastEnrolledDate || appointment.date > lastEnrolledDate) {
 					lastEnrolledDate = appointment.date;
 				}
 				if (appointment.date >= today) {
 					for (const enrollment of appointment.pe_appointment_trainees) {
-						if (enrollment.trainee_id) activeTrainees.add(enrollment.trainee_id);
+						activeTrainees.add(enrollment.trainee_id);
 					}
 				}
 			}
 			const afterLastEnrolled = lastEnrolledDate ? dayAfter(lastEnrolledDate) : tomorrow;
 			return {
 				id: gl.id,
-				packageName: gl.pe_packages?.name ?? '',
-				roomName: gl.pe_rooms?.name ?? '',
-				trainerName: gl.pe_trainers?.name ?? '',
+				packageName: gl.pe_packages.name,
+				roomName: gl.pe_rooms.name ?? '',
+				trainerName: gl.pe_trainers.name ?? '',
 				startDate: gl.start_date,
-				timeslots: gl.timeslots ?? [],
+				timeslots: parseGroupLessonTimeslots(gl.timeslots),
 				lastEnrolledDate,
 				traineeCount: activeTrainees.size,
 				minEndDate: afterLastEnrolled > tomorrow ? afterLastEnrolled : tomorrow

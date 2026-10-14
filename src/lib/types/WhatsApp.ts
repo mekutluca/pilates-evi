@@ -50,3 +50,10 @@ export interface ScheduleChange {
 // Which WhatsApp template a schedule change is announced with: the studio moved the
 // lesson (with a cause), or the trainee asked for it.
 export type ScheduleChangeMessage = { kind: 'system'; cause: string } | { kind: 'trainee_request' };
+
+// One daily reminder (pe-daily-reminder edge function)
+export interface DailyReminder {
+	traineePhone: string;
+	packageName: string;
+	formattedTime: string;
+}

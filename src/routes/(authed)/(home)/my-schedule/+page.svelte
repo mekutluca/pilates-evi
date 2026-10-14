@@ -228,9 +228,7 @@
 					<div>
 						<div class="text-xs text-muted-foreground">Saat</div>
 						<div class="font-medium">
-							{selectedAppointment.hour !== null
-								? getTimeRangeString(selectedAppointment.hour)
-								: '-'}
+							{getTimeRangeString(selectedAppointment.hour)}
 						</div>
 					</div>
 				</div>

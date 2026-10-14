@@ -671,9 +671,6 @@
 		// Check if ANY of these dates has a conflicting appointment
 		const hasConflict = slotDates.some((dateStr) => {
 			return appointments.some((apt) => {
-				// Skip appointments without date
-				if (!apt.date) return false;
-
 				// Check if it's the exact date and hour
 				if (apt.date !== dateStr || apt.hour !== hour) return false;
 

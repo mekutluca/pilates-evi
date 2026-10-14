@@ -1,12 +1,18 @@
 import type { AssignmentPayload, AssignmentResult } from '$lib/types/Assignment';
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { CancelTraineeAction, TraineeShiftResult } from '$lib/types/Schedule';
-import type { MoveOutcome, TransferScope } from '$lib/types/Transfer';
-import type { DayCancellationResult, DayCancellationStrategy } from '$lib/types/Operation';
+import type { CancelTraineeAction, OperationResult, TraineeShiftResult } from '$lib/types/Schedule';
+import type {
+	MoveOutcome,
+	RescheduleParams,
+	ShiftByWeeksParams,
+	TransferParams
+} from '$lib/types/Transfer';
+import type { CloseDayParams, DayCancellationResult } from '$lib/types/Operation';
 import type { DeleteRemainingLessonsResult, RemainingLessonsScope } from '$lib/types';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
 import {
 	applyPlannedMoves,
+	moveFailure,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsBySlot,
 	shiftTraineeRecordsByWeeks
@@ -15,6 +21,7 @@ import { cancelAppointment } from '$lib/server/scheduling/cancellation';
 import { cancelDay } from '$lib/server/scheduling/day-cancellation';
 import { deleteRemainingLessons } from '$lib/server/scheduling/purchase-deletion';
 import { addWeeksToDate } from '$lib/utils/date-utils';
+import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 
 /**
  * The one entry point for scheduling writes. Each operation validates first and writes
@@ -66,13 +73,7 @@ export class SchedulingService {
 	 * purchase's reschedule credits is spent in the same transaction. Returns an error
 	 * message, or null on success.
 	 */
-	async reschedule(params: {
-		appointmentId: number;
-		date: string;
-		hour: number;
-		roomId: string;
-		consumeCredit: boolean;
-	}): Promise<string | null> {
+	async reschedule(params: RescheduleParams): Promise<string | null> {
 		const { error } = await this.supabase.rpc('pe_reschedule_appointment', {
 			p_appointment_id: params.appointmentId,
 			p_date: params.date,
@@ -88,15 +89,10 @@ export class SchedulingService {
 	 * transfer of a group lesson also moves the lesson itself, so the weekly top-up keeps
 	 * generating new weeks with the new room/trainer.
 	 */
-	async transferResources(params: {
-		appointmentId: number;
-		scope: TransferScope;
-		roomId?: string;
-		trainerId?: string;
-	}): Promise<MoveOutcome> {
+	async transferResources(params: TransferParams): Promise<MoveOutcome> {
 		const { appointmentId, scope, roomId, trainerId } = params;
 		if (!roomId && !trainerId) {
-			return { error: 'En az oda veya eğitmen seçilmeli', conflicts: [], moved: [] };
+			return moveFailure('En az oda veya eğitmen seçilmeli');
 		}
 
 		const series = await new AppointmentRepository(this.supabase).getSeries(appointmentId, scope);
@@ -132,19 +128,9 @@ export class SchedulingService {
 	}
 
 	/** Moves the appointments in `scope` by whole weeks (negative = earlier). */
-	async shiftSeriesByWeeks(params: {
-		appointmentId: number;
-		scope: TransferScope;
-		weeks: number;
-	}): Promise<MoveOutcome> {
+	async shiftSeriesByWeeks(params: ShiftByWeeksParams): Promise<MoveOutcome> {
 		const { appointmentId, scope, weeks } = params;
-		if (!Number.isInteger(weeks) || weeks === 0 || weeks < -52 || weeks > 52) {
-			return {
-				error: 'Kaydırma süresi -52 ile 52 hafta arasında olmalı',
-				conflicts: [],
-				moved: []
-			};
-		}
+		if (!isValidWeekShift(weeks)) return moveFailure(WEEK_SHIFT_ERROR);
 
 		const series = await new AppointmentRepository(this.supabase).getSeries(appointmentId, scope);
 		return applyPlannedMoves(
@@ -160,11 +146,7 @@ export class SchedulingService {
 	/** Moves a series, from the appointment on, `slots` positions along its weekly pattern. */
 	shiftSeriesBySlots(appointmentId: number, slots: number): Promise<MoveOutcome> {
 		if (!Number.isInteger(slots) || slots < 1 || slots > 20) {
-			return Promise.resolve({
-				error: 'Kaydırma sayısı 1 ile 20 arasında olmalı',
-				conflicts: [],
-				moved: []
-			});
+			return Promise.resolve(moveFailure('Kaydırma sayısı 1 ile 20 arasında olmalı'));
 		}
 		return shiftSeriesBySlot(this.supabase, appointmentId, slots);
 	}
@@ -191,16 +173,12 @@ export class SchedulingService {
 	cancelAppointment(
 		appointmentId: number,
 		traineeAction: CancelTraineeAction | null
-	): Promise<{ error: string | null }> {
+	): Promise<OperationResult> {
 		return cancelAppointment(this.supabase, appointmentId, traineeAction);
 	}
 
 	/** Closes a day: shifts every lesson on it forward and removes empty slots. */
-	closeDay(params: {
-		date: string;
-		appointmentIds?: number[];
-		strategy?: DayCancellationStrategy;
-	}): Promise<DayCancellationResult> {
+	closeDay(params: CloseDayParams): Promise<DayCancellationResult> {
 		return cancelDay(this.supabase, params);
 	}
 

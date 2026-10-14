@@ -1,5 +1,9 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { CancelTraineeAction, ShiftedTraineeRecord } from '$lib/types/Schedule';
+import type {
+	CancelTraineeAction,
+	OperationResult,
+	ShiftedTraineeRecord
+} from '$lib/types/Schedule';
 import {
 	applyEnrollmentMoves,
 	checkMoveCapacity,
@@ -15,7 +19,7 @@ import { isAppointmentFuture } from '$lib/utils/date-utils';
 export async function deleteAppointments(
 	supabase: SupabaseClientType,
 	appointmentIds: number[]
-): Promise<{ error: string | null }> {
+): Promise<OperationResult> {
 	if (appointmentIds.length === 0) return { error: null };
 
 	const { data, error } = await supabase
@@ -35,7 +39,7 @@ export async function deleteAppointments(
 export function deleteAppointment(
 	supabase: SupabaseClientType,
 	appointmentId: number
-): Promise<{ error: string | null }> {
+): Promise<OperationResult> {
 	return deleteAppointments(supabase, [appointmentId]);
 }
 
@@ -46,7 +50,7 @@ function formatConflictMessage(count: number): string {
 async function shiftPrivateSeriesByOne(
 	supabase: SupabaseClientType,
 	cancelledAppointmentId: number
-): Promise<{ error: string | null }> {
+): Promise<OperationResult> {
 	const result = await shiftSeriesBySlot(supabase, cancelledAppointmentId, 1);
 	if (result.conflicts.length > 0) {
 		return { error: formatConflictMessage(result.conflicts.length) };
@@ -57,7 +61,7 @@ async function shiftPrivateSeriesByOne(
 async function shiftGroupTraineesByOne(
 	supabase: SupabaseClientType,
 	cancelledAppointmentId: number
-): Promise<{ error: string | null }> {
+): Promise<OperationResult> {
 	const { data: trainees } = await supabase
 		.from('pe_appointment_trainees')
 		.select('trainee_id')
@@ -81,7 +85,7 @@ export async function cancelAppointment(
 	supabase: SupabaseClientType,
 	appointmentId: number,
 	traineeAction: CancelTraineeAction | null
-): Promise<{ error: string | null }> {
+): Promise<OperationResult> {
 	const { data: appointment, error: fetchError } = await supabase
 		.from('pe_appointments')
 		.select('id, date, hour, purchase_id, group_lesson_id, pe_appointment_trainees(id)')

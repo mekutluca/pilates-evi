@@ -1,14 +1,13 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-// Both files are import-free, so Deno can load them straight from the app's source.
+// These files are import-free, so Deno can load them straight from the app's source.
 import type { Database } from '../../../src/lib/types/database.types.ts';
+import type { DailyReminder } from '../../../src/lib/types/WhatsApp.ts';
 import { formatPhoneNumber } from '../../../src/lib/utils/phone-utils.ts';
 
 const CHAKRA_BASE_URL = 'https://api.chakrahq.com/v1/ext';
 
 const TEMPLATE_NAME = 'daily_appt_reminder';
-
-type Reminder = { traineePhone: string; packageName: string; formattedTime: string };
 
 Deno.serve(async (req) => {
 	const cronSecret = Deno.env.get('CRON_SECRET')!;
@@ -71,7 +70,7 @@ Deno.serve(async (req) => {
 		);
 	}
 
-	const reminders: Reminder[] = rows.map((row) => ({
+	const reminders: DailyReminder[] = rows.map((row) => ({
 		traineePhone: row.pe_trainees.phone,
 		packageName:
 			row.pe_appointments.pe_purchases?.pe_packages.name ??
@@ -81,7 +80,7 @@ Deno.serve(async (req) => {
 	}));
 
 	// Send template messages concurrently
-	const sendMessage = async (appointment: Reminder) => {
+	const sendMessage = async (appointment: DailyReminder) => {
 		const phone = formatPhoneNumber(appointment.traineePhone);
 		const url = `${CHAKRA_BASE_URL}/plugin/whatsapp/${chakraPluginId}/phoneNumber/${phone}/send-template-message`;
 

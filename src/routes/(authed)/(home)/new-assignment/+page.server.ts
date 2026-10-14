@@ -1,13 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type {
-	PackagePurchaseForm,
-	Appointment,
-	AvailableGroupTimeslot,
-	GroupLessonQueryResult
-} from '$lib/types';
+import type { Package, PackagePurchaseForm, Appointment, AvailableGroupTimeslot } from '$lib/types';
 import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
-import { isNonNull } from '$lib/utils/type-guards';
 import { getFormDataString } from '$lib/utils/form-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
@@ -19,7 +13,17 @@ import type {
 } from '$lib/types/Assignment';
 import { isValidUuid } from '$lib/utils/validation';
 import { DAYS_OF_WEEK } from '$lib/types/Schedule';
+import { compareSlots } from '$lib/utils/slot-utils';
 import { requireStaff } from '$lib/server/permissions';
+import { parseGroupLessonTimeslots } from '$lib/server/scheduling/extension';
+
+// A package's weekly lesson count must fall between its min and max
+function lessonsPerWeekError(pkg: Package, count: number): string | null {
+	if (count >= pkg.min_lessons_per_week && count <= pkg.max_lessons_per_week) return null;
+	return pkg.min_lessons_per_week === pkg.max_lessons_per_week
+		? `Bu paket için ${pkg.min_lessons_per_week} zaman dilimi seçmelisiniz`
+		: `Bu paket için ${pkg.min_lessons_per_week} ile ${pkg.max_lessons_per_week} arası zaman dilimi seçmelisiniz`;
+}
 
 export const load: PageServerLoad = async ({
 	locals: { supabase, user, userRole },
@@ -87,9 +91,6 @@ export const load: PageServerLoad = async ({
 		if (groupLessonsError) {
 			console.error('Error loading group lessons:', groupLessonsError);
 		} else if (groupLessons && groupLessons.length > 0) {
-			// Cast to proper type for joined query results
-			const typedGroupLessons = groupLessons as GroupLessonQueryResult[];
-
 			// Build available timeslots with per-timeslot capacity.
 			// Capacity is computed against the next canonical appointment matching
 			// (group_lesson_id, day-of-week, hour) — filtering by hour alone would mix
@@ -98,9 +99,9 @@ export const load: PageServerLoad = async ({
 			tomorrow.setDate(tomorrow.getDate() + 1);
 			const tomorrowStr = formatDateForDB(tomorrow);
 
-			for (const gl of typedGroupLessons) {
-				const timeslots = gl.timeslots || [];
-				const maxCapacity = gl.pe_packages?.max_capacity || 0;
+			for (const gl of groupLessons) {
+				const timeslots = parseGroupLessonTimeslots(gl.timeslots);
+				const maxCapacity = gl.pe_packages.max_capacity;
 
 				if (timeslots.length === 0) continue;
 
@@ -117,21 +118,19 @@ export const load: PageServerLoad = async ({
 						const targetDay = timeslot.day.toLowerCase();
 
 						const firstMatch = upcomingAppointments?.find(
-							(apt) => apt.hour === hour && apt.date && getDayOfWeekFromDate(apt.date) === targetDay
+							(apt) => apt.hour === hour && getDayOfWeekFromDate(apt.date) === targetDay
 						);
 
 						const timeslotCapacity = firstMatch
-							? new Set(
-									firstMatch.pe_appointment_trainees.map((t) => t.trainee_id).filter(isNonNull)
-								).size
+							? new Set(firstMatch.pe_appointment_trainees.map((t) => t.trainee_id)).size
 							: 0;
 
 						availableGroupTimeslots.push({
 							group_lesson_id: gl.id,
-							room_id: gl.room_id || '',
-							room_name: gl.pe_rooms?.name || '',
-							trainer_id: gl.trainer_id || '',
-							trainer_name: gl.pe_trainers?.name || '',
+							room_id: gl.room_id,
+							room_name: gl.pe_rooms.name ?? '',
+							trainer_id: gl.trainer_id,
+							trainer_name: gl.pe_trainers.name ?? '',
 							day: timeslot.day,
 							hour: hour,
 							max_capacity: maxCapacity,
@@ -163,9 +162,7 @@ export const load: PageServerLoad = async ({
 
 				if (!traineesError && appointmentTrainees) {
 					// Get unique trainee IDs
-					const uniqueTrainees = new Set(
-						appointmentTrainees.map((at) => at.trainee_id).filter(isNonNull)
-					);
+					const uniqueTrainees = new Set(appointmentTrainees.map((at) => at.trainee_id));
 					existingGroupLessonTrainees = Array.from(uniqueTrainees);
 				}
 			}
@@ -315,40 +312,19 @@ export const actions: Actions = {
 
 			// Validate lessons per week (must be between min and max)
 			// Only enforce for private packages - new group lessons can have any number of timeslots
-			const slotCount = assignmentForm.time_slots.length;
 			if (packageData.package_type === 'private') {
-				if (
-					slotCount < packageData.min_lessons_per_week ||
-					slotCount > packageData.max_lessons_per_week
-				) {
-					const errorMsg =
-						packageData.min_lessons_per_week === packageData.max_lessons_per_week
-							? `Bu paket için ${packageData.min_lessons_per_week} zaman dilimi seçmelisiniz`
-							: `Bu paket için ${packageData.min_lessons_per_week} ile ${packageData.max_lessons_per_week} arası zaman dilimi seçmelisiniz`;
-					return fail(400, {
-						success: false,
-						message: errorMsg
-					});
-				}
+				const countError = lessonsPerWeekError(packageData, assignmentForm.time_slots.length);
+				if (countError) return fail(400, { success: false, message: countError });
 			}
 		}
 
 		// Validate selected timeslots for joining per-timeslot
 		if (isJoiningSelectedTimeslots) {
-			const selectedCount = assignmentForm.selected_group_timeslots!.length;
-			if (
-				selectedCount < packageData.min_lessons_per_week ||
-				selectedCount > packageData.max_lessons_per_week
-			) {
-				const errorMsg =
-					packageData.min_lessons_per_week === packageData.max_lessons_per_week
-						? `Bu paket için ${packageData.min_lessons_per_week} zaman dilimi seçmelisiniz`
-						: `Bu paket için ${packageData.min_lessons_per_week} ile ${packageData.max_lessons_per_week} arası zaman dilimi seçmelisiniz`;
-				return fail(400, {
-					success: false,
-					message: errorMsg
-				});
-			}
+			const countError = lessonsPerWeekError(
+				packageData,
+				assignmentForm.selected_group_timeslots!.length
+			);
+			if (countError) return fail(400, { success: false, message: countError });
 		}
 
 		// Validate trainee selection for private packages and existing group lessons
@@ -463,12 +439,8 @@ export const actions: Actions = {
 			const enrollments: AssignmentEnrollmentPayload[] = [];
 			let successMessage: string;
 
-			// Sort slots chronologically — session numbering follows array order
-			allAppointmentSlots.sort((a, b) => {
-				const dateCompare = a.date.localeCompare(b.date);
-				if (dateCompare !== 0) return dateCompare;
-				return a.hour - b.hour;
-			});
+			// Chronological — session numbering follows array order
+			allAppointmentSlots.sort(compareSlots);
 
 			if (isCreatingNewGroupLesson) {
 				// start_date is the earliest selected timeslot (slots are sorted)
@@ -573,11 +545,7 @@ export const actions: Actions = {
 					}
 				}
 
-				allMatches.sort((a, b) => {
-					const dateCompare = a.date.localeCompare(b.date);
-					if (dateCompare !== 0) return dateCompare;
-					return a.hour - b.hour;
-				});
+				allMatches.sort(compareSlots);
 
 				const collectedAppointments = allMatches.slice(0, totalSessions);
 

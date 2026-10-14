@@ -1,14 +1,43 @@
 // Types for room/trainer booking conflict checks
+import type { SlotRef } from '$lib/types/Schedule';
 
-export interface SlotRef {
-	date: string; // YYYY-MM-DD
-	hour: number;
+// A room/trainer pair over a date range (availability previews and API queries)
+export interface SlotRange {
+	roomId: string;
+	trainerId: string;
+	startDate: string;
+	endDate: string;
 }
 
-export interface SlotConflict extends SlotRef {
+// Which of an appointment's resources are taken at a slot
+export interface ResourceConflict {
 	roomConflict: boolean;
 	trainerConflict: boolean;
 }
+
+// Conflict check for creating appointments in a room with a trainer
+export interface SlotConflictQuery {
+	roomId: string;
+	trainerId: string;
+	slots: SlotRef[];
+	excludeAppointmentIds?: number[];
+}
+
+// Conflict check for moving one existing appointment; null = resource not changing
+export interface AppointmentSlotCheck extends SlotRef {
+	roomId: string | null;
+	trainerId: string | null;
+	excludeAppointmentId?: number;
+}
+
+// Planned enrollments of trainees into existing appointments
+export interface EnrollmentTargets {
+	appointmentIds: number[];
+	traineeIds: string[];
+}
+
+// A slot whose room and/or trainer is already taken
+export interface SlotConflict extends SlotRef, ResourceConflict {}
 
 // An appointment about to move: its id and where it will be (room/trainer after the move)
 export interface PlannedMove extends SlotRef {
@@ -20,10 +49,10 @@ export interface PlannedMove extends SlotRef {
 // Minimal appointment shape returned to clients previewing availability
 export interface OccupiedSlot {
 	id: number;
-	room_id: string | null;
-	trainer_id: string | null;
-	date: string | null;
-	hour: number | null;
+	room_id: string;
+	trainer_id: string;
+	date: string;
+	hour: number;
 }
 
 // A group session that is already full

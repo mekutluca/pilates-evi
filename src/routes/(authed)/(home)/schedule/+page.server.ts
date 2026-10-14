@@ -15,6 +15,7 @@ import { ConflictService } from '$lib/server/services/conflict-service';
 import { NotificationService } from '$lib/server/services/notification-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import { requireStaff } from '$lib/server/permissions';
+import { isIsoDate } from '$lib/utils/validation';
 
 export const load: PageServerLoad = async ({
 	locals: { supabase, user, userRole },
@@ -37,7 +38,7 @@ export const load: PageServerLoad = async ({
 	// Week from the URL (any day of it), defaulting to the current week
 	const weekParam = url.searchParams.get('week');
 	const weekStart = getWeekStart(
-		weekParam && /^\d{4}-\d{2}-\d{2}$/.test(weekParam) ? parseLocalDate(weekParam) : new Date()
+		weekParam && isIsoDate(weekParam) ? parseLocalDate(weekParam) : new Date()
 	);
 	const weekEnd = getWeekEnd(weekStart);
 
@@ -104,7 +105,7 @@ export const actions: Actions = {
 			!Number.isInteger(newHour) ||
 			newHour < 0 ||
 			newHour > 23 ||
-			!/^\d{4}-\d{2}-\d{2}$/.test(newDate)
+			!isIsoDate(newDate)
 		) {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}

@@ -1,5 +1,5 @@
 import type { Package, Trainee } from './index';
-import type { AppointmentWithDetails } from './Schedule';
+import type { AppointmentWithDetails, SlotRef } from './Schedule';
 
 // ===============================================
 // DASHBOARD STATISTICS TYPES
@@ -52,3 +52,10 @@ export interface TrainerDashboardStats {
 }
 
 export type AnyDashboardStats = DashboardStats | TrainerDashboardStats;
+
+// An upcoming enrollment row used to count a trainee's lessons left on a purchase
+export interface UpcomingEnrollmentRow {
+	trainee_id: string;
+	purchase_id: string;
+	pe_appointments: SlotRef;
+}

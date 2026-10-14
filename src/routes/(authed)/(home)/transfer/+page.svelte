@@ -17,7 +17,12 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import CheckCircle from '@lucide/svelte/icons/check-circle';
 	import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
-	import { DAY_NAMES, getTimeRangeString, type DayOfWeek } from '$lib/types/Schedule';
+	import {
+		DAY_NAMES,
+		getTimeRangeString,
+		type DayOfWeek,
+		type WeeklySlot
+	} from '$lib/types/Schedule';
 	import {
 		getDayOfWeekFromDate,
 		addWeeksToDate,
@@ -241,10 +246,7 @@
 		});
 
 		try {
-			const appointmentsToCheck = getAppointmentsToCheck();
-			const validAppointments = appointmentsToCheck.filter(
-				(a) => a.date !== null && a.hour !== null
-			) as Array<{ date: string; hour: number; id: number }>;
+			const validAppointments = getAppointmentsToCheck();
 
 			if (validAppointments.length === 0) {
 				untrack(() => {
@@ -271,7 +273,7 @@
 				}));
 			} else if (isShiftBySlotMode) {
 				// Extract the time slot pattern (day of week + hour) from existing appointments
-				const rawTimeSlots: Array<{ day: DayOfWeek; hour: number }> = [];
+				const rawTimeSlots: WeeklySlot[] = [];
 				const seenSlots = new Set<string>();
 
 				for (const apt of validAppointments) {
@@ -753,9 +755,7 @@
 										{/if}
 									</div>
 									<div class="text-xs text-muted-foreground">
-										{#if appt.hour !== null}
-											{getTimeRangeString(appt.hour)}
-										{/if}
+										{getTimeRangeString(appt.hour)}
 									</div>
 									<div class="mt-1 flex gap-2 text-xs text-muted-foreground">
 										<span>Oda: {appt.pe_rooms?.name || '-'}</span>
@@ -773,14 +773,13 @@
 									// Use the canonical schedule from pe_group_lessons.timeslots when available
 									// (group lessons), otherwise infer from the appointment list (private). This
 									// keeps one-off reschedules from polluting the slot-shift sequence.
-									let rawTimeSlots: Array<{ day: DayOfWeek; hour: number }>;
+									let rawTimeSlots: WeeklySlot[];
 									if (data.canonicalTimeslots && data.canonicalTimeslots.length > 0) {
 										rawTimeSlots = [...data.canonicalTimeslots];
 									} else {
 										rawTimeSlots = [];
 										const seenSlots = new Set<string>();
 										for (const apt of appointments) {
-											if (!apt.date || apt.hour === null) continue;
 											const day = getDayOfWeekFromDate(apt.date);
 											const slotKey = `${day}-${apt.hour}`;
 											if (!seenSlots.has(slotKey)) {
@@ -840,15 +839,13 @@
 											{/if}
 										</div>
 										<div class="text-xs text-muted-foreground">
-											{#if isShiftBySlotMode && targetAppt && targetAppt.hour !== null && targetAppt.hour !== appt.hour}
+											{#if isShiftBySlotMode && targetAppt && targetAppt.hour !== appt.hour}
 												<span class="line-through opacity-60">
-													{#if appt.hour !== null}
-														{getTimeRangeString(appt.hour)}
-													{/if}
+													{getTimeRangeString(appt.hour)}
 												</span>
 												<span class="mx-1">→</span>
 												<span>{getTimeRangeString(targetAppt.hour)}</span>
-											{:else if appt.hour !== null}
+											{:else}
 												{getTimeRangeString(appt.hour)}
 											{/if}
 										</div>
@@ -938,11 +935,7 @@
 														{/if}
 													</Table.Cell>
 													<Table.Cell class="text-xs">
-														{#if conflict.hour !== null}
-															{getTimeRangeString(conflict.hour)}
-														{:else}
-															-
-														{/if}
+														{getTimeRangeString(conflict.hour)}
 													</Table.Cell>
 													<Table.Cell>
 														{#if conflict.roomConflict && conflict.trainerConflict}

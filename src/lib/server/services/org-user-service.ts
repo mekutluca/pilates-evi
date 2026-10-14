@@ -1,9 +1,8 @@
 import { error } from '@sveltejs/kit';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { CreateAccountParams, CreateAccountResult, MemberUpdate } from '$lib/types/OrgUser';
 import { requireAdminClient } from '$lib/server/permissions';
-
-export type MemberRole = 'pe_admin' | 'pe_coordinator' | 'pe_trainer';
 
 /**
  * Login accounts of the studio's staff (admins, coordinators, trainers). Every privileged
@@ -39,12 +38,7 @@ export class OrgUserService {
 	}
 
 	/** Creates a login and its membership; the login is removed again if the membership fails. */
-	async createAccount(params: {
-		email: string;
-		password: string;
-		fullName: string;
-		role: MemberRole;
-	}): Promise<{ userId: string } | { error: string }> {
+	async createAccount(params: CreateAccountParams): Promise<CreateAccountResult> {
 		const { data, error } = await this.admin.auth.admin.createUser({
 			email: params.email,
 			password: params.password,
@@ -79,10 +73,7 @@ export class OrgUserService {
 		await this.admin.auth.admin.deleteUser(userId);
 	}
 
-	async updateMember(
-		userId: string,
-		params: { fullName: string; role: MemberRole }
-	): Promise<string | null> {
+	async updateMember(userId: string, params: MemberUpdate): Promise<string | null> {
 		const notMember = await this.checkMember(userId);
 		if (notMember) return notMember;
 

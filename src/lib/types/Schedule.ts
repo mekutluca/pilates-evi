@@ -1,4 +1,5 @@
 import type { Appointment } from './index';
+import type { SeriesAppointment } from './Transfer';
 
 export type DayOfWeek =
 	'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -6,14 +7,20 @@ export type DayOfWeek =
 // Decision applied to trainees attached to an appointment that is being cancelled
 export type CancelTraineeAction = 'shift' | 'remove';
 
-// Conflict reported by series-shift operations when a target slot is already occupied
-// by an appointment outside the shifting series.
-export interface ShiftConflict {
-	date: string;
+// A concrete slot: a date and the starting hour.
+export interface SlotRef {
+	date: string; // YYYY-MM-DD
 	hour: number;
-	roomConflict: boolean;
-	trainerConflict: boolean;
 }
+
+// One slot of a recurring weekly pattern (a weekday and the starting hour).
+export interface WeeklySlot {
+	day: DayOfWeek;
+	hour: number;
+}
+
+// Outcome of a write that either succeeds or fails with a message.
+export type OperationResult = { error: string | null };
 
 // One row of a pe_move_appointments call; omitted room/trainer stay unchanged. A type
 // alias (not an interface) so it is assignable to the RPC's Json parameter.
@@ -45,8 +52,15 @@ export interface SortedTraineeRecord {
 	groupLessonId: string | null;
 }
 
-// Upcoming group appointment matching a trainee's own (day, hour) pattern.
-export type EligibleAppointment = { id: number; date: string; hour: number };
+// An appointment's id and slot.
+export interface AppointmentSlotRef extends SlotRef {
+	id: number;
+}
+
+// A trainee's enrollment slot in a group lesson (whose pattern it belongs to)
+export interface TraineeGroupSlot extends SlotRef {
+	groupLessonId: string | null;
+}
 
 // A trainee's appointment record queued for a weeks-based shift, with its group lesson
 // resolved from the record's own appointment.
@@ -128,13 +142,13 @@ export type AppointmentWithRelations = Appointment & {
 // Extended types with related data
 export interface AppointmentWithDetails {
 	// Core database fields - use the exact same types as the database
-	id: number; // Appointments still use number ID (not migrated to UUID yet)
-	date: string | null; // Appointment date
-	hour: number | null;
+	id: number;
+	date: string;
+	hour: number;
 	purchase_id: string | null;
 	group_lesson_id: string | null;
-	room_id: string | null;
-	trainer_id: string | null;
+	room_id: string;
+	trainer_id: string;
 
 	// Extended fields for UI display
 	room_name?: string;
@@ -250,3 +264,20 @@ interface CustomSlot extends BaseSlotData {
 }
 
 export type ScheduleSlot = EmptySlot | AppointmentSlot | AvailableSlot | DisabledSlot | CustomSlot;
+
+// A series loaded once for slot-shift planning: its appointments from the anchor on and
+// the recurring weekly pattern they follow.
+export interface SlotShiftContext {
+	series: SeriesAppointment[];
+	timeSlots: WeeklySlot[];
+}
+
+// Target appointments of a trainee move with the enrollments that stay in them (records
+// moving out as part of the same shift are excluded).
+export interface MoveTargets {
+	targetRows: Array<{
+		id: number;
+		pe_group_lessons: { pe_packages: { max_capacity: number } } | null;
+	}>;
+	staying: Array<{ id: number; appointment_id: number | null; trainee_id: string }>;
+}

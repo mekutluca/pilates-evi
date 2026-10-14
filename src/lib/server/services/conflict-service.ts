@@ -1,7 +1,12 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { AppointmentSlotRef } from '$lib/types/Schedule';
 import type {
+	AppointmentSlotCheck,
+	EnrollmentTargets,
 	PlannedMove,
-	SlotRef,
+	ResourceConflict,
+	SlotConflictQuery,
+	SlotRange,
 	SlotConflict,
 	OccupiedSlot,
 	EnrollmentTargetCheck
@@ -19,12 +24,7 @@ export class ConflictService {
 	 * Batched conflict check: 2 queries total regardless of slot count.
 	 * Returns only the slots that conflict.
 	 */
-	async findSlotConflicts(params: {
-		roomId: string;
-		trainerId: string;
-		slots: SlotRef[];
-		excludeAppointmentIds?: number[];
-	}): Promise<SlotConflict[]> {
+	async findSlotConflicts(params: SlotConflictQuery): Promise<SlotConflict[]> {
 		const { roomId, trainerId, slots, excludeAppointmentIds = [] } = params;
 		if (slots.length === 0) return [];
 
@@ -48,9 +48,9 @@ export class ConflictService {
 			throw new Error(`Çakışma kontrolü başarısız: ${trainerRes.error.message}`);
 
 		const excluded = new Set(excludeAppointmentIds);
-		const slotKey = (date: string | null, hour: number | null) => `${date}|${hour}`;
+		const slotKey = (date: string, hour: number) => `${date}|${hour}`;
 
-		const occupied = (rows: Array<{ id: number; date: string | null; hour: number | null }>) =>
+		const occupied = (rows: AppointmentSlotRef[]) =>
 			new Set(rows.filter((r) => !excluded.has(r.id)).map((r) => slotKey(r.date, r.hour)));
 
 		const roomTaken = occupied(roomRes.data ?? []);
@@ -128,13 +128,7 @@ export class ConflictService {
 	 * Conflict check for moving a single existing appointment to a (possibly new)
 	 * room/trainer. Pass null for a resource that is not changing.
 	 */
-	async checkAppointmentSlot(params: {
-		date: string;
-		hour: number;
-		roomId: string | null;
-		trainerId: string | null;
-		excludeAppointmentId?: number;
-	}): Promise<{ roomConflict: boolean; trainerConflict: boolean }> {
+	async checkAppointmentSlot(params: AppointmentSlotCheck): Promise<ResourceConflict> {
 		const { date, hour, roomId, trainerId, excludeAppointmentId } = params;
 
 		const exclude = excludeAppointmentId !== undefined ? [excludeAppointmentId] : [];
@@ -166,10 +160,7 @@ export class ConflictService {
 	 * purchase enrolled them) and appointments whose package max_capacity would be
 	 * exceeded once all the trainees are added. Two queries total.
 	 */
-	async checkEnrollmentTargets(params: {
-		appointmentIds: number[];
-		traineeIds: string[];
-	}): Promise<EnrollmentTargetCheck> {
+	async checkEnrollmentTargets(params: EnrollmentTargets): Promise<EnrollmentTargetCheck> {
 		const { appointmentIds, traineeIds } = params;
 		if (appointmentIds.length === 0 || traineeIds.length === 0) {
 			return { duplicates: [], overCapacity: [] };
@@ -221,12 +212,7 @@ export class ConflictService {
 	 * Used by clients to preview availability. Two .eq() queries merged —
 	 * no string-interpolated or() filters.
 	 */
-	async getOccupiedSlots(params: {
-		roomId: string;
-		trainerId: string;
-		startDate: string;
-		endDate: string;
-	}): Promise<OccupiedSlot[]> {
+	async getOccupiedSlots(params: SlotRange): Promise<OccupiedSlot[]> {
 		const { roomId, trainerId, startDate, endDate } = params;
 
 		const select = 'id, room_id, trainer_id, date, hour';

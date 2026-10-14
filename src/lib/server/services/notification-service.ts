@@ -3,6 +3,7 @@ import type { ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp'
 import type { WhatsAppRepository } from '$lib/whatsapp/WhatsAppRepository';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
+import { compareSlots } from '$lib/utils/slot-utils';
 
 // Chakra rate limits: send in small concurrent batches
 const BATCH_SIZE = 10;
@@ -13,7 +14,7 @@ const TEMPLATES = {
 } as const;
 
 function compareOld(a: ScheduleChange, b: ScheduleChange) {
-	return a.oldDate.localeCompare(b.oldDate) || a.oldHour - b.oldHour;
+	return compareSlots({ date: a.oldDate, hour: a.oldHour }, { date: b.oldDate, hour: b.oldHour });
 }
 
 /**

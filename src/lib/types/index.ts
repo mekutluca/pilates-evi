@@ -165,6 +165,14 @@ export interface CreatePackageForm {
 	reschedule_limit?: number;
 }
 
+// A validated trainee form (TraineeRepository)
+export type TraineeInput = {
+	name: string;
+	phone: string;
+	email: string | null;
+	notes: string | null;
+};
+
 // Package purchase types for the new assignment flow
 export interface PackagePurchaseForm {
 	package_id: string;
@@ -189,36 +197,6 @@ export interface SelectedGroupTimeslot {
 	group_lesson_id: string;
 	day: string;
 	hour: number;
-}
-
-// Group lesson query row (with joined tables) used by the new-assignment flow
-export interface GroupLessonQueryResult {
-	id: string;
-	package_id: string | null;
-	start_date: string | null;
-	end_date: string | null;
-	room_id: string | null;
-	trainer_id: string | null;
-	timeslots: Array<{ day: string; hours: number[] }> | null;
-	pe_packages: { id: string; name: string; max_capacity: number } | null;
-	pe_rooms: { id: string; name: string } | null;
-	pe_trainers: { id: string; name: string } | null;
-}
-
-// Type for existing group lessons returned from server
-export interface ExistingGroupLesson {
-	group_lesson_id: string;
-	package_id: string;
-	room_id: string;
-	room_name: string;
-	trainer_id: string;
-	trainer_name: string;
-	max_capacity: number;
-	current_capacity: number;
-	day_time_combinations: Array<{
-		day: string;
-		hours: number[];
-	}>;
 }
 
 // Type for available timeslots from existing group lessons (with per-timeslot capacity)

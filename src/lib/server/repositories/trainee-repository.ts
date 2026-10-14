@@ -1,13 +1,7 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { TraineeInput } from '$lib/types';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { normalizePhoneNumber } from '$lib/utils/phone-utils';
-
-export type TraineeInput = {
-	name: string;
-	phone: string;
-	email: string | null;
-	notes: string | null;
-};
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UNIQUE_VIOLATION = '23505';

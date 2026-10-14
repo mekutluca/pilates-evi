@@ -1,5 +1,6 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { SeriesAppointment, TransferScope } from '$lib/types/Transfer';
+import { compareSlots } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { getGroupLessonCanonicalSlots } from '$lib/server/scheduling/extension';
 import { formatDateForDB, getDayOfWeekFromDate, isAppointmentFuture } from '$lib/utils/date-utils';
@@ -41,10 +42,6 @@ const SERIES_SELECT = `
 	pe_group_lessons(id, pe_packages(name, package_type, max_capacity)),
 	pe_appointment_trainees(id, trainee_id, session_number, total_sessions, pe_trainees(id, name, phone))
 ` as const;
-
-function compareSlots(a: { date: string; hour: number }, b: { date: string; hour: number }) {
-	return a.date.localeCompare(b.date) || a.hour - b.hour;
-}
 
 /**
  * Reads appointments for scheduling operations. `getSeries` is the one definition of

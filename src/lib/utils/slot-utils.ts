@@ -1,4 +1,4 @@
-import { JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
+import { JS_DAY_TO_NAME, type DayOfWeek, type SlotRef, type WeeklySlot } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
 import { formatDateForDB } from './date-utils';
 
@@ -13,7 +13,12 @@ export const DAY_ORDER: Record<DayOfWeek, number> = {
 	sunday: 7
 };
 
-export function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
+/** Chronological order of concrete slots (date, then hour). */
+export function compareSlots(a: SlotRef, b: SlotRef): number {
+	return a.date.localeCompare(b.date) || a.hour - b.hour;
+}
+
+export function sortTimeSlots<T extends WeeklySlot>(slots: T[]): T[] {
 	return [...slots].sort((a, b) => {
 		const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
 		if (dayDiff !== 0) return dayDiff;
@@ -25,11 +30,7 @@ export function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots:
  * Whether (date, hour) is one of the pattern's recurring slots — the precondition of
  * buildAppointmentSlotsFromStart, for callers that would rather skip than throw.
  */
-export function isSlotInPattern(
-	timeSlots: Array<{ day: DayOfWeek; hour: number }>,
-	date: Date,
-	hour: number
-): boolean {
+export function isSlotInPattern(timeSlots: WeeklySlot[], date: Date, hour: number): boolean {
 	const dayName = JS_DAY_TO_NAME[date.getDay()];
 	return timeSlots.some((s) => s.day === dayName && s.hour === hour);
 }
@@ -75,7 +76,7 @@ export function calculateExtensionStartDate(lastAppointmentDate: Date | null): D
  * starting at `fromDate` (inclusive). Candidates are sorted chronologically.
  */
 export function getStartingAppointmentCandidates(
-	timeSlots: Array<{ day: DayOfWeek; hour: number }>,
+	timeSlots: WeeklySlot[],
 	fromDate: Date,
 	count: number
 ): StartingAppointmentCandidate[] {
@@ -116,9 +117,9 @@ export function getStartingAppointmentCandidates(
 export function buildAppointmentSlotsFromStart(
 	startDate: Date,
 	startHour: number,
-	timeSlots: Array<{ day: DayOfWeek; hour: number }>,
+	timeSlots: WeeklySlot[],
 	totalSlots: number
-): Array<{ date: string; hour: number }> {
+): SlotRef[] {
 	if (totalSlots <= 0 || timeSlots.length === 0) return [];
 
 	const sortedSlots = sortTimeSlots(timeSlots);
@@ -132,7 +133,7 @@ export function buildAppointmentSlotsFromStart(
 	}
 
 	const startMonday = getMondayOf(startDate);
-	const slots: Array<{ date: string; hour: number }> = [];
+	const slots: SlotRef[] = [];
 
 	for (let i = 0; i < totalSlots; i++) {
 		const idx = (startIdx + i) % sortedSlots.length;
