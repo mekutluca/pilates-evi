@@ -165,18 +165,19 @@
 				</Sheet.Description>
 			</Sheet.Header>
 
-			<div class="space-y-6 p-4">
+			<div class="space-y-6 px-6 py-5">
 				<div class="grid gap-2">
 					<Label>Ne değişsin?</Label>
 					<ToggleGroup.Root
 						type="single"
 						variant="outline"
+						spacing={1}
 						value={mode}
 						onValueChange={(v) => v && (mode = v as MoveMode)}
-						class="w-full"
+						class="grid w-full grid-cols-2"
 					>
 						{#each modes as m (m)}
-							<ToggleGroup.Item value={m} class="flex-1">{MODE_LABELS[m]}</ToggleGroup.Item>
+							<ToggleGroup.Item value={m} class="w-full">{MODE_LABELS[m]}</ToggleGroup.Item>
 						{/each}
 					</ToggleGroup.Root>
 				</div>
@@ -184,7 +185,7 @@
 				{#if mode === 'time'}
 					<div class="grid gap-2">
 						{#if pickedSlot}
-							<div class="flex items-center gap-3 rounded-md border p-3 text-sm">
+							<div class="flex items-center gap-3 rounded-xl border p-3 text-sm">
 								<span>{formatSlotLabel(appointment.date, appointment.hour)}</span>
 								<ArrowRight class="size-4 text-muted-foreground" />
 								<span class="font-medium">{formatSlotLabel(pickedSlot.date, pickedSlot.hour)}</span>

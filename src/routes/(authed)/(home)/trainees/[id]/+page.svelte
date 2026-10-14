@@ -13,6 +13,10 @@
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
+	import PatternChip from '$lib/components/pattern-chip.svelte';
+	import LessonMeter from '$lib/components/lesson-meter.svelte';
+	import { isRenewalDue } from '$lib/utils/appointment-utils';
+	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
 	import type {
 		ActionItem,
 		KayitLesson,
@@ -143,34 +147,11 @@
 	<title>{trainee ? `${trainee.name} · ` : ''}Öğrenci · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	{#if trainee}
-		<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-			<PageHeader title={trainee.name} back={{ href: '/trainees', label: 'Öğrenciler' }}>
-				<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-					{#if !trainee.is_active}
-						<Badge variant="outline">Arşivde</Badge>
-					{/if}
-					<a
-						href="tel:+90{trainee.phone}"
-						class="inline-flex items-center gap-1.5 hover:text-foreground"
-					>
-						<Phone class="size-3.5" />
-						{trainee.phone}
-					</a>
-					{#if trainee.email}
-						<a
-							href="mailto:{trainee.email}"
-							class="inline-flex items-center gap-1.5 hover:text-foreground"
-						>
-							<Mail class="size-3.5" />
-							{trainee.email}
-						</a>
-					{/if}
-				</div>
-			</PageHeader>
-			<div class="flex gap-2">
-				{#if trainee.is_active}
+		<PageHeader title={trainee.name} back={{ href: '/trainees', label: 'Öğrenciler' }}>
+			{#snippet actions()}
+				{#if trainee?.is_active}
 					<Button href="/new-assignment?trainee_id={trainee.id}">
 						<Plus />
 						Yeni kayıt
@@ -181,8 +162,29 @@
 					Düzenle
 				</Button>
 				<ActionMenu actions={menuActions} />
+			{/snippet}
+			<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+				{#if !trainee.is_active}
+					<Badge variant="outline">Arşivde</Badge>
+				{/if}
+				<a
+					href="tel:+90{trainee.phone}"
+					class="inline-flex items-center gap-1.5 hover:text-foreground"
+				>
+					<Phone class="size-3.5" />
+					<span class="tabular-nums">{formatPhoneDisplay(trainee.phone)}</span>
+				</a>
+				{#if trainee.email}
+					<a
+						href="mailto:{trainee.email}"
+						class="inline-flex items-center gap-1.5 hover:text-foreground"
+					>
+						<Mail class="size-3.5" />
+						{trainee.email}
+					</a>
+				{/if}
 			</div>
-		</div>
+		</PageHeader>
 	{:else if trainee === undefined}
 		<PageHeaderSkeleton actions />
 	{:else}
@@ -234,45 +236,43 @@
 						: kayit.upcoming.slice(0, VISIBLE_LESSONS)}
 					<Card.Root>
 						<Card.Header>
-							<div class="flex items-start justify-between gap-3">
-								<div class="min-w-0">
-									<Card.Title class="flex flex-wrap items-center gap-2">
-										{kayit.packageName}
-										<Badge variant="secondary">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
-									</Card.Title>
-									<Card.Description class="mt-1">
-										{kayit.pattern} · {kayit.roomName} · {kayit.trainerName}
-									</Card.Description>
-								</div>
+							<Card.Title class="flex flex-wrap items-center gap-2">
+								{kayit.packageName}
+								<Badge variant="outline">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
+							</Card.Title>
+							<Card.Description class="flex flex-wrap items-center gap-x-3 gap-y-1">
+								<PatternChip slots={kayit.slots} />
+								<span>{kayit.roomName} · {kayit.trainerName}</span>
+							</Card.Description>
+							<Card.Action>
 								<ActionMenu actions={kayitActions(kayit)} />
-							</div>
+							</Card.Action>
 						</Card.Header>
 						<Card.Content class="space-y-4">
-							<dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-								<div>
-									<dt class="text-muted-foreground">Kalan</dt>
+							<LessonMeter
+								{done}
+								total={kayit.lessonCount}
+								renewalDue={isRenewalDue(kayit.upcoming[kayit.upcoming.length - 1].date)}
+							/>
+							<dl class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+								<div class="flex gap-1.5">
+									<dt class="text-muted-foreground">Sıradaki</dt>
+									<dd class="font-medium tabular-nums">{formatSlotLabel(next.date, next.hour)}</dd>
+								</div>
+								<div class="flex gap-1.5">
+									<dt class="text-muted-foreground">Son ders</dt>
 									<dd class="font-medium tabular-nums">
-										{kayit.upcoming.length} / {kayit.lessonCount} ders
+										{formatDisplayDate(kayit.upcoming[kayit.upcoming.length - 1].date)}
 									</dd>
 								</div>
-								<div>
-									<dt class="text-muted-foreground">Tamamlanan</dt>
-									<dd class="font-medium tabular-nums">{done} ders</dd>
-								</div>
 								{#if !kayit.isGroup}
-									<div>
+									<div class="flex gap-1.5">
 										<dt class="text-muted-foreground">Değişiklik hakkı</dt>
 										<dd class="font-medium tabular-nums">
 											{kayit.creditsLeft >= 999 ? 'Sınırsız' : kayit.creditsLeft}
 										</dd>
 									</div>
 								{/if}
-								<div>
-									<dt class="text-muted-foreground">Son ders</dt>
-									<dd class="font-medium">
-										{formatDisplayDate(kayit.upcoming[kayit.upcoming.length - 1].date)}
-									</dd>
-								</div>
 							</dl>
 
 							{#if kayit.sharedTrainees.length > 0}
@@ -282,26 +282,36 @@
 							{/if}
 
 							<div class="flex flex-wrap gap-2">
-								<Button href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}">
+								<Button
+									variant="outline"
+									size="sm"
+									href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
+								>
 									<RefreshCw />
 									Yenile
 								</Button>
-								<Button variant="outline" href={calendarLink(next, 'move', kayit)}>
+								<Button variant="outline" size="sm" href={calendarLink(next, 'move', kayit)}>
 									<MoveRight />
 									Taşı
 								</Button>
 							</div>
 
-							<section aria-label="Yaklaşan dersler">
-								<h3 class="mb-2 text-sm font-semibold">Yaklaşan dersler</h3>
-								<ul class="divide-y rounded-md border text-sm">
+							<section aria-labelledby="upcoming-{kayit.id}">
+								<h3 id="upcoming-{kayit.id}" class="mb-1 text-sm font-semibold">
+									Yaklaşan randevular
+								</h3>
+								<ul class="divide-y text-sm">
 									{#each visible as lesson (lesson.appointmentId)}
-										<li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-											<span class="font-medium">{formatSlotLabel(lesson.date, lesson.hour)}</span>
-											<span class="text-muted-foreground">
-												{lesson.roomName} · {lesson.trainerName}
+										<li class="flex items-center gap-3 py-1.5">
+											<span class="min-w-0 flex-1 sm:flex sm:gap-3">
+												<span class="block font-medium tabular-nums">
+													{formatSlotLabel(lesson.date, lesson.hour)}
+												</span>
+												<span class="block truncate text-muted-foreground">
+													{lesson.roomName} · {lesson.trainerName}
+												</span>
 											</span>
-											<span class="ml-auto flex gap-1">
+											<span class="flex shrink-0 gap-1">
 												<Button
 													variant="ghost"
 													size="sm"
@@ -331,7 +341,7 @@
 									>
 										{expanded[kayit.id]
 											? 'Daha az göster'
-											: `Tüm yaklaşan dersler (${kayit.upcoming.length})`}
+											: `Tüm yaklaşan randevular (${kayit.upcoming.length})`}
 									</Button>
 								{/if}
 							</section>
@@ -341,15 +351,16 @@
 
 				{#if finished.length > 0}
 					<Accordion.Root type="single">
-						<Accordion.Item value="finished" class="rounded-md border px-4">
+						<Accordion.Item value="finished" class="rounded-xl border px-4">
 							<Accordion.Trigger>Geçmiş kayıtlar ({finished.length})</Accordion.Trigger>
 							<Accordion.Content>
 								<ul class="divide-y text-sm">
 									{#each finished as kayit (kayit.id)}
 										<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
 											<span class="font-medium">{kayit.packageName}</span>
+											<PatternChip slots={kayit.slots} />
 											<span class="text-muted-foreground">
-												{kayit.pattern} · {kayit.lessons.length} ders
+												{kayit.lessons.length} ders
 												{#if kayit.lessons.length > 0}
 													· {formatDisplayDate(kayit.lessons[0].date)} – {formatDisplayDate(
 														kayit.lessons[kayit.lessons.length - 1].date

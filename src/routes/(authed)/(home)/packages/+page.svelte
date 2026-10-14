@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { badgeHtml } from '$lib/utils/html-utils';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -110,13 +111,12 @@
 			key: 'package_type',
 			title: 'Tür',
 			render: (pkg: PackageWithPurchases) => {
-				const type = pkg.package_type === 'private' ? 'Özel' : 'Grup';
-				return `<span class="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground">${type}</span>`;
+				return badgeHtml(pkg.package_type === 'private' ? 'Özel' : 'Grup', 'outline');
 			}
 		},
 		{
 			key: 'min_lessons_per_week',
-			title: 'Haftalık Ders',
+			title: 'Haftalık ders',
 			render: (pkg: PackageWithPurchases) => {
 				const min = pkg.min_lessons_per_week;
 				const max = pkg.max_lessons_per_week;
@@ -270,30 +270,30 @@
 	<title>Paketler · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
-	<PageHeader title="Paketler" {subtitle} />
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
+	<PageHeader title="Paketler" {subtitle}>
+		{#snippet actions()}
+			{#if userRole === 'admin'}
+				<Button
+					onclick={() => {
+						showCreateModal = true;
+					}}
+				>
+					<Plus size={16} />
+					Yeni paket
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	<!-- Search and Add Package Section -->
-	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Paket ara" />
-			{#if hasArchivedPackages}
-				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<Switch bind:checked={showArchived} class="scale-75" />
-					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
-				</label>
-			{/if}
-		</div>
-
-		{#if userRole === 'admin'}
-			<Button
-				onclick={() => {
-					showCreateModal = true;
-				}}
-			>
-				<Plus size={16} />
-				Yeni paket
-			</Button>
+	<div class="w-full lg:max-w-xs">
+		<SearchInput bind:value={searchTerm} placeholder="Paket ara" />
+		{#if hasArchivedPackages}
+			<label class="mt-2 flex cursor-pointer items-center gap-2">
+				<Switch bind:checked={showArchived} class="scale-75" />
+				<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
+			</label>
 		{/if}
 	</div>
 
@@ -356,7 +356,7 @@
 				<div class="grid gap-2">
 					<Label for="edit-weeks-duration" class="flex items-center justify-between font-medium">
 						<span>Süre (hafta)</span>
-						<span class="text-xs text-warning">Değiştirilemez</span>
+						<span class="text-xs text-muted-foreground">Değiştirilemez</span>
 					</Label>
 					<Input
 						id="edit-weeks-duration"
@@ -410,7 +410,7 @@
 				<div class="grid gap-2">
 					<Label for="edit-trainee-type" class="flex items-center justify-between font-medium">
 						<span>Paket türü</span>
-						<span class="text-xs text-warning">Değiştirilemez</span>
+						<span class="text-xs text-muted-foreground">Değiştirilemez</span>
 					</Label>
 					<Input
 						id="edit-trainee-type"

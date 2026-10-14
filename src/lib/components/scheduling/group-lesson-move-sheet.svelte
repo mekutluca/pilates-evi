@@ -97,7 +97,7 @@
 			</Sheet.Description>
 		</Sheet.Header>
 
-		<div class="space-y-6 p-4">
+		<div class="space-y-6 px-6 py-5">
 			<div class="grid gap-2 sm:max-w-56">
 				<Label for="glm-from">Hangi tarihten itibaren?</Label>
 				<Input id="glm-from" type="date" min={today} bind:value={fromDate} />

@@ -9,8 +9,12 @@
 	import MoveRight from '@lucide/svelte/icons/move-right';
 	import CalendarOff from '@lucide/svelte/icons/calendar-off';
 	import { invalidateAll } from '$app/navigation';
-	import { formatDisplayDate, formatSlotLabel } from '$lib/utils/date-utils';
-	import { formatWeeklyPattern } from '$lib/utils/slot-utils';
+	import { formatDisplayDate, formatShortDate, formatSlotLabel } from '$lib/utils/date-utils';
+	import StatStrip from '$lib/components/stat-strip.svelte';
+	import { cn } from '$lib/utils';
+	import { isRenewalDue } from '$lib/utils/appointment-utils';
+	import PatternChip from '$lib/components/pattern-chip.svelte';
+	import { getTimeString } from '$lib/types/Schedule';
 
 	const INITIAL_SESSIONS = 12;
 
@@ -35,14 +39,15 @@
 	<title>{lesson.packageName} · Grup Dersleri · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title={lesson.packageName}
-		subtitle={`${formatWeeklyPattern(lesson.slots)} · ${lesson.roomName} · ${lesson.trainerName}`}
+		subtitle={`${lesson.roomName} · ${lesson.trainerName}`}
 		back={{ href: '/group-lessons', label: 'Grup Dersleri' }}
 	>
-		{#if running}
-			<div class="mt-4 flex flex-wrap gap-2">
+		<PatternChip slots={lesson.slots} class="mt-2" />
+		{#snippet actions()}
+			{#if running}
 				<Button
 					href={`/new-assignment?package_id=${lesson.packageId}&group_lesson_id=${lesson.id}`}
 				>
@@ -53,36 +58,31 @@
 					<MoveRight />
 					Taşı
 				</Button>
-				<Button variant="outline" class="text-destructive" onclick={() => (endOpen = true)}>
+				<Button variant="destructive" onclick={() => (endOpen = true)}>
 					<CalendarOff />
 					Sonlandır
 				</Button>
-			</div>
-		{:else}
-			<Badge variant="secondary" class="mt-4">Sona erdi · {formatDisplayDate(lesson.endDate)}</Badge
-			>
-		{/if}
+			{:else}
+				<Badge variant="secondary">Sona erdi · {formatDisplayDate(lesson.endDate)}</Badge>
+			{/if}
+		{/snippet}
 	</PageHeader>
 
-	<dl class="grid gap-4 sm:grid-cols-3">
-		<div class="rounded-md border p-4">
-			<dt class="text-sm text-muted-foreground">Öğrenci</dt>
-			<dd class="mt-1 text-2xl font-semibold tabular-nums">
-				{lesson.traineeCount}
-				<span class="text-base font-normal text-muted-foreground">/ {lesson.maxCapacity}</span>
-			</dd>
-		</div>
-		<div class="rounded-md border p-4">
-			<dt class="text-sm text-muted-foreground">Sıradaki randevu</dt>
-			<dd class="mt-1 font-medium">
-				{nextSession ? formatSlotLabel(nextSession.date, nextSession.hour) : '—'}
-			</dd>
-		</div>
-		<div class="rounded-md border p-4">
-			<dt class="text-sm text-muted-foreground">Başlangıç</dt>
-			<dd class="mt-1 font-medium">{formatDisplayDate(lesson.startDate)}</dd>
-		</div>
-	</dl>
+	<StatStrip
+		items={[
+			{ label: 'Öğrenci', value: lesson.traineeCount, of: lesson.maxCapacity },
+			{
+				label: 'Sıradaki randevu',
+				value: nextSession ? getTimeString(nextSession.hour) : '—',
+				hint: nextSession ? formatSlotLabel(nextSession.date, nextSession.hour) : undefined
+			},
+			{
+				label: 'Başlangıç',
+				value: formatShortDate(lesson.startDate),
+				hint: lesson.startDate.slice(0, 4)
+			}
+		]}
+	/>
 
 	<div class="grid gap-6 lg:grid-cols-5">
 		<Card.Root class="lg:col-span-3">
@@ -93,12 +93,12 @@
 				{#if lesson.sessions.length === 0}
 					<p class="text-sm text-muted-foreground">Yaklaşan randevu yok.</p>
 				{:else}
-					<ul class="divide-y rounded-md border">
+					<ul class="divide-y">
 						{#each sessions as session (session.appointmentId)}
 							<li>
 								<a
 									href={calendarHref(session)}
-									class="flex items-start justify-between gap-3 px-3 py-2 text-sm hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+									class="row-link flex items-start justify-between gap-3 py-2.5 text-sm"
 								>
 									<span>
 										<span class="font-medium">{formatSlotLabel(session.date, session.hour)}</span>
@@ -154,8 +154,15 @@
 									<a href={`/trainees/${member.traineeId}`} class="font-medium hover:underline">
 										{member.name}
 									</a>
-									<span class="block text-muted-foreground">
-										{member.upcomingCount} ders kaldı · son {formatDisplayDate(member.lastDate)}
+									<span
+										class={cn(
+											'block',
+											isRenewalDue(member.lastDate)
+												? 'font-medium text-warning-foreground'
+												: 'text-muted-foreground'
+										)}
+									>
+										{member.upcomingCount} ders kaldı · son {formatShortDate(member.lastDate)}
 									</span>
 								</span>
 								<Button

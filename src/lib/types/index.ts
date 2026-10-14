@@ -1,5 +1,6 @@
 // Centralized type exports for the Pilates Evi application
 import type { Tables } from '$lib/types/database.types';
+import type { WeeklySlot } from '$lib/types/Schedule';
 import Users from '@lucide/svelte/icons/users';
 
 // ===============================================
@@ -114,8 +115,8 @@ export interface TraineeKayit {
 	creditsLeft: number;
 	lessons: KayitLesson[];
 	upcoming: KayitLesson[];
-	// e.g. "Sal, Per · 10:00"
-	pattern: string;
+	// The weekly pattern of its upcoming (or, once over, all) lessons
+	slots: WeeklySlot[];
 	roomName: string;
 	trainerName: string;
 	// Other trainees sharing the private lessons

@@ -13,6 +13,7 @@
 	import { toast } from 'svelte-sonner';
 	import { cn } from '$lib/utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
+	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
 
 	const MAX_RESULTS = 8;
 
@@ -92,7 +93,7 @@
 
 	{#if creating}
 		<form
-			class="grid gap-4 rounded-md border p-4"
+			class="grid gap-4 rounded-xl border p-4"
 			onsubmit={(e) => {
 				e.preventDefault();
 				create();
@@ -144,7 +145,7 @@
 				"{search}" ile eşleşen öğrenci yok. Yeni öğrenci olarak ekleyebilirsiniz.
 			</p>
 		{:else}
-			<ul class="divide-y rounded-md border">
+			<ul class="divide-y rounded-xl border">
 				{#each matches as trainee (trainee.id)}
 					{@const isSelected = selected.includes(trainee.id)}
 					<li>
@@ -159,10 +160,12 @@
 						>
 							<span>
 								<span class="font-medium">{trainee.name}</span>
-								<span class="block text-muted-foreground tabular-nums">{trainee.phone}</span>
+								<span class="block text-muted-foreground tabular-nums">
+									{formatPhoneDisplay(trainee.phone)}
+								</span>
 							</span>
 							{#if isSelected}
-								<Check class="size-4 text-primary" />
+								<Check class="size-4 text-primary-ink" />
 							{/if}
 						</button>
 					</li>

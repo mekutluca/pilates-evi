@@ -280,3 +280,15 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 **Cleanup:** one `actionResource` helper + `Loadable<T>` replace seven hand-written debounced preview effects and their local state types; `lesson-plan-summary` + `canConfirmPlan` shared by Yenile, Yeni kayıt and Yeni grup dersi; `weeklySlotKey` / `groupSlotKey` replace inline key builders.
 
 **Left for Phase 3/4:** one long + one short date format everywhere (several `date-utils` formatters still coexist); destructive confirms on the CRUD pages still read "Arşivle"/"Sil" without the object.
+
+## Phase 3 progress
+
+**2026-10-14/15 — new identity (uncommitted):**
+
+- **Direction (owner-pinned):** the house style shared with invest-track, dr.villa, ustama-emanet and rahmet-turizm, keeping the studio orange (#c2410c) as the one accent. Contract in `src/app.html`; rulebook in `DESIGN.md`.
+- **System:** stone tokens, `primary-ink` for orange type, Attention Yellow = needs a renewal, red = conflict (tint only), ordered orange chart ramp, themed selection / caret / scrollbar; shadcn "maia" components ported from the siblings (pill controls, ringed cards, no resting shadows); light / dark / system theme toggle (`mode-watcher`).
+- **Shell:** brand mark (pilates ring, also `static/favicon.svg`), studio name next to the product name (from the membership in `hooks.server.ts`), page header with actions on the right, centred `max-w-6xl` pages (calendar pages full width).
+- **Signature objects:** weekly pattern chip and lesson meter on the client hub, Panel renewals, group lessons; one renewal rule (`isRenewalDue`, 14 days) everywhere.
+- **Week board rebuilt:** orange-tinted lesson blocks (package, trainees, other dimension), quiet free cells, today column, one-click room / trainer pills, week nav in the header, scroll to today on phones.
+- **Panel:** today as a timeline (past dimmed, Sıradaki), renewals with chip + meter + Yenile, new kayıtlar; phones read Bugün → renewals → new kayıtlar.
+- **Verification:** Playwright captures against the Demo org (seeded with synthetic data: 12 trainees noted `demo-veri`, 8 private kayıtlar, one Zumba group lesson); impeccable detector clean; finish review: two fix rounds, all findings resolved (the last two small fixes verified by capture only).

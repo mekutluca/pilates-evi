@@ -1,4 +1,5 @@
 // Panel (dashboard) data
+import type { WeeklySlot } from './Schedule';
 
 // A lesson as the panel lists it
 export interface PanelLesson {
@@ -20,9 +21,12 @@ export interface EndingKayit {
 	traineeName: string;
 	purchaseId: string;
 	packageName: string;
-	// Lessons still ahead
+	// The purchase's lessons and how many are still ahead
+	total: number;
 	remaining: number;
 	lastDate: string;
+	// Weekly pattern of its last lessons
+	slots: WeeklySlot[];
 }
 
 // A kayıt opened this week (renewals are only counted)

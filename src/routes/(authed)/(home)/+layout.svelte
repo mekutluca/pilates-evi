@@ -4,6 +4,8 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Logout from '@lucide/svelte/icons/log-out';
 	import ActionMenu from '$lib/components/action-menu.svelte';
+	import BrandMark from '$lib/components/brand-mark.svelte';
+	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 	import GlobalActionDrawer from '$lib/components/global-action-drawer.svelte';
 	import { setActionDrawerContext } from '$lib/stores/action-drawer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -151,6 +153,7 @@
 				<li>
 					<a
 						href={route.href}
+						aria-current={isRouteActive(route) ? 'page' : undefined}
 						class={cn(
 							'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
 							isRouteActive(route)
@@ -158,7 +161,7 @@
 								: 'text-foreground hover:bg-muted'
 						)}
 					>
-						<route.icon size={16} /><span>{route.label}</span>
+						<route.icon size={16} /><span class="flex-1">{route.label}</span>
 					</a>
 				</li>
 			{/each}
@@ -177,7 +180,7 @@
 	{/if}
 
 	<!-- Top navbar -->
-	<header class="flex h-14 flex-none items-center gap-2 border-b bg-card px-4 shadow-sm">
+	<header class="flex h-14 flex-none items-center gap-2 border-b bg-card px-4">
 		<Button
 			variant="ghost"
 			size="icon"
@@ -187,9 +190,18 @@
 		>
 			<Menu />
 		</Button>
-		<div class="flex-1">
-			<Button variant="ghost" href="/" class="text-xl font-semibold">Pilates Evi</Button>
+		<div class="flex min-w-0 flex-1 items-center">
+			<a href="/" class="flex min-w-0 items-center gap-2 px-2">
+				<BrandMark />
+				<span class="text-xl font-semibold">Pilates Evi</span>
+				{#if data.organizationName}
+					<span class="hidden truncate text-sm text-muted-foreground sm:inline">
+						· {data.organizationName}
+					</span>
+				{/if}
+			</a>
 		</div>
+		<ThemeToggle />
 		<ActionMenu
 			actions={userMenuActions}
 			trigger={CircleUser}
@@ -201,7 +213,7 @@
 	<!-- Main content area with sidebar and scrollable content -->
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Desktop sidebar -->
-		<aside class="hidden w-64 flex-col justify-between border-r bg-card p-4 lg:flex">
+		<aside class="hidden w-64 flex-none flex-col justify-between border-e bg-card p-4 lg:flex">
 			<nav>
 				{@render sidebarContent()}
 			</nav>

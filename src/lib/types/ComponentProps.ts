@@ -14,7 +14,6 @@ import type {
 	DayOfWeek,
 	PickedSlot,
 	ScheduleSlot,
-	SlotColor,
 	WeeklySlot
 } from '$lib/types/Schedule';
 import type { SlotConflict } from '$lib/types/Conflict';
@@ -33,6 +32,9 @@ export interface PageHeaderProps {
 	title: string;
 	subtitle?: string;
 	back?: BackLink;
+	// Right-aligned page actions (at most one primary button)
+	actions?: Snippet;
+	// Details under the title
 	children?: Snippet;
 }
 
@@ -78,30 +80,15 @@ export interface PackageCreationFormProps {
 }
 
 export interface ScheduleProps {
-	// Week to display
+	// Monday of the week to display
 	weekStart: Date;
-
-	// Header info (shown above the schedule grid)
+	// Whose week it is (a room or a trainer)
 	entityName: string;
-	entityBadge?: {
-		text: string;
-		color?: SlotColor;
-	};
-
 	// Slot data provider - called for each day/hour combination
 	getSlotData: (day: DayOfWeek, hour: number, date: string) => ScheduleSlot;
-
-	// Event handlers
 	onSlotClick?: (slot: ScheduleSlot) => void;
-
 	// Menu items for a day's column header (e.g. "Günü kapat"); empty = no menu
 	dayActions?: (date: string) => ActionItem[];
-
-	// Optional custom slot renderer (for 'custom' variant)
-	customSlotRenderer?: Snippet<[ScheduleSlot]>;
-
-	// Optional alert banner above schedule (for reschedule mode, etc.)
-	alertBanner?: Snippet;
 }
 
 export interface SearchInputProps {
@@ -235,4 +222,34 @@ export interface LessonPlanSummaryProps {
 	plan: Loadable<LessonPlanPreviewPayload>;
 	// Shown before there is anything to plan
 	idleMessage: string;
+}
+
+export interface BrandMarkProps {
+	class?: string;
+}
+
+export interface PatternChipProps {
+	slots: WeeklySlot[];
+	class?: string;
+}
+
+export interface LessonMeterProps {
+	// Lessons already behind and the kayıt's total
+	done: number;
+	total: number;
+	// Few lessons left and no renewal yet
+	renewalDue?: boolean;
+	class?: string;
+}
+
+export interface StatStripItem {
+	label: string;
+	value: number | string;
+	// "/ n" after the value (e.g. a capacity)
+	of?: number;
+	hint?: string;
+}
+
+export interface StatStripProps {
+	items: StatStripItem[];
 }

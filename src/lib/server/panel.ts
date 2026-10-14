@@ -6,11 +6,18 @@ import type {
 	StudioPanel,
 	TrainerPanel
 } from '$lib/types/Dashboard';
-import { addDays, formatDateForDB, getWeekStart, isAppointmentFuture } from '$lib/utils/date-utils';
+import {
+	addDays,
+	formatDateForDB,
+	getDayOfWeekFromDate,
+	getWeekStart,
+	isAppointmentFuture
+} from '$lib/utils/date-utils';
+import { renewalWindowEnd } from '$lib/utils/appointment-utils';
+import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 
 const ROW_PAGE = 1000;
-// "Paketi bitmek üzere": the last lesson is at most this many days ahead…
-const ENDING_AHEAD_DAYS = 14;
+// "Paketi bitmek üzere": the last lesson is within the renewal window ahead…
 // …or was at most this many days ago, without a renewal
 const ENDED_BEHIND_DAYS = 7;
 
@@ -74,7 +81,7 @@ async function weekLessons(
 async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit[]> {
 	const today = new Date();
 	const windowStart = formatDateForDB(addDays(today, -ENDED_BEHIND_DAYS));
-	const windowEnd = formatDateForDB(addDays(today, ENDING_AHEAD_DAYS));
+	const windowEnd = renewalWindowEnd();
 
 	const inWindow = await pagedRows((from, to) =>
 		supabase
@@ -93,7 +100,7 @@ async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit
 	const [{ data: open, error: openError }, later] = await Promise.all([
 		supabase
 			.from('pe_purchases')
-			.select('id, pe_packages(name)')
+			.select('id, lesson_count, pe_packages(name)')
 			.in('id', candidateIds)
 			.is('successor_id', null),
 		pagedRows((from, to) =>
@@ -108,25 +115,32 @@ async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit
 	]);
 	if (openError) throw new Error(openError.message);
 	const continuing = new Set(later.map((r) => r.purchase_id));
-	const packageNames = new Map(
-		(open ?? []).filter((p) => !continuing.has(p.id)).map((p) => [p.id, p.pe_packages.name])
+	const ending = new Map(
+		(open ?? []).filter((p) => !continuing.has(p.id)).map((p) => [p.id, p] as const)
 	);
 
 	const byKayit = new Map<string, EndingKayit>();
 	for (const row of inWindow) {
-		const packageName = packageNames.get(row.purchase_id);
-		if (packageName === undefined) continue;
+		const purchase = ending.get(row.purchase_id);
+		if (!purchase) continue;
 		const key = `${row.trainee_id}|${row.purchase_id}`;
 		const entry = byKayit.get(key) ?? {
 			traineeId: row.trainee_id,
 			traineeName: row.pe_trainees.name,
 			purchaseId: row.purchase_id,
-			packageName,
+			packageName: purchase.pe_packages.name,
+			total: purchase.lesson_count,
 			remaining: 0,
-			lastDate: row.pe_appointments.date
+			lastDate: row.pe_appointments.date,
+			slots: []
 		};
-		if (isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) entry.remaining++;
-		if (row.pe_appointments.date > entry.lastDate) entry.lastDate = row.pe_appointments.date;
+		const { date, hour } = row.pe_appointments;
+		if (isAppointmentFuture(date, hour)) entry.remaining++;
+		if (date > entry.lastDate) entry.lastDate = date;
+		const slot = { day: getDayOfWeekFromDate(date), hour };
+		if (!entry.slots.some((s) => weeklySlotKey(s) === weeklySlotKey(slot))) {
+			entry.slots = sortTimeSlots([...entry.slots, slot]);
+		}
 		byKayit.set(key, entry);
 	}
 	return [...byKayit.values()].sort(

@@ -120,7 +120,7 @@
 				/>
 			{:else}
 				<div
-					class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+					class="flex h-9 w-full items-center rounded-4xl border border-input bg-muted px-3 text-sm text-muted-foreground"
 				>
 					Devamlı
 				</div>
@@ -177,8 +177,8 @@
 		<Card.Root>
 			<Card.Content class="p-4">
 				<div class="flex items-center gap-2">
-					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
-						<Medal class="size-4 text-warning" />
+					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+						<Medal class="size-4 text-muted-foreground" />
 					</div>
 					<h3 class="text-sm font-semibold">Paket türü</h3>
 				</div>
@@ -212,8 +212,8 @@
 		<Card.Root>
 			<Card.Content class="p-4">
 				<div class="flex items-center gap-2">
-					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
-						<CalendarSync class="size-4 text-warning" />
+					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+						<CalendarSync class="size-4 text-muted-foreground" />
 					</div>
 					<h3 class="text-sm font-semibold">Randevu değişikliği</h3>
 				</div>

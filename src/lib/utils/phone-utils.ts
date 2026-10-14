@@ -38,3 +38,11 @@ export function normalizePhoneNumber(input: string): string | null {
 	if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
 	return /^\d{10}$/.test(digits) ? digits : null;
 }
+
+/** A stored 10-digit number for people to read: "555 123 45 67". */
+export function formatPhoneDisplay(phone: string): string {
+	const d = phone.replace(/\D/g, '');
+	return d.length === 10
+		? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 8)} ${d.slice(8)}`
+		: phone;
+}

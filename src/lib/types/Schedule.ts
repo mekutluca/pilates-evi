@@ -160,11 +160,19 @@ export interface AppointmentWithDetails {
 	trainee_names?: string[];
 	trainee_count?: number;
 	package_name?: string;
+	max_capacity?: number;
 	reschedule_left?: number; // Number of reschedules remaining for this purchase
 	has_last_session?: boolean; // Whether any trainee has their last session
 	appointment_trainees?: AppointmentTraineeRelation[]; // Trainee details
 	session_number?: number | null;
 	total_sessions?: number | null;
+}
+
+// The text lines of a lesson block on the week board
+export interface LessonBlockLines {
+	title: string;
+	subtitle: string;
+	meta: string;
 }
 
 // Constants
@@ -206,22 +214,13 @@ export function getTimeString(hour: number): string {
 	return `${hour.toString().padStart(2, '0')}:00`;
 }
 
-export function getTimeRangeString(hour: number): string {
-	return `${getTimeString(hour)} - ${getTimeString(hour + 1)}`;
-}
-
 // ===============================================
 // SCHEDULE SLOT TYPES (used by the Schedule component)
 // ===============================================
 
-export type SlotColor =
-	'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'destructive';
-
-interface RescheduleSlotData {
-	roomId: string;
-	day: DayOfWeek;
-	hour: number;
-}
+// Slot tones: primary = booked (tinted), muted = quiet / taken / being moved,
+// destructive = conflict
+export type SlotColor = 'primary' | 'muted' | 'destructive';
 
 interface BaseSlotData {
 	day: DayOfWeek;
@@ -236,8 +235,9 @@ interface EmptySlot extends BaseSlotData {
 
 interface AppointmentSlot extends BaseSlotData {
 	variant: 'appointment';
-	title: string; // Main text (e.g., trainer/room name)
-	subtitle?: string; // Optional subtitle (e.g., package name)
+	title: string; // Main text (the package)
+	subtitle?: string; // Second line (trainees, or the group's fill)
+	meta?: string; // Third line (the other dimension: trainer in a room view, room in a trainer view)
 	badge?: string; // Optional badge text (e.g., "Son ders")
 	warning?: string; // Optional conflict notation (e.g., "Kapasite aşıldı", "Çakışma")
 	color?: SlotColor;
@@ -248,27 +248,15 @@ interface AppointmentSlot extends BaseSlotData {
 
 interface AvailableSlot extends BaseSlotData {
 	variant: 'available';
-	label?: string; // Optional label like "Seç" or "Müsait"
+	label?: string; // Always shown (e.g. "Buraya taşı")
 	hoverLabel?: string; // Shown only on hover/focus when there is no label (e.g. "Kayıt ekle")
 	clickable?: boolean;
-	disabled?: boolean;
+	// Picked (e.g. a weekly slot chosen in the wizard)
+	selected?: boolean;
 	color?: SlotColor;
-	data?: RescheduleSlotData;
 }
 
-interface DisabledSlot extends BaseSlotData {
-	variant: 'disabled';
-	label?: string; // Optional label like "Geçmiş" or "23s"
-	reason?: string; // Why it's disabled (for tooltip/accessibility)
-}
-
-interface CustomSlot extends BaseSlotData {
-	variant: 'custom';
-	clickable?: boolean;
-	data?: Record<string, never>;
-}
-
-export type ScheduleSlot = EmptySlot | AppointmentSlot | AvailableSlot | DisabledSlot | CustomSlot;
+export type ScheduleSlot = EmptySlot | AppointmentSlot | AvailableSlot;
 
 // A time picked on the calendar grid as a move target
 export interface PickedSlot extends SlotRef {

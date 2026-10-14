@@ -87,7 +87,7 @@
 	<title>Yenile · {pkg.name} · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Kaydı yenile"
 		subtitle={`${pkg.name} · ${data.trainees.map((t) => t.name).join(', ')}`}
@@ -116,7 +116,7 @@
 								hour: slot.hour
 							}}
 							<label
-								class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm"
+								class="flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm"
 							>
 								<Checkbox
 									checked={selectedGroupKeys.has(groupSlotKey(selection))}

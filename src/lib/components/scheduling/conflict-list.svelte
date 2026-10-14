@@ -7,7 +7,7 @@
 	const shown = $derived(conflicts.slice(0, limit));
 </script>
 
-<div class="rounded-md border border-destructive/40 p-3 text-sm">
+<div class="rounded-xl bg-destructive/10 p-3 text-sm">
 	<p class="font-medium text-destructive">{title}</p>
 	<ul class="mt-1 space-y-0.5 text-muted-foreground">
 		{#each shown as conflict (`${conflict.date}-${conflict.hour}`)}

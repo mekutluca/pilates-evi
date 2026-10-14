@@ -83,7 +83,7 @@
 			</p>
 
 			{#if leftovers.length > 0}
-				<div class="rounded-md border border-destructive/40 p-3 text-sm">
+				<div class="rounded-xl bg-destructive/10 p-3 text-sm">
 					<p class="font-medium">{leftovers.length} ders çakışma nedeniyle kaydırılamadı</p>
 					<ul class="mt-2 space-y-1 text-muted-foreground">
 						{#each leftovers as conflict (conflict.appointmentId)}
@@ -104,7 +104,7 @@
 			{:else if previewState.current.value.preview.rows.length === 0}
 				<p class="rounded-md bg-muted p-3 text-sm">Bu günde yaklaşan ders yok.</p>
 			{:else}
-				<ul class="max-h-72 divide-y overflow-y-auto rounded-md border text-sm">
+				<ul class="max-h-72 divide-y overflow-y-auto rounded-xl border text-sm">
 					{#each previewState.current.value.preview.rows as row (row.appointmentId)}
 						<li class="grid gap-1 px-3 py-2">
 							<div class="flex flex-wrap items-center gap-2">

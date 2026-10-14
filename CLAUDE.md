@@ -59,11 +59,13 @@ Key entity types defined in `src/lib/types/`:
 
 ### Styling
 
-- TailwindCSS v4 with shadcn-svelte components (built on bits-ui)
-- shadcn-svelte primitives live in `src/lib/components/ui/` (auto-generated; do not edit by hand unless intentionally customizing)
-- Font: Nunito Sans Variable (`@fontsource-variable/nunito-sans`)
+- **DESIGN.md is the visual rulebook** (house style shared with invest-track, dr.villa, ustama-emanet, rahmet-turizm): stone neutrals, flat Paper cards with a 10% ink ring on a `bg-muted/30` page, pill controls, Nunito Sans only, tabular numerals, no resting shadows
+- TailwindCSS v4 with shadcn-svelte components (built on bits-ui), "maia" style ported from the sibling apps; primitives live in `src/lib/components/ui/` (do not edit by hand unless intentionally customizing)
+- Font: Nunito Sans Variable (`@fontsource-variable/nunito-sans`); light/dark/system via `mode-watcher` (`theme-toggle.svelte`)
 - Uses `cn()` from `$lib/utils` (clsx + tailwind-merge) for conditional classes
-- Custom semantic color tokens defined in `src/app.css` extend the default shadcn palette: `info`, `success`, `warning` (each with a `-foreground` variant), in addition to the standard `primary`, `secondary`, `accent`, `destructive`, `muted`
+- Tokens in `src/app.css`: one accent, Studio Orange (`primary`; `primary-ink` for orange text, readable in both themes), `warning` = needs a renewal (amber text via `warning-foreground`), `destructive` = conflict / destructive (always a tint), `chart-1..5` = ordered orange ramp
+- Utilities in `src/app.css`: `surface` (a Paper card: 18px corners, 10% ink ring) and `row-link` (a clickable row inside a card); `badgeHtml()` in `$lib/utils/html-utils` is the `<Badge>` for sortable-table HTML renders
+- Signature components: `pattern-chip.svelte` (weekly pattern), `lesson-meter.svelte` (kayıt progress; `isRenewalDue` in `$lib/utils/appointment-utils`), `stat-strip.svelte`, `page-header.svelte` (`actions` snippet on the right), `schedule.svelte` (the week board)
 
 ### State Management
 
@@ -83,7 +85,7 @@ Key entity types defined in `src/lib/types/`:
 - **Cancel actions**: `<Button variant="outline">` or `variant="ghost"`.
 - **Delete / archive actions**: `<Button variant="destructive">`.
 - **Status badges**: `<Badge variant="outline">` for neutral labels, `<Badge variant="secondary">` for muted highlights.
-- **Semantic colors** (`info`, `success`, `warning`, `destructive`) are still defined in `src/app.css` and may be used for **state-based** UI — e.g. success indicators ("Çakışma yok"), info-level alerts, warning banners — but never as a page-identity differentiator.
+- **Semantic colors** (`warning`, `destructive`) are for **state** only (needs a renewal, conflict / destructive), never as a page-identity differentiator. Solid orange is spent on one primary action per screen and the active nav item.
 
 ### Examples
 
@@ -93,14 +95,12 @@ Key entity types defined in `src/lib/types/`:
 	import { Badge } from '$lib/components/ui/badge/index.js';
 </script>
 
-<!-- Primary action on any page -->
-<Button>Yeni Eğitmen</Button>
-<Button>Yeni Oda</Button>
-<Button>Yeni Öğrenci</Button>
-<Button>Yeni Kullanıcı</Button>
+<!-- Primary action on any page (one per screen, in PageHeader's actions) -->
+<Button>Yeni eğitmen</Button>
+<Button>Yeni kayıt</Button>
 
-<!-- Cancel / outline -->
-<Button variant="outline">İptal</Button>
+<!-- Dismiss / secondary -->
+<Button variant="outline">Vazgeç</Button>
 
 <!-- Destructive -->
 <Button variant="destructive">Sil</Button>
@@ -128,7 +128,7 @@ Key entity types defined in `src/lib/types/`:
 - **Never use `unknown` or `any` types** - Always define proper TypeScript types
 - **Use reusable components and utilities** - Leverage existing components in `src/lib/components/` and utilities in `src/lib/utils.ts`
 - **Never perform Supabase/database operations without permission** - Always check user roles and permissions before database operations
-- **Follow the theme palette** - All pages share the theme primary color; do not introduce per-page accent colors. Reserve `info`/`success`/`warning`/`destructive` for state semantics, not page identity.
+- **Follow the theme palette** - All pages share the theme primary color; do not introduce per-page accent colors. Reserve `warning`/`destructive` for state semantics, not page identity.
 - **Avoid unnecessary try-catch blocks** - Only use try-catch when you need to handle specific errors or transform them. Let validation errors from utility functions bubble up naturally to SvelteKit's error handling
 
 ### Error Handling Guidelines

@@ -1,8 +1,10 @@
 import type {
 	AppointmentWithRelations,
 	AppointmentWithDetails,
-	AppointmentWarning
+	AppointmentWarning,
+	LessonBlockLines
 } from '$lib/types/Schedule';
+import { addDays, formatDateForDB } from '$lib/utils/date-utils';
 
 /**
  * Converts an AppointmentWithRelations to AppointmentWithDetails
@@ -55,6 +57,7 @@ export function createAppointmentDetails(
 		room_name: roomNameOverride || appointment.pe_rooms?.name || '',
 		trainer_name: trainerNameOverride || appointment.pe_trainers?.name || '',
 		package_name: packageInfo?.name || '',
+		max_capacity: packageInfo?.max_capacity,
 		trainee_names: traineeNames,
 		trainee_count: traineeNames.length,
 		reschedule_left: purchase?.reschedule_left ?? 0,
@@ -94,4 +97,38 @@ export function getAppointmentWarningLabel(
 ): string | undefined {
 	if (!warning) return undefined;
 	return warning.exceededCapacity ? 'Kapasite aşıldı' : undefined;
+}
+
+/** A kayıt whose last lesson is at most this many days ahead is due a renewal (Yenile). */
+const RENEWAL_WINDOW_DAYS = 14;
+
+/** The last date (YYYY-MM-DD) a kayıt can end on and still be due a renewal. */
+export function renewalWindowEnd(): string {
+	return formatDateForDB(addDays(new Date(), RENEWAL_WINDOW_DAYS));
+}
+
+/** Whether a kayıt ending on `lastDate` (YYYY-MM-DD) is due a renewal. */
+export function isRenewalDue(lastDate: string): boolean {
+	return lastDate <= renewalWindowEnd();
+}
+
+/**
+ * A lesson block on the week board: the package, who attends (a group shows its fill
+ * first), and the other dimension of the view (the trainer on a room's week, the room on
+ * a trainer's).
+ */
+export function lessonBlockLines(
+	details: AppointmentWithDetails,
+	other: 'room' | 'trainer'
+): LessonBlockLines {
+	const names = details.trainee_names ?? [];
+	const who = names.length > 0 ? names.join(', ') : 'Öğrenci yok';
+	return {
+		title: details.package_name ?? '',
+		subtitle:
+			details.group_lesson_id && details.max_capacity
+				? `${names.length}/${details.max_capacity} · ${who}`
+				: who,
+		meta: (other === 'room' ? details.room_name : details.trainer_name) ?? ''
+	};
 }

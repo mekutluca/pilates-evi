@@ -16,6 +16,8 @@ declare global {
 			admin: SupabaseClient<Database> | undefined;
 			userRole: Role | null;
 			organizationId: string | null;
+			// The studio's name, shown next to the product name
+			organizationName: string | null;
 		}
 		interface PageData {
 			session: Session | null;

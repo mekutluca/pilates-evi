@@ -39,7 +39,7 @@
 		<Empty.Media variant="icon">
 			<copy.icon />
 		</Empty.Media>
-		<p class="font-mono text-xs tracking-widest text-muted-foreground uppercase">Hata {status}</p>
+		<p class="text-sm text-muted-foreground tabular-nums">Hata {status}</p>
 		<Empty.Title>{copy.title}</Empty.Title>
 		<Empty.Description>{description}</Empty.Description>
 	</Empty.Header>

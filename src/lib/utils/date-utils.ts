@@ -180,6 +180,12 @@ const TURKISH_MONTHS_SHORT = [
 	'Ara'
 ];
 
+/** A date in a dense row, e.g. "22 Eki". */
+export function formatShortDate(dateStr: string): string {
+	const date = parseLocalDate(dateStr);
+	return `${date.getDate()} ${TURKISH_MONTHS_SHORT[date.getMonth()]}`;
+}
+
 /**
  * A lesson slot as listed in previews and panels, e.g. "Salı 14 Eki · 10:00".
  */

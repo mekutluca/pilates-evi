@@ -16,8 +16,6 @@
 	import CancelDialog from '$lib/components/scheduling/cancel-dialog.svelte';
 	import CloseDayDialog from '$lib/components/scheduling/close-day-dialog.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import CalendarX from '@lucide/svelte/icons/calendar-x';
@@ -35,7 +33,8 @@
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
-		getAppointmentWarningLabel
+		getAppointmentWarningLabel,
+		lessonBlockLines
 	} from '$lib/utils/appointment-utils';
 
 	let { data }: { data: PageData } = $props();
@@ -52,8 +51,13 @@
 	const viewMode = $derived<'room' | 'trainer'>(
 		params.get('view') === 'trainer' ? 'trainer' : 'room'
 	);
-	const selectedRoomId = $derived(params.get('room') ?? rooms[0]?.id ?? '');
-	const selectedTrainerId = $derived(params.get('trainer') ?? trainers[0]?.id ?? '');
+	// An unknown or empty id in the URL falls back to the first room / trainer
+	const selectedRoomId = $derived(
+		rooms.find((r) => r.id === params.get('room'))?.id ?? rooms[0]?.id ?? ''
+	);
+	const selectedTrainerId = $derived(
+		trainers.find((t) => t.id === params.get('trainer'))?.id ?? trainers[0]?.id ?? ''
+	);
 	const weekStart = $derived.by(() => {
 		const week = params.get('week');
 		return getWeekStart(week && isIsoDate(week) ? parseLocalDate(week) : new Date());
@@ -143,11 +147,10 @@
 				day,
 				hour,
 				date,
-				title: (viewMode === 'room' ? details.trainer_name : details.room_name) ?? '',
-				subtitle: details.package_name,
+				...lessonBlockLines(details, viewMode === 'room' ? 'trainer' : 'room'),
 				badge: details.has_last_session ? 'Son ders' : undefined,
 				warning,
-				color: isMoving ? 'secondary' : warning ? 'destructive' : 'primary',
+				color: isMoving ? 'muted' : warning ? 'destructive' : 'primary',
 				clickable: !pickMode,
 				dimmed: (details.trainee_count ?? 0) === 0,
 				data: details
@@ -165,7 +168,6 @@
 			date,
 			label: pickMode ? 'Buraya taşı' : undefined,
 			hoverLabel: pickMode ? undefined : 'Kayıt ekle',
-			color: pickMode ? 'primary' : 'secondary',
 			clickable: true
 		};
 	}
@@ -214,61 +216,56 @@
 	<title>Takvim · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-4 p-4 md:p-6">
-	<div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-		<PageHeader title="Takvim" />
+<div class="space-y-4 p-4 lg:p-6">
+	<PageHeader title="Takvim">
+		{#snippet actions()}
+			<WeekNav {weekStart} onNavigate={goToWeek} />
+		{/snippet}
+	</PageHeader>
 
-		<div class="flex flex-wrap items-end gap-3">
-			<ToggleGroup.Root
-				type="single"
-				variant="outline"
-				size="sm"
-				value={viewMode}
-				onValueChange={(v) => v && navigate({ view: v })}
-				aria-label="Görünüm"
-			>
-				<ToggleGroup.Item value="room">Oda</ToggleGroup.Item>
-				<ToggleGroup.Item value="trainer">Eğitmen</ToggleGroup.Item>
-			</ToggleGroup.Root>
-
-			{#if viewMode === 'room'}
-				<Label for="room-select" class="sr-only">Oda</Label>
-				<NativeSelect
-					id="room-select"
-					value={selectedRoomId}
-					onchange={(e) => navigate({ room: e.currentTarget.value })}
+	<div class="flex flex-wrap items-center gap-3">
+		<ToggleGroup.Root
+			type="single"
+			variant="outline"
+			size="sm"
+			value={viewMode}
+			onValueChange={(v) => v && navigate({ view: v })}
+			aria-label="Görünüm"
+		>
+			<ToggleGroup.Item value="room">Oda</ToggleGroup.Item>
+			<ToggleGroup.Item value="trainer">Eğitmen</ToggleGroup.Item>
+		</ToggleGroup.Root>
+		<span class="h-5 w-px bg-border" aria-hidden="true"></span>
+		<ToggleGroup.Root
+			type="single"
+			size="sm"
+			spacing={1}
+			value={viewMode === 'room' ? selectedRoomId : selectedTrainerId}
+			onValueChange={(v) => v && navigate(viewMode === 'room' ? { room: v } : { trainer: v })}
+			aria-label={viewMode === 'room' ? 'Oda' : 'Eğitmen'}
+			class="flex-wrap"
+		>
+			{#each viewMode === 'room' ? rooms : trainers as entity (entity.id)}
+				<ToggleGroup.Item
+					value={entity.id}
+					class="px-3 data-[state=on]:bg-secondary data-[state=on]:font-semibold data-[state=on]:text-secondary-foreground data-[state=on]:ring-1 data-[state=on]:ring-foreground/15"
 				>
-					{#each rooms as room (room.id)}
-						<option value={room.id}>{room.name}</option>
-					{/each}
-				</NativeSelect>
-			{:else}
-				<Label for="trainer-select" class="sr-only">Eğitmen</Label>
-				<NativeSelect
-					id="trainer-select"
-					value={selectedTrainerId}
-					onchange={(e) => navigate({ trainer: e.currentTarget.value })}
-				>
-					{#each trainers as trainer (trainer.id)}
-						<option value={trainer.id}>{trainer.name}</option>
-					{/each}
-				</NativeSelect>
-			{/if}
-		</div>
+					{entity.name}
+				</ToggleGroup.Item>
+			{/each}
+		</ToggleGroup.Root>
 	</div>
-
-	<WeekNav {weekStart} onNavigate={goToWeek} />
 
 	{#if pickMode && selected}
 		<div
-			class="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-md border bg-card p-3 text-sm shadow-sm"
+			class="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-2xl bg-card p-3 text-sm shadow-md ring-1 ring-primary/40"
 			role="status"
 		>
 			<MoveRight class="size-4" />
 			<span>
 				<span class="font-medium">Taşınıyor:</span>
-				{selected.package_name} · {formatSlotLabel(selected.date, selected.hour)}. Yeni saate
-				tıklayın; başka haftaya veya odaya geçebilirsiniz.
+				{selected.package_name} · {formatSlotLabel(selected.date, selected.hour)}. Yeni saati seçin;
+				başka haftaya, odaya veya eğitmene geçebilirsiniz.
 			</span>
 			<Button variant="outline" size="sm" class="ml-auto" onclick={stopPicking}>Vazgeç</Button>
 		</div>
@@ -304,7 +301,6 @@
 		<Schedule
 			{weekStart}
 			entityName={entity?.name ?? ''}
-			entityBadge={{ text: viewMode === 'room' ? 'Oda' : 'Eğitmen', color: 'primary' }}
 			{getSlotData}
 			onSlotClick={handleSlotClick}
 			{dayActions}

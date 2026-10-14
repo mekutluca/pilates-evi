@@ -13,7 +13,7 @@
 	const isCurrentWeek = $derived(weekStart.getTime() === getWeekStart(new Date()).getTime());
 </script>
 
-<div class="flex items-center justify-center gap-2">
+<div class="flex items-center gap-2">
 	<Button
 		variant="outline"
 		size="icon-sm"
@@ -25,7 +25,7 @@
 	<div class="relative text-center" use:clickOutside={() => (showDatePicker = false)}>
 		<button
 			type="button"
-			class="min-w-56 cursor-pointer text-base font-semibold hover:underline"
+			class="min-w-44 cursor-pointer text-sm font-semibold hover:underline"
 			onclick={() => (showDatePicker = !showDatePicker)}
 		>
 			{formatWeekRange(weekStart)}

@@ -14,7 +14,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import { escapeHtml } from '$lib/utils/html-utils';
+	import { badgeHtml, escapeHtml } from '$lib/utils/html-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -85,12 +85,10 @@
 	const tableColumns = [
 		{
 			key: 'fullName',
-			title: 'Ad Soyad',
+			title: 'Ad soyad',
 			render: (user: User) => {
 				const isCurrentUser = user.id === currentUser?.id;
-				const badge = isCurrentUser
-					? '<span class="ml-2 inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Siz</span>'
-					: '';
+				const badge = isCurrentUser ? ` ${badgeHtml('Siz')}` : '';
 				return `<span class="font-medium">${escapeHtml(user.fullName || '-')}</span>${badge}`;
 			}
 		},
@@ -104,17 +102,17 @@
 			key: 'role',
 			title: 'Rol',
 			render: (user: User) => {
-				return `<span class="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium">${getRoleDisplayName(user.role)}</span>`;
+				return badgeHtml(getRoleDisplayName(user.role), 'outline');
 			}
 		},
 		{
 			key: 'created_at',
-			title: 'Kayıt Tarihi',
+			title: 'Kayıt tarihi',
 			render: (user: User) => formatShortDisplayDateTime(user.created_at)
 		},
 		{
 			key: 'last_sign_in_at',
-			title: 'Son Giriş',
+			title: 'Son giriş',
 			render: (user: User) =>
 				user.last_sign_in_at
 					? formatShortDisplayDateTime(user.last_sign_in_at)
@@ -166,27 +164,27 @@
 	<title>Personel · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Personel"
 		subtitle={`${users.length} kişi · yöneticiler ve koordinatörler; eğitmen hesapları Eğitmenler sayfasında`}
-	/>
+	>
+		{#snippet actions()}
+			<Button
+				onclick={() => {
+					resetForm();
+					showAddModal = true;
+				}}
+			>
+				<UserPlus size={16} />
+				Yeni personel
+			</Button>
+		{/snippet}
+	</PageHeader>
 
 	<!-- Search and Add User Section -->
-	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Personel ara" />
-		</div>
-
-		<Button
-			onclick={() => {
-				resetForm();
-				showAddModal = true;
-			}}
-		>
-			<UserPlus size={16} />
-			Yeni Kullanıcı
-		</Button>
+	<div class="w-full lg:max-w-xs">
+		<SearchInput bind:value={searchTerm} placeholder="Personel ara" />
 	</div>
 
 	<SortableTable
@@ -386,7 +384,7 @@
 		<div class="grid gap-2">
 			<Label>E-posta</Label>
 			<div
-				class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+				class="flex h-9 w-full items-center rounded-4xl border border-input bg-muted px-3 text-sm text-muted-foreground"
 			>
 				{email}
 			</div>

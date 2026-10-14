@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { LessonPlanSummaryProps } from '$lib/types/ComponentProps';
-	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { formatSlotLabel } from '$lib/utils/date-utils';
 	import ConflictList from './conflict-list.svelte';
 
@@ -11,10 +11,10 @@
 	{#if plan.status === 'idle'}
 		<p class="text-muted-foreground">{idleMessage}</p>
 	{:else if plan.status === 'loading'}
-		<p class="flex items-center gap-2 text-muted-foreground">
-			<LoaderCircle class="size-4 animate-spin" />
-			Hesaplanıyor…
-		</p>
+		<div class="space-y-2" role="status" aria-label="Hesaplanıyor">
+			<Skeleton class="h-4 w-3/4" />
+			<Skeleton class="h-4 w-1/2" />
+		</div>
 	{:else if plan.status === 'failed'}
 		<p class="text-destructive">{plan.message}</p>
 	{:else}

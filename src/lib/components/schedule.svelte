@@ -1,258 +1,181 @@
 <script lang="ts">
 	import type { ScheduleProps } from '$lib/types/ComponentProps';
-	import {
-		DAYS_OF_WEEK,
-		DAY_NAMES,
-		SCHEDULE_HOURS,
-		getTimeRangeString,
-		getTimeString
-	} from '$lib/types/Schedule';
-	import { getDateForDayOfWeek, formatDayMonth, formatDateForDB } from '$lib/utils';
+	import type { ScheduleSlot, SlotColor } from '$lib/types/Schedule';
+	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeString } from '$lib/types/Schedule';
 	import ActionMenu from '$lib/components/action-menu.svelte';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import { cn } from '$lib/utils';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Table from '$lib/components/ui/table/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import type { ScheduleSlot, SlotColor } from '$lib/types/Schedule';
+	import { cn } from '$lib/utils';
+	import { formatDateForDB, formatDayMonth, getDateForDayOfWeek } from '$lib/utils/date-utils';
 
-	let {
-		weekStart,
-		entityName,
-		entityBadge,
-		getSlotData,
-		onSlotClick,
-		dayActions,
-		customSlotRenderer,
-		alertBanner
-	}: ScheduleProps = $props();
+	// The week board: one row per hour, one column per day. Booked lessons are orange-tinted
+	// blocks (package, trainees, the other dimension); free future hours are quiet cells that
+	// show their action on hover.
+	let { weekStart, entityName, getSlotData, onSlotClick, dayActions }: ScheduleProps = $props();
 
-	const colorClasses: Record<SlotColor, { solid: string; soft: string; text: string }> = {
-		primary: {
-			solid: 'bg-primary text-primary-foreground',
-			soft: 'bg-primary/15 hover:bg-primary/25',
-			text: 'text-primary'
-		},
-		secondary: {
-			solid: 'bg-secondary text-secondary-foreground',
-			soft: 'bg-secondary/15 hover:bg-secondary/25',
-			text: 'text-secondary'
-		},
-		accent: {
-			solid: 'bg-accent text-accent-foreground',
-			soft: 'bg-accent/15 hover:bg-accent/25',
-			text: 'text-accent'
-		},
-		info: {
-			solid: 'bg-info text-info-foreground',
-			soft: 'bg-info/15 hover:bg-info/25',
-			text: 'text-info'
-		},
-		success: {
-			solid: 'bg-success text-success-foreground',
-			soft: 'bg-success/15 hover:bg-success/25',
-			text: 'text-success'
-		},
-		warning: {
-			solid: 'bg-warning text-warning-foreground',
-			soft: 'bg-warning/15 hover:bg-warning/25',
-			text: 'text-warning'
-		},
-		destructive: {
-			solid: 'bg-destructive text-destructive-foreground',
-			soft: 'bg-destructive/15 hover:bg-destructive/25',
-			text: 'text-destructive'
-		}
+	const today = formatDateForDB(new Date());
+	const days = $derived(
+		DAYS_OF_WEEK.map((day) => {
+			const date = formatDateForDB(getDateForDayOfWeek(weekStart, day));
+			return { day, date, label: formatDayMonth(getDateForDayOfWeek(weekStart, day)) };
+		})
+	);
+
+	const TONES: Record<SlotColor, string> = {
+		primary: 'bg-primary/10 ring-primary/25 hover:bg-primary/15',
+		muted: 'bg-muted ring-foreground/10 text-muted-foreground hover:bg-muted/70',
+		destructive: 'bg-destructive/10 ring-destructive/30 hover:bg-destructive/15'
 	};
 
-	function getColor(color: string | undefined): SlotColor {
-		if (!color) return 'primary';
-		if (color in colorClasses) return color as SlotColor;
-		return 'primary';
+	// On a narrow screen the board scrolls sideways; open it on today's column
+	function revealToday(scroller: HTMLElement) {
+		const column = scroller.querySelector<HTMLElement>('[data-today]');
+		if (!column || scroller.scrollWidth <= scroller.clientWidth) return;
+		scroller.scrollLeft = Math.max(column.offsetLeft - 64, 0);
 	}
 
 	function handleSlotClick(slot: ScheduleSlot) {
-		const clickable =
-			slot.variant === 'appointment' || slot.variant === 'available' || slot.variant === 'custom';
-		if (clickable && onSlotClick) {
-			onSlotClick(slot);
-		}
+		if (slot.variant !== 'empty' && onSlotClick) onSlotClick(slot);
 	}
 </script>
 
-<Card.Root>
-	<Card.Content>
-		<div class="mb-4 flex items-center justify-between">
-			<h2 class="flex items-center gap-2 text-xl font-semibold">
-				{#if entityBadge}
-					{@const badgeColor = getColor(entityBadge.color)}
-					<Badge class={colorClasses[badgeColor].solid}>
-						{entityBadge.text}
-					</Badge>
-				{/if}
-				{entityName}
-			</h2>
+<section class="overflow-hidden surface" aria-label={`${entityName} haftalık takvim`}>
+	<header class="flex items-center gap-2 border-b px-4 py-3">
+		<h2 class="truncate text-base font-semibold">{entityName}</h2>
+	</header>
 
-			{#if alertBanner}
-				{@render alertBanner()}
-			{/if}
-		</div>
-
-		<div class="overflow-x-auto">
-			<Table.Root class="md:table-fixed">
-				<Table.Header>
-					<Table.Row>
-						<Table.Head class="sticky left-0 z-10 w-28 bg-card">Saat</Table.Head>
-						{#each DAYS_OF_WEEK as day (day)}
-							{@const dayDate = getDateForDayOfWeek(weekStart, day)}
-							{@const actions = dayActions?.(formatDateForDB(dayDate)) ?? []}
-							<Table.Head class="min-w-28 text-center md:w-[calc((100%-7rem)/7)]">
-								<div class="flex items-center justify-center gap-1">
-									<div>
-										<div class="text-xs text-muted-foreground">{formatDayMonth(dayDate)}</div>
-										<div class="font-semibold">{DAY_NAMES[day]}</div>
+	<div class="overflow-x-auto" {@attach revealToday}>
+		<table class="w-full min-w-[56rem] table-fixed border-separate border-spacing-0 text-xs">
+			<thead>
+				<tr>
+					<th
+						scope="col"
+						class="sticky left-0 z-10 w-16 border-b bg-card px-3 py-2 text-left font-medium text-muted-foreground"
+					>
+						Saat
+					</th>
+					{#each days as { day, date, label } (day)}
+						{@const actions = dayActions?.(date) ?? []}
+						{@const isToday = date === today}
+						<th
+							scope="col"
+							data-today={isToday || undefined}
+							class={cn('border-b px-1 py-2 font-normal', isToday && 'bg-primary/[0.035]')}
+						>
+							<div class="flex items-center justify-center gap-1">
+								<div class="text-center">
+									<div
+										class={cn('font-semibold', isToday ? 'text-primary-ink' : 'text-foreground')}
+									>
+										{DAY_NAMES[day]}
 									</div>
-									{#if actions.length > 0}
-										<ActionMenu {actions} trigger={Ellipsis} label={undefined} />
-									{/if}
+									<div class="text-muted-foreground tabular-nums">
+										{isToday ? `Bugün · ${label}` : label}
+									</div>
 								</div>
-							</Table.Head>
-						{/each}
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each SCHEDULE_HOURS as hour (hour)}
-						<Table.Row>
-							<Table.Cell
-								class="sticky left-0 z-10 w-28 bg-card text-sm font-semibold whitespace-nowrap"
-							>
-								{getTimeRangeString(hour)}
-							</Table.Cell>
-							{#each DAYS_OF_WEEK as day (day)}
-								{@const dateString = formatDateForDB(getDateForDayOfWeek(weekStart, day))}
-								{@const slot = getSlotData(day, hour, dateString)}
-								{@const slotName = `${DAY_NAMES[day]} ${getTimeString(hour)}`}
-								<Table.Cell class="p-1 text-center">
-									{#if slot.variant === 'empty'}
-										<div
-											class="flex min-h-12 items-center justify-center rounded bg-muted p-2 text-muted-foreground"
-										>
-											<span class="text-xs">{slot.label || '-'}</span>
-										</div>
-									{:else if slot.variant === 'appointment'}
-										{@const apptColor = getColor(slot.color)}
-										<button
-											type="button"
-											class={cn(
-												'min-h-12 w-full rounded p-2 text-xs transition-colors',
-												colorClasses[apptColor].solid,
-												slot.dimmed && 'opacity-60',
-												slot.clickable !== false
-													? 'cursor-pointer hover:opacity-80'
-													: 'cursor-default'
-											)}
-											onclick={() => slot.clickable !== false && handleSlotClick(slot)}
-											disabled={slot.clickable === false}
-											aria-label={`${slotName}: ${slot.subtitle ?? ''} ${slot.title}`}
-										>
-											<div class="truncate font-semibold">
-												{slot.title}
-											</div>
-											{#if slot.subtitle}
-												<div class="truncate text-xs opacity-80">
-													{slot.subtitle}
-												</div>
-											{/if}
-											{#if slot.badge}
-												<div
-													class="mt-1 flex items-center justify-center gap-1 text-xs font-semibold"
-												>
-													<ClockAlert size={12} />
-													<span>{slot.badge}</span>
-												</div>
-											{/if}
-											{#if slot.warning}
-												<div
-													class="mt-1 flex items-center justify-center gap-1 text-xs font-semibold"
-												>
-													<TriangleAlert size={12} />
-													<span>{slot.warning}</span>
-												</div>
-											{/if}
-										</button>
-									{:else if slot.variant === 'available'}
-										{#if slot.clickable && !slot.disabled}
-											{@const isSelected = slot.label?.includes('Seçili')}
-											{@const availColor = getColor(slot.color || 'success')}
-											<button
-												type="button"
-												class={cn(
-													'group flex min-h-12 w-full cursor-pointer items-center justify-center rounded p-2 transition-colors',
-													isSelected
-														? cn(
-																'border-2',
-																colorClasses[availColor].solid,
-																availColor === 'primary' && 'border-primary',
-																availColor === 'secondary' && 'border-secondary',
-																availColor === 'accent' && 'border-accent',
-																availColor === 'info' && 'border-info',
-																availColor === 'success' && 'border-success',
-																availColor === 'warning' && 'border-warning',
-																availColor === 'destructive' && 'border-destructive'
-															)
-														: colorClasses[availColor].soft
-												)}
-												onclick={() => handleSlotClick(slot)}
-												aria-label={`${slotName}: ${slot.label || slot.hoverLabel || 'Seç'}`}
-											>
-												{#if slot.label}
-													<span
-														class={cn(
-															'text-xs font-medium',
-															isSelected ? '' : colorClasses[availColor].text
-														)}
-													>
-														{slot.label}
-													</span>
-												{:else if slot.hoverLabel}
-													<span
-														class="text-xs font-medium text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-													>
-														{slot.hoverLabel}
-													</span>
-												{/if}
-											</button>
-										{:else if slot.disabled}
-											<div
-												class="flex min-h-12 items-center justify-center rounded bg-muted p-2 text-muted-foreground"
-											>
-												<span class="text-xs">{slot.label || '-'}</span>
-											</div>
-										{:else}
-											<div
-												class="flex min-h-12 items-center justify-center rounded bg-muted p-2 text-muted-foreground"
-											>
-												<span class="text-xs">{slot.label || 'Müsait'}</span>
-											</div>
-										{/if}
-									{:else if slot.variant === 'disabled'}
-										<div
-											class="flex min-h-12 items-center justify-center rounded bg-warning/15 p-2 text-warning"
-											title={slot.reason}
-										>
-											<span class="text-xs">{slot.label || '-'}</span>
-										</div>
-									{:else if slot.variant === 'custom' && customSlotRenderer}
-										{@render customSlotRenderer(slot)}
-									{/if}
-								</Table.Cell>
-							{/each}
-						</Table.Row>
+								{#if actions.length > 0}
+									<ActionMenu {actions} trigger={Ellipsis} label={undefined} />
+								{/if}
+							</div>
+						</th>
 					{/each}
-				</Table.Body>
-			</Table.Root>
-		</div>
-	</Card.Content>
-</Card.Root>
+				</tr>
+			</thead>
+			<tbody>
+				{#each SCHEDULE_HOURS as hour (hour)}
+					<tr>
+						<th
+							scope="row"
+							class="sticky left-0 z-10 border-b bg-card px-3 py-1 text-left align-top font-semibold tabular-nums"
+						>
+							{getTimeString(hour)}
+						</th>
+						{#each days as { day, date } (day)}
+							{@const slot = getSlotData(day, hour, date)}
+							{@const slotName = `${DAY_NAMES[day]} ${getTimeString(hour)}`}
+							<td
+								class={cn('h-16 border-b p-0.5 align-top', date === today && 'bg-primary/[0.035]')}
+							>
+								{#if slot.variant === 'appointment'}
+									<button
+										type="button"
+										class={cn(
+											'flex h-full w-full flex-col items-start gap-px overflow-hidden rounded-md px-2 py-1.5 text-left ring-1 transition-colors outline-none ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/50',
+											TONES[slot.dimmed ? 'muted' : (slot.color ?? 'primary')],
+											slot.clickable === false && 'cursor-default'
+										)}
+										disabled={slot.clickable === false}
+										onclick={() => handleSlotClick(slot)}
+										aria-label={[
+											slotName,
+											slot.title,
+											slot.subtitle,
+											slot.meta,
+											slot.badge,
+											slot.warning
+										]
+											.filter(Boolean)
+											.join(', ')}
+									>
+										<span class="w-full truncate font-semibold">{slot.title}</span>
+										{#if slot.subtitle}
+											<span class="w-full truncate">{slot.subtitle}</span>
+										{/if}
+										{#if slot.meta}
+											<span class="w-full truncate text-foreground/60">{slot.meta}</span>
+										{/if}
+										{#if slot.warning}
+											<span class="flex items-center gap-1 font-semibold text-destructive">
+												<TriangleAlert class="size-3" />
+												{slot.warning}
+											</span>
+										{:else if slot.badge}
+											<span class="flex items-center gap-1 font-semibold text-warning-foreground">
+												<ClockAlert class="size-3" />
+												{slot.badge}
+											</span>
+										{/if}
+									</button>
+								{:else if slot.variant === 'available' && slot.clickable !== false}
+									<button
+										type="button"
+										class={cn(
+											'group flex h-full w-full items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+											slot.selected
+												? cn(
+														'font-semibold ring-2 ring-inset',
+														TONES[slot.color ?? 'primary'],
+														'ring-primary'
+													)
+												: slot.label
+													? 'bg-primary/5 text-primary-ink ring-1 ring-primary/30 ring-inset hover:bg-primary/10'
+													: 'hover:bg-muted'
+										)}
+										onclick={() => handleSlotClick(slot)}
+										aria-label={`${slotName}: ${slot.label || slot.hoverLabel || 'Seç'}`}
+										aria-pressed={slot.selected}
+									>
+										{#if slot.label}
+											<span class="font-medium">{slot.label}</span>
+										{:else if slot.hoverLabel}
+											<span
+												class="font-medium text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+											>
+												{slot.hoverLabel}
+											</span>
+										{/if}
+									</button>
+								{:else if slot.variant === 'empty' && slot.label}
+									<div class="flex h-full items-center justify-center text-muted-foreground">
+										{slot.label}
+									</div>
+								{/if}
+							</td>
+						{/each}
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+</section>

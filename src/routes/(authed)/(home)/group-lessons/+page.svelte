@@ -4,10 +4,11 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
+	import * as Empty from '$lib/components/ui/empty/index.js';
 	import Plus from '@lucide/svelte/icons/plus';
 	import UsersRound from '@lucide/svelte/icons/users-round';
 	import { formatDisplayDate } from '$lib/utils/date-utils';
-	import { formatWeeklyPattern } from '$lib/utils/slot-utils';
+	import PatternChip from '$lib/components/pattern-chip.svelte';
 
 	let { data } = $props();
 
@@ -23,7 +24,7 @@
 </svelte:head>
 
 {#snippet lessonTable(lessons: GroupLessonSummary[], ended: boolean)}
-	<div class="overflow-x-auto rounded-md border">
+	<div class="overflow-x-auto surface">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
@@ -44,7 +45,7 @@
 								{lesson.packageName}
 							</a>
 						</Table.Cell>
-						<Table.Cell>{formatWeeklyPattern(lesson.slots)}</Table.Cell>
+						<Table.Cell><PatternChip slots={lesson.slots} /></Table.Cell>
 						<Table.Cell class="text-muted-foreground">
 							{lesson.roomName} · {lesson.trainerName}
 						</Table.Cell>
@@ -63,23 +64,27 @@
 	</div>
 {/snippet}
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader title="Grup Dersleri" {subtitle}>
-		<Button href="/group-lessons/new" class="mt-4">
-			<Plus />
-			Yeni grup dersi
-		</Button>
+		{#snippet actions()}
+			<Button href="/group-lessons/new">
+				<Plus />
+				Yeni grup dersi
+			</Button>
+		{/snippet}
 	</PageHeader>
 
 	{#if data.running.length === 0}
-		<div class="flex flex-col items-center gap-3 rounded-md border border-dashed p-10 text-center">
-			<UsersRound class="size-8 text-muted-foreground" />
-			<p class="font-medium">Henüz devam eden grup dersi yok</p>
-			<p class="max-w-sm text-sm text-muted-foreground">
-				Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın; öğrenciler sonra
-				eklenir.
-			</p>
-		</div>
+		<Empty.Root class="surface">
+			<Empty.Header>
+				<Empty.Media variant="icon"><UsersRound /></Empty.Media>
+				<Empty.Title>Henüz devam eden grup dersi yok</Empty.Title>
+				<Empty.Description>
+					Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın; öğrenciler sonra
+					eklenir.
+				</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		{@render lessonTable(data.running, false)}
 	{/if}

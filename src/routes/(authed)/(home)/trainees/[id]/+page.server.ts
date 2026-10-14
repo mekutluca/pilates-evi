@@ -6,7 +6,7 @@ import { requireStaff } from '$lib/server/permissions';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import { NO_REMAINING_LESSONS } from '$lib/server/scheduling/purchase-deletion';
 import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
-import { compareSlots, formatWeeklyPattern } from '$lib/utils/slot-utils';
+import { compareSlots, sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 import { getDayOfWeekFromDate } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 
@@ -128,11 +128,11 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				creditsLeft: current.reschedule_left,
 				lessons,
 				upcoming,
-				pattern: formatWeeklyPattern([
+				slots: sortTimeSlots([
 					...new Map(
 						patternSource.map((l) => {
-							const day = getDayOfWeekFromDate(l.date);
-							return [`${day}-${l.hour}`, { day, hour: l.hour }] as const;
+							const slot = { day: getDayOfWeekFromDate(l.date), hour: l.hour };
+							return [weeklySlotKey(slot), slot] as const;
 						})
 					).values()
 				]),

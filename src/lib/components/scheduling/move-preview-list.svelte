@@ -25,7 +25,7 @@
 	}
 </script>
 
-<ul class="max-h-64 divide-y overflow-y-auto rounded-md border text-sm">
+<ul class="max-h-64 divide-y overflow-y-auto rounded-xl border text-sm">
 	{#each rows as row (row.appointmentId)}
 		{@const place = placeLabel(row)}
 		<li class="px-3 py-2">

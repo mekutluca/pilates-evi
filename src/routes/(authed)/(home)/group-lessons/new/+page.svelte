@@ -69,7 +69,7 @@
 	<title>Yeni grup dersi · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Yeni grup dersi"
 		subtitle="Her hafta aynı gün ve saatlerde yapılan ders; öğrenciler açıldıktan sonra eklenir."
@@ -77,7 +77,7 @@
 	/>
 
 	{#if !ready}
-		<div class="rounded-md border border-dashed p-8 text-sm">
+		<div class="surface p-8 text-sm">
 			{#if data.packages.length === 0}
 				<p class="font-medium">Aktif grup paketi yok.</p>
 				<p class="mt-1 text-muted-foreground">

@@ -153,8 +153,7 @@
 				hour,
 				date,
 				title: taken.first ? 'Dolu' : `${taken.count} haftada dolu`,
-				color: 'destructive',
-				dimmed: !taken.first,
+				color: 'muted',
 				clickable: false
 			};
 		}
@@ -165,7 +164,8 @@
 			date,
 			label: selected ? (taken ? 'Seçili · dolu' : 'Seçili') : undefined,
 			hoverLabel: 'Seç',
-			color: selected ? (taken ? 'destructive' : 'primary') : undefined,
+			selected,
+			color: taken ? 'destructive' : 'primary',
 			clickable: true
 		};
 	}
@@ -332,7 +332,7 @@
 	<title>Yeni kayıt · Pilates Evi</title>
 </svelte:head>
 
-<div class="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+<div class="mx-auto w-full max-w-5xl space-y-6 p-4 lg:p-6">
 	<PageHeader title="Yeni kayıt" back={{ href: '/trainees', label: 'Öğrenciler' }} />
 
 	<ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Adımlar">
@@ -345,7 +345,8 @@
 					aria-current={s.id === step ? 'step' : undefined}
 					class={cn(
 						'flex items-center gap-2 rounded-full border px-3 py-1',
-						s.id === step && 'border-primary bg-primary text-primary-foreground',
+						s.id === step &&
+							'border-foreground/15 bg-secondary font-semibold text-secondary-foreground',
 						done && 'hover:bg-muted',
 						!done && s.id !== step && 'text-muted-foreground'
 					)}
@@ -413,7 +414,7 @@
 										aria-checked={packageId === p.id}
 										disabled={tooSmall}
 										class={cn(
-											'rounded-md border p-3 text-left text-sm transition-colors',
+											'rounded-xl border p-3 text-left text-sm transition-colors',
 											'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
 											packageId === p.id
 												? 'border-primary ring-1 ring-primary'
@@ -537,7 +538,7 @@
 											aria-pressed={selected}
 											disabled={full && !selected}
 											class={cn(
-												'rounded-md border px-3 py-2 text-left text-sm transition-colors',
+												'rounded-xl border px-3 py-2 text-left text-sm transition-colors',
 												'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
 												selected ? 'border-primary ring-1 ring-primary' : 'hover:bg-muted/50',
 												full && !selected && 'cursor-not-allowed opacity-50'

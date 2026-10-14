@@ -134,30 +134,30 @@
 	<title>Odalar · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
-	<PageHeader title="Odalar" {subtitle} />
-
-	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Oda ara" />
-			{#if hasArchivedRooms}
-				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<Switch bind:checked={showArchived} class="scale-75" />
-					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
-				</label>
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
+	<PageHeader title="Odalar" {subtitle}>
+		{#snippet actions()}
+			{#if userRole === 'admin'}
+				<Button
+					onclick={() => {
+						resetForm();
+						showAddModal = true;
+					}}
+				>
+					<Plus size={16} />
+					Yeni oda
+				</Button>
 			{/if}
-		</div>
+		{/snippet}
+	</PageHeader>
 
-		{#if userRole === 'admin'}
-			<Button
-				onclick={() => {
-					resetForm();
-					showAddModal = true;
-				}}
-			>
-				<Plus size={16} />
-				Yeni Oda
-			</Button>
+	<div class="w-full lg:max-w-xs">
+		<SearchInput bind:value={searchTerm} placeholder="Oda ara" />
+		{#if hasArchivedRooms}
+			<label class="mt-2 flex cursor-pointer items-center gap-2">
+				<Switch bind:checked={showArchived} class="scale-75" />
+				<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
+			</label>
 		{/if}
 	</div>
 

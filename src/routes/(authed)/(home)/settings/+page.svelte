@@ -48,12 +48,12 @@
 	<title>Ayarlar · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
+<div class="mx-auto w-full max-w-3xl space-y-6 p-4 lg:p-6">
 	<div class="mx-auto max-w-3xl">
 		<PageHeader title="Ayarlar" subtitle="Hesap bilgilerinizi ve güvenlik ayarlarınızı yönetin" />
 
 		<!-- Account identity -->
-		<div class="mb-8 flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm">
+		<div class="mb-8 flex items-center gap-4 surface p-4">
 			<div
 				class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary"
 			>
@@ -101,10 +101,8 @@
 				>
 					<Card.Content class="space-y-4">
 						{#if pendingEmail}
-							<div
-								class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm"
-							>
-								<MailWarning size={16} class="mt-0.5 shrink-0 text-warning" />
+							<div class="flex items-start gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
+								<MailWarning size={16} class="mt-0.5 shrink-0 text-muted-foreground" />
 								<div>
 									<p class="font-medium">Onay bekleyen e-posta değişikliği</p>
 									<p class="text-xs text-muted-foreground">

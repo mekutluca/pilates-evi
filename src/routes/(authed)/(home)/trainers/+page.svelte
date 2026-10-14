@@ -15,7 +15,8 @@
 	import ReorderCell from '$lib/components/reorder-cell.svelte';
 	import type { ActionItem, ReorderContext } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import { escapeHtml } from '$lib/utils/html-utils';
+	import { badgeHtml, escapeHtml } from '$lib/utils/html-utils';
+	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -124,16 +125,14 @@
 			title: 'Telefon',
 			sortable: false,
 			render: (trainer: TrainerWithEmail) =>
-				`<a href="tel:+90${escapeHtml(trainer.phone)}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${escapeHtml(trainer.phone)}</a>`
+				`<a href="tel:+90${escapeHtml(trainer.phone)}" class="text-sm tabular-nums text-muted-foreground hover:text-foreground hover:underline transition-colors">${escapeHtml(formatPhoneDisplay(trainer.phone))}</a>`
 		},
 		{
 			key: 'active_appointments',
 			title: 'Durum',
 			sortable: false,
 			render: (trainer: TrainerWithEmail) => {
-				return trainer.is_active
-					? '<span class="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Aktif</span>'
-					: '<span class="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Pasif</span>';
+				return trainer.is_active ? badgeHtml('Aktif') : badgeHtml('Arşivde', 'outline');
 			}
 		}
 	];
@@ -185,31 +184,31 @@
 	<title>Eğitmenler · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
-	<PageHeader title="Eğitmenler" {subtitle} />
+<div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
+	<PageHeader title="Eğitmenler" {subtitle}>
+		{#snippet actions()}
+			{#if userRole === 'admin'}
+				<Button
+					onclick={() => {
+						resetForm();
+						showAddModal = true;
+					}}
+				>
+					<UserPlus size={16} />
+					Yeni eğitmen
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	<!-- Search and Add Trainer Section -->
-	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara" />
-			{#if hasArchivedTrainers}
-				<label class="mt-2 flex cursor-pointer items-center gap-2">
-					<Switch bind:checked={showArchived} class="scale-75" />
-					<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
-				</label>
-			{/if}
-		</div>
-
-		{#if userRole === 'admin'}
-			<Button
-				onclick={() => {
-					resetForm();
-					showAddModal = true;
-				}}
-			>
-				<UserPlus size={16} />
-				Yeni Eğitmen
-			</Button>
+	<div class="w-full lg:max-w-xs">
+		<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara" />
+		{#if hasArchivedTrainers}
+			<label class="mt-2 flex cursor-pointer items-center gap-2">
+				<Switch bind:checked={showArchived} class="scale-75" />
+				<span class="text-sm text-muted-foreground">Arşivlenenleri göster</span>
+			</label>
 		{/if}
 	</div>
 
@@ -225,7 +224,7 @@
 </div>
 
 <!-- Add Trainer Modal -->
-<Modal bind:open={showAddModal} title="Yeni Eğitmen Ekle" onClose={resetForm}>
+<Modal bind:open={showAddModal} title="Yeni eğitmen Ekle" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/createTrainer"
@@ -546,17 +545,13 @@
 			>
 				Vazgeç
 			</Button>
-			<Button
-				type="submit"
-				class="bg-warning text-warning-foreground hover:bg-warning/80"
-				disabled={formLoading}
-			>
+			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
 					<LoaderCircle size={16} class="animate-spin" />
 				{:else}
 					<Key size={16} />
 				{/if}
-				Şifre Sıfırla
+				Şifreyi sıfırla
 			</Button>
 		</ModalFooter>
 	</form>

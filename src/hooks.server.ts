@@ -106,22 +106,25 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	// next request rather than at their next sign-in.
 	let userRole: Role | null = null;
 	let organizationId: string | null = null;
+	let organizationName: string | null = null;
 	if (user) {
 		const appMetadata = user.app_metadata as { organization_id?: string } | undefined;
 		organizationId = appMetadata?.organization_id ?? null;
 		if (organizationId) {
 			const { data: membership } = await event.locals.supabase
 				.from('pe_user_organizations')
-				.select('role')
+				.select('role, pe_organizations(name)')
 				.eq('user_id', user.id)
 				.eq('organization_id', organizationId)
 				.eq('is_active', true)
 				.maybeSingle();
 			userRole = membership ? (membership.role.replace('pe_', '') as Role) : null;
+			organizationName = membership?.pe_organizations.name ?? null;
 		}
 	}
 	event.locals.userRole = userRole;
 	event.locals.organizationId = organizationId;
+	event.locals.organizationName = organizationName;
 
 	if (event.route.id?.startsWith('/(authed)')) {
 		if (!session) {

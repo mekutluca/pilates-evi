@@ -9,7 +9,8 @@
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
-		getAppointmentWarningLabel
+		getAppointmentWarningLabel,
+		lessonBlockLines
 	} from '$lib/utils/appointment-utils';
 
 	let { data } = $props();
@@ -34,8 +35,7 @@
 			day,
 			hour,
 			date,
-			title: details.room_name || '',
-			subtitle: details.package_name || '',
+			...lessonBlockLines(details, 'room'),
 			badge: details.has_last_session ? 'Son ders' : undefined,
 			warning,
 			color: warning ? 'destructive' : 'primary',
@@ -61,18 +61,12 @@
 	<title>Takvimim · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-4 md:p-6">
+<div class="space-y-6 p-4 lg:p-6">
 	<PageHeader title="Takvimim" subtitle={`${data.trainerName} · ${lessonCount} ders`} />
 
 	<WeekNav {weekStart} onNavigate={goToWeek} />
 
-	<Schedule
-		{weekStart}
-		entityName={data.trainerName}
-		entityBadge={{ text: 'Eğitmen', color: 'primary' }}
-		{getSlotData}
-		onSlotClick={handleSlotClick}
-	/>
+	<Schedule {weekStart} entityName={data.trainerName} {getSlotData} onSlotClick={handleSlotClick} />
 </div>
 
 <AppointmentSheet bind:open={sheetOpen} appointment={selected} userRole={data.userRole} />

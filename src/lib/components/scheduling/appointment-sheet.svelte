@@ -44,7 +44,7 @@
 				</Sheet.Description>
 			</Sheet.Header>
 
-			<div class="space-y-6 p-4">
+			<div class="space-y-6 px-6 py-5">
 				<dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
 					<dt class="text-muted-foreground">Oda</dt>
 					<dd class="font-medium">{appointment.room_name || '-'}</dd>
@@ -65,7 +65,7 @@
 					{#if trainees.length === 0}
 						<p class="text-sm text-muted-foreground">Bu randevuda öğrenci yok.</p>
 					{:else}
-						<ul class="divide-y rounded-md border">
+						<ul class="divide-y rounded-xl border">
 							{#each trainees as enrollment (enrollment.id)}
 								{@const isLast =
 									enrollment.session_number !== null &&

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LoginForm from '$lib/components/login-form.svelte';
+	import BrandMark from '$lib/components/brand-mark.svelte';
 
 	let { data } = $props();
 	let { supabase } = $derived(data);
@@ -13,10 +14,8 @@
 	<div class="flex flex-col gap-4 p-6 md:p-10">
 		<div class="flex justify-center gap-2 md:justify-start">
 			<a href="/login" class="flex items-center gap-2 font-medium">
-				<div class="flex size-6 items-center justify-center rounded-md text-primary-foreground">
-					<img src="/favicon.png" alt="Site Logo" class="h-4 w-4" />
-				</div>
-				Pilates Evi
+				<BrandMark class="size-7" />
+				<span class="text-lg font-semibold">Pilates Evi</span>
 			</a>
 		</div>
 		<div class="flex flex-1 items-center justify-center">

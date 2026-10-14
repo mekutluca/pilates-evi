@@ -1,0 +1,285 @@
+{
+	"schemaVersion": 2,
+	"generatedAt": "2026-10-15T12:00:00Z",
+	"title": "Design System: Pilates Evi",
+	"extensions": {
+		"colorMeta": {
+			"studio-orange": {
+				"role": "primary",
+				"displayName": "Studio Orange",
+				"canonical": "oklch(0.553 0.195 38.402)",
+				"tonalRamp": [
+					"oklch(0.25 0.08 38.4)",
+					"oklch(0.35 0.11 38.4)",
+					"oklch(0.47 0.157 37.304)",
+					"oklch(0.553 0.195 38.402)",
+					"oklch(0.646 0.222 41.116)",
+					"oklch(0.75 0.183 55.934)",
+					"oklch(0.837 0.128 66.29)",
+					"oklch(0.954 0.038 75.164)"
+				]
+			},
+			"studio-orange-deep": {
+				"role": "primary",
+				"displayName": "Studio Orange Deep (dark-mode fill)",
+				"canonical": "oklch(0.47 0.157 37.304)"
+			},
+			"on-orange": {
+				"role": "primary",
+				"displayName": "On Orange",
+				"canonical": "oklch(0.98 0.016 73.684)"
+			},
+			"orange-ink-dark": {
+				"role": "primary",
+				"displayName": "Orange Ink (dark mode)",
+				"canonical": "oklch(0.75 0.183 55.934)"
+			},
+			"meter-orange": {
+				"role": "secondary",
+				"displayName": "Meter Orange (chart-3)",
+				"canonical": "oklch(0.705 0.213 47.604)",
+				"tonalRamp": [
+					"oklch(0.408 0.123 38.172)",
+					"oklch(0.553 0.195 38.402)",
+					"oklch(0.705 0.213 47.604)",
+					"oklch(0.837 0.128 66.29)",
+					"oklch(0.901 0.076 70.697)"
+				]
+			},
+			"ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.147 0.004 49.25)" },
+			"ink-muted": {
+				"role": "neutral",
+				"displayName": "Ink Muted",
+				"canonical": "oklch(0.553 0.013 58.071)"
+			},
+			"paper": { "role": "neutral", "displayName": "Paper", "canonical": "oklch(1 0 0)" },
+			"paper-dark": {
+				"role": "neutral",
+				"displayName": "Paper Dark",
+				"canonical": "oklch(0.216 0.006 56.043)"
+			},
+			"bench": {
+				"role": "neutral",
+				"displayName": "Bench",
+				"canonical": "oklch(0.97 0.001 106.424)"
+			},
+			"hairline": {
+				"role": "neutral",
+				"displayName": "Hairline",
+				"canonical": "oklch(0.923 0.003 48.717)"
+			},
+			"ring": { "role": "neutral", "displayName": "Ring", "canonical": "oklch(0.709 0.01 56.259)" },
+			"quiet-grey": {
+				"role": "neutral",
+				"displayName": "Quiet Grey",
+				"canonical": "oklch(0.967 0.001 286.375)"
+			},
+			"quiet-grey-ink": {
+				"role": "neutral",
+				"displayName": "Quiet Grey Ink",
+				"canonical": "oklch(0.21 0.006 285.885)"
+			},
+			"conflict-red": {
+				"role": "state",
+				"displayName": "Conflict Red",
+				"canonical": "oklch(0.577 0.245 27.325)"
+			},
+			"attention-yellow": {
+				"role": "state",
+				"displayName": "Attention Yellow (renewal due)",
+				"canonical": "oklch(0.823 0.162 81.1)"
+			},
+			"amber-ink": {
+				"role": "state",
+				"displayName": "Amber Ink",
+				"canonical": "oklch(0.48 0.11 72)"
+			}
+		},
+		"typographyMeta": {
+			"display": { "displayName": "Display", "purpose": "Stat-strip figures only, tabular." },
+			"headline": { "displayName": "Headline", "purpose": "Page h1 in the page header." },
+			"title": { "displayName": "Title", "purpose": "Card titles; week-board entity name at 600." },
+			"body": { "displayName": "Body", "purpose": "Rows, descriptions, buttons (500), inputs." },
+			"label": {
+				"displayName": "Label",
+				"purpose": "Group names, meter counts, badges, pattern chips, lesson blocks."
+			}
+		},
+		"shadows": [
+			{
+				"name": "floating",
+				"value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+				"purpose": "Popovers, dropdowns, dialogs, sheets and the sticky Taşınıyor bar only."
+			}
+		],
+		"motion": [
+			{
+				"name": "meter-fill",
+				"value": "width 500ms ease-out",
+				"purpose": "Lesson meter fill; disabled under prefers-reduced-motion."
+			},
+			{
+				"name": "state-colour",
+				"value": "colors 150ms",
+				"purpose": "Hover tints on buttons, rows, lesson blocks."
+			}
+		],
+		"breakpoints": [
+			{ "name": "sm", "value": "640px" },
+			{ "name": "md", "value": "768px" },
+			{ "name": "lg", "value": "1024px" },
+			{ "name": "xl", "value": "1280px" }
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "The one solid-orange action on a screen.",
+			"html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 12h14M12 5v14\"/></svg>Yeni kayıt</button>",
+			"css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 12px 0 10px; border:1px solid transparent; border-radius:26px; background:var(--primary, oklch(0.553 0.195 38.402)); color:var(--primary-foreground, oklch(0.98 0.016 73.684)); font:500 14px/1 'Nunito Sans Variable', sans-serif; cursor:pointer; transition:all .15s; } .ds-btn-primary:hover { background:oklch(0.553 0.195 38.402 / 80%); } .ds-btn-primary:focus-visible { outline:none; border-color:var(--ring, oklch(0.709 0.01 56.259)); box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-btn-primary:active { transform:translateY(1px); }"
+		},
+		{
+			"name": "Outline Button",
+			"kind": "button",
+			"refersTo": "button-outline",
+			"description": "Default secondary action: Takvim, Yenile, Düzenle, Vazgeç.",
+			"html": "<button class=\"ds-btn-outline\">Yenile</button>",
+			"css": ".ds-btn-outline { height:36px; padding:0 12px; border:1px solid oklch(0.923 0.003 48.717); border-radius:26px; background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); font:500 14px/1 'Nunito Sans Variable', sans-serif; cursor:pointer; transition:all .15s; } .ds-btn-outline:hover { background:oklch(0.923 0.003 48.717 / 50%); } .ds-btn-outline:focus-visible { outline:none; border-color:oklch(0.709 0.01 56.259); box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-btn-outline:active { transform:translateY(1px); }"
+		},
+		{
+			"name": "Destructive Button",
+			"kind": "button",
+			"refersTo": "button-destructive",
+			"description": "Red tint, never solid.",
+			"html": "<button class=\"ds-btn-destructive\">Sil</button>",
+			"css": ".ds-btn-destructive { height:36px; padding:0 12px; border:1px solid transparent; border-radius:26px; background:oklch(0.577 0.245 27.325 / 10%); color:oklch(0.577 0.245 27.325); font:500 14px/1 'Nunito Sans Variable', sans-serif; cursor:pointer; transition:all .15s; } .ds-btn-destructive:hover { background:oklch(0.577 0.245 27.325 / 20%); } .ds-btn-destructive:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.577 0.245 27.325 / 20%); }"
+		},
+		{
+			"name": "Input",
+			"kind": "input",
+			"refersTo": "input",
+			"description": "Pill field with a 30% hairline fill.",
+			"html": "<input class=\"ds-input\" placeholder=\"Öğrenci ara\" />",
+			"css": ".ds-input { height:36px; width:240px; padding:4px 12px; border:1px solid oklch(0.923 0.003 48.717); border-radius:26px; background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; transition:color .15s, border-color .15s; } .ds-input::placeholder { color:oklch(0.553 0.013 58.071); } .ds-input:focus-visible { outline:none; border-color:oklch(0.709 0.01 56.259); box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); }"
+		},
+		{
+			"name": "Sidebar Navigation",
+			"kind": "nav",
+			"refersTo": "nav-item-active",
+			"description": "Grouped sidebar; active item is the solid orange.",
+			"html": "<nav class=\"ds-nav\"><p class=\"ds-nav-group\">Stüdyo</p><a class=\"ds-nav-item ds-active\" href=\"#\">Panel</a><a class=\"ds-nav-item\" href=\"#\">Takvim</a><a class=\"ds-nav-item\" href=\"#\">Öğrenciler</a></nav>",
+			"css": ".ds-nav { width:224px; padding:16px; background:oklch(1 0 0); font-family:'Nunito Sans Variable', sans-serif; display:flex; flex-direction:column; gap:4px; } .ds-nav-group { margin:0 0 4px; padding:0 12px; font-size:12px; font-weight:600; color:oklch(0.553 0.013 58.071); } .ds-nav-item { display:flex; padding:8px 12px; border-radius:10px; font-size:14px; color:oklch(0.147 0.004 49.25); text-decoration:none; transition:background .15s; } .ds-nav-item:hover { background:oklch(0.97 0.001 106.424); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-nav-item.ds-active { background:oklch(0.553 0.195 38.402); color:oklch(0.98 0.016 73.684); font-weight:500; }"
+		},
+		{
+			"name": "Badges",
+			"kind": "chip",
+			"refersTo": "badge-secondary",
+			"description": "Secondary (Sıradaki), outline (Grup), warning (renewal due), destructive (conflict).",
+			"html": "<span class=\"ds-badge ds-badge-secondary\">Sıradaki</span> <span class=\"ds-badge ds-badge-outline\">Grup</span> <span class=\"ds-badge ds-badge-warning\">Son ders</span> <span class=\"ds-badge ds-badge-destructive\">Çakışma</span>",
+			"css": ".ds-badge { display:inline-flex; align-items:center; height:20px; padding:2px 8px; border:1px solid transparent; border-radius:26px; font:500 12px/1 'Nunito Sans Variable', sans-serif; } .ds-badge-secondary { background:oklch(0.967 0.001 286.375); color:oklch(0.21 0.006 285.885); } .ds-badge-outline { border-color:oklch(0.923 0.003 48.717); background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); } .ds-badge-warning { background:oklch(0.823 0.162 81.1 / 15%); color:oklch(0.48 0.11 72); } .ds-badge-destructive { background:oklch(0.577 0.245 27.325 / 10%); color:oklch(0.577 0.245 27.325); }"
+		},
+		{
+			"name": "Card",
+			"kind": "card",
+			"refersTo": "card",
+			"description": "Paper card, 18px radius, 10% ink ring, no shadow.",
+			"html": "<div class=\"ds-card\"><h3>Bugün</h3><p>3 randevu · bu hafta 17 randevu</p></div>",
+			"css": ".ds-card { width:320px; padding:24px; border-radius:18px; background:oklch(1 0 0); box-shadow:0 0 0 1px oklch(0.147 0.004 49.25 / 10%); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); } .ds-card h3 { margin:0 0 6px; font-size:16px; font-weight:500; } .ds-card p { margin:0; color:oklch(0.553 0.013 58.071); }"
+		},
+		{
+			"name": "Pattern Chip",
+			"kind": "custom",
+			"refersTo": "pattern-chip",
+			"description": "Monday-first seven-cell strip with lesson days in orange, then the pattern in words.",
+			"html": "<span class=\"ds-pattern\"><span class=\"ds-pattern-days\"><i></i><i class=\"on\"></i><i></i><i class=\"on\"></i><i></i><i></i><i></i></span><span>Sal, Per · 10:00</span></span>",
+			"css": ".ds-pattern { display:inline-flex; align-items:center; gap:8px; padding:2px 6px; border:1px solid oklch(0.923 0.003 48.717); border-radius:8px; background:oklch(1 0 0); font:500 12px/1.33 'Nunito Sans Variable', sans-serif; font-variant-numeric:tabular-nums; color:oklch(0.147 0.004 49.25); white-space:nowrap; } .ds-pattern-days { display:flex; gap:2px; } .ds-pattern-days i { width:6px; height:10px; border-radius:2px; background:oklch(0.147 0.004 49.25 / 10%); } .ds-pattern-days i.on { background:oklch(0.553 0.195 38.402); }"
+		},
+		{
+			"name": "Lesson Meter",
+			"kind": "custom",
+			"refersTo": "meter-orange",
+			"description": "Done share in Meter Orange; quiet fill and amber count when a renewal is due.",
+			"html": "<div class=\"ds-meter\"><span class=\"ds-meter-track\"><span class=\"ds-meter-fill\" style=\"width:62%\"></span></span><span class=\"ds-meter-count\">3 ders kaldı</span></div><div class=\"ds-meter ds-due\"><span class=\"ds-meter-track\"><span class=\"ds-meter-fill\" style=\"width:92%\"></span></span><span class=\"ds-meter-count\">1 ders kaldı</span></div>",
+			"css": ".ds-meter { display:flex; align-items:center; gap:12px; width:320px; margin:6px 0; font-family:'Nunito Sans Variable', sans-serif; } .ds-meter-track { flex:1; min-width:64px; height:6px; overflow:hidden; border-radius:999px; background:oklch(0.97 0.001 106.424); } .ds-meter-fill { display:block; height:100%; border-radius:999px; background:oklch(0.705 0.213 47.604); transition:width .5s ease-out; } .ds-meter-count { font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; color:oklch(0.553 0.013 58.071); } .ds-due .ds-meter-fill { background:oklch(0.147 0.004 49.25 / 25%); } .ds-due .ds-meter-count { color:oklch(0.48 0.11 72); }"
+		},
+		{
+			"name": "Lesson Block",
+			"kind": "custom",
+			"refersTo": "lesson-block",
+			"description": "A booked lesson on the week board: orange tint, renewal flag in amber, conflict in red tint.",
+			"html": "<button class=\"ds-lesson\"><b>Reformer Pilates</b><span>Ayşe Yılmaz</span><span class=\"ds-dim\">Hoca Eğitmen</span><span class=\"ds-flag\">Son ders</span></button> <button class=\"ds-lesson ds-conflict\"><b>Grup Zumba</b><span>13/12 · Cansu, Melis</span><span class=\"ds-red\">Kapasite aşıldı</span></button>",
+			"css": ".ds-lesson { display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; width:150px; height:76px; padding:6px 8px; border:none; border-radius:8px; background:oklch(0.553 0.195 38.402 / 10%); box-shadow:inset 0 0 0 1px oklch(0.553 0.195 38.402 / 25%); font:400 12px/1.33 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); text-align:left; cursor:pointer; transition:background .15s; } .ds-lesson:hover { background:oklch(0.553 0.195 38.402 / 15%); } .ds-lesson:focus-visible { outline:none; box-shadow:inset 0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-lesson b { font-weight:600; } .ds-dim { color:oklch(0.147 0.004 49.25 / 60%); } .ds-flag { font-weight:600; color:oklch(0.48 0.11 72); } .ds-conflict { background:oklch(0.577 0.245 27.325 / 10%); box-shadow:inset 0 0 0 1px oklch(0.577 0.245 27.325 / 30%); } .ds-conflict:hover { background:oklch(0.577 0.245 27.325 / 15%); } .ds-red { font-weight:600; color:oklch(0.577 0.245 27.325); }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Front Desk Week",
+		"overview": "A studio front desk with the week laid open on it. The coordinator has a client standing in front of them or on the phone, and the screen has to answer three things at a glance: what is happening today, who is running out of lessons, and where there is room in the week. The interface is the house style shared with the sibling apps (invest-track, dr.villa, ustama-emanet, rahmet-turizm): stone neutrals, Paper cards with a 10% ink ring on a Bench-tinted page, pill controls, Nunito Sans only, tabular numerals. Pilates Evi's own voice is one accent, Studio Orange (the colour of the studio's auth e-mails and the brand mark), plus two signature objects — the weekly pattern chip and the lesson meter — that turn the product's core idea (a package is a recurring weekly pattern that runs down) into things you can see.\n\nColour carries meaning, never decoration. Orange is solid only on the one primary action of a screen and the active nav item; everywhere else it is a tint (booked lessons on the week board, today's column) or a small mark (the filled days in a pattern chip, the meter fill). Attention Yellow means exactly one thing: this client needs a renewal. Red means a conflict or a destructive action, and it is always a tint. The world refuses the spa look (beige, sage, soft serif) and the generic grey dashboard alike.\n\nDensity is desk-first and high but scannable: the week board is the work surface, lists are two-line rows inside cards, and hierarchy comes from weight, size and numerals rather than colour blocks or shadows.",
+		"keyCharacteristics": [
+			"One accent (Studio Orange): solid on one primary action per screen and the active nav item, tinted everywhere else.",
+			"Yellow = needs a renewal; red = conflict / destructive, always tinted.",
+			"Flat Paper cards (18px, 10% ink ring) on a Bench-30% page; no shadows at rest.",
+			"Pills for everything pressed or typed into (26px); soft rectangles for containers.",
+			"Nunito Sans at fixed rem steps; every comparable number `tabular-nums`.",
+			"Signature objects: the Monday-first pattern chip and the lesson meter; the week board is the main surface.",
+			"Turkish, literal copy; Monday-first weeks; Istanbul time."
+		],
+		"rules": [
+			{
+				"name": "The One Orange Rule",
+				"body": "Studio Orange is solid on exactly two things: the one primary action of the screen and the active nav item. Booked slots, today and pattern days get the tint or a small mark. A second filled orange element on a screen is a bug.",
+				"section": "colors"
+			},
+			{
+				"name": "The Yellow-Is-Renewal Rule",
+				"body": "Yellow means a client's kayıt ends within `RENEWAL_WINDOW_DAYS` (14 days) and has not been renewed: \"Son ders\" on the board, the amber count on the lesson meter, renewal-due counts. It is a to-do for the desk, and it disappears when \"Yenile\" is done. Nothing else may be yellow.",
+				"section": "colors"
+			},
+			{
+				"name": "The Red-Is-Tinted Rule",
+				"body": "Red marks a conflict (double-booked room or trainer, over-full group) or a destructive action, and is always a 10% tint with red text. Never a solid red fill.",
+				"section": "colors"
+			},
+			{
+				"name": "The Orange-Ink Rule",
+				"body": "Orange as text uses `--primary-ink`, never `--primary`, so it passes 4.5:1 in both themes.",
+				"section": "colors"
+			},
+			{
+				"name": "The Numerals Rule",
+				"body": "Times, counts, dates in rows and stat figures are `tabular-nums`; the pattern chip and lesson meter set their text tabular too.",
+				"section": "typography"
+			},
+			{
+				"name": "The Two-Line Row Rule",
+				"body": "A list row is a 14px/500 primary line and a muted second line, truncated; time sits in a fixed 48px column on the left, place on the right.",
+				"section": "typography"
+			},
+			{
+				"name": "The Flat Studio Rule",
+				"body": "Nothing at rest lifts. Separate with a hairline, a tone step or whitespace — never a shadow.",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"**Do** spend solid Studio Orange only on the one primary action per screen and the active nav item; tint it for booked slots and today.",
+			"**Do** set orange type with `--primary-ink`.",
+			"**Do** name every kayıt with its pattern chip and show its progress with the lesson meter.",
+			"**Do** keep yellow for renewal due (14-day window) with Amber Ink as its text, and red as a 10% tint for conflicts and destructive actions.",
+			"**Do** separate with hairlines, tone steps (Paper / Bench-30 / Bench-60) and whitespace; cards at 18px with the 10% ring.",
+			"**Do** open every page with the page header (title, one muted line, actions right) inside a `max-w-6xl` column.",
+			"**Do** do side work (move, details, close day) in a right Sheet over the week board.",
+			"**Do** set every comparable number `tabular-nums`; write Turkish literally, Monday-first, Istanbul time."
+		],
+		"donts": [
+			"**Don't** introduce a per-page accent; the palette is one orange, one renewal yellow, one tinted red, stone neutrals.",
+			"**Don't** fill red or yellow solid, or set type in the yellow itself.",
+			"**Don't** give yellow a second meaning (partially-taken slots, unchangeable fields, verification notices).",
+			"**Don't** shadow resting surfaces, or add gradient tiles, KPI rings or icon-in-a-circle stat cards.",
+			"**Don't** drift toward the spa look (beige, sage, soft serif) or the generic grey dashboard.",
+			"**Don't** nest a card in a card; lists inside cards are `divide-y` rows.",
+			"**Don't** use a second typeface, uppercase eyebrows or fluid `clamp()` type."
+		]
+	}
+}
