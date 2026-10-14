@@ -1,28 +1,35 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { isValidUuid } from '$lib/utils/validation';
 
-export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
+export const GET: RequestHandler = async ({ url, locals: { supabase, user, userRole } }) => {
+	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
+		throw error(403, 'Unauthorized');
+	}
+
 	const roomId = url.searchParams.get('room_id');
 	const trainerId = url.searchParams.get('trainer_id');
 	const startDate = url.searchParams.get('start_date');
 	const endDate = url.searchParams.get('end_date');
-	const maxCapacityStr = url.searchParams.get('max_capacity');
 
-	if (!roomId || !trainerId || !startDate || !endDate || !maxCapacityStr) {
-		return json({ error: 'Missing required parameters' }, { status: 400 });
+	if (!roomId || !trainerId || !startDate || !endDate) {
+		throw error(400, 'Missing required parameters');
+	}
+	if (!isValidUuid(roomId) || !isValidUuid(trainerId)) {
+		throw error(400, 'Invalid room or trainer id');
 	}
 
-	const maxCapacity = parseInt(maxCapacityStr);
-
-	// Get all appointments in the date range for this room and trainer
-	const { data: appointments, error } = await supabase
+	// Get all group appointments in the date range for this room and trainer, with the
+	// capacity of the package each one belongs to
+	const { data: appointments, error: fetchError } = await supabase
 		.from('pe_appointments')
 		.select(
 			`
 			id,
 			date,
 			hour,
-			pe_appointment_trainees(id)
+			pe_appointment_trainees(id),
+			pe_group_lessons!inner(pe_packages(max_capacity))
 		`
 		)
 		.eq('room_id', roomId)
@@ -30,11 +37,10 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 		.gte('date', startDate)
 		.lte('date', endDate);
 
-	if (error) {
-		return json({ error: 'Failed to fetch appointments' }, { status: 500 });
+	if (fetchError) {
+		throw error(500, 'Failed to fetch appointments');
 	}
 
-	// Check capacity for each appointment
 	const capacityIssues: Array<{
 		date: string;
 		hour: number;
@@ -42,8 +48,9 @@ export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 		maxCapacity: number;
 	}> = [];
 
-	for (const appointment of appointments || []) {
-		const currentCapacity = appointment.pe_appointment_trainees?.length || 0;
+	for (const appointment of appointments ?? []) {
+		const maxCapacity = appointment.pe_group_lessons.pe_packages.max_capacity;
+		const currentCapacity = appointment.pe_appointment_trainees.length;
 
 		// If adding one more trainee would exceed capacity, it's an issue
 		if (currentCapacity >= maxCapacity) {

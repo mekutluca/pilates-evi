@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import type { TrainerWithEmail } from '$lib/types';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
-import { requireAdmin, requireAdminClient, requireStaff } from '$lib/server/permissions';
+import { requireAdmin, requireAdminClient, requireOrgMember } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({ locals: { admin: adminClient }, parent }) => {
 	const admin = requireAdminClient(adminClient);
@@ -27,7 +27,7 @@ export const actions: Actions = {
 		request,
 		locals: { supabase, admin: adminClient, user, userRole, organizationId }
 	}) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const admin = requireAdminClient(adminClient);
@@ -105,7 +105,7 @@ export const actions: Actions = {
 	},
 
 	updateTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -137,13 +137,15 @@ export const actions: Actions = {
 	},
 
 	archiveTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
+		const notMember = await requireOrgMember(supabase, trainerId);
+		if (notMember) return notMember;
 
 		// Check if trainer has future appointments
 		const today = formatDateForDB(new Date());
@@ -201,13 +203,15 @@ export const actions: Actions = {
 	},
 
 	restoreTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const admin = requireAdminClient(adminClient);
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
+		const notMember = await requireOrgMember(supabase, trainerId);
+		if (notMember) return notMember;
 
 		// Unban the user account
 		const { error: enableError } = await admin.auth.admin.updateUserById(trainerId, {
@@ -240,7 +244,7 @@ export const actions: Actions = {
 		};
 	},
 
-	resetPassword: async ({ request, locals: { admin: adminClient, user, userRole } }) => {
+	resetPassword: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
 
@@ -249,6 +253,8 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
 		const newPassword = getRequiredFormDataString(formData, 'newPassword');
+		const notMember = await requireOrgMember(supabase, trainerId);
+		if (notMember) return notMember;
 
 		// Validate password length
 		if (newPassword.length < 6) {
@@ -277,7 +283,7 @@ export const actions: Actions = {
 	},
 
 	moveTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		return moveRow(supabase, 'pe_trainers', request);

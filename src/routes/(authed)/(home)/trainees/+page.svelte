@@ -14,6 +14,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { escapeHtml } from '$lib/utils/html-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -92,13 +93,15 @@
 			key: 'email',
 			title: 'Email',
 			render: (trainee: Trainee) =>
-				`<a href="mailto:${trainee.email}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainee.email}</a>`
+				trainee.email
+					? `<a href="mailto:${escapeHtml(trainee.email)}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${escapeHtml(trainee.email)}</a>`
+					: '-'
 		},
 		{
 			key: 'phone',
 			title: 'Telefon',
 			render: (trainee: Trainee) =>
-				`<a href="tel:+90${trainee.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainee.phone}</a>`
+				`<a href="tel:+90${escapeHtml(trainee.phone)}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${escapeHtml(trainee.phone)}</a>`
 		},
 		{
 			key: 'created_at',

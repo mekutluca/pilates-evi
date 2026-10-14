@@ -16,6 +16,9 @@ export type AssignmentPurchasePayload = {
 	package_id: string;
 	reschedule_left: number;
 	trainee_ids: string[];
+	// Key of an earlier purchase in the same payload: joins its team and becomes its
+	// successor (a pre-registered extension period). trainee_ids is then ignored.
+	extends_key?: string;
 };
 
 export type AssignmentAppointmentPayload = {

@@ -1,5 +1,5 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { ShiftConflict, ShiftedAppointment } from '$lib/types/Schedule';
+import type { ShiftConflict, ShiftedAppointment, ShiftedTraineeRecord } from '$lib/types/Schedule';
 import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
 import type {
 	DayAppointment,
@@ -10,7 +10,12 @@ import type {
 	RawDayRow,
 	ShiftOutcome
 } from '$lib/types/Operation';
-import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
+import {
+	applyEnrollmentMoves,
+	checkMoveCapacity,
+	planTraineeSlotShift,
+	shiftSeriesBySlot
+} from '$lib/utils/shift-utils';
 import { deleteAppointment } from '$lib/utils/cancellation-utils';
 import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
 
@@ -111,19 +116,12 @@ function shiftedOutcome(appt: DayAppointment, shifted: ShiftedAppointment[]): Sh
 // Shifts a private (purchase-backed) appointment's whole series forward, mirroring a single
 // appointment cancellation. The target slot is checked for room/trainer conflicts:
 // - 'shift'   : shift by one slot; on a conflict nothing moves and it is reported to resolve.
-// - 'force'   : shift by one slot even if the target slot conflicts (user accepted the overlap).
 // - 'closest' : walk forward through the recurring pattern to the first conflict-free occurrence.
 async function shiftPrivateAppointment(
 	supabase: SupabaseClientType,
 	appt: DayAppointment,
 	strategy: DayCancellationStrategy
 ): Promise<ShiftOutcome> {
-	if (strategy === 'force') {
-		const result = await shiftSeriesBySlot(supabase, appt.id, 1, { force: true });
-		if (result.error) return { shifted: false, notifications: [], error: result.error };
-		return shiftedOutcome(appt, result.shifted);
-	}
-
 	if (strategy === 'closest') {
 		let lastConflicts: ShiftConflict[] = [];
 		for (let slots = 1; slots <= CLOSEST_PROBE_LIMIT; slots++) {
@@ -159,14 +157,26 @@ async function shiftGroupAppointment(
 	supabase: SupabaseClientType,
 	appt: DayAppointment
 ): Promise<ShiftOutcome> {
+	// Plan every trainee first and move them all in one transaction, so a failure on one
+	// trainee never leaves the others moved and the slot half-emptied.
 	const moved: Array<{ trainee: DayTrainee; newAppointmentId: number }> = [];
+	const moves: ShiftedTraineeRecord[] = [];
 	for (const trainee of appt.trainees) {
-		const result = await shiftTraineeRecordsBySlot(supabase, appt.id, trainee.traineeId, 1);
-		if (result.error) {
-			return { shifted: false, notifications: [], error: result.error };
+		const plan = await planTraineeSlotShift(supabase, appt.id, trainee.traineeId, 1);
+		if (plan.error) {
+			return { shifted: false, notifications: [], error: plan.error };
 		}
-		const record = result.shifted.find((r) => r.oldAppointmentId === appt.id);
+		moves.push(...plan.shifted);
+		const record = plan.shifted.find((r) => r.oldAppointmentId === appt.id);
 		if (record) moved.push({ trainee, newAppointmentId: record.newAppointmentId });
+	}
+	const capacityError = await checkMoveCapacity(supabase, moves);
+	if (capacityError) {
+		return { shifted: false, notifications: [], error: capacityError };
+	}
+	const moveError = await applyEnrollmentMoves(supabase, moves);
+	if (moveError) {
+		return { shifted: false, notifications: [], error: moveError };
 	}
 
 	const newSlotById = new Map<number, { date: string; hour: number }>();
@@ -206,8 +216,8 @@ async function shiftGroupAppointment(
  *
  * The initial pass (`strategy: 'shift'`) skips appointments whose target slot conflicts with
  * another room/trainer booking and returns them in `conflicts` for the user to resolve. A
- * follow-up call with `appointmentIds` restricted to those conflicts and `strategy: 'force'`
- * (shift anyway) or `'closest'` (nearest free occurrence) resolves them. Empty slots are left
+ * follow-up call with `appointmentIds` restricted to those conflicts and `strategy: 'closest'`
+ * (nearest free occurrence) resolves them. Empty slots are left
  * untouched.
  *
  * Notifications for the shifted appointments are returned (not sent) so the caller can dispatch

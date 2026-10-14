@@ -7,7 +7,7 @@ export type Database = {
 	// Allows to automatically instantiate createClient with right options
 	// instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
 	__InternalSupabase: {
-		PostgrestVersion: '14.5';
+		PostgrestVersion: '14.4';
 	};
 	public: {
 		Tables: {
@@ -16,28 +16,28 @@ export type Database = {
 					appointment_id: number | null;
 					id: number;
 					organization_id: string;
-					purchase_id: string | null;
-					session_number: number | null;
-					total_sessions: number | null;
-					trainee_id: string | null;
+					purchase_id: string;
+					session_number: number;
+					total_sessions: number;
+					trainee_id: string;
 				};
 				Insert: {
 					appointment_id?: number | null;
 					id?: number;
 					organization_id?: string;
-					purchase_id?: string | null;
-					session_number?: number | null;
-					total_sessions?: number | null;
-					trainee_id?: string | null;
+					purchase_id: string;
+					session_number: number;
+					total_sessions: number;
+					trainee_id: string;
 				};
 				Update: {
 					appointment_id?: number | null;
 					id?: number;
 					organization_id?: string;
-					purchase_id?: string | null;
-					session_number?: number | null;
-					total_sessions?: number | null;
-					trainee_id?: string | null;
+					purchase_id?: string;
+					session_number?: number;
+					total_sessions?: number;
+					trainee_id?: string;
 				};
 				Relationships: [
 					{
@@ -78,8 +78,8 @@ export type Database = {
 					id: number;
 					organization_id: string;
 					purchase_id: string | null;
-					room_id: string | null;
-					trainer_id: string | null;
+					room_id: string;
+					trainer_id: string;
 				};
 				Insert: {
 					date: string;
@@ -88,8 +88,8 @@ export type Database = {
 					id?: number;
 					organization_id?: string;
 					purchase_id?: string | null;
-					room_id?: string | null;
-					trainer_id?: string | null;
+					room_id: string;
+					trainer_id: string;
 				};
 				Update: {
 					date?: string;
@@ -98,8 +98,8 @@ export type Database = {
 					id?: number;
 					organization_id?: string;
 					purchase_id?: string | null;
-					room_id?: string | null;
-					trainer_id?: string | null;
+					room_id?: string;
+					trainer_id?: string;
 				};
 				Relationships: [
 					{
@@ -146,11 +146,11 @@ export type Database = {
 					end_date: string | null;
 					id: string;
 					organization_id: string;
-					package_id: string | null;
-					room_id: string | null;
-					start_date: string | null;
-					timeslots: Json | null;
-					trainer_id: string | null;
+					package_id: string;
+					room_id: string;
+					start_date: string;
+					timeslots: Json;
+					trainer_id: string;
 				};
 				Insert: {
 					appointments_created_until?: string | null;
@@ -158,11 +158,11 @@ export type Database = {
 					end_date?: string | null;
 					id?: string;
 					organization_id?: string;
-					package_id?: string | null;
-					room_id?: string | null;
-					start_date?: string | null;
-					timeslots?: Json | null;
-					trainer_id?: string | null;
+					package_id: string;
+					room_id: string;
+					start_date: string;
+					timeslots: Json;
+					trainer_id: string;
 				};
 				Update: {
 					appointments_created_until?: string | null;
@@ -170,11 +170,11 @@ export type Database = {
 					end_date?: string | null;
 					id?: string;
 					organization_id?: string;
-					package_id?: string | null;
-					room_id?: string | null;
-					start_date?: string | null;
-					timeslots?: Json | null;
-					trainer_id?: string | null;
+					package_id?: string;
+					room_id?: string;
+					start_date?: string;
+					timeslots?: Json;
+					trainer_id?: string;
 				};
 				Relationships: [
 					{
@@ -274,7 +274,7 @@ export type Database = {
 					created_at: string;
 					description: string | null;
 					id: string;
-					is_active: boolean | null;
+					is_active: boolean;
 					max_capacity: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -289,7 +289,7 @@ export type Database = {
 					created_at?: string;
 					description?: string | null;
 					id?: string;
-					is_active?: boolean | null;
+					is_active?: boolean;
 					max_capacity?: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -304,7 +304,7 @@ export type Database = {
 					created_at?: string;
 					description?: string | null;
 					id?: string;
-					is_active?: boolean | null;
+					is_active?: boolean;
 					max_capacity?: number;
 					max_lessons_per_week?: number;
 					min_lessons_per_week?: number;
@@ -330,28 +330,28 @@ export type Database = {
 					created_at: string;
 					id: string;
 					organization_id: string;
-					package_id: string | null;
-					reschedule_left: number | null;
+					package_id: string;
+					reschedule_left: number;
 					successor_id: string | null;
-					team_id: string | null;
+					team_id: string;
 				};
 				Insert: {
 					created_at?: string;
 					id?: string;
 					organization_id?: string;
-					package_id?: string | null;
-					reschedule_left?: number | null;
+					package_id: string;
+					reschedule_left?: number;
 					successor_id?: string | null;
-					team_id?: string | null;
+					team_id: string;
 				};
 				Update: {
 					created_at?: string;
 					id?: string;
 					organization_id?: string;
-					package_id?: string | null;
-					reschedule_left?: number | null;
+					package_id?: string;
+					reschedule_left?: number;
 					successor_id?: string | null;
-					team_id?: string | null;
+					team_id?: string;
 				};
 				Relationships: [
 					{
@@ -492,7 +492,7 @@ export type Database = {
 			pe_trainers: {
 				Row: {
 					id: string;
-					is_active: boolean | null;
+					is_active: boolean;
 					name: string | null;
 					organization_id: string;
 					phone: string;
@@ -500,7 +500,7 @@ export type Database = {
 				};
 				Insert: {
 					id: string;
-					is_active?: boolean | null;
+					is_active?: boolean;
 					name?: string | null;
 					organization_id?: string;
 					phone: string;
@@ -508,7 +508,7 @@ export type Database = {
 				};
 				Update: {
 					id?: string;
-					is_active?: boolean | null;
+					is_active?: boolean;
 					name?: string | null;
 					organization_id?: string;
 					phone?: string;
@@ -591,7 +591,19 @@ export type Database = {
 			};
 			pe_get_auth_org_id: { Args: never; Returns: string };
 			pe_get_auth_org_role: { Args: never; Returns: string };
+			pe_move_appointments: { Args: { p_moves: Json }; Returns: number };
+			pe_move_enrollments: { Args: { p_moves: Json }; Returns: number };
 			pe_purchase_chain: { Args: { p_purchase_id: string }; Returns: string[] };
+			pe_reschedule_appointment: {
+				Args: {
+					p_appointment_id: number;
+					p_consume_credit: boolean;
+					p_date: string;
+					p_hour: number;
+					p_room_id: string;
+				};
+				Returns: number;
+			};
 			pe_switch_organization: { Args: { p_org_id: string }; Returns: undefined };
 			pe_topup_group_lesson_appointments: {
 				Args: { p_weeks?: number };

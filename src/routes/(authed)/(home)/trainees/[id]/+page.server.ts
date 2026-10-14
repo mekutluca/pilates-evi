@@ -182,7 +182,10 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 };
 
 export const actions: Actions = {
-	update: async ({ request, params, locals: { supabase } }) => {
+	update: async ({ request, params, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
 		const traineeId = params.id;
 
 		if (!traineeId) {

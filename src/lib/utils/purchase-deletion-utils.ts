@@ -96,14 +96,19 @@ async function removeRecords(
 	records: RemainingLessonRecord[]
 ): Promise<string | null> {
 	if (records.length === 0) return null;
-	const { error } = await supabase
+	const { data, error } = await supabase
 		.from('pe_appointment_trainees')
 		.delete()
 		.in(
 			'id',
 			records.map((r) => r.recordId)
-		);
-	return error?.message ?? null;
+		)
+		.select('id');
+	if (error) return error.message;
+	if ((data ?? []).length !== records.length) {
+		return 'Dersler silinemedi; bu işlem için yetkiniz olmayabilir';
+	}
+	return null;
 }
 
 async function removeTraineeFromPrivateAppointments(

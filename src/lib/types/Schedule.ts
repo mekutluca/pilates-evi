@@ -28,6 +28,16 @@ export interface ShiftedAppointment {
 	groupLessonId: string | null;
 }
 
+// One row of a pe_move_appointments call; omitted room/trainer stay unchanged. A type
+// alias (not an interface) so it is assignable to the RPC's Json parameter.
+export type AppointmentMove = {
+	id: number;
+	date: string;
+	hour: number;
+	room_id?: string;
+	trainer_id?: string;
+};
+
 export interface SeriesShiftResult {
 	error: string | null;
 	conflicts: ShiftConflict[];

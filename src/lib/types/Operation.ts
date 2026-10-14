@@ -2,10 +2,9 @@ import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
 
 // How the still-conflicting appointments should be resolved after the initial day cancellation.
 // - 'shift'   : first pass — shift each appointment forward by one slot, skipping conflicts.
-// - 'force'   : resolve pass — shift the given appointments forward by one slot despite conflicts.
 // - 'closest' : resolve pass — shift each appointment to the closest free occurrence in its own
 //               recurring day/hour pattern.
-export type DayCancellationStrategy = 'shift' | 'force' | 'closest';
+export type DayCancellationStrategy = 'shift' | 'closest';
 
 // An appointment that could not be shifted because its target slot is occupied by another
 // appointment (same room or trainer) outside its series. Surfaced so the user can choose how

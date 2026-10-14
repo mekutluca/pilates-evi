@@ -3,11 +3,11 @@ import type { Actions } from './$types';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB } from '$lib/utils/date-utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
-import { requireStaff } from '$lib/server/permissions';
+import { requireAdmin } from '$lib/server/permissions';
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -38,7 +38,7 @@ export const actions: Actions = {
 	},
 
 	updateRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -64,7 +64,7 @@ export const actions: Actions = {
 	},
 
 	archiveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -110,7 +110,7 @@ export const actions: Actions = {
 	},
 
 	restoreRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		const formData = await request.formData();
@@ -132,7 +132,7 @@ export const actions: Actions = {
 	},
 
 	moveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
+		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
 		return moveRow(supabase, 'pe_rooms', request);

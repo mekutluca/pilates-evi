@@ -177,6 +177,7 @@ export interface PackagePurchaseForm {
 	purchase_id?: string;
 	group_lesson_id?: string;
 	duration_weeks?: number; // For joining existing group lessons
+	package_count?: number; // Private packages: consecutive periods registered at once
 	selected_group_timeslots?: SelectedGroupTimeslot[]; // For selecting specific timeslots from existing groups
 }
 

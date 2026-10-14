@@ -33,8 +33,7 @@ export const actions: Actions = {
 		}
 
 		const strategyRaw = formData.get('strategy')?.toString();
-		const strategy: DayCancellationStrategy =
-			strategyRaw === 'force' || strategyRaw === 'closest' ? strategyRaw : 'shift';
+		const strategy: DayCancellationStrategy = strategyRaw === 'closest' ? 'closest' : 'shift';
 
 		// Resolution passes restrict the operation to the previously-conflicting appointments.
 		const idsRaw = formData.get('appointmentIds')?.toString();

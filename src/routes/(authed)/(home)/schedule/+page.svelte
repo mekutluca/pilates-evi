@@ -95,9 +95,14 @@
 	let showAppointmentDetailsModal = $state(false);
 	let rescheduleMode = $state(false);
 	let showRescheduleConfirmation = $state(false);
-	let selectedRescheduleSlot = $state<{ roomId: string; day: DayOfWeek; hour: number } | null>(
-		null
-	);
+	// The target date is fixed when the slot is clicked; the user may have navigated to a
+	// different week than the appointment's own.
+	let selectedRescheduleSlot = $state<{
+		roomId: string;
+		day: DayOfWeek;
+		hour: number;
+		date: Date;
+	} | null>(null);
 
 	let selectedAppointment = $state<AppointmentWithDetails | null>(null);
 	let formLoading = $state(false);
@@ -158,7 +163,12 @@
 	function handleRescheduleSlotClick(roomId: string, day: DayOfWeek, hour: number) {
 		if (!rescheduleMode || !selectedAppointment) return;
 
-		selectedRescheduleSlot = { roomId, day, hour };
+		selectedRescheduleSlot = {
+			roomId,
+			day,
+			hour,
+			date: getDateForDayOfWeek(currentWeekStart(), day)
+		};
 		setTimeout(() => {
 			showRescheduleConfirmation = true;
 		}, 10);
@@ -752,12 +762,8 @@
 						<div class="font-medium text-muted-foreground">Yeni</div>
 						<div class="mt-1">
 							{#if selectedRescheduleSlot}
-								{@const newDate = getDateForDayOfWeek(
-									currentWeekStart(),
-									selectedRescheduleSlot.day
-								)}
 								<div class="text-xs text-muted-foreground">
-									{formatDayMonth(newDate)}
+									{formatDayMonth(selectedRescheduleSlot.date)}
 								</div>
 								<div class="font-semibold">
 									{DAY_NAMES[selectedRescheduleSlot.day]}
@@ -795,7 +801,7 @@
 			>
 				<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
 				<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
-				<input type="hidden" name="newDayOfWeek" value={selectedRescheduleSlot.day} />
+				<input type="hidden" name="newDate" value={formatDateParam(selectedRescheduleSlot.date)} />
 				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
 				<input type="hidden" name="source" value={rescheduleSource} />
 

@@ -134,23 +134,27 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		// Get team IDs from purchases
 		const teamIds = purchases?.map((p) => p.team_id).filter(isNonNull) || [];
 
-		// Query teams to get trainees
-		const { data: teams, error: teamsError } = await supabase
-			.from('pe_teams')
-			.select(
-				`
-				id,
-				trainee_id,
-				pe_trainees (
-					id,
-					name,
-					phone,
-					email,
-					is_active
-				)
-			`
-			)
-			.in('id', teamIds.length > 0 ? teamIds : ['']);
+		// Query teams to get trainees (skipped in a week without purchases: an empty
+		// uuid list has no valid placeholder)
+		const { data: teams, error: teamsError } =
+			teamIds.length > 0
+				? await supabase
+						.from('pe_teams')
+						.select(
+							`
+							id,
+							trainee_id,
+							pe_trainees (
+								id,
+								name,
+								phone,
+								email,
+								is_active
+							)
+						`
+						)
+						.in('id', teamIds)
+				: { data: [], error: null };
 
 		if (teamsError) {
 			console.error('Error loading teams:', teamsError);

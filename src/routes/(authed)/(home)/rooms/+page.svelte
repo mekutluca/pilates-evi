@@ -87,7 +87,7 @@
 		return baseActions;
 	};
 
-	const tableColumns = [
+	const baseColumns = [
 		{
 			key: 'name',
 			title: 'Ad',
@@ -98,15 +98,17 @@
 			title: 'Kapasite',
 			sortable: false,
 			render: (room: Room) => String(room.capacity ?? '-')
-		},
-		{
-			key: 'sort_order',
-			title: 'Sıra',
-			sortable: false,
-			renderComponent: ReorderCell,
-			class: 'w-24'
 		}
 	];
+	const reorderColumn = {
+		key: 'sort_order',
+		title: 'Sıra',
+		sortable: false,
+		renderComponent: ReorderCell,
+		class: 'w-24'
+	};
+	// Ordering is a catalog change, like editing — admins only.
+	let tableColumns = $derived(userRole === 'admin' ? [...baseColumns, reorderColumn] : baseColumns);
 
 	function openEditModal(room: Room) {
 		selectedRoom = room;

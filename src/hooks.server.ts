@@ -1,4 +1,4 @@
-import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
+import { error, redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { sequence } from '@sveltejs/kit/hooks';
@@ -20,6 +20,11 @@ const adminClient = PRIVATE_SUPABASE_SECRET_KEY
 			auth: { autoRefreshToken: false, persistSession: false }
 		})
 	: undefined;
+
+// The studio runs on Turkish time. Server-side "now"/"today" (the 23-hour reschedule rule,
+// past-appointment checks, default dates) must not depend on the container's zone, which
+// is UTC on the VDS. Node re-reads TZ when it is assigned.
+process.env.TZ = 'Europe/Istanbul';
 
 // adapter-node runs a long-lived process: an unhandled rejection would exit it
 // (Node's default) and take every in-flight request down. Log instead.
@@ -96,15 +101,24 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.session = session;
 	event.locals.user = user;
 
-	// Get user role and organization from app_metadata (set by pe_switch_organization)
+	// The organization comes from app_metadata (set by pe_switch_organization); the role
+	// comes from the live membership, so removing or demoting a user takes effect on their
+	// next request rather than at their next sign-in.
 	let userRole: Role | null = null;
 	let organizationId: string | null = null;
 	if (user) {
-		const appMetadata = user.app_metadata as
-			{ organization_role?: string; organization_id?: string } | undefined;
-		const role = appMetadata?.organization_role?.replace('pe_', '');
-		userRole = role ? (role as Role) : null;
+		const appMetadata = user.app_metadata as { organization_id?: string } | undefined;
 		organizationId = appMetadata?.organization_id ?? null;
+		if (organizationId) {
+			const { data: membership } = await event.locals.supabase
+				.from('pe_user_organizations')
+				.select('role')
+				.eq('user_id', user.id)
+				.eq('organization_id', organizationId)
+				.eq('is_active', true)
+				.maybeSingle();
+			userRole = membership ? (membership.role.replace('pe_', '') as Role) : null;
+		}
 	}
 	event.locals.userRole = userRole;
 	event.locals.organizationId = organizationId;
@@ -114,12 +128,24 @@ const authGuard: Handle = async ({ event, resolve }) => {
 			redirect(303, '/login');
 		}
 
-		// Role-based access control
-		const normalizedPathname = event.url.pathname.replace(/\/+$/, '') || '/';
-		const matchedRoute = allRoutes.find((route) => route.href === normalizedPathname);
-		if (matchedRoute && (!userRole || !matchedRoute.availableToRoles.includes(userRole))) {
+		// Signed in without an active membership (removed from the studio): end the session.
+		if (!userRole) {
 			await event.locals.supabase.auth.signOut({ scope: 'local' });
 			redirect(303, '/login');
+		}
+
+		// Role-based access control: a route guards its whole subtree (/trainees covers
+		// /trainees/[id]); the most specific nav entry wins.
+		const pathname = event.url.pathname.replace(/\/+$/, '') || '/';
+		const matchedRoute = allRoutes
+			.filter((route) =>
+				route.href === '/'
+					? pathname === '/'
+					: pathname === route.href || pathname.startsWith(route.href + '/')
+			)
+			.sort((a, b) => b.href.length - a.href.length)[0];
+		if (matchedRoute && !matchedRoute.availableToRoles.includes(userRole)) {
+			error(403, 'Bu sayfaya erişim yetkiniz yok');
 		}
 	}
 

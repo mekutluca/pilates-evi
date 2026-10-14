@@ -36,3 +36,21 @@ export function requireAdminClient(admin: App.Locals['admin']): SupabaseClientTy
 	if (!admin) error(500, NO_ADMIN_CLIENT);
 	return admin;
 }
+
+/**
+ * Form-action guard for actions that hand a posted user id to `auth.admin.*`. The
+ * Supabase project is shared with other apps, so the id must be checked against this
+ * organization's memberships (read through the RLS client, which only shows the caller's
+ * organization) before the privileged client touches the account.
+ */
+export async function requireOrgMember(supabase: SupabaseClientType, userId: string) {
+	const { data } = await supabase
+		.from('pe_user_organizations')
+		.select('id')
+		.eq('user_id', userId)
+		.maybeSingle();
+	if (!data) {
+		return fail(404, { success: false, message: 'Kullanıcı bu stüdyoda bulunamadı' });
+	}
+	return null;
+}

@@ -481,6 +481,9 @@
 		}
 
 		assignmentForm.trainee_ids = selectedTrainees;
+		if (selectedPackage.package_type === 'private') {
+			assignmentForm.package_count = packageCount;
+		}
 
 		// Set group_lesson_id if an existing group lesson was selected (legacy flow)
 		if (selectedGroupLessonId) {

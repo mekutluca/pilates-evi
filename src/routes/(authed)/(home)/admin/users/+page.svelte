@@ -14,6 +14,7 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { escapeHtml } from '$lib/utils/html-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -90,13 +91,14 @@
 				const badge = isCurrentUser
 					? '<span class="ml-2 inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Siz</span>'
 					: '';
-				return `<span class="font-medium">${user.fullName || '-'}</span>${badge}`;
+				return `<span class="font-medium">${escapeHtml(user.fullName || '-')}</span>${badge}`;
 			}
 		},
 		{
 			key: 'email',
 			title: 'Email',
-			render: (user: User) => `<div class="text-sm text-muted-foreground">${user.email}</div>`
+			render: (user: User) =>
+				`<div class="text-sm text-muted-foreground">${escapeHtml(user.email)}</div>`
 		},
 		{
 			key: 'role',

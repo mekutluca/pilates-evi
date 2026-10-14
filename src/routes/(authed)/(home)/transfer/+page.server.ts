@@ -24,9 +24,10 @@ import {
 	getPurchaseSuccessorChain
 } from '$lib/utils/extension-utils';
 import {
+	applyAppointmentMoves,
+	applyEnrollmentMoves,
 	buildTraineeEligibleByGroup,
 	checkTraineeShiftTargets,
-	renumberTraineeSessionsInChain,
 	resolveWeeklyShiftTargets,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsBySlot
@@ -306,7 +307,7 @@ export const load: PageServerLoad = async ({
 				id,
 				session_number,
 				total_sessions,
-				pe_trainees(id, name)
+				pe_trainees(id, name, phone)
 			)
 		`
 		)
@@ -683,16 +684,38 @@ export const actions: Actions = {
 
 		// Perform the transfer
 		const appointmentIds = appointmentsToTransfer.map((a) => a.id);
-		const { error: updateError } = await supabase
+		const { data: updated, error: updateError } = await supabase
 			.from('pe_appointments')
 			.update(updateData)
-			.in('id', appointmentIds);
+			.in('id', appointmentIds)
+			.select('id');
 
 		if (updateError) {
 			return fail(500, {
 				success: false,
 				message: 'Aktarma sırasında hata oluştu: ' + updateError.message
 			});
+		}
+		if ((updated ?? []).length !== appointmentIds.length) {
+			return fail(500, {
+				success: false,
+				message: 'Randevuların bir kısmı aktarılamadı; lütfen sayfayı yenileyip tekrar deneyin'
+			});
+		}
+
+		// A series-wide transfer of a group lesson must also move the lesson itself, or the
+		// weekly top-up keeps generating new weeks in the old room / with the old trainer.
+		if (appointment.group_lesson_id && scope !== 'single') {
+			const { error: lessonError } = await supabase
+				.from('pe_group_lessons')
+				.update(updateData)
+				.eq('id', appointment.group_lesson_id);
+			if (lessonError) {
+				return fail(500, {
+					success: false,
+					message: 'Grup dersi güncellenirken hata oluştu: ' + lessonError.message
+				});
+			}
 		}
 
 		// Redirect to schedule
@@ -854,22 +877,21 @@ export const actions: Actions = {
 			});
 		}
 
-		// Perform the shift - update each appointment's date
-		for (const apt of appointmentsToShift) {
-			if (apt.date) {
-				const newDate = addWeeksToDate(apt.date, weeks);
-				const { error: updateError } = await supabase
-					.from('pe_appointments')
-					.update({ date: newDate })
-					.eq('id', apt.id);
-
-				if (updateError) {
-					return fail(500, {
-						success: false,
-						message: 'Kaydırma sırasında hata oluştu: ' + updateError.message
-					});
-				}
-			}
+		// Perform the shift in one transaction (a series moved onto its own later weeks
+		// would otherwise collide with itself mid-update)
+		const moveError = await applyAppointmentMoves(
+			supabase,
+			appointmentsToShift.flatMap((apt) =>
+				apt.date && apt.hour !== null
+					? [{ id: apt.id, date: addWeeksToDate(apt.date, weeks), hour: apt.hour }]
+					: []
+			)
+		);
+		if (moveError) {
+			return fail(500, {
+				success: false,
+				message: 'Kaydırma sırasında hata oluştu: ' + moveError
+			});
 		}
 
 		// Send WhatsApp notifications
@@ -1033,26 +1055,12 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: guardError });
 		}
 
-		// Update all records
-		for (const shift of shiftMap) {
-			const { error: updateError } = await supabase
-				.from('pe_appointment_trainees')
-				.update({ appointment_id: shift.newAppointmentId })
-				.eq('id', shift.recordId);
-
-			if (updateError) {
-				return fail(500, {
-					success: false,
-					message: 'Öğrenci kaydırma sırasında hata oluştu: ' + updateError.message
-				});
-			}
-		}
-
-		if (shiftMap.length > 0) {
-			const renumber = await renumberTraineeSessionsInChain(supabase, traineeId, purchaseChain);
-			if (renumber.error) {
-				return fail(500, { success: false, message: renumber.error });
-			}
+		const moveError = await applyEnrollmentMoves(supabase, shiftMap);
+		if (moveError) {
+			return fail(500, {
+				success: false,
+				message: 'Öğrenci kaydırma sırasında hata oluştu: ' + moveError
+			});
 		}
 
 		throw redirect(303, `/schedule?skipped=${skippedCount}`);

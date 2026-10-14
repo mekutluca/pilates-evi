@@ -22,10 +22,10 @@
 	import {
 		getDayOfWeekFromDate,
 		addWeeksToDate,
-		buildAppointmentSlots,
-		formatShortDisplayDate
+		formatShortDisplayDate,
+		parseLocalDate
 	} from '$lib/utils/date-utils';
-	import { sortTimeSlotsSundayFirst } from '$lib/utils/slot-utils';
+	import { buildAppointmentSlotsFromStart, isSlotInPattern } from '$lib/utils/slot-utils';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -289,13 +289,14 @@
 					}
 				}
 
-				// Order the pattern as buildAppointmentSlots expects (Sunday-first week walk)
-				const timeSlots = sortTimeSlotsSundayFirst(rawTimeSlots);
-
 				// Build slots: existing + enough new ones to cover the shift
-				const firstAppointmentDate = new Date(validAppointments[0].date);
-				const totalSlotsNeeded = validAppointments.length + slotsToShift;
-				const allSlots = buildAppointmentSlots(timeSlots, firstAppointmentDate, totalSlotsNeeded);
+				const firstAppointmentDate = parseLocalDate(validAppointments[0].date);
+				const allSlots = buildAppointmentSlotsFromStart(
+					firstAppointmentDate,
+					validAppointments[0].hour,
+					rawTimeSlots,
+					validAppointments.length + slotsToShift
+				);
 
 				// Each appointment shifts to the slot N positions ahead
 				appointmentsToCheckWithDates = validAppointments.map((a, index) => {
@@ -817,12 +818,16 @@
 										}
 									}
 
-									// Order the pattern as buildAppointmentSlots expects (Sunday-first week walk)
-									const timeSlots = sortTimeSlotsSundayFirst(rawTimeSlots);
-
-									const firstDate = new Date(appointments[0].date);
-									const totalSlotsNeeded = appointments.length + slotsToShift;
-									return buildAppointmentSlots(timeSlots, firstDate, totalSlotsNeeded);
+									const firstDate = parseLocalDate(appointments[0].date);
+									const firstHour = appointments[0].hour;
+									if (firstHour === null || !isSlotInPattern(rawTimeSlots, firstDate, firstHour))
+										return null;
+									return buildAppointmentSlotsFromStart(
+										firstDate,
+										firstHour,
+										rawTimeSlots,
+										appointments.length + slotsToShift
+									);
 								})()}
 								{#each appointments as appt, index (appt.id)}
 									{@const traineeEligible =

@@ -1,7 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { requireAdmin, requireAdminClient } from '$lib/server/permissions';
+import { requireAdmin, requireAdminClient, requireOrgMember } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
 	locals: { admin: adminClient, user, userRole, organizationId }
@@ -123,7 +123,7 @@ export const actions: Actions = {
 
 	updateUser: async ({
 		request,
-		locals: { admin: adminClient, user, userRole, organizationId }
+		locals: { supabase, admin: adminClient, user, userRole, organizationId }
 	}) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
@@ -157,6 +157,9 @@ export const actions: Actions = {
 				message: 'Geçersiz rol seçimi'
 			});
 		}
+
+		const notMember = await requireOrgMember(supabase, userId);
+		if (notMember) return notMember;
 
 		// Update user metadata in auth
 		const { error: updateAuthError } = await admin.auth.admin.updateUserById(userId, {
@@ -244,7 +247,7 @@ export const actions: Actions = {
 		};
 	},
 
-	resetPassword: async ({ request, locals: { admin: adminClient, user, userRole } }) => {
+	resetPassword: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
 		const denied = requireAdmin(user, userRole);
 		if (denied) return denied;
 
@@ -269,6 +272,9 @@ export const actions: Actions = {
 				message: 'Şifre en az 6 karakter olmalıdır'
 			});
 		}
+
+		const notMember = await requireOrgMember(supabase, userId);
+		if (notMember) return notMember;
 
 		// Update user password using Supabase admin API
 		const { error: updateError } = await admin.auth.admin.updateUserById(userId, {

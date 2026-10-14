@@ -1,12 +1,16 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { CancelTraineeAction } from '$lib/types/Schedule';
-import { shiftSeriesBySlot, shiftTraineeRecordsBySlot } from '$lib/utils/shift-utils';
+import type { CancelTraineeAction, ShiftedTraineeRecord } from '$lib/types/Schedule';
+import {
+	applyEnrollmentMoves,
+	checkMoveCapacity,
+	planTraineeSlotShift,
+	shiftSeriesBySlot
+} from '$lib/utils/shift-utils';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
-import { isNonNull } from '$lib/utils/type-guards';
 
 /**
- * Removes appointment rows along with any remaining trainee links. Trainee links are deleted
- * first to avoid leaving orphan `pe_appointment_trainees` rows when the FK lacks ON DELETE CASCADE.
+ * Removes appointment rows; their trainee links follow via ON DELETE CASCADE. Fails when
+ * fewer rows were deleted than asked for, so an RLS-filtered delete never reports success.
  */
 export async function deleteAppointments(
 	supabase: SupabaseClientType,
@@ -14,18 +18,16 @@ export async function deleteAppointments(
 ): Promise<{ error: string | null }> {
 	if (appointmentIds.length === 0) return { error: null };
 
-	const { error: traineeError } = await supabase
-		.from('pe_appointment_trainees')
+	const { data, error } = await supabase
+		.from('pe_appointments')
 		.delete()
-		.in('appointment_id', appointmentIds);
-
-	if (traineeError) {
-		return { error: traineeError.message };
-	}
-
-	const { error } = await supabase.from('pe_appointments').delete().in('id', appointmentIds);
+		.in('id', appointmentIds)
+		.select('id');
 	if (error) {
 		return { error: error.message };
+	}
+	if ((data ?? []).length !== appointmentIds.length) {
+		return { error: 'Randevular silinemedi; bu işlem için yetkiniz olmayabilir' };
 	}
 	return { error: null };
 }
@@ -61,16 +63,18 @@ async function shiftGroupTraineesByOne(
 		.select('trainee_id')
 		.eq('appointment_id', cancelledAppointmentId);
 
-	const validTrainees = (trainees ?? []).map((t) => t.trainee_id).filter(isNonNull);
-
-	for (const traineeId of validTrainees) {
-		const result = await shiftTraineeRecordsBySlot(supabase, cancelledAppointmentId, traineeId, 1);
-		if (result.error) {
-			return { error: result.error };
-		}
+	// Plan every trainee before moving anyone, then move them all in one transaction.
+	const moves: ShiftedTraineeRecord[] = [];
+	for (const { trainee_id } of trainees ?? []) {
+		const plan = await planTraineeSlotShift(supabase, cancelledAppointmentId, trainee_id, 1);
+		if (plan.error) return { error: plan.error };
+		moves.push(...plan.shifted);
 	}
 
-	return { error: null };
+	const capacityError = await checkMoveCapacity(supabase, moves);
+	if (capacityError) return { error: capacityError };
+
+	return { error: await applyEnrollmentMoves(supabase, moves) };
 }
 
 export async function cancelAppointment(

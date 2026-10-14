@@ -1,12 +1,16 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { formatShortTurkishDateTime, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
-import type { CancelTraineeAction, DayOfWeek } from '$lib/types/Schedule';
+import {
+	formatShortTurkishDateTime,
+	formatDateForDB,
+	getAppointmentDateTime,
+	isAppointmentFuture
+} from '$lib/utils/date-utils';
+import type { CancelTraineeAction } from '$lib/types/Schedule';
 import { cancelAppointment } from '$lib/utils/cancellation-utils';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { ConflictService } from '$lib/server/services/conflict-service';
-import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
@@ -99,13 +103,19 @@ export const actions: Actions = {
 
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointmentId'));
 		const newRoomId = getRequiredFormDataString(formData, 'newRoomId');
-		const newDayOfWeek = getRequiredFormDataString(formData, 'newDayOfWeek') as DayOfWeek;
+		const newAppointmentDateString = getRequiredFormDataString(formData, 'newDate');
 		const newHour = Number(getRequiredFormDataString(formData, 'newHour'));
 		const source = (formData.get('source')?.toString() || 'trainee') as 'trainee' | 'system';
 		const reason = formData.get('reason')?.toString() || '';
 
 		// Validate inputs
-		if (isNaN(appointmentId) || isNaN(newHour)) {
+		if (
+			isNaN(appointmentId) ||
+			!Number.isInteger(newHour) ||
+			newHour < 0 ||
+			newHour > 23 ||
+			!/^\d{4}-\d{2}-\d{2}$/.test(newAppointmentDateString)
+		) {
 			return fail(400, { success: false, message: 'Geçersiz form verisi' });
 		}
 
@@ -142,78 +152,40 @@ export const actions: Actions = {
 			return fail(404, { success: false, message: 'Randevu bulunamadı' });
 		}
 
-		// Calculate time until appointment
-		const now = new Date();
-		const appointmentDateTime = new Date(
-			currentAppointment.date + 'T' + String(currentAppointment.hour).padStart(2, '0') + ':00:00'
-		);
-		const millisecondsUntil = appointmentDateTime.getTime() - now.getTime();
-		const hoursUntil = millisecondsUntil / (1000 * 60 * 60);
+		const hoursUntil =
+			(getAppointmentDateTime(currentAppointment.date, currentAppointment.hour).getTime() -
+				Date.now()) /
+			(1000 * 60 * 60);
 
-		// Rule 1: Past appointments are never reschedulable
+		// Rule 1: Past appointments are never reschedulable, nor can anything move into the past
 		if (hoursUntil < 0) {
 			return fail(400, {
 				success: false,
 				message: 'Başlamış olan randevuların vakti değiştirilemez'
 			});
 		}
-
-		// Get purchase and reschedule information (needed for all roles)
-		const purchase = currentAppointment.pe_purchases;
-		const rescheduleLeft = purchase?.reschedule_left || 0;
-
-		// Rule 2: Admin can reschedule any future appointment (no reschedule limit check)
-		if (userRole === 'admin') {
-			// Admin can proceed without checking reschedule limits
+		if (!isAppointmentFuture(newAppointmentDateString, newHour)) {
+			return fail(400, { success: false, message: 'Randevu geçmiş bir saate taşınamaz' });
 		}
-		// Rule 3: For non-admin users, check reschedule permissions and limits
-		else {
-			// Check if reschedules are allowed and if there are reschedules remaining
-			// Note: reschedule_left of 999 indicates unlimited reschedules (when reschedule_limit is null)
-			if (rescheduleLeft <= 0) {
+
+		// Rule 2: Admins reschedule any future appointment without spending a credit.
+		// Rule 3: Coordinators need a purchase with credits left and 23+ hours of notice.
+		const purchase = currentAppointment.pe_purchases;
+		const consumeCredit = userRole !== 'admin';
+		if (consumeCredit) {
+			if (!purchase || purchase.reschedule_left <= 0) {
 				return fail(400, {
 					success: false,
-					message: 'Bu satın alma için randevu değiştirme hakkı kalmamış'
+					message: 'Bu kayıt için randevu değiştirme hakkı kalmamış'
 				});
 			}
-
-			// Rule 4: Coordinator can only reschedule if there are reschedules left AND there are 23+ hours until appointment
-			if (userRole === 'coordinator') {
-				if (hoursUntil < 23) {
-					return fail(400, {
-						success: false,
-						message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
-					});
-				}
+			if (hoursUntil < 23) {
+				return fail(400, {
+					success: false,
+					message: 'Randevu değişikliği en az 23 saat önceden yapılmalıdır'
+				});
 			}
 		}
-
-		// Calculate the new appointment date based on the current appointment's week and new day of week
-		const currentAppointmentDate = parseLocalDate(currentAppointment.date);
-
-		// Calculate week start for the current appointment
-		const weekStart = new Date(currentAppointmentDate);
-		const day = weekStart.getDay();
-		const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-		weekStart.setDate(diff);
-
-		// Calculate the new appointment date based on the new day of week within the same week
-		const dayMapping: Record<DayOfWeek, number> = {
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6,
-			sunday: 0
-		};
-
-		const newDayNum = dayMapping[newDayOfWeek];
-		const newAppointmentDate = new Date(weekStart);
-		const daysToAdd = newDayNum === 0 ? 6 : newDayNum - 1; // Sunday is 6 days from Monday
-		newAppointmentDate.setDate(weekStart.getDate() + daysToAdd);
-
-		const newAppointmentDateString = formatDateForDB(newAppointmentDate);
 
 		// Check if new time slot is available — the room and the appointment's
 		// trainer must both be free
@@ -224,7 +196,7 @@ export const actions: Actions = {
 			hour: newHour,
 			roomId: newRoomId,
 			trainerId: currentAppointment.trainer_id,
-			excludeAppointmentId: Number(appointmentId)
+			excludeAppointmentId: appointmentId
 		});
 
 		if (roomConflict || trainerConflict) {
@@ -236,32 +208,18 @@ export const actions: Actions = {
 			});
 		}
 
-		// Update appointment with new date, hour, and room
-		const { error: updateError } = await supabase
-			.from('pe_appointments')
-			.update({
-				hour: newHour,
-				date: newAppointmentDateString,
-				room_id: newRoomId
-			})
-			.eq('id', appointmentId);
+		// Spend the credit and move the appointment in one transaction (999 = unlimited,
+		// never decremented — handled inside the RPC)
+		const { error: rescheduleError } = await supabase.rpc('pe_reschedule_appointment', {
+			p_appointment_id: appointmentId,
+			p_date: newAppointmentDateString,
+			p_hour: newHour,
+			p_room_id: newRoomId,
+			p_consume_credit: consumeCredit
+		});
 
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Randevu güncellenirken hata: ' + updateError.message
-			});
-		}
-
-		// Consume one reschedule credit atomically (admins don't consume credits;
-		// 999 means unlimited and is never decremented — handled inside the RPC).
-		if (purchase && userRole !== 'admin') {
-			try {
-				await new PurchaseRepository(supabase).decrementRescheduleLeft(purchase.id);
-			} catch (decrementError) {
-				console.error('Error decrementing reschedule count:', decrementError);
-				// Don't fail the request if decrement fails, just log it
-			}
+		if (rescheduleError) {
+			return fail(400, { success: false, message: rescheduleError.message });
 		}
 
 		// Send WhatsApp reschedule notification

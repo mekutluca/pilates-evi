@@ -65,19 +65,4 @@ export class PurchaseRepository {
 		// The RPC returns jsonb; its shape is fixed by the SQL function body.
 		return data as ExtensionResult;
 	}
-
-	/**
-	 * Atomically consumes one reschedule credit (999 = unlimited, never
-	 * decremented). Returns the remaining count, or null when nothing was
-	 * consumed (unlimited, exhausted, or unknown purchase).
-	 */
-	async decrementRescheduleLeft(purchaseId: string): Promise<number | null> {
-		const { data, error } = await this.supabase.rpc('pe_decrement_reschedule', {
-			p_purchase_id: purchaseId
-		});
-		if (error) {
-			throw new Error(`Randevu hakkı güncellenemedi: ${error.message}`);
-		}
-		return data;
-	}
 }

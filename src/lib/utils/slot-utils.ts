@@ -13,7 +13,7 @@ export const DAY_ORDER: Record<DayOfWeek, number> = {
 	sunday: 7
 };
 
-function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
+export function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): T[] {
 	return [...slots].sort((a, b) => {
 		const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
 		if (dayDiff !== 0) return dayDiff;
@@ -21,16 +21,17 @@ function sortTimeSlots<T extends { day: DayOfWeek; hour: number }>(slots: T[]): 
 	});
 }
 
-// Sunday-first ordering matching JS Date.getDay(). Required for patterns fed into
-// buildAppointmentSlots, whose week walk starts on the Sunday of the start week.
-export function sortTimeSlotsSundayFirst<T extends { day: DayOfWeek; hour: number }>(
-	slots: T[]
-): T[] {
-	return [...slots].sort((a, b) => {
-		const dayDiff = JS_DAY_TO_NAME.indexOf(a.day) - JS_DAY_TO_NAME.indexOf(b.day);
-		if (dayDiff !== 0) return dayDiff;
-		return a.hour - b.hour;
-	});
+/**
+ * Whether (date, hour) is one of the pattern's recurring slots — the precondition of
+ * buildAppointmentSlotsFromStart, for callers that would rather skip than throw.
+ */
+export function isSlotInPattern(
+	timeSlots: Array<{ day: DayOfWeek; hour: number }>,
+	date: Date,
+	hour: number
+): boolean {
+	const dayName = JS_DAY_TO_NAME[date.getDay()];
+	return timeSlots.some((s) => s.day === dayName && s.hour === hour);
 }
 
 function getMondayOf(date: Date): Date {

@@ -1,7 +1,7 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type { DayOfWeek } from '$lib/types/Schedule';
+import { getTimeString, type DayOfWeek } from '$lib/types/Schedule';
 import type {
 	AppointmentRefInfo,
 	PurchaseChainDates,
@@ -21,7 +21,8 @@ import {
 	buildAppointmentSlotsFromStart
 } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
-import { parseLocalDate } from '$lib/utils/date-utils';
+import { formatTurkishDate, parseLocalDate } from '$lib/utils/date-utils';
+import { ConflictService } from '$lib/server/services/conflict-service';
 import { requireStaff } from '$lib/server/permissions';
 
 // Helper to get appointments for either private or group lessons
@@ -323,7 +324,9 @@ export const actions: Actions = {
 				.from('pe_appointments')
 				.select('room_id, trainer_id')
 				.eq('purchase_id', lastPurchase.id)
-				.order('date', { ascending: true })
+				// The latest appointment carries any room/trainer transfer made mid-package
+				.order('date', { ascending: false })
+				.order('hour', { ascending: false })
 				.limit(1)
 				.maybeSingle(),
 			getCanonicalPurchaseTimeSlots(
@@ -372,25 +375,20 @@ export const actions: Actions = {
 			});
 		}
 
-		// One batched conflict check for all slots in the date span.
-		const slotDates = allAppointmentSlots.map((s) => s.date);
-		const { data: existingAppointments } = await supabase
-			.from('pe_appointments')
-			.select('date, hour')
-			.eq('room_id', roomId)
-			.eq('trainer_id', trainerId)
-			.in('date', slotDates);
-
-		if (existingAppointments && existingAppointments.length > 0) {
-			const occupied = new Set(existingAppointments.map((a) => `${a.date}-${a.hour}`));
-			const conflict = allAppointmentSlots.find((s) => occupied.has(`${s.date}-${s.hour}`));
-			if (conflict) {
-				const dateStr = new Date(conflict.date).toLocaleDateString('tr-TR');
-				return fail(400, {
-					success: false,
-					message: `${dateStr} tarihindeki ${conflict.hour}:00 zaman dilimi zaten dolu`
-				});
-			}
+		// One batched conflict check for all slots: the room OR the trainer being taken
+		// is a conflict.
+		const [conflict] = await new ConflictService(supabase).findSlotConflicts({
+			roomId,
+			trainerId,
+			slots: allAppointmentSlots
+		});
+		if (conflict) {
+			return fail(400, {
+				success: false,
+				message: `${formatTurkishDate(conflict.date)} ${getTimeString(conflict.hour)} saatinde ${
+					conflict.roomConflict ? 'oda' : 'eğitmen'
+				} dolu`
+			});
 		}
 
 		const rescheduleLeft = packageInfo.reschedulable ? (packageInfo.reschedule_limit ?? 999) : 0;
@@ -527,6 +525,31 @@ export const actions: Actions = {
 			return fail(400, {
 				success: false,
 				message: `${totalSessions} ders için yeterli ileri tarihli randevu yok (${sessionsToJoin.length} mevcut). Grup dersinin randevuları daha ileri tarihe oluşturulmalı.`
+			});
+		}
+
+		// The trainee(s) must not already be in a target session and every session must
+		// have room for them.
+		const { data: teamRows } = await supabase
+			.from('pe_teams')
+			.select('trainee_id')
+			.eq('id', lastPurchase.team_id);
+		const { duplicates, overCapacity } = await new ConflictService(supabase).checkEnrollmentTargets(
+			{
+				appointmentIds: sessionsToJoin.map((apt) => apt.appointment_id),
+				traineeIds: (teamRows ?? []).map((row) => row.trainee_id)
+			}
+		);
+		if (duplicates.length > 0) {
+			return fail(400, {
+				success: false,
+				message: 'Öğrenci seçilen derslerin bazılarına zaten kayıtlı'
+			});
+		}
+		if (overCapacity.length > 0) {
+			return fail(400, {
+				success: false,
+				message: `${overCapacity.length} derste kontenjan dolu`
 			});
 		}
 

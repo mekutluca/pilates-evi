@@ -18,6 +18,7 @@ import type {
 	AssignmentEnrollmentPayload
 } from '$lib/types/Assignment';
 import { isValidUuid } from '$lib/utils/validation';
+import { DAYS_OF_WEEK } from '$lib/types/Schedule';
 import { requireStaff } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async ({
@@ -440,6 +441,11 @@ export const actions: Actions = {
 		}
 		// For creating new group lesson, trainee selection is not required
 
+		const periodCount = assignmentForm.package_count ?? 1;
+		if (!Number.isInteger(periodCount) || periodCount < 1 || periodCount > 12) {
+			return fail(400, { success: false, message: 'Dönem sayısı 1 ile 12 arasında olmalıdır' });
+		}
+
 		try {
 			// STEP 1: Determine how many weeks of appointments to create
 			let weeksToCreate: number;
@@ -453,8 +459,8 @@ export const actions: Actions = {
 				groupLessonId = assignmentForm.group_lesson_id!;
 				weeksToCreate = 0; // No new appointments for joining existing
 			} else {
-				// For private packages, use package duration
-				weeksToCreate = packageData.weeks_duration || 1;
+				// For private packages, use package duration × the number of periods
+				weeksToCreate = (packageData.weeks_duration || 1) * periodCount;
 			}
 
 			// STEP 2: Check availability for all appointments before creating anything
@@ -474,8 +480,9 @@ export const actions: Actions = {
 
 					const slotDate = parseLocalDate(slot.date);
 
-					// Validate the date is valid
-					if (isNaN(slotDate.getTime())) {
+					// Validate the date is valid and falls on the slot's weekday (the group
+					// lesson's stored pattern is built from `day`, the appointments from `date`)
+					if (isNaN(slotDate.getTime()) || getDayOfWeekFromDate(slot.date) !== slot.day) {
 						return fail(400, {
 							success: false,
 							message: `Geçersiz tarih: ${slot.date}`
@@ -536,15 +543,16 @@ export const actions: Actions = {
 				endDate.setDate(endDate.getDate() + 26 * 7); // 26 weeks from start
 
 				// Merge hours of same days into the timeslots JSON shape
-				const mergedTimeslots: Record<string, number[]> = {};
-				for (const slot of assignmentForm.time_slots) {
-					if (!mergedTimeslots[slot.day]) mergedTimeslots[slot.day] = [];
-					mergedTimeslots[slot.day].push(slot.hour);
-				}
-				const timeslotsArray = Object.entries(mergedTimeslots).map(([day, hours]) => ({
+				// Stored in weekday order (not click order); the top-up cron and slot shifts
+				// walk this pattern chronologically. Each slot's date was validated against
+				// its day above.
+				const timeslotsArray = DAYS_OF_WEEK.map((day) => ({
 					day,
-					hours: hours.sort((a, b) => a - b)
-				}));
+					hours: assignmentForm.time_slots
+						.filter((slot) => slot.day === day)
+						.map((slot) => slot.hour)
+						.sort((a, b) => a - b)
+				})).filter((ts) => ts.hours.length > 0);
 
 				groupLessonPayload = {
 					package_id: assignmentForm.package_id,
@@ -762,34 +770,37 @@ export const actions: Actions = {
 
 				successMessage = `${assignmentForm.trainee_ids.length} öğrenci grup dersine başarıyla eklendi. Her öğrenci ${appointmentsPerTrainee} randevuya atandı.`;
 			} else {
-				// Private package: one shared team + purchase, new appointments, all
-				// trainees enrolled in every appointment
-				const lessonsPerWeek = assignmentForm.time_slots.length;
-				const totalSessions = (packageData.weeks_duration || 1) * lessonsPerWeek;
+				// Private package: one shared team, one purchase per period (later periods
+				// chained as extensions), new appointments, all trainees enrolled in every one
+				const sessionsPerPeriod = allAppointmentSlots.length / periodCount;
 
-				purchases.push({
-					key: 'main',
-					package_id: assignmentForm.package_id,
-					reschedule_left: rescheduleLeft,
-					trainee_ids: assignmentForm.trainee_ids
-				});
+				for (let period = 0; period < periodCount; period++) {
+					purchases.push({
+						key: `p${period}`,
+						package_id: assignmentForm.package_id,
+						reschedule_left: rescheduleLeft,
+						trainee_ids: assignmentForm.trainee_ids,
+						...(period > 0 && { extends_key: `p${period - 1}` })
+					});
+				}
 
 				allAppointmentSlots.forEach((slot, i) => {
+					const purchaseKey = `p${Math.floor(i / sessionsPerPeriod)}`;
 					newAppointments.push({
 						key: String(i),
 						room_id: assignmentForm.room_id,
 						trainer_id: assignmentForm.trainer_id,
 						date: slot.date,
 						hour: slot.hour,
-						purchase_key: 'main'
+						purchase_key: purchaseKey
 					});
 					enrollments.push(
 						...assignmentForm.trainee_ids.map((traineeId) => ({
-							purchase_key: 'main',
+							purchase_key: purchaseKey,
 							trainee_id: traineeId,
 							appointment_key: String(i),
-							session_number: i + 1,
-							total_sessions: totalSessions
+							session_number: (i % sessionsPerPeriod) + 1,
+							total_sessions: sessionsPerPeriod
 						}))
 					);
 				});

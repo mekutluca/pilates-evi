@@ -10,5 +10,6 @@ export type {
 
 export * from './utils/date-utils';
 export * from './utils/form-utils';
+export * from './utils/html-utils';
 export * from './utils/phone-utils';
 export * from './utils/type-guards';

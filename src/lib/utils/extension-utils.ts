@@ -4,6 +4,7 @@ import type { SupabaseClientType } from '$lib/types/Supabase';
 import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
 import type { UpcomingGroupAppointment, GroupLessonTimeslot } from '$lib/types/Extension';
 import { parseLocalDate, formatDateForDB } from './date-utils';
+import { sortTimeSlots } from './slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 
 function isDayOfWeek(value: string): value is DayOfWeek {
@@ -364,7 +365,8 @@ export async function getGroupLessonCanonicalSlots(
 			}
 		}
 	}
-	return { slots, slotKeys };
+	// Stored in click order; every consumer walks the pattern chronologically.
+	return { slots: sortTimeSlots(slots), slotKeys };
 }
 
 // calculateExtensionStartDate, getStartingAppointmentCandidates and

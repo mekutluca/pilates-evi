@@ -192,20 +192,6 @@
 								{/if}
 							</Button>
 						</form>
-						<form method="POST" action="?/cancelDay" use:enhance={handleSubmit}>
-							<input type="hidden" name="date" value={dateForDB} />
-							<input type="hidden" name="reason" value={reason} />
-							<input type="hidden" name="strategy" value="force" />
-							<input type="hidden" name="appointmentIds" value={conflictIds} />
-							<Button
-								type="submit"
-								variant="outline"
-								class="w-full sm:w-auto"
-								disabled={formLoading}
-							>
-								Çakışmaya rağmen kaydır
-							</Button>
-						</form>
 					</div>
 				</div>
 			</Card.Content>

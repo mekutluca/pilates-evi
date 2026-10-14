@@ -15,6 +15,7 @@
 	import ReorderCell from '$lib/components/reorder-cell.svelte';
 	import type { ActionItem, ReorderContext } from '$lib/types';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { escapeHtml } from '$lib/utils/html-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { validation } from '$lib/utils/validation';
@@ -107,7 +108,7 @@
 		return baseActions;
 	};
 
-	const tableColumns = [
+	const baseColumns = [
 		{
 			key: 'name',
 			title: 'Ad',
@@ -118,7 +119,7 @@
 			title: 'Telefon',
 			sortable: false,
 			render: (trainer: TrainerWithEmail) =>
-				`<a href="tel:+90${trainer.phone}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${trainer.phone}</a>`
+				`<a href="tel:+90${escapeHtml(trainer.phone)}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${escapeHtml(trainer.phone)}</a>`
 		},
 		{
 			key: 'active_appointments',
@@ -129,15 +130,17 @@
 					? '<span class="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">Aktif</span>'
 					: '<span class="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Pasif</span>';
 			}
-		},
-		{
-			key: 'sort_order',
-			title: 'Sıra',
-			sortable: false,
-			renderComponent: ReorderCell,
-			class: 'w-24'
 		}
 	];
+	const reorderColumn = {
+		key: 'sort_order',
+		title: 'Sıra',
+		sortable: false,
+		renderComponent: ReorderCell,
+		class: 'w-24'
+	};
+	// Ordering is a catalog change, like editing — admins only.
+	let tableColumns = $derived(userRole === 'admin' ? [...baseColumns, reorderColumn] : baseColumns);
 
 	function openEditModal(trainer: TrainerWithEmail) {
 		selectedTrainer = trainer;
