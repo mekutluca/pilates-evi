@@ -25,6 +25,11 @@
 
 	let { data } = $props();
 	let { packages: initialPackages, userRole } = $derived(data);
+	const subtitle = $derived.by(() => {
+		const active = (initialPackages || []).filter((x) => x.is_active).length;
+		const archived = (initialPackages || []).length - active;
+		return `${active} aktif paket` + (archived > 0 ? `, ${archived} arşivde` : '');
+	});
 
 	let showArchived = $state(false);
 	let hasArchivedPackages = $derived((initialPackages || []).some((p) => !p.is_active));
@@ -92,7 +97,7 @@
 	const tableColumns = [
 		{
 			key: 'name',
-			title: 'Ders Adı'
+			title: 'Paket'
 		},
 		{
 			key: 'weeks_duration',
@@ -103,7 +108,7 @@
 		},
 		{
 			key: 'package_type',
-			title: 'Ders Türü',
+			title: 'Tür',
 			render: (pkg: PackageWithPurchases) => {
 				const type = pkg.package_type === 'private' ? 'Özel' : 'Grup';
 				return `<span class="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground">${type}</span>`;
@@ -120,7 +125,7 @@
 		},
 		{
 			key: 'max_capacity',
-			title: 'Maksimum Kapasite',
+			title: 'En fazla kişi',
 			render: (pkg: PackageWithPurchases) => {
 				return `${pkg.max_capacity} kişi`;
 			}
@@ -204,7 +209,7 @@
 				formLoading = false;
 
 				if (result.type === 'success') {
-					toast.success('Ders başarıyla güncellendi');
+					toast.success('Paket güncellendi');
 					closeEditModal();
 				} else if (result.type === 'failure') {
 					toast.error(getActionErrorMessage(result));
@@ -240,7 +245,7 @@
 				formLoading = false;
 
 				if (result.type === 'success') {
-					toast.success('Ders başarıyla oluşturuldu');
+					toast.success('Paket oluşturuldu');
 					showCreateModal = false;
 				} else if (result.type === 'failure') {
 					toast.error(getActionErrorMessage(result));
@@ -262,16 +267,16 @@
 </script>
 
 <svelte:head>
-	<title>Dersler · Pilates Evi</title>
+	<title>Paketler · Pilates Evi</title>
 </svelte:head>
 
 <div class="p-6">
-	<PageHeader title="Dersler" subtitle="Kurumunuzda verilen dersler ekleyin ve yönetin" />
+	<PageHeader title="Paketler" {subtitle} />
 
 	<!-- Search and Add Package Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Ders ara..." />
+			<SearchInput bind:value={searchTerm} placeholder="Paket ara" />
 			{#if hasArchivedPackages}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<Switch bind:checked={showArchived} class="scale-75" />
@@ -287,7 +292,7 @@
 				}}
 			>
 				<Plus size={16} />
-				Yeni Ders
+				Yeni paket
 			</Button>
 		{/if}
 	</div>
@@ -297,7 +302,7 @@
 		data={packages}
 		columns={tableColumns}
 		{searchTerm}
-		emptyMessage="Henüz Ders bulunmuyor"
+		emptyMessage="Henüz paket yok"
 		defaultSortKey="created_at"
 		defaultSortOrder="desc"
 		actions={getTableActions}
@@ -305,11 +310,11 @@
 </div>
 
 <!-- Create Package Modal -->
-<Modal bind:open={showCreateModal} title="Yeni Ders" size="xl" onClose={handleCancelCreate}>
+<Modal bind:open={showCreateModal} title="Yeni paket" size="xl" onClose={handleCancelCreate}>
 	{#if formLoading}
 		<div class="flex items-center justify-center py-8">
 			<LoaderCircle size={32} class="animate-spin text-primary" />
-			<span class="ml-2">Ders oluşturuluyor...</span>
+			<span class="ml-2">Paket oluşturuluyor…</span>
 		</div>
 	{:else}
 		<PackageCreationForm
@@ -321,24 +326,18 @@
 </Modal>
 
 <!-- Edit Package Modal -->
-<Modal bind:open={showEditModal} title="Dersi Düzenle" size="xl" onClose={closeEditModal}>
+<Modal bind:open={showEditModal} title="Paketi düzenle" size="xl" onClose={closeEditModal}>
 	{#if formLoading}
 		<div class="flex items-center justify-center py-8">
 			<LoaderCircle size={32} class="animate-spin text-primary" />
-			<span class="ml-2">Ders güncelleniyor...</span>
+			<span class="ml-2">Paket kaydediliyor…</span>
 		</div>
 	{:else}
 		<div class="space-y-4">
 			<!-- Package Name -->
 			<div class="grid gap-2">
-				<Label for="edit-name" class="font-medium">Ders Adı *</Label>
-				<Input
-					id="edit-name"
-					type="text"
-					bind:value={editName}
-					placeholder="Ders adını girin"
-					required
-				/>
+				<Label for="edit-name" class="font-medium">Paket adı *</Label>
+				<Input id="edit-name" type="text" bind:value={editName} placeholder="Paket adı" required />
 			</div>
 
 			<!-- Description -->
@@ -347,7 +346,7 @@
 				<Textarea
 					id="edit-description"
 					bind:value={editDescription}
-					placeholder="Ders açıklaması (isteğe bağlı)"
+					placeholder="Paket açıklaması (isteğe bağlı)"
 					rows={3}
 				/>
 			</div>
@@ -356,7 +355,7 @@
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 				<div class="grid gap-2">
 					<Label for="edit-weeks-duration" class="flex items-center justify-between font-medium">
-						<span>Süre (Hafta)</span>
+						<span>Süre (hafta)</span>
 						<span class="text-xs text-warning">Değiştirilemez</span>
 					</Label>
 					<Input
@@ -365,12 +364,12 @@
 						value={editWeeksDuration}
 						disabled
 						readonly
-						title="Bu değer değiştirilemez. Farklı süre için yeni ders oluşturun."
+						title="Bu değer değiştirilemez. Farklı süre için yeni paket oluşturun."
 					/>
 				</div>
 
 				<div class="grid gap-2">
-					<Label for="edit-min-lessons-per-week" class="font-medium">Min Haftalık Ders *</Label>
+					<Label for="edit-min-lessons-per-week" class="font-medium">Haftada en az ders *</Label>
 					<Input
 						id="edit-min-lessons-per-week"
 						type="number"
@@ -382,7 +381,7 @@
 				</div>
 
 				<div class="grid gap-2">
-					<Label for="edit-max-lessons-per-week" class="font-medium">Max Haftalık Ders *</Label>
+					<Label for="edit-max-lessons-per-week" class="font-medium">Haftada en fazla ders *</Label>
 					<Input
 						id="edit-max-lessons-per-week"
 						type="number"
@@ -397,7 +396,7 @@
 			<!-- Capacity and Trainee Type -->
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div class="grid gap-2">
-					<Label for="edit-max-capacity" class="font-medium">Maksimum Kapasite *</Label>
+					<Label for="edit-max-capacity" class="font-medium">En fazla kişi *</Label>
 					<Input
 						id="edit-max-capacity"
 						type="number"
@@ -410,7 +409,7 @@
 
 				<div class="grid gap-2">
 					<Label for="edit-trainee-type" class="flex items-center justify-between font-medium">
-						<span>Öğrenci Türü</span>
+						<span>Paket türü</span>
 						<span class="text-xs text-warning">Değiştirilemez</span>
 					</Label>
 					<Input
@@ -421,7 +420,7 @@
 							: 'Grup - Esnek öğrenci katılımı'}
 						disabled
 						readonly
-						title="Bu değer değiştirilemez. Farklı öğrenci türü için yeni ders oluşturun."
+						title="Bu değer değiştirilemez. Farklı tür için yeni paket oluşturun."
 					/>
 				</div>
 			</div>
@@ -438,7 +437,7 @@
 				{#if editReschedulable}
 					<div class="grid gap-2">
 						<Label for="edit-reschedule-limit" class="flex items-center justify-between">
-							<span>Değişiklik Limiti</span>
+							<span>Değişiklik hakkı</span>
 							<span class="text-xs text-muted-foreground">Boş bırakırsanız sınırsız</span>
 						</Label>
 						<Input
@@ -456,23 +455,23 @@
 	{/if}
 
 	<ModalFooter>
-		<Button variant="ghost" onclick={closeEditModal} disabled={formLoading}>İptal</Button>
+		<Button variant="ghost" onclick={closeEditModal} disabled={formLoading}>Vazgeç</Button>
 		<Button onclick={handleEditPackage} disabled={formLoading || !editName.trim()}>
 			{#if formLoading}
 				<LoaderCircle size={16} class="animate-spin" />
 			{:else}
 				<Dumbbell size={16} />
 			{/if}
-			Güncelle
+			Kaydet
 		</Button>
 	</ModalFooter>
 </Modal>
 
 <!-- Archive Package Modal -->
-<Modal bind:open={showArchiveModal} title="Dersi Arşivle">
+<Modal bind:open={showArchiveModal} title="Paketi arşivle">
 	<p class="mb-4">
-		<strong>{selectedPackage?.name}</strong> adlı dersi arşivlemek istediğinizden emin misiniz? Arşivlenen
-		dersler listede görünmez hale gelecektir.
+		<strong>{selectedPackage?.name}</strong> paketi arşivlensin mi? Arşivdeki paketlerle yeni kayıt açılamaz;
+		mevcut kayıtlar devam eder.
 	</p>
 	<form
 		method="POST"
@@ -483,7 +482,7 @@
 			return async ({ result, update }) => {
 				formLoading = false;
 				if (result.type === 'success') {
-					toast.success('Ders başarıyla arşivlendi');
+					toast.success('Paket arşivlendi');
 					showArchiveModal = false;
 					selectedPackage = null;
 				} else if (result.type === 'failure') {
@@ -504,7 +503,7 @@
 					selectedPackage = null;
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
@@ -519,10 +518,9 @@
 </Modal>
 
 <!-- Restore Package Modal -->
-<Modal bind:open={showRestoreModal} title="Dersi Geri Yükle">
+<Modal bind:open={showRestoreModal} title="Paketi geri yükle">
 	<p class="mb-4">
-		<strong>{selectedPackage?.name}</strong> adlı dersi geri yüklemek istediğinizden emin misiniz? Ders
-		aktif dersler listesinde görünür hale gelecektir.
+		<strong>{selectedPackage?.name}</strong> paketi geri yüklensin mi? Yeni kayıtlarda yeniden seçilebilir.
 	</p>
 	<form
 		method="POST"
@@ -533,7 +531,7 @@
 			return async ({ result, update }) => {
 				formLoading = false;
 				if (result.type === 'success') {
-					toast.success('Ders başarıyla geri yüklendi');
+					toast.success('Paket geri yüklendi');
 					showRestoreModal = false;
 					selectedPackage = null;
 				} else if (result.type === 'failure') {
@@ -554,7 +552,7 @@
 					selectedPackage = null;
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}

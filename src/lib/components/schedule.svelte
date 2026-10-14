@@ -1,7 +1,15 @@
 <script lang="ts">
 	import type { ScheduleProps } from '$lib/types/ComponentProps';
-	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeRangeString } from '$lib/types/Schedule';
-	import { getDateForDayOfWeek, formatDayMonth } from '$lib/utils';
+	import {
+		DAYS_OF_WEEK,
+		DAY_NAMES,
+		SCHEDULE_HOURS,
+		getTimeRangeString,
+		getTimeString
+	} from '$lib/types/Schedule';
+	import { getDateForDayOfWeek, formatDayMonth, formatDateForDB } from '$lib/utils';
+	import ActionMenu from '$lib/components/action-menu.svelte';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import { cn } from '$lib/utils';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -16,6 +24,7 @@
 		entityBadge,
 		getSlotData,
 		onSlotClick,
+		dayActions,
 		customSlotRenderer,
 		alertBanner
 	}: ScheduleProps = $props();
@@ -98,9 +107,17 @@
 						<Table.Head class="sticky left-0 z-10 w-28 bg-card">Saat</Table.Head>
 						{#each DAYS_OF_WEEK as day (day)}
 							{@const dayDate = getDateForDayOfWeek(weekStart, day)}
+							{@const actions = dayActions?.(formatDateForDB(dayDate)) ?? []}
 							<Table.Head class="min-w-28 text-center md:w-[calc((100%-7rem)/7)]">
-								<div class="text-xs text-muted-foreground">{formatDayMonth(dayDate)}</div>
-								<div class="font-semibold">{DAY_NAMES[day]}</div>
+								<div class="flex items-center justify-center gap-1">
+									<div>
+										<div class="text-xs text-muted-foreground">{formatDayMonth(dayDate)}</div>
+										<div class="font-semibold">{DAY_NAMES[day]}</div>
+									</div>
+									{#if actions.length > 0}
+										<ActionMenu {actions} trigger={Ellipsis} label={undefined} />
+									{/if}
+								</div>
 							</Table.Head>
 						{/each}
 					</Table.Row>
@@ -114,12 +131,9 @@
 								{getTimeRangeString(hour)}
 							</Table.Cell>
 							{#each DAYS_OF_WEEK as day (day)}
-								{@const dayDate = getDateForDayOfWeek(weekStart, day)}
-								{@const year = dayDate.getFullYear()}
-								{@const month = String(dayDate.getMonth() + 1).padStart(2, '0')}
-								{@const dayOfMonth = String(dayDate.getDate()).padStart(2, '0')}
-								{@const dateString = `${year}-${month}-${dayOfMonth}`}
+								{@const dateString = formatDateForDB(getDateForDayOfWeek(weekStart, day))}
 								{@const slot = getSlotData(day, hour, dateString)}
+								{@const slotName = `${DAY_NAMES[day]} ${getTimeString(hour)}`}
 								<Table.Cell class="p-1 text-center">
 									{#if slot.variant === 'empty'}
 										<div
@@ -141,6 +155,7 @@
 											)}
 											onclick={() => slot.clickable !== false && handleSlotClick(slot)}
 											disabled={slot.clickable === false}
+											aria-label={`${slotName}: ${slot.subtitle ?? ''} ${slot.title}`}
 										>
 											<div class="truncate font-semibold">
 												{slot.title}
@@ -190,15 +205,24 @@
 														: colorClasses[availColor].soft
 												)}
 												onclick={() => handleSlotClick(slot)}
+												aria-label={`${slotName}: ${slot.label || slot.hoverLabel || 'Seç'}`}
 											>
-												<span
-													class={cn(
-														'text-xs font-medium',
-														isSelected ? '' : colorClasses[availColor].text
-													)}
-												>
-													{slot.label || 'Seç'}
-												</span>
+												{#if slot.label}
+													<span
+														class={cn(
+															'text-xs font-medium',
+															isSelected ? '' : colorClasses[availColor].text
+														)}
+													>
+														{slot.label}
+													</span>
+												{:else if slot.hoverLabel}
+													<span
+														class="text-xs font-medium text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+													>
+														{slot.hoverLabel}
+													</span>
+												{/if}
 											</button>
 										{:else if slot.disabled}
 											<div

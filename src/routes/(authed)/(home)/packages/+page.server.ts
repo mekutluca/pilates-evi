@@ -15,7 +15,7 @@ export const actions: Actions = {
 		if (!packageFormJson) {
 			return fail(400, {
 				success: false,
-				message: 'Ders verileri eksik'
+				message: 'Paket verileri eksik'
 			});
 		}
 
@@ -25,7 +25,7 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, {
 				success: false,
-				message: 'Ders verileri geçersiz format'
+				message: 'Paket verileri geçersiz'
 			});
 		}
 
@@ -39,7 +39,7 @@ export const actions: Actions = {
 		) {
 			return fail(400, {
 				success: false,
-				message: 'Ders adı, tür, haftalık ders sayısı ve maksimum kapasite gereklidir'
+				message: 'Paket adı, tür, haftalık ders sayısı ve kişi sayısı gerekli'
 			});
 		}
 
@@ -56,7 +56,7 @@ export const actions: Actions = {
 			if (!packageForm.weeks_duration || packageForm.weeks_duration < 1) {
 				return fail(400, {
 					success: false,
-					message: 'Özel dersler için ders süresi en az 1 hafta olmalıdır'
+					message: 'Özel ders paketlerinin süresi en az 1 hafta olmalı'
 				});
 			}
 		}
@@ -81,7 +81,7 @@ export const actions: Actions = {
 		if (packageError) {
 			return fail(500, {
 				success: false,
-				message: 'Ders oluşturulurken hata: ' + packageError.message
+				message: 'Paket oluşturulurken hata: ' + packageError.message
 			});
 		}
 
@@ -90,7 +90,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: 'Ders başarıyla oluşturuldu'
+			message: 'Paket oluşturuldu'
 		};
 	},
 
@@ -160,13 +160,13 @@ export const actions: Actions = {
 		if (updateError) {
 			return fail(500, {
 				success: false,
-				message: 'Ders güncellenirken hata oluştu: ' + updateError.message
+				message: 'Paket kaydedilirken hata: ' + updateError.message
 			});
 		}
 
 		return {
 			success: true,
-			message: 'Ders başarıyla güncellendi'
+			message: 'Paket kaydedildi'
 		};
 	},
 
@@ -180,7 +180,7 @@ export const actions: Actions = {
 		if (!packageId) {
 			return fail(400, {
 				success: false,
-				message: 'Ders ID gereklidir'
+				message: 'Paket seçilmedi'
 			});
 		}
 
@@ -192,13 +192,13 @@ export const actions: Actions = {
 		if (archiveError) {
 			return fail(500, {
 				success: false,
-				message: 'Ders arşivlenirken hata: ' + archiveError.message
+				message: 'Paket arşivlenirken hata: ' + archiveError.message
 			});
 		}
 
 		return {
 			success: true,
-			message: 'Ders başarıyla arşivlendi'
+			message: 'Paket arşivlendi'
 		};
 	},
 
@@ -212,7 +212,7 @@ export const actions: Actions = {
 		if (!packageId) {
 			return fail(400, {
 				success: false,
-				message: 'Ders ID gereklidir'
+				message: 'Paket seçilmedi'
 			});
 		}
 
@@ -224,13 +224,13 @@ export const actions: Actions = {
 		if (restoreError) {
 			return fail(500, {
 				success: false,
-				message: 'Ders geri yüklenirken hata: ' + restoreError.message
+				message: 'Paket geri yüklenirken hata: ' + restoreError.message
 			});
 		}
 
 		return {
 			success: true,
-			message: 'Ders başarıyla geri yüklendi'
+			message: 'Paket geri yüklendi'
 		};
 	}
 };

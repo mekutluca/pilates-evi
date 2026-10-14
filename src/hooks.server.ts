@@ -6,7 +6,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { PRIVATE_SUPABASE_SECRET_KEY } from '$env/static/private';
 import type { Role } from '$lib/types';
 import type { Database } from '$lib/types/database.types';
-import { allRoutes } from '$lib/types/Route';
+import { actionRoutes, allRoutes } from '$lib/types/Route';
 import { defaultErrorMessage } from '$lib/utils/errors';
 
 // Privileged client for server-only user management (creating accounts,
@@ -137,7 +137,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		// Role-based access control: a route guards its whole subtree (/trainees covers
 		// /trainees/[id]); the most specific nav entry wins.
 		const pathname = event.url.pathname.replace(/\/+$/, '') || '/';
-		const matchedRoute = allRoutes
+		const matchedRoute = [...allRoutes, ...actionRoutes]
 			.filter((route) =>
 				route.href === '/'
 					? pathname === '/'

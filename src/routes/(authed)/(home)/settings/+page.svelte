@@ -224,7 +224,7 @@
 							{#if updatingPassword}
 								<LoaderCircle size={16} class="animate-spin" />
 							{/if}
-							Şifreyi Güncelle
+							Şifreyi kaydet
 						</Button>
 					</Card.Footer>
 				</form>

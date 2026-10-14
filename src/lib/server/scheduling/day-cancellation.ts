@@ -1,25 +1,22 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { ShiftedTraineeRecord } from '$lib/types/Schedule';
 import type { SlotConflict } from '$lib/types/Conflict';
-import type { ScheduleChange } from '$lib/types/WhatsApp';
 import type {
 	DayAppointment,
 	DayCancellationConflict,
 	DayCancellationResult,
 	CloseDayParams,
 	DayCancellationStrategy,
-	MovedTrainee,
+	CloseDayPreview,
+	CloseDayPreviewRow,
 	ShiftOutcome
 } from '$lib/types/Operation';
 import {
-	applyEnrollmentMoves,
-	checkMoveCapacity,
 	planTraineeSlotShift,
 	shiftSeriesBySlot,
 	shiftSeriesToFirstFreeSlot
 } from '$lib/server/scheduling/shift';
 import { NotificationService } from '$lib/server/services/notification-service';
-import { deleteAppointment } from '$lib/server/scheduling/cancellation';
+import { deleteAppointment, shiftGroupTraineesOn } from '$lib/server/scheduling/cancellation';
 import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
 
 // How far ahead the "closest free occurrence" search walks through the recurring pattern
@@ -118,64 +115,17 @@ async function shiftPrivateAppointment(
 	return { shifted: true, notifications: NotificationService.changesFromMoves(result.moved) };
 }
 
-// Shifts each trainee on a group appointment forward by one slot within their own pattern, then
-// removes the now-empty original slot — exactly how a single group appointment is cancelled. Group
-// appointments target pre-existing slots, so they never produce room/trainer conflicts; a trainee
-// with no future slot to move into surfaces as an error instead.
+// Group appointments move each trainee one slot on in their own pattern and remove the
+// emptied slot, exactly like cancelling it alone. Targets are existing group appointments,
+// so they never produce room/trainer conflicts; a trainee with no future slot is an error.
 async function shiftGroupAppointment(
 	supabase: SupabaseClientType,
 	appt: DayAppointment
 ): Promise<ShiftOutcome> {
-	// Plan every trainee first and move them all in one transaction, so a failure on one
-	// trainee never leaves the others moved and the slot half-emptied.
-	const moved: MovedTrainee[] = [];
-	const moves: ShiftedTraineeRecord[] = [];
-	for (const trainee of appt.trainees) {
-		const plan = await planTraineeSlotShift(supabase, appt.id, trainee.traineeId, 1);
-		if (plan.error) {
-			return { shifted: false, notifications: [], error: plan.error };
-		}
-		moves.push(...plan.shifted);
-		const record = plan.shifted.find((r) => r.oldAppointmentId === appt.id);
-		if (record) moved.push({ trainee, newAppointmentId: record.newAppointmentId });
-	}
-	const capacityError = await checkMoveCapacity(supabase, moves);
-	if (capacityError) {
-		return { shifted: false, notifications: [], error: capacityError };
-	}
-	const moveError = await applyEnrollmentMoves(supabase, moves);
-	if (moveError) {
-		return { shifted: false, notifications: [], error: moveError };
-	}
-
-	const newSlotById = new Map<number, { date: string; hour: number }>();
-	const newIds = [...new Set(moved.map((m) => m.newAppointmentId))];
-	if (newIds.length > 0) {
-		const { data } = await supabase
-			.from('pe_appointments')
-			.select('id, date, hour')
-			.in('id', newIds);
-		for (const row of data ?? []) newSlotById.set(row.id, { date: row.date, hour: row.hour });
-	}
-
-	const notifications: ScheduleChange[] = moved.flatMap(({ trainee, newAppointmentId }) => {
-		const slot = newSlotById.get(newAppointmentId);
-		if (!slot) return [];
-		return [
-			{
-				phone: trainee.phone,
-				packageName: appt.packageName,
-				oldDate: appt.date,
-				oldHour: appt.hour,
-				newDate: slot.date,
-				newHour: slot.hour
-			}
-		];
-	});
-
-	const { error: deleteError } = await deleteAppointment(supabase, appt.id);
-	if (deleteError) return { shifted: false, notifications: [], error: deleteError };
-	return { shifted: true, notifications };
+	const { error, changes } = await shiftGroupTraineesOn(supabase, appt.id);
+	return error
+		? { shifted: false, notifications: [], error }
+		: { shifted: true, notifications: changes };
 }
 
 /**
@@ -246,4 +196,81 @@ export async function cancelDay(
 	}
 
 	return result;
+}
+
+/**
+ * Dry run of closing `date`: what would happen to each upcoming appointment, computed with
+ * the same planning as the real run (nothing is written).
+ */
+export async function previewCloseDay(
+	supabase: SupabaseClientType,
+	date: string
+): Promise<CloseDayPreview> {
+	const appointments = (await getDayAppointments(supabase, date)).filter((a) =>
+		isAppointmentFuture(a.date, a.hour)
+	);
+	const phones = new Set<string>();
+	const rows: CloseDayPreviewRow[] = [];
+
+	for (const appt of appointments) {
+		const base = {
+			appointmentId: appt.id,
+			hour: appt.hour,
+			roomName: appt.roomName,
+			trainerName: appt.trainerName,
+			packageName: appt.packageName,
+			traineeNames: appt.trainees.map((t) => t.name)
+		};
+
+		if (appt.trainees.length === 0) {
+			rows.push({ ...base, outcome: 'remove_empty' });
+			continue;
+		}
+
+		if (appt.purchaseId) {
+			const result = await shiftSeriesBySlot(supabase, appt.id, 1, true);
+			const own = result.moved.find((m) => m.appointment.id === appt.id);
+			if (result.error) {
+				rows.push({ ...base, outcome: 'error', note: result.error });
+			} else if (result.conflicts.length > 0 || !own) {
+				rows.push({
+					...base,
+					outcome: 'conflict',
+					note: buildPrivateConflict(appt, result.conflicts).reason
+				});
+			} else {
+				rows.push({ ...base, outcome: 'shift', newDate: own.newDate, newHour: own.newHour });
+				appt.trainees.forEach((t) => phones.add(t.phone));
+			}
+			continue;
+		}
+
+		const targets: number[] = [];
+		let planError: string | null = null;
+		for (const trainee of appt.trainees) {
+			const plan = await planTraineeSlotShift(supabase, appt.id, trainee.traineeId, 1);
+			if (plan.error) {
+				planError = plan.error;
+				break;
+			}
+			const own = plan.shifted.find((r) => r.oldAppointmentId === appt.id);
+			if (own) targets.push(own.newAppointmentId);
+		}
+		if (planError) {
+			rows.push({ ...base, outcome: 'error', note: planError });
+			continue;
+		}
+		const { data: next } = await supabase
+			.from('pe_appointments')
+			.select('date, hour')
+			.in('id', targets)
+			.order('date')
+			.order('hour')
+			.limit(1)
+			.maybeSingle();
+		rows.push({ ...base, outcome: 'shift', newDate: next?.date, newHour: next?.hour });
+		appt.trainees.forEach((t) => phones.add(t.phone));
+	}
+
+	return { rows, recipientCount: phones.size };
 }

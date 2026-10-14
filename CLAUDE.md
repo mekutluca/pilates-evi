@@ -22,14 +22,15 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 
 Routes parse input, check permissions, call one service/repository method and report the result. Business logic lives in `src/lib/server/`:
 
-- `services/scheduling-service.ts` - every scheduling write: create assignment, reschedule, transfer room/trainer, shift by weeks/slots, trainee shifts, cancel appointment, close day, delete remaining lessons, end group lesson. Writes go through transactional RPCs (`pe_move_appointments`, `pe_move_enrollments`, `pe_reschedule_appointment`, `pe_create_assignment`, `pe_extend_purchase`, `pe_end_group_lesson`)
-- `services/conflict-service.ts` - room/trainer conflicts (`findSlotConflicts`, batched `findMoveConflicts`) and group enrollment capacity/duplicate checks
+- `services/scheduling-service.ts` - every scheduling write: create assignment, reschedule, `move` (every Taşı kind, with `dryRun` for previews), `moveGroupLesson`, cancel appointment, close day (+ preview), delete remaining lessons, end group lesson. Writes go through transactional RPCs (`pe_move_appointments`, `pe_move_enrollments`, `pe_reschedule_appointment`, `pe_create_assignment`, `pe_extend_purchase`, `pe_end_group_lesson`)
+- `services/conflict-service.ts` - room/trainer conflicts (`findSlotConflicts`, batched `findMoveConflicts`, `findBusyWeeklySlots` for the wizard grid) and group enrollment capacity/duplicate checks
 - `services/notification-service.ts` - WhatsApp schedule-change messages, one per trainee per operation
 - `services/org-user-service.ts` - staff/trainer login accounts; checks studio membership before any `auth.admin` call (the Supabase project is shared with other apps)
-- `repositories/appointment-repository.ts` - `getSeries(appointmentId, scope, traineeId?)`: the appointments an operation covers (purchase chain, canonical group slots)
+- `repositories/appointment-repository.ts` - `getSeries(appointmentId, scope, traineeId?)`: the appointments an operation covers (purchase chain, canonical group slots); `getGroupLessonSessions`
 - `repositories/purchase-repository.ts`, `repositories/trainee-repository.ts`
-- `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion)
-- Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`); actions return `{ success, message, redirectTo? }`
+- `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion); `lesson-plan.ts` plans a kayıt's lessons for both Yenile (`planRenewal`) and Yeni kayıt (`planAssignment`); `group-lessons.ts` lists, plans and moves group lessons; `*-form.ts` parse action forms into typed inputs (returning an error string when invalid)
+- `panel.ts` - Panel data (coordinator: today, kayıtlar ending soon, new kayıtlar; trainer: their week)
+- Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`); actions return `{ success, message, redirectTo? }`; previews are separate `preview*` actions that run the same planning without writing; pages keep a preview's latest result with `actionResource` (`$lib/utils/action-resource.svelte`), typed `Loadable<T>`
 - Server time is pinned to `Europe/Istanbul` in `hooks.server.ts`
 
 ### Key Files
@@ -43,6 +44,7 @@ Routes parse input, check permissions, call one service/repository method and re
 
 - Reusable components in `src/lib/components/`
 - `sortable-table.svelte` - Generic table with sorting, searching, and action menus
+- `scheduling/` - calendar panels (appointment sheet, Taşı sheet, cancel / close-day dialogs, group lesson move sheet and end dialog) and shared pieces (`conflict-list`, `move-preview-list`, `weekly-slots-field`); `week-nav.svelte`; `assignment/trainee-picker.svelte`
 - `action-menu.svelte` - Dropdown menu for row actions
 - `global-action-drawer.svelte` - Global action drawer using Svelte 5 stores
 - Components use Svelte 5 syntax with `$props()`, `$state()`, and `$derived()`

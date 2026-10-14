@@ -1,10 +1,9 @@
 import type { Json } from '$lib/types/database.types';
-import type { Purchase } from '$lib/types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek, type WeeklySlot } from '$lib/types/Schedule';
-import type { UpcomingGroupAppointment, GroupLessonTimeslot } from '$lib/types/Extension';
-import { parseLocalDate, formatDateForDB } from '$lib/utils/date-utils';
-import { sortTimeSlots } from '$lib/utils/slot-utils';
+import type { GroupLessonTimeslot } from '$lib/types/Extension';
+import { parseLocalDate } from '$lib/utils/date-utils';
+import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 
 function isDayOfWeek(value: string): value is DayOfWeek {
@@ -40,60 +39,6 @@ export async function getPurchaseSuccessorChain(
 	purchaseId: string
 ): Promise<string[]> {
 	return new PurchaseRepository(supabase).getSuccessorChain(purchaseId);
-}
-
-/**
- * Follows the successor_id chain to find the last purchase
- * A purchase is "last" when it has no successor (successor_id is null)
- */
-export async function findLastPurchaseInChain(
-	supabase: SupabaseClientType,
-	purchaseId: string
-): Promise<Purchase | null> {
-	return new PurchaseRepository(supabase).findLastInChain(purchaseId);
-}
-
-/**
- * Checks if a purchase can be extended
- * Rules:
- * - Must not already have a successor
- * - Must be a private or group package
- */
-export async function canExtendPurchase(
-	supabase: SupabaseClientType,
-	purchaseId: string
-): Promise<{ canExtend: boolean; reason?: string }> {
-	// Get the purchase with package info
-	const { data: purchase, error } = await supabase
-		.from('pe_purchases')
-		.select(
-			`
-			id,
-			successor_id,
-			pe_packages (
-				package_type
-			)
-		`
-		)
-		.eq('id', purchaseId)
-		.single();
-
-	if (error || !purchase) {
-		return { canExtend: false, reason: 'Satın alma bulunamadı' };
-	}
-
-	// Check if already has a successor
-	if (purchase.successor_id) {
-		return { canExtend: false, reason: 'Bu paket zaten uzatılmış' };
-	}
-
-	// Check package type
-	const packageType = purchase.pe_packages?.package_type;
-	if (packageType !== 'private' && packageType !== 'group') {
-		return { canExtend: false, reason: 'Bu paket türü uzatılamaz' };
-	}
-
-	return { canExtend: true };
 }
 
 /**
@@ -274,63 +219,28 @@ export async function getCanonicalPurchaseTimeSlots(
 }
 
 /**
- * For a group purchase, returns the actual upcoming appointment rows the trainee can join,
- * filtered to canonical (day, hour) per `pe_group_lessons.timeslots` so a one-off reschedule
- * destination at an off-pattern hour is excluded. Sorted chronologically.
+ * A group lesson's weekly pattern from its timeslots JSON, chronological (Monday first),
+ * each (day, hour) once.
  */
-export async function getFutureGroupAppointments(
-	supabase: SupabaseClientType,
-	purchaseId: string,
-	fromDate: Date,
-	weeksDuration: number
-): Promise<{
-	canonicalSlots: WeeklySlot[];
-	upcomingAppointments: UpcomingGroupAppointment[];
-}> {
-	const { slots: canonicalSlots, timeslotGroupLessons } = await getCanonicalPurchaseTimeSlots(
-		supabase,
-		purchaseId,
-		'group',
-		weeksDuration
-	);
-
-	if (canonicalSlots.length === 0 || timeslotGroupLessons.size === 0) {
-		return { canonicalSlots, upcomingAppointments: [] };
+export function groupLessonSlots(raw: Json | null): WeeklySlot[] {
+	const slots = new Map<string, WeeklySlot>();
+	for (const ts of parseGroupLessonTimeslots(raw)) {
+		if (!isDayOfWeek(ts.day)) continue;
+		for (const hour of ts.hours)
+			slots.set(weeklySlotKey({ day: ts.day, hour }), { day: ts.day, hour });
 	}
+	return sortTimeSlots([...slots.values()]);
+}
 
-	const groupLessonIds = Array.from(new Set(timeslotGroupLessons.values()));
-	const fromYMD = formatDateForDB(fromDate);
-
-	const { data: rows } = await supabase
-		.from('pe_appointments')
-		.select('id, date, hour, group_lesson_id')
-		.in('group_lesson_id', groupLessonIds)
-		.gte('date', fromYMD)
-		.order('date', { ascending: true })
-		.order('hour', { ascending: true });
-
-	if (!rows || rows.length === 0) {
-		return { canonicalSlots, upcomingAppointments: [] };
-	}
-
-	const upcoming: UpcomingGroupAppointment[] = [];
-
-	for (const apt of rows) {
-		if (!apt.group_lesson_id) continue;
-		const dayIdx = parseLocalDate(apt.date).getDay();
-		const expectedGroupLesson = timeslotGroupLessons.get(`${dayIdx}-${apt.hour}`);
-		if (expectedGroupLesson !== apt.group_lesson_id) continue;
-
-		upcoming.push({
-			appointment_id: apt.id,
-			date: apt.date,
-			hour: apt.hour,
-			day: JS_DAY_TO_NAME[dayIdx],
-			group_lesson_id: apt.group_lesson_id
-		});
-	}
-
-	return { canonicalSlots, upcomingAppointments: upcoming };
+/** The timeslots JSON for a weekly pattern: weekday order, hours ascending. */
+export function toGroupLessonTimeslots(slots: WeeklySlot[]): GroupLessonTimeslot[] {
+	return DAYS_OF_WEEK.map((day) => ({
+		day,
+		hours: slots
+			.filter((s) => s.day === day)
+			.map((s) => s.hour)
+			.sort((a, b) => a - b)
+	})).filter((ts) => ts.hours.length > 0);
 }
 
 /**
@@ -351,22 +261,8 @@ export async function getGroupLessonCanonicalSlots(
 		.eq('id', groupLessonId)
 		.single();
 
-	if (!data) return { slots: [], slotKeys: new Set() };
-
-	const slots: WeeklySlot[] = [];
-	const slotKeys = new Set<string>();
-	for (const ts of parseGroupLessonTimeslots(data.timeslots)) {
-		if (!isDayOfWeek(ts.day)) continue;
-		for (const hour of ts.hours) {
-			const key = `${ts.day}-${hour}`;
-			if (!slotKeys.has(key)) {
-				slotKeys.add(key);
-				slots.push({ day: ts.day, hour });
-			}
-		}
-	}
-	// Stored in click order; every consumer walks the pattern chronologically.
-	return { slots: sortTimeSlots(slots), slotKeys };
+	const slots = data ? groupLessonSlots(data.timeslots) : [];
+	return { slots, slotKeys: new Set(slots.map(weeklySlotKey)) };
 }
 
 // calculateExtensionStartDate, getStartingAppointmentCandidates and

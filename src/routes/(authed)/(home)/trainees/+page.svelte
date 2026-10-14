@@ -27,6 +27,11 @@
 
 	let { data } = $props();
 	let { trainees: initialTrainees, userRole } = $derived(data);
+	const subtitle = $derived.by(() => {
+		const active = (initialTrainees || []).filter((x) => x.is_active).length;
+		const archived = (initialTrainees || []).length - active;
+		return `${active} aktif öğrenci` + (archived > 0 ? `, ${archived} arşivde` : '');
+	});
 
 	let showArchived = $state(false);
 	let hasArchivedTrainees = $derived((initialTrainees || []).some((t) => !t.is_active));
@@ -91,7 +96,7 @@
 		},
 		{
 			key: 'email',
-			title: 'Email',
+			title: 'E-posta',
 			render: (trainee: Trainee) =>
 				trainee.email
 					? `<a href="mailto:${escapeHtml(trainee.email)}" class="text-sm underline text-muted-foreground hover:text-foreground transition-colors">${escapeHtml(trainee.email)}</a>`
@@ -144,11 +149,11 @@
 </svelte:head>
 
 <div class="p-6">
-	<PageHeader title="Öğrenciler" subtitle="Bu sayfada öğrencileri yönetin" />
+	<PageHeader title="Öğrenciler" {subtitle} />
 
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Öğrenci ara..." />
+			<SearchInput bind:value={searchTerm} placeholder="Öğrenci ara" />
 			{#if hasArchivedTrainees}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<Switch bind:checked={showArchived} class="scale-75" />
@@ -157,15 +162,22 @@
 			{/if}
 		</div>
 
-		<Button
-			onclick={() => {
-				resetForm();
-				showAddModal = true;
-			}}
-		>
-			<GraduationCap size={16} />
-			Yeni Öğrenci
-		</Button>
+		<div class="flex flex-wrap gap-2">
+			<Button href="/new-assignment">
+				<Plus size={16} />
+				Yeni kayıt
+			</Button>
+			<Button
+				variant="outline"
+				onclick={() => {
+					resetForm();
+					showAddModal = true;
+				}}
+			>
+				<GraduationCap size={16} />
+				Yeni öğrenci
+			</Button>
+		</div>
 	</div>
 
 	<SortableTable
@@ -206,7 +218,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="add-trainee-email">Email</Label>
+			<Label for="add-trainee-email">E-posta</Label>
 			<Input
 				id="add-trainee-email"
 				type="email"
@@ -225,7 +237,7 @@
 				type="tel"
 				name="phone"
 				bind:value={phone}
-				placeholder="5xx xxx xx xx"
+				placeholder="555 123 45 67"
 				pattern={validation.phone.pattern}
 				title={validation.phone.title}
 				maxlength={validation.phone.maxlength}
@@ -253,7 +265,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -295,7 +307,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="edit-trainee-email">Email</Label>
+			<Label for="edit-trainee-email">E-posta</Label>
 			<Input
 				id="edit-trainee-email"
 				type="email"
@@ -314,7 +326,7 @@
 				type="tel"
 				name="phone"
 				bind:value={phone}
-				placeholder="5xx xxx xx xx"
+				placeholder="555 123 45 67"
 				pattern={validation.phone.pattern}
 				title={validation.phone.title}
 				maxlength={validation.phone.maxlength}
@@ -342,7 +354,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -350,7 +362,7 @@
 				{:else}
 					<Edit size={16} />
 				{/if}
-				Güncelle
+				Kaydet
 			</Button>
 		</ModalFooter>
 	</form>
@@ -391,7 +403,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
@@ -440,7 +452,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}

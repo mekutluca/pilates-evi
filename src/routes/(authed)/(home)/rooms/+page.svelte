@@ -23,6 +23,11 @@
 
 	let { data } = $props();
 	let { rooms: initialRooms, userRole } = $derived(data);
+	const subtitle = $derived.by(() => {
+		const active = (initialRooms || []).filter((x) => x.is_active).length;
+		const archived = (initialRooms || []).length - active;
+		return `${active} aktif oda` + (archived > 0 ? `, ${archived} arşivde` : '');
+	});
 
 	let showArchived = $state(false);
 	let hasArchivedRooms = $derived((initialRooms || []).some((r) => !r.is_active));
@@ -130,11 +135,11 @@
 </svelte:head>
 
 <div class="p-6">
-	<PageHeader title="Odalar" subtitle="Bu sayfada odaları yönetin" />
+	<PageHeader title="Odalar" {subtitle} />
 
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Oda ara..." />
+			<SearchInput bind:value={searchTerm} placeholder="Oda ara" />
 			{#if hasArchivedRooms}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<Switch bind:checked={showArchived} class="scale-75" />
@@ -201,7 +206,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -251,7 +256,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -259,7 +264,7 @@
 				{:else}
 					<Edit size={16} />
 				{/if}
-				Güncelle
+				Kaydet
 			</Button>
 		</ModalFooter>
 	</form>
@@ -300,7 +305,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
@@ -349,7 +354,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}

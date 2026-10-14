@@ -1,14 +1,20 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { AppointmentSlotRef } from '$lib/types/Schedule';
+import {
+	addDays,
+	formatDateForDB,
+	getDayOfWeekFromDate,
+	parseLocalDate
+} from '$lib/utils/date-utils';
+import { weeklySlotKey } from '$lib/utils/slot-utils';
 import type {
 	AppointmentSlotCheck,
+	BusyWeeklySlot,
 	EnrollmentTargets,
 	PlannedMove,
 	ResourceConflict,
 	SlotConflictQuery,
-	SlotRange,
 	SlotConflict,
-	OccupiedSlot,
 	EnrollmentTargetCheck
 } from '$lib/types/Conflict';
 
@@ -63,6 +69,41 @@ export class ConflictService {
 				trainerConflict: trainerTaken.has(slotKey(slot.date, slot.hour))
 			}))
 			.filter((c) => c.roomConflict || c.trainerConflict);
+	}
+
+	/**
+	 * Weekly slots where the room or the trainer is taken on some date from `fromDate`
+	 * (inclusive) to `toDate` (exclusive): what a weekly pattern booked over that range
+	 * would run into. One query.
+	 */
+	async findBusyWeeklySlots(params: {
+		roomId: string;
+		trainerId: string;
+		fromDate: string;
+		toDate: string;
+	}): Promise<BusyWeeklySlot[]> {
+		const { data, error } = await this.supabase
+			.from('pe_appointments')
+			.select('date, hour')
+			.or(`room_id.eq.${params.roomId},trainer_id.eq.${params.trainerId}`)
+			.gte('date', params.fromDate)
+			.lt('date', params.toDate);
+		if (error) throw new Error(`Çakışma kontrolü başarısız: ${error.message}`);
+
+		// Each taken date counts once even when both room and trainer are taken
+		const firstWeekEnd = formatDateForDB(addDays(parseLocalDate(params.fromDate), 7));
+		const busy = new Map<string, BusyWeeklySlot>();
+		for (const { date, hour } of new Map(
+			(data ?? []).map((a) => [`${a.date}|${a.hour}`, a] as const)
+		).values()) {
+			const day = getDayOfWeekFromDate(date);
+			const key = weeklySlotKey({ day, hour });
+			const slot = busy.get(key) ?? { day, hour, count: 0, first: false };
+			slot.count++;
+			slot.first ||= date < firstWeekEnd;
+			busy.set(key, slot);
+		}
+		return [...busy.values()];
 	}
 
 	/**
@@ -205,39 +246,5 @@ export class ConflictService {
 		}
 
 		return { duplicates, overCapacity };
-	}
-
-	/**
-	 * All appointments occupying the room or the trainer within a date range.
-	 * Used by clients to preview availability. Two .eq() queries merged —
-	 * no string-interpolated or() filters.
-	 */
-	async getOccupiedSlots(params: SlotRange): Promise<OccupiedSlot[]> {
-		const { roomId, trainerId, startDate, endDate } = params;
-
-		const select = 'id, room_id, trainer_id, date, hour';
-		const [roomRes, trainerRes] = await Promise.all([
-			this.supabase
-				.from('pe_appointments')
-				.select(select)
-				.eq('room_id', roomId)
-				.gte('date', startDate)
-				.lte('date', endDate),
-			this.supabase
-				.from('pe_appointments')
-				.select(select)
-				.eq('trainer_id', trainerId)
-				.gte('date', startDate)
-				.lte('date', endDate)
-		]);
-
-		if (roomRes.error) throw new Error(`Randevular yüklenemedi: ${roomRes.error.message}`);
-		if (trainerRes.error) throw new Error(`Randevular yüklenemedi: ${trainerRes.error.message}`);
-
-		const byId = new Map<number, OccupiedSlot>();
-		for (const row of [...(roomRes.data ?? []), ...(trainerRes.data ?? [])]) {
-			byId.set(row.id, row);
-		}
-		return [...byId.values()];
 	}
 }

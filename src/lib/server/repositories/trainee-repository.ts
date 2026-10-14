@@ -1,7 +1,7 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { TraineeInput } from '$lib/types';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
-import { normalizePhoneNumber } from '$lib/utils/phone-utils';
+import { normalizePhoneNumber, PHONE_ERROR } from '$lib/utils/phone-utils';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UNIQUE_VIOLATION = '23505';
@@ -16,7 +16,7 @@ export class TraineeRepository {
 	/** Reads and validates the trainee form; returns an error message when it is invalid. */
 	static parseForm(formData: FormData): TraineeInput | string {
 		const phone = normalizePhoneNumber(getRequiredFormDataString(formData, 'phone'));
-		if (!phone) return 'Telefon numarası 10 haneli olmalıdır (ör. 555 123 45 67)';
+		if (!phone) return PHONE_ERROR;
 
 		const email = getFormDataString(formData, 'email').trim() || null;
 		if (email && !EMAIL_PATTERN.test(email)) return 'Geçerli bir e-posta adresi girin';
@@ -29,10 +29,9 @@ export class TraineeRepository {
 		};
 	}
 
-	async create(input: TraineeInput): Promise<string | null> {
-		const { error } = await this.supabase
-			.from('pe_trainees')
-			.insert({ id: crypto.randomUUID(), ...input });
+	/** Creates a trainee (with `id` when the caller needs it); returns an error message. */
+	async create(input: TraineeInput, id: string = crypto.randomUUID()): Promise<string | null> {
+		const { error } = await this.supabase.from('pe_trainees').insert({ id, ...input });
 		return error ? this.describe(error, 'Öğrenci oluşturulurken hata') : null;
 	}
 

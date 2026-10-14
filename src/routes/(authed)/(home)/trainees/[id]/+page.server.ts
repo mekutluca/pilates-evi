@@ -1,16 +1,14 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import type {
-	TraineePurchaseMembership,
-	Package,
-	RemainingLessonsScope,
-	SharedTrainee
-} from '$lib/types';
+import type { KayitLesson, RemainingLessonsScope, SharedTrainee, TraineeKayit } from '$lib/types';
 import { getRequiredFormDataString, isAppointmentFuture } from '$lib/utils';
 import { requireStaff } from '$lib/server/permissions';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
+import { NO_REMAINING_LESSONS } from '$lib/server/scheduling/purchase-deletion';
 import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
-import { compareSlots } from '$lib/utils/slot-utils';
+import { compareSlots, formatWeeklyPattern } from '$lib/utils/slot-utils';
+import { getDayOfWeekFromDate } from '$lib/utils/date-utils';
+import { isNonNull } from '$lib/utils/type-guards';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -30,98 +28,68 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 		return trainee;
 	};
 
-	// Purchase memberships with appointments — streamed; resolves to null on error
-	const loadPurchaseMemberships = async (): Promise<TraineePurchaseMembership[] | null> => {
-		// Get trainee's team memberships (purchases they're part of)
-		const { data: teamMemberships, error: teamError } = await supabase
+	// Kayıtlar (purchase chains) with their lessons — streamed; resolves to null on error
+	const loadKayitlar = async (): Promise<TraineeKayit[] | null> => {
+		const { data: teams, error: teamError } = await supabase
 			.from('pe_teams')
-			.select('id, trainee_id')
+			.select('id')
 			.eq('trainee_id', traineeId);
-
 		if (teamError) {
 			console.error('Error fetching team memberships:', teamError);
 			return null;
 		}
 
-		const teamIds = teamMemberships?.map((tm) => tm.id) || [];
-
-		// Get purchases for these teams with package info
-		const { data: purchases, error: purchasesError } = await supabase
-			.from('pe_purchases')
-			.select(
-				`
-				id,
-				created_at,
-				successor_id,
-				reschedule_left,
-				lesson_count,
-				pe_packages (
-					id,
-					name,
-					description,
-					weeks_duration,
-					min_lessons_per_week,
-					max_lessons_per_week,
-					max_capacity,
-					package_type,
-					reschedulable,
-					reschedule_limit
+		const [purchasesRes, lessonsRes] = await Promise.all([
+			supabase
+				.from('pe_purchases')
+				.select(
+					'id, created_at, successor_id, reschedule_left, lesson_count, pe_packages(name, package_type)'
 				)
-			`
-			)
-			.in('team_id', teamIds)
-			.order('created_at', { ascending: false });
-
-		if (purchasesError) {
-			console.error('Error fetching purchases:', purchasesError);
-			return null;
-		}
-
-		// Get all appointments with their details for this trainee
-		const { data: detailedAppointments, error: detailedApptError } = await supabase
-			.from('pe_appointment_trainees')
-			.select(
-				`
-				appointment_id,
-				purchase_id,
-				pe_appointments!inner (
-					id,
-					date,
-					hour
-				)
-			`
-			)
-			.eq('trainee_id', traineeId)
-			.order('pe_appointments(date)', { ascending: true });
-
-		if (detailedApptError) {
-			console.error('Error fetching detailed appointments:', detailedApptError);
-		}
-
-		// Teammates on the same private purchases (upcoming appointments only). Group lessons
-		// never match here because each attendee is linked under their own purchase.
-		const purchaseIds = (purchases ?? []).map((p) => p.id);
-		const sharedByPurchase = new Map<string, Map<string, SharedTrainee>>();
-
-		if (purchaseIds.length > 0) {
-			const { data: teammateRows, error: teammateError } = await supabase
+				.in(
+					'team_id',
+					(teams ?? []).map((t) => t.id)
+				),
+			supabase
 				.from('pe_appointment_trainees')
 				.select(
-					`
-					purchase_id,
-					pe_trainees (id, name),
-					pe_appointments!inner (date, hour)
-				`
+					'purchase_id, pe_appointments!inner(id, date, hour, room_id, pe_rooms(name), pe_trainers(name))'
 				)
-				.in('purchase_id', purchaseIds)
+				.eq('trainee_id', traineeId)
+		]);
+		if (purchasesRes.error || lessonsRes.error) {
+			console.error('Error fetching kayıtlar:', purchasesRes.error ?? lessonsRes.error);
+			return null;
+		}
+		const purchases = purchasesRes.data ?? [];
+
+		const lessonsByPurchase = new Map<string, KayitLesson[]>();
+		for (const row of lessonsRes.data ?? []) {
+			const a = row.pe_appointments;
+			const list = lessonsByPurchase.get(row.purchase_id) ?? [];
+			list.push({
+				appointmentId: a.id,
+				date: a.date,
+				hour: a.hour,
+				roomId: a.room_id,
+				roomName: a.pe_rooms.name ?? '',
+				trainerName: a.pe_trainers.name ?? ''
+			});
+			lessonsByPurchase.set(row.purchase_id, list);
+		}
+
+		// Teammates on the same private purchases (upcoming lessons only). Group lessons never
+		// match here because each attendee is linked under their own purchase.
+		const sharedByPurchase = new Map<string, Map<string, SharedTrainee>>();
+		if (purchases.length > 0) {
+			const { data: teammateRows } = await supabase
+				.from('pe_appointment_trainees')
+				.select('purchase_id, pe_trainees(id, name), pe_appointments!inner(date, hour)')
+				.in(
+					'purchase_id',
+					purchases.map((p) => p.id)
+				)
 				.neq('trainee_id', traineeId);
-
-			if (teammateError) {
-				console.error('Error fetching purchase teammates:', teammateError);
-			}
-
 			for (const row of teammateRows ?? []) {
-				if (!row.purchase_id || !row.pe_trainees) continue;
 				if (!isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) continue;
 				const bucket = sharedByPurchase.get(row.purchase_id) ?? new Map<string, SharedTrainee>();
 				bucket.set(row.pe_trainees.id, { id: row.pe_trainees.id, name: row.pe_trainees.name });
@@ -129,56 +97,62 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 			}
 		}
 
-		// Build purchase memberships with appointments
-		const purchaseMemberships: TraineePurchaseMembership[] = [];
+		// Chains start at purchases that aren't anyone's successor
+		const byId = new Map(purchases.map((p) => [p.id, p]));
+		const successorIds = new Set(purchases.map((p) => p.successor_id).filter(isNonNull));
+		const kayitlar: TraineeKayit[] = [];
+		for (const root of purchases.filter((p) => !successorIds.has(p.id))) {
+			const chain = [root];
+			for (
+				let next = root.successor_id;
+				next && byId.has(next);
+				next = byId.get(next)!.successor_id
+			) {
+				chain.push(byId.get(next)!);
+			}
+			const current = chain[chain.length - 1];
+			const lessons = chain.flatMap((p) => lessonsByPurchase.get(p.id) ?? []).sort(compareSlots);
+			const upcoming = lessons.filter((l) => isAppointmentFuture(l.date, l.hour));
+			const patternSource = upcoming.length > 0 ? upcoming : lessons;
+			const latest = patternSource[patternSource.length - 1];
+			const shared = new Map<string, SharedTrainee>();
+			chain.forEach((p) => sharedByPurchase.get(p.id)?.forEach((t) => shared.set(t.id, t)));
 
-		for (const purchase of purchases ?? []) {
-			// Filter appointments for this purchase
-			const purchaseAppointments = detailedAppointments?.filter(
-				(apt) => apt.purchase_id === purchase.id
-			);
-
-			// Sort appointments by date
-			const sortedAppointments =
-				purchaseAppointments
-					?.map((apt) => ({
-						id: apt.pe_appointments.id,
-						date: apt.pe_appointments.date,
-						hour: apt.pe_appointments.hour
-					}))
-					.sort(compareSlots) || [];
-
-			// Get first and last appointment dates
-			const firstDate = sortedAppointments[0]?.date;
-			const lastDate = sortedAppointments[sortedAppointments.length - 1]?.date;
-
-			purchaseMemberships.push({
-				id: purchase.id,
-				trainee_id: traineeId,
-				pe_purchases: {
-					id: purchase.id,
-					created_at: purchase.created_at,
-					successor_id: purchase.successor_id,
-					reschedule_left: purchase.reschedule_left,
-					lesson_count: purchase.lesson_count,
-					pe_packages: purchase.pe_packages as Package | null
-				},
-				package: purchase.pe_packages as Package | null,
-				joined_at: purchase.created_at,
-				purchase_id: purchase.id,
-				purchase_start_date: firstDate || null,
-				purchase_end_date: lastDate || null,
-				appointments: sortedAppointments,
-				shared_trainees: [...(sharedByPurchase.get(purchase.id)?.values() ?? [])]
+			kayitlar.push({
+				id: root.id,
+				currentPurchaseId: current.id,
+				purchaseIds: chain.map((p) => p.id),
+				packageName: root.pe_packages.name,
+				isGroup: root.pe_packages.package_type === 'group',
+				lessonCount: chain.reduce((sum, p) => sum + p.lesson_count, 0),
+				creditsLeft: current.reschedule_left,
+				lessons,
+				upcoming,
+				pattern: formatWeeklyPattern([
+					...new Map(
+						patternSource.map((l) => {
+							const day = getDayOfWeekFromDate(l.date);
+							return [`${day}-${l.hour}`, { day, hour: l.hour }] as const;
+						})
+					).values()
+				]),
+				roomName: latest?.roomName ?? '',
+				trainerName: latest?.trainerName ?? '',
+				sharedTrainees: [...shared.values()]
 			});
 		}
 
-		return purchaseMemberships;
+		// Running kayıtlar first, then the most recent
+		return kayitlar.sort(
+			(a, b) =>
+				Number(b.upcoming.length > 0) - Number(a.upcoming.length > 0) ||
+				(b.lessons.at(-1)?.date ?? '').localeCompare(a.lessons.at(-1)?.date ?? '')
+		);
 	};
 
 	return {
 		trainee: loadTrainee(),
-		groupMemberships: loadPurchaseMemberships()
+		kayitlar: loadKayitlar()
 	};
 };
 
@@ -223,16 +197,23 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const scope: RemainingLessonsScope =
 			formData.get('scope')?.toString() === 'all' ? 'all' : 'trainee';
+		// A kayıt is a chain of purchases; each one with upcoming lessons is cleared
+		const purchaseIds = getRequiredFormDataString(formData, 'purchaseIds').split(',');
 
-		const result = await new SchedulingService(supabase).deleteRemainingLessons(
-			getRequiredFormDataString(formData, 'purchaseId'),
-			params.id,
-			scope
-		);
-		if (result.error) {
-			return fail(400, { success: false, message: result.error });
+		const service = new SchedulingService(supabase);
+		let deleted = 0;
+		for (const purchaseId of purchaseIds) {
+			const result = await service.deleteRemainingLessons(purchaseId, params.id, scope);
+			// Earlier purchases of the chain usually have nothing left; that's not a failure
+			if (result.error && result.error !== NO_REMAINING_LESSONS) {
+				return fail(400, { success: false, message: result.error });
+			}
+			deleted += result.deletedCount;
+		}
+		if (deleted === 0) {
+			return fail(400, { success: false, message: NO_REMAINING_LESSONS });
 		}
 
-		return { success: true, message: `${result.deletedCount} ders silindi` };
+		return { success: true, message: `${deleted} ders silindi` };
 	}
 };

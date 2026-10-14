@@ -1,5 +1,6 @@
 import type { Appointment } from './index';
 import type { SeriesAppointment } from './Transfer';
+import type { ScheduleChange } from './WhatsApp';
 
 export type DayOfWeek =
 	'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -21,6 +22,9 @@ export interface WeeklySlot {
 
 // Outcome of a write that either succeeds or fails with a message.
 export type OperationResult = { error: string | null };
+
+// A write that changed lesson times, with the changes to tell clients about
+export type ChangeOutcome = OperationResult & { changes: ScheduleChange[] };
 
 // One row of a pe_move_appointments call; omitted room/trainer stay unchanged. A type
 // alias (not an interface) so it is assignable to the RPC's Json parameter.
@@ -245,6 +249,7 @@ interface AppointmentSlot extends BaseSlotData {
 interface AvailableSlot extends BaseSlotData {
 	variant: 'available';
 	label?: string; // Optional label like "Seç" or "Müsait"
+	hoverLabel?: string; // Shown only on hover/focus when there is no label (e.g. "Kayıt ekle")
 	clickable?: boolean;
 	disabled?: boolean;
 	color?: SlotColor;
@@ -264,6 +269,11 @@ interface CustomSlot extends BaseSlotData {
 }
 
 export type ScheduleSlot = EmptySlot | AppointmentSlot | AvailableSlot | DisabledSlot | CustomSlot;
+
+// A time picked on the calendar grid as a move target
+export interface PickedSlot extends SlotRef {
+	roomId: string;
+}
 
 // A series loaded once for slot-shift planning: its appointments from the anchor on and
 // the recurring weekly pattern they follow.

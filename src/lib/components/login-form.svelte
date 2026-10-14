@@ -38,7 +38,7 @@
 			toast.error(
 				'Giriş hatası: ' +
 					(res.error.message === 'Invalid login credentials'
-						? 'Kullanıcı adı veya şifre yanlış'
+						? 'E-posta veya şifre hatalı'
 						: res.error.message)
 			);
 			inProgress = false;
@@ -82,7 +82,7 @@
 		// Refresh session to get a new JWT with updated organization claims
 		const { error: refreshError } = await supabase.auth.refreshSession();
 		if (refreshError) {
-			toast.error('Error refreshing session: ' + refreshError.message);
+			toast.error('Oturum yenilenemedi: ' + refreshError.message);
 		}
 
 		// Invalidate all load functions to ensure server gets fresh session
@@ -116,9 +116,9 @@
 		</h1>
 		<p class="text-sm text-balance text-muted-foreground">
 			{#if formType === 'login'}
-				Email ve şifrenizle giriş yapın
+				E-posta ve şifrenizle giriş yapın
 			{:else if formType === 'forgot-password'}
-				Şifre sıfırlama bağlantısı almak için emailinizi girin
+				Şifre sıfırlama bağlantısı için e-posta adresinizi girin
 			{:else if formType === 'reset-password'}
 				Yeni şifrenizi girin
 			{/if}
@@ -127,7 +127,7 @@
 	<div class="grid gap-6">
 		{#if formType === 'login' || formType === 'forgot-password'}
 			<div class="grid gap-2">
-				<Label for="email">Email</Label>
+				<Label for="email">E-posta</Label>
 				<Input
 					id="email"
 					type="email"
@@ -148,7 +148,6 @@
 							variant="link"
 							size="sm"
 							class="h-auto p-0 text-xs"
-							tabindex={-1}
 							onclick={showModal}
 							type="button"
 						>
@@ -172,16 +171,12 @@
 		</Button>
 	</div>
 	<div class="text-center text-sm">
-		{#if formType === 'forgot-password'}
-			Hata?
-			<a href="/login" class="underline underline-offset-4"> Giriş yap. </a>
-		{:else if formType === 'reset-password'}
-			Hata?
-			<a href="/login" class="underline underline-offset-4"> Giriş yap. </a>
+		{#if formType === 'forgot-password' || formType === 'reset-password'}
+			<a href="/login" class="underline underline-offset-4">Giriş ekranına dön</a>
 		{/if}
 	</div>
 </form>
 
 <Modal bind:open={showForgotPasswordModal} title="Şifremi unuttum">
-	<p class="py-4">Eğer şifrenizi unuttuysanız lütfen adminler ile iletişime geçiniz.</p>
+	<p class="py-4">Şifrenizi unuttuysanız stüdyo yöneticinizle iletişime geçin.</p>
 </Modal>

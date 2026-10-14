@@ -1,251 +1,265 @@
 <script lang="ts">
+	import type { PanelLesson } from '$lib/types/Dashboard';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import StatCard from '$lib/components/stat-card.svelte';
-	import Calendar from '@lucide/svelte/icons/calendar';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
-	import Users from '@lucide/svelte/icons/users';
-	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
-	import AlertCircle from '@lucide/svelte/icons/alert-circle';
-	import CheckCircle from '@lucide/svelte/icons/check-circle';
-	import Info from '@lucide/svelte/icons/info';
-	import {
-		getWeekStart,
-		formatWeekRange,
-		formatDisplayDate,
-		formatShortTurkishDateTime
-	} from '$lib/utils/date-utils';
-	import * as Card from '$lib/components/ui/card/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
-	import { CardSkeleton, StatCardSkeleton } from '$lib/components/skeletons/index.js';
-	import type { AnyDashboardStats } from '$lib/types/Dashboard';
+	import AlertCircle from '@lucide/svelte/icons/alert-circle';
+	import Calendar from '@lucide/svelte/icons/calendar';
+	import Plus from '@lucide/svelte/icons/plus';
+	import { DAYS_OF_WEEK, DAY_NAMES, getTimeString } from '$lib/types/Schedule';
+	import {
+		formatDateForDB,
+		formatDisplayDate,
+		formatTurkishDate,
+		getDayOfWeekFromDate
+	} from '$lib/utils/date-utils';
 
 	let { data } = $props();
 
-	// Streamed data resolved into local state. `undefined` = loading, `null` =
-	// failed. Stale values are kept during invalidation to avoid flashing skeletons.
-	let stats = $state<AnyDashboardStats | null | undefined>(undefined);
-
-	$effect(() => {
-		const promise = data.stats;
-		promise.then((result) => {
-			if (data.stats === promise) stats = result;
-		});
-	});
-
-	const now = new Date();
-	const weekStart = getWeekStart(now);
-	const weekRange = formatWeekRange(weekStart);
+	const today = formatDateForDB(new Date());
 	const isTrainer = $derived(data.userRole === 'trainer');
+
+	function lessonHref(lesson: PanelLesson): string | undefined {
+		return isTrainer
+			? undefined
+			: `/schedule?view=room&room=${lesson.roomId}&week=${lesson.date}&appointment=${lesson.appointmentId}`;
+	}
+
+	function endingLabel(remaining: number, lastDate: string): string {
+		if (remaining === 0) return `Bitti · ${formatDisplayDate(lastDate)}`;
+		return `${remaining} ders kaldı · son ${formatDisplayDate(lastDate)}`;
+	}
 </script>
 
 <svelte:head>
 	<title>Panel · Pilates Evi</title>
 </svelte:head>
 
-<div class="p-6">
-	<PageHeader title="Bu Hafta" subtitle={weekRange} />
+{#snippet stats(items: Array<{ label: string; value: number }>)}
+	<dl class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+		{#each items as item (item.label)}
+			<div class="rounded-md border p-4">
+				<dt class="text-sm text-muted-foreground">{item.label}</dt>
+				<dd class="mt-1 text-2xl font-semibold tabular-nums">{item.value}</dd>
+			</div>
+		{/each}
+	</dl>
+{/snippet}
 
-	{#if stats === undefined}
-		<div
-			class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 {isTrainer
-				? 'lg:grid-cols-3'
-				: 'lg:grid-cols-4'}"
-		>
-			{#each { length: isTrainer ? 3 : 4 }, i (i)}
-				<StatCardSkeleton />
+{#snippet lessonList(lessons: PanelLesson[], empty: string)}
+	{#if lessons.length === 0}
+		<p class="text-sm text-muted-foreground">{empty}</p>
+	{:else}
+		<ul class="divide-y rounded-md border">
+			{#each lessons as lesson (lesson.appointmentId)}
+				{@const href = lessonHref(lesson)}
+				<li>
+					<svelte:element
+						this={href ? 'a' : 'div'}
+						{href}
+						class="flex gap-4 px-3 py-2 text-sm {href
+							? 'hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none'
+							: ''}"
+					>
+						<span class="w-12 shrink-0 font-medium tabular-nums">{getTimeString(lesson.hour)}</span>
+						<span class="min-w-0 flex-1">
+							<span class="font-medium">{lesson.packageName}</span>
+							<span class="block text-muted-foreground">
+								{lesson.roomName} · {lesson.trainerName}
+							</span>
+							<span class="block truncate text-muted-foreground">
+								{lesson.traineeNames.length > 0
+									? lesson.traineeNames.join(', ')
+									: lesson.isGroup
+										? 'Henüz öğrenci yok'
+										: ''}
+							</span>
+						</span>
+					</svelte:element>
+				</li>
 			{/each}
-		</div>
-		<div class="grid grid-cols-1 gap-6 {isTrainer ? '' : 'lg:grid-cols-2'}">
-			<CardSkeleton rows={3} rowClass="h-16" />
-			{#if !isTrainer}
-				<CardSkeleton rows={3} rowClass="h-16" />
+		</ul>
+	{/if}
+{/snippet}
+
+<div class="space-y-6 p-4 md:p-6">
+	<PageHeader title="Panel" subtitle={formatTurkishDate(today)}>
+		<div class="mt-4 flex flex-wrap gap-2">
+			{#if isTrainer}
+				<Button variant="outline" href="/my-schedule">
+					<Calendar />
+					Takvimim
+				</Button>
+			{:else}
+				<Button href="/new-assignment">
+					<Plus />
+					Yeni kayıt
+				</Button>
+				<Button variant="outline" href="/schedule">
+					<Calendar />
+					Takvim
+				</Button>
 			{/if}
 		</div>
-	{:else if stats === null}
-		<Alert.Root variant="destructive">
-			<AlertCircle class="h-5 w-5 shrink-0" />
-			<Alert.Description>
-				Panel verileri yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.
-			</Alert.Description>
-		</Alert.Root>
-	{:else if stats.kind === 'trainer'}
-		<!-- Trainer Statistics Cards -->
-		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-			<StatCard title="Bugünkü Dersler" value={stats.todayAppointmentsCount} icon={Calendar} />
-			<StatCard
-				title="Bu Hafta Dersleriniz"
-				value={stats.weekAppointmentsCount}
-				icon={CalendarClock}
-			/>
-			<StatCard title="Katılan Öğrenciler" value={stats.uniqueTraineesCount} icon={Users} />
+	</PageHeader>
+
+	{#await data.panel}
+		<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+			{#each { length: 4 }, i (i)}
+				<Skeleton class="h-22 rounded-md" />
+			{/each}
 		</div>
+		<div class="grid gap-6 lg:grid-cols-5">
+			<Skeleton class="h-80 rounded-xl lg:col-span-3" />
+			<Skeleton class="h-80 rounded-xl lg:col-span-2" />
+		</div>
+	{:then panel}
+		{#if !panel}
+			<Alert.Root variant="destructive">
+				<AlertCircle />
+				<Alert.Description>Panel yüklenemedi. Sayfayı yenileyip tekrar deneyin.</Alert.Description>
+			</Alert.Root>
+		{:else if panel.kind === 'trainer'}
+			{@render stats([
+				{ label: 'Bugün', value: panel.today.length },
+				{ label: 'Bu hafta', value: panel.week.length },
+				{ label: 'Öğrenci (bu hafta)', value: panel.weekTraineeCount }
+			])}
 
-		<!-- This Week's Lessons -->
-		<Card.Root class="flex max-h-[60vh] flex-col">
-			<Card.Header class="flex flex-row items-center justify-between space-y-0">
-				<Card.Title class="flex items-center gap-2 text-lg">
-					<CalendarClock size={20} />
-					Bu Hafta Dersleriniz
-				</Card.Title>
-				{#if stats.weeklyAppointments.length > 0}
-					<Badge variant="outline">{stats.weeklyAppointments.length}</Badge>
-				{/if}
-			</Card.Header>
+			<div class="grid gap-6 lg:grid-cols-2">
+				<Card.Root class="h-fit">
+					<Card.Header>
+						<Card.Title>Bugün</Card.Title>
+					</Card.Header>
+					<Card.Content>
+						{@render lessonList(panel.today, 'Bugün randevunuz yok.')}
+					</Card.Content>
+				</Card.Root>
 
-			<Card.Content class="min-h-0 flex-1 overflow-y-auto">
-				{#if stats.weeklyAppointments.length === 0}
-					<div class="flex flex-col items-center justify-center py-8">
-						<CheckCircle class="mb-3 h-12 w-12 text-muted-foreground" />
-						<div class="text-center font-semibold text-muted-foreground">
-							Bu hafta dersiniz bulunmuyor
-						</div>
-					</div>
-				{:else}
-					<ul class="space-y-2">
-						{#each stats.weeklyAppointments as appointment (appointment.id)}
-							<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
-								<div class="flex-1">
-									<p class="font-medium">
-										{appointment.date
-											? formatShortTurkishDateTime(appointment.date, appointment.hour ?? 0)
-											: '-'}
-									</p>
-									<p class="text-sm text-muted-foreground">{appointment.room_name}</p>
-								</div>
-								<div class="text-right">
-									<p class="font-medium">{appointment.package_name || 'Ders Bilgisi Yok'}</p>
-									<p class="text-sm text-muted-foreground">
-										{appointment.trainee_count || 0} öğrenci
-									</p>
-								</div>
-							</li>
+				<Card.Root class="h-fit">
+					<Card.Header>
+						<Card.Title>Bu hafta</Card.Title>
+					</Card.Header>
+					<Card.Content class="space-y-4">
+						{#each DAYS_OF_WEEK as day (day)}
+							{@const lessons = panel.week.filter(
+								(l) => l.date > today && getDayOfWeekFromDate(l.date) === day
+							)}
+							{#if lessons.length > 0}
+								<section class="grid gap-2">
+									<h3 class="text-sm font-medium">
+										{DAY_NAMES[day]} · {formatDisplayDate(lessons[0].date)}
+									</h3>
+									{@render lessonList(lessons, '')}
+								</section>
+							{/if}
 						{/each}
-					</ul>
-				{/if}
-			</Card.Content>
-		</Card.Root>
-	{:else}
-		<!-- Statistics Cards -->
-		<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-			<StatCard title="Randevular" value={stats.appointmentsCount} icon={Calendar} />
-			<StatCard title="Katılımcı Öğrenciler" value={stats.uniqueTraineesCount} icon={Users} />
-			<StatCard
-				title="Yeni Satın Almalar"
-				value={stats.purchasesThisWeek.length}
-				icon={ShoppingCart}
-			/>
-			<StatCard
-				title="Son Dersi Olanlar"
-				value={stats.traineesWithLastLessons.length}
-				icon={AlertCircle}
-			/>
-		</div>
+						{#if !panel.week.some((l) => l.date > today)}
+							<p class="text-sm text-muted-foreground">Bu hafta başka randevunuz yok.</p>
+						{/if}
+					</Card.Content>
+				</Card.Root>
+			</div>
+		{:else}
+			{@render stats([
+				{ label: 'Bugün', value: panel.today.length },
+				{ label: 'Bu hafta', value: panel.weekLessonCount },
+				{ label: 'Öğrenci (bu hafta)', value: panel.weekTraineeCount },
+				{ label: 'Bitmek üzere', value: panel.ending.length }
+			])}
 
-		<!-- Content Grid -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-			<!-- Purchases This Week Card -->
-			<Card.Root class="flex max-h-[50vh] flex-col">
-				<Card.Header class="flex flex-row items-center justify-between space-y-0">
-					<Card.Title class="flex items-center gap-2 text-lg">
-						<ShoppingCart size={20} />
-						Bu Hafta Yapılan Satın Almalar
-					</Card.Title>
-					{#if stats.purchasesThisWeek.length > 0}
-						<Badge variant="outline">{stats.purchasesThisWeek.length}</Badge>
-					{/if}
-				</Card.Header>
+			<div class="grid gap-6 lg:grid-cols-5">
+				<Card.Root class="h-fit lg:col-span-3">
+					<Card.Header>
+						<Card.Title>Bugün</Card.Title>
+					</Card.Header>
+					<Card.Content>
+						{@render lessonList(panel.today, 'Bugün randevu yok.')}
+					</Card.Content>
+				</Card.Root>
 
-				<Card.Content class="min-h-0 flex-1 overflow-y-auto">
-					{#if stats.purchasesThisWeek.length === 0}
-						<Alert.Root class="border-info/30 bg-info/10 text-info-foreground">
-							<Info class="h-5 w-5 shrink-0" />
-							<Alert.Description>Bu hafta henüz satın alma yapılmadı.</Alert.Description>
-						</Alert.Root>
-					{:else}
-						<ul class="space-y-2">
-							{#each stats.purchasesThisWeek as purchase (purchase.id + purchase.trainee?.id)}
-								<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
-									<div class="flex-1">
-										{#if purchase.trainee?.id}
-											<a href="/trainees/{purchase.trainee.id}" class="font-medium hover:underline">
-												{purchase.trainee.name}
-											</a>
-										{:else}
-											<p class="font-medium">Bilinmeyen Öğrenci</p>
-										{/if}
-										<p class="text-sm text-muted-foreground">
-											{formatDisplayDate(purchase.created_at)}
-										</p>
-									</div>
-									<div class="text-right">
-										<p class="font-medium">{purchase.package?.name || 'Paket Yok'}</p>
-										{#if purchase.package?.package_type}
-											<p class="text-sm text-muted-foreground">
-												{purchase.package.package_type === 'private' ? 'Özel' : 'Grup'}
-											</p>
-										{/if}
-									</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Trainees with Last Lessons Card -->
-			<Card.Root class="flex max-h-[50vh] flex-col">
-				<Card.Header class="flex flex-row items-center justify-between space-y-0">
-					<Card.Title class="flex items-center gap-2 text-lg">
-						<AlertCircle size={20} />
-						Son Dersi Yaklaşanlar
-					</Card.Title>
-					{#if stats.traineesWithLastLessons.length > 0}
-						<Badge variant="outline">{stats.traineesWithLastLessons.length}</Badge>
-					{/if}
-				</Card.Header>
-
-				<Card.Content class="min-h-0 flex-1 overflow-y-auto">
-					{#if stats.traineesWithLastLessons.length === 0}
-						<div class="flex flex-col items-center justify-center py-8">
-							<CheckCircle class="mb-3 h-12 w-12 text-success" />
-							<div class="text-center">
-								<div class="font-semibold text-success">Son dersine yaklaşan öğrenci yok</div>
-							</div>
-						</div>
-					{:else}
-						<ul class="space-y-2">
-							{#each stats.traineesWithLastLessons as item (item.trainee.id)}
-								<li class="flex items-center gap-3 rounded-lg bg-muted p-3">
-									<div class="flex-1">
-										<a href="/trainees/{item.trainee.id}" class="font-medium hover:underline">
-											{item.trainee.name}
-										</a>
-										<p class="text-sm text-muted-foreground">
-											{item.lesson_count} derslik paket
-											{#if item.package}
-												- {item.package.name}
-											{/if}
-										</p>
-									</div>
-									<div class="flex flex-col items-end gap-1">
-										<Badge variant="outline">
-											{item.remaining_lessons > 0
-												? `${item.remaining_lessons} ders kaldı`
-												: 'Ders kalmadı'}
-										</Badge>
-										{#if item.last_lesson_date}
-											<span class="text-xs text-muted-foreground">
-												Son ders: {formatDisplayDate(item.last_lesson_date)}
+				<div class="space-y-6 lg:col-span-2">
+					<Card.Root>
+						<Card.Header>
+							<Card.Title>Paketi bitmek üzere</Card.Title>
+							<Card.Description>
+								Son dersi önümüzdeki 14 gün içinde olan veya geçen hafta biten, yenilenmemiş
+								kayıtlar
+							</Card.Description>
+						</Card.Header>
+						<Card.Content>
+							{#if panel.ending.length === 0}
+								<p class="text-sm text-muted-foreground">Bitmek üzere olan kayıt yok.</p>
+							{:else}
+								<ul class="divide-y">
+									{#each panel.ending as kayit (`${kayit.traineeId}|${kayit.purchaseId}`)}
+										<li class="flex items-center justify-between gap-3 py-2 text-sm">
+											<span class="min-w-0">
+												<a
+													href={`/trainees/${kayit.traineeId}`}
+													class="font-medium hover:underline"
+												>
+													{kayit.traineeName}
+												</a>
+												<span class="block text-muted-foreground">
+													{kayit.packageName} · {endingLabel(kayit.remaining, kayit.lastDate)}
+												</span>
 											</span>
-										{/if}
-									</div>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-		</div>
-	{/if}
+											<Button
+												variant="outline"
+												size="sm"
+												href={`/trainees/${kayit.traineeId}/renew/${kayit.purchaseId}`}
+											>
+												Yenile
+											</Button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</Card.Content>
+					</Card.Root>
+
+					<Card.Root>
+						<Card.Header>
+							<Card.Title>Bu hafta yeni kayıtlar</Card.Title>
+							{#if panel.renewalCount > 0}
+								<Card.Description>Ayrıca {panel.renewalCount} yenileme</Card.Description>
+							{/if}
+						</Card.Header>
+						<Card.Content>
+							{#if panel.newKayitlar.length === 0}
+								<p class="text-sm text-muted-foreground">Bu hafta yeni kayıt yok.</p>
+							{:else}
+								<ul class="divide-y">
+									{#each panel.newKayitlar as kayit (kayit.purchaseId)}
+										<li class="flex items-start justify-between gap-3 py-2 text-sm">
+											<span>
+												{#each kayit.trainees as trainee, i (trainee.id)}
+													{#if i > 0},
+													{/if}
+													<a href={`/trainees/${trainee.id}`} class="font-medium hover:underline">
+														{trainee.name}
+													</a>
+												{/each}
+												<span class="block text-muted-foreground">{kayit.packageName}</span>
+											</span>
+											<span class="flex shrink-0 flex-col items-end gap-1">
+												<Badge variant="outline">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
+												<span class="text-xs text-muted-foreground">
+													{formatDisplayDate(kayit.createdAt)}
+												</span>
+											</span>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</Card.Content>
+					</Card.Root>
+				</div>
+			</div>
+		{/if}
+	{/await}
 </div>

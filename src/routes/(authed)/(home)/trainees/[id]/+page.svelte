@@ -1,26 +1,26 @@
 <script lang="ts">
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
-	import Calendar from '@lucide/svelte/icons/calendar';
-	import PackageIcon from '@lucide/svelte/icons/package';
-	import StickyNote from '@lucide/svelte/icons/sticky-note';
-	import User from '@lucide/svelte/icons/user';
-	import Edit from '@lucide/svelte/icons/edit';
-	import Save from '@lucide/svelte/icons/save';
-	import X from '@lucide/svelte/icons/x';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Plus from '@lucide/svelte/icons/plus';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import MoveRight from '@lucide/svelte/icons/move-right';
 	import Archive from '@lucide/svelte/icons/archive';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import PageHeader from '$lib/components/page-header.svelte';
-	import BackButton from '$lib/components/back-button.svelte';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import ActionMenu from '$lib/components/action-menu.svelte';
-	import type { ActionItem, PurchaseAppointment, RemainingLessonsScope, Trainee } from '$lib/types';
-	import type { TraineePurchaseMembership } from '$lib/types';
-	import { formatDisplayDate, calculatePackageEndDate, isAppointmentFuture } from '$lib/utils';
+	import type {
+		ActionItem,
+		KayitLesson,
+		RemainingLessonsScope,
+		Trainee,
+		TraineeKayit
+	} from '$lib/types';
+	import { formatDisplayDate, formatSlotLabel } from '$lib/utils/date-utils';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { getActionErrorMessage } from '$lib/utils/form-utils';
@@ -32,17 +32,16 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
-	import * as Alert from '$lib/components/ui/alert/index.js';
+	import * as Empty from '$lib/components/ui/empty/index.js';
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import { CardSkeleton, PageHeaderSkeleton } from '$lib/components/skeletons/index.js';
 
 	let { data } = $props();
 
-	// Streamed data resolved into local state. `undefined` = loading, `null` = not
-	// found / failed. Stale values are kept during invalidation to avoid flashing
-	// skeletons after form actions.
+	// Streamed data resolved into local state. `undefined` = loading, `null` = not found /
+	// failed. Stale values are kept during invalidation to avoid flashing skeletons.
 	let trainee = $state<Trainee | null | undefined>(undefined);
-	let groupMemberships = $state<TraineePurchaseMembership[] | null | undefined>(undefined);
+	let kayitlar = $state<TraineeKayit[] | null | undefined>(undefined);
 
 	$effect(() => {
 		const promise = data.trainee;
@@ -52,53 +51,61 @@
 	});
 
 	$effect(() => {
-		const promise = data.groupMemberships;
+		const promise = data.kayitlar;
 		promise.then((result) => {
-			if (data.groupMemberships === promise) groupMemberships = result;
+			if (data.kayitlar === promise) kayitlar = result;
 		});
 	});
 
-	// Edit mode state
+	const active = $derived((kayitlar ?? []).filter((k) => k.upcoming.length > 0));
+	const finished = $derived((kayitlar ?? []).filter((k) => k.upcoming.length === 0));
+
 	let editMode = $state(false);
 	let saving = $state(false);
-
-	// Archive/restore state
 	let showArchiveModal = $state(false);
 	let showRestoreModal = $state(false);
 	let archiving = $state(false);
+	let expanded = $state<Record<string, boolean>>({});
 
-	// Delete remaining lessons state
-	let showDeleteLessonsModal = $state(false);
-	let deleteTarget = $state<TraineePurchaseMembership | null>(null);
+	let deleteTarget = $state<TraineeKayit | null>(null);
 	let deleteScope = $state<RemainingLessonsScope>('trainee');
 	let deletingLessons = $state(false);
+	let showDeleteModal = $state(false);
 
-	// Upcoming appointments of a purchase: the ones "Kalan Dersleri Sil" removes.
-	function getRemainingAppointments(membership: TraineePurchaseMembership): PurchaseAppointment[] {
-		return (membership.appointments ?? []).filter((a) => isAppointmentFuture(a.date, a.hour));
-	}
+	const VISIBLE_LESSONS = 5;
 
-	function openDeleteLessons(membership: TraineePurchaseMembership) {
-		deleteTarget = membership;
+	function openDelete(kayit: TraineeKayit) {
+		deleteTarget = kayit;
 		deleteScope = 'trainee';
-		showDeleteLessonsModal = true;
+		showDeleteModal = true;
 	}
 
-	function closeDeleteLessons() {
-		showDeleteLessonsModal = false;
-		deleteTarget = null;
-		deleteScope = 'trainee';
-	}
-
-	function getPurchaseActions(membership: TraineePurchaseMembership): ActionItem[] {
+	function kayitActions(kayit: TraineeKayit): ActionItem[] {
 		return [
 			{
-				label: 'Kalan Dersleri Sil',
-				handler: () => openDeleteLessons(membership),
+				label: 'Kalan dersleri sil',
+				handler: () => openDelete(kayit),
 				icon: Trash2,
 				class: 'text-destructive'
 			}
 		];
+	}
+
+	// The calendar opens on the lesson's week and room with its panel ready
+	function calendarLink(
+		lesson: KayitLesson,
+		action: 'move' | 'cancel',
+		kayit: TraineeKayit
+	): string {
+		const params = new URLSearchParams({
+			week: lesson.date,
+			room: lesson.roomId,
+			appointment: String(lesson.appointmentId),
+			action
+		});
+		// In a group lesson only this trainee moves
+		if (kayit.isGroup && trainee) params.set('trainee', trainee.id);
+		return `/schedule?${params}`;
 	}
 
 	function formatNames(names: string[]): string {
@@ -106,7 +113,6 @@
 		return `${names.slice(0, -1).join(', ')} ve ${names[names.length - 1]}`;
 	}
 
-	// Action menu items
 	const menuActions = $derived<ActionItem[]>(
 		trainee
 			? trainee.is_active
@@ -122,7 +128,7 @@
 					]
 				: [
 						{
-							label: 'Geri Yükle',
+							label: 'Geri yükle',
 							handler: () => {
 								showRestoreModal = true;
 							},
@@ -131,358 +137,325 @@
 					]
 			: []
 	);
-
-	// Filter memberships with packages and sort by start date (descending)
-	const sortedPurchases = $derived(
-		(groupMemberships ?? [])
-			.filter((membership) => membership.package)
-			.sort((a, b) => new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime())
-	);
-
-	// When any row has actions, every row reserves the menu slot so chevrons stay in one column.
-	const hasPurchaseActions = $derived(
-		sortedPurchases.some((p) => getRemainingAppointments(p).length > 0)
-	);
-
-	function toggleEditMode() {
-		editMode = !editMode;
-	}
-
-	function cancelEdit() {
-		editMode = false;
-	}
-
-	// Get the display date for a membership based on package type
-	function getMembershipDisplayDate(membership: TraineePurchaseMembership): string {
-		if (membership.purchase_end_date) {
-			return formatDisplayDate(membership.purchase_end_date);
-		}
-
-		if (membership.package?.package_type === 'group') {
-			return 'Devam ediyor';
-		}
-
-		return calculatePackageEndDate(
-			membership.joined_at,
-			membership.package?.weeks_duration ?? null
-		);
-	}
 </script>
 
 <svelte:head>
-	<title>{trainee ? `${trainee.name} · ` : ''}Öğrenci Detayları · Pilates Evi</title>
+	<title>{trainee ? `${trainee.name} · ` : ''}Öğrenci · Pilates Evi</title>
 </svelte:head>
 
-<div class="space-y-6 p-6">
-	<div>
-		<BackButton href="/trainees" label="Öğrenciler" />
-		{#if trainee}
-			<!-- Header -->
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-3">
-					<PageHeader title={trainee.name} subtitle="Öğrenci Detayları" />
+<div class="space-y-6 p-4 md:p-6">
+	{#if trainee}
+		<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+			<PageHeader title={trainee.name} back={{ href: '/trainees', label: 'Öğrenciler' }}>
+				<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
 					{#if !trainee.is_active}
-						<Badge variant="destructive">Arşivlendi</Badge>
+						<Badge variant="outline">Arşivde</Badge>
+					{/if}
+					<a
+						href="tel:+90{trainee.phone}"
+						class="inline-flex items-center gap-1.5 hover:text-foreground"
+					>
+						<Phone class="size-3.5" />
+						{trainee.phone}
+					</a>
+					{#if trainee.email}
+						<a
+							href="mailto:{trainee.email}"
+							class="inline-flex items-center gap-1.5 hover:text-foreground"
+						>
+							<Mail class="size-3.5" />
+							{trainee.email}
+						</a>
 					{/if}
 				</div>
-				<div class="flex gap-2">
-					{#if editMode}
-						<Button variant="ghost" size="sm" onclick={cancelEdit} disabled={saving}>
-							<X size={16} />
-							İptal
-						</Button>
-						<Button type="submit" form="trainee-form" size="sm" disabled={saving}>
-							{#if saving}
-								<LoaderCircle size={16} class="animate-spin" />
-							{:else}
-								<Save size={16} />
-							{/if}
-							Kaydet
-						</Button>
-					{:else}
-						<Button size="sm" onclick={toggleEditMode} disabled={saving}>
-							<Edit size={16} />
-							Düzenle
-						</Button>
-					{/if}
-
-					<ActionMenu actions={menuActions} />
-				</div>
+			</PageHeader>
+			<div class="flex gap-2">
+				{#if trainee.is_active}
+					<Button href="/new-assignment?trainee_id={trainee.id}">
+						<Plus />
+						Yeni kayıt
+					</Button>
+				{/if}
+				<Button variant="outline" onclick={() => (editMode = !editMode)} disabled={saving}>
+					<Pencil />
+					Düzenle
+				</Button>
+				<ActionMenu actions={menuActions} />
 			</div>
-		{:else if trainee === undefined}
-			<PageHeaderSkeleton actions />
-		{:else}
-			<PageHeader title="Öğrenci" subtitle="Öğrenci Detayları" />
-		{/if}
-	</div>
+		</div>
+	{:else if trainee === undefined}
+		<PageHeaderSkeleton actions />
+	{:else}
+		<Empty.Root class="border">
+			<Empty.Header>
+				<Empty.Title>Öğrenci bulunamadı</Empty.Title>
+				<Empty.Description>Bu öğrenci mevcut değil veya kaldırılmış olabilir.</Empty.Description>
+			</Empty.Header>
+			<Empty.Content>
+				<Button variant="outline" href="/trainees">Öğrencilere dön</Button>
+			</Empty.Content>
+		</Empty.Root>
+	{/if}
 
 	{#if trainee}
-		<!-- Personal Details and Notes Row -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-			<!-- Personal Details Card -->
-			<Card.Root class="lg:col-span-2">
+		<div class="grid gap-6 lg:grid-cols-3">
+			<div class="space-y-4 lg:col-span-2">
+				<h2 class="text-lg font-semibold">Kayıtlar</h2>
+				{#if kayitlar === undefined}
+					<CardSkeleton rows={3} rowClass="h-12" />
+				{:else if kayitlar === null}
+					<p class="text-sm text-destructive">Kayıtlar yüklenemedi; sayfayı yenileyin.</p>
+				{:else if active.length === 0}
+					<Empty.Root class="border">
+						<Empty.Header>
+							<Empty.Title>Devam eden kayıt yok</Empty.Title>
+							<Empty.Description>
+								{finished.length > 0
+									? 'Önceki bir kaydı yenileyebilir ya da yeni kayıt açabilirsiniz.'
+									: 'Bu öğrenciyi bir pakete kaydedin.'}
+							</Empty.Description>
+						</Empty.Header>
+						{#if trainee.is_active}
+							<Empty.Content>
+								<Button href="/new-assignment?trainee_id={trainee.id}">
+									<Plus />
+									Yeni kayıt
+								</Button>
+							</Empty.Content>
+						{/if}
+					</Empty.Root>
+				{/if}
+
+				{#each active as kayit (kayit.id)}
+					{@const next = kayit.upcoming[0]}
+					{@const done = kayit.lessons.length - kayit.upcoming.length}
+					{@const visible = expanded[kayit.id]
+						? kayit.upcoming
+						: kayit.upcoming.slice(0, VISIBLE_LESSONS)}
+					<Card.Root>
+						<Card.Header>
+							<div class="flex items-start justify-between gap-3">
+								<div class="min-w-0">
+									<Card.Title class="flex flex-wrap items-center gap-2">
+										{kayit.packageName}
+										<Badge variant="secondary">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
+									</Card.Title>
+									<Card.Description class="mt-1">
+										{kayit.pattern} · {kayit.roomName} · {kayit.trainerName}
+									</Card.Description>
+								</div>
+								<ActionMenu actions={kayitActions(kayit)} />
+							</div>
+						</Card.Header>
+						<Card.Content class="space-y-4">
+							<dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+								<div>
+									<dt class="text-muted-foreground">Kalan</dt>
+									<dd class="font-medium tabular-nums">
+										{kayit.upcoming.length} / {kayit.lessonCount} ders
+									</dd>
+								</div>
+								<div>
+									<dt class="text-muted-foreground">Tamamlanan</dt>
+									<dd class="font-medium tabular-nums">{done} ders</dd>
+								</div>
+								{#if !kayit.isGroup}
+									<div>
+										<dt class="text-muted-foreground">Değişiklik hakkı</dt>
+										<dd class="font-medium tabular-nums">
+											{kayit.creditsLeft >= 999 ? 'Sınırsız' : kayit.creditsLeft}
+										</dd>
+									</div>
+								{/if}
+								<div>
+									<dt class="text-muted-foreground">Son ders</dt>
+									<dd class="font-medium">
+										{formatDisplayDate(kayit.upcoming[kayit.upcoming.length - 1].date)}
+									</dd>
+								</div>
+							</dl>
+
+							{#if kayit.sharedTrainees.length > 0}
+								<p class="text-sm text-muted-foreground">
+									Birlikte: {formatNames(kayit.sharedTrainees.map((t) => t.name))}
+								</p>
+							{/if}
+
+							<div class="flex flex-wrap gap-2">
+								<Button href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}">
+									<RefreshCw />
+									Yenile
+								</Button>
+								<Button variant="outline" href={calendarLink(next, 'move', kayit)}>
+									<MoveRight />
+									Taşı
+								</Button>
+							</div>
+
+							<section aria-label="Yaklaşan dersler">
+								<h3 class="mb-2 text-sm font-semibold">Yaklaşan dersler</h3>
+								<ul class="divide-y rounded-md border text-sm">
+									{#each visible as lesson (lesson.appointmentId)}
+										<li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+											<span class="font-medium">{formatSlotLabel(lesson.date, lesson.hour)}</span>
+											<span class="text-muted-foreground">
+												{lesson.roomName} · {lesson.trainerName}
+											</span>
+											<span class="ml-auto flex gap-1">
+												<Button
+													variant="ghost"
+													size="sm"
+													href={calendarLink(lesson, 'move', kayit)}
+												>
+													Taşı
+												</Button>
+												{#if !kayit.isGroup}
+													<Button
+														variant="ghost"
+														size="sm"
+														href={calendarLink(lesson, 'cancel', kayit)}
+													>
+														İptal et
+													</Button>
+												{/if}
+											</span>
+										</li>
+									{/each}
+								</ul>
+								{#if kayit.upcoming.length > VISIBLE_LESSONS}
+									<Button
+										variant="link"
+										size="sm"
+										class="px-0"
+										onclick={() => (expanded[kayit.id] = !expanded[kayit.id])}
+									>
+										{expanded[kayit.id]
+											? 'Daha az göster'
+											: `Tüm yaklaşan dersler (${kayit.upcoming.length})`}
+									</Button>
+								{/if}
+							</section>
+						</Card.Content>
+					</Card.Root>
+				{/each}
+
+				{#if finished.length > 0}
+					<Accordion.Root type="single">
+						<Accordion.Item value="finished" class="rounded-md border px-4">
+							<Accordion.Trigger>Geçmiş kayıtlar ({finished.length})</Accordion.Trigger>
+							<Accordion.Content>
+								<ul class="divide-y text-sm">
+									{#each finished as kayit (kayit.id)}
+										<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+											<span class="font-medium">{kayit.packageName}</span>
+											<span class="text-muted-foreground">
+												{kayit.pattern} · {kayit.lessons.length} ders
+												{#if kayit.lessons.length > 0}
+													· {formatDisplayDate(kayit.lessons[0].date)} – {formatDisplayDate(
+														kayit.lessons[kayit.lessons.length - 1].date
+													)}
+												{/if}
+											</span>
+											{#if trainee.is_active}
+												<Button
+													variant="ghost"
+													size="sm"
+													class="ml-auto"
+													href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
+												>
+													Yenile
+												</Button>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</Accordion.Content>
+						</Accordion.Item>
+					</Accordion.Root>
+				{/if}
+			</div>
+
+			<Card.Root class="h-fit">
 				<Card.Header>
-					<Card.Title class="flex items-center gap-2 text-lg">
-						<User size={20} class="text-muted-foreground" />
-						Kişisel Bilgiler
-					</Card.Title>
+					<Card.Title>Bilgiler</Card.Title>
 				</Card.Header>
 				<Card.Content>
 					{#if editMode}
 						<form
-							id="trainee-form"
 							method="POST"
 							action="?/update"
+							class="space-y-4"
 							use:enhance={() => {
 								saving = true;
 								return async ({ result, update }) => {
+									saving = false;
 									if (result.type === 'success') {
 										editMode = false;
+										toast.success('Öğrenci güncellendi');
+									} else if (result.type === 'failure') {
+										toast.error(getActionErrorMessage(result));
 									}
-									saving = false;
 									await update();
 								};
 							}}
-							class="space-y-4"
 						>
 							<div class="grid gap-2">
-								<Label for="name">Ad Soyad</Label>
-								<Input type="text" name="name" id="name" value={trainee.name} required />
+								<Label for="name">Ad soyad</Label>
+								<Input name="name" id="name" value={trainee.name} required />
 							</div>
-
 							<div class="grid gap-2">
-								<Label for="email">Email</Label>
+								<Label for="phone">Telefon</Label>
+								<Input type="tel" name="phone" id="phone" value={trainee.phone} required />
+							</div>
+							<div class="grid gap-2">
+								<Label for="email">E-posta</Label>
 								<Input
 									type="email"
 									name="email"
 									id="email"
-									value={trainee.email || ''}
+									value={trainee.email ?? ''}
 									pattern={validation.email.pattern}
 									title={validation.email.title}
 								/>
 							</div>
-
 							<div class="grid gap-2">
-								<Label for="phone">Telefon</Label>
-								<Input
-									type="tel"
-									name="phone"
-									id="phone"
-									value={trainee.phone}
-									pattern={validation.phone.pattern}
-									title={validation.phone.title}
-									maxlength={validation.phone.maxlength}
-									required
-								/>
+								<Label for="notes">Notlar</Label>
+								<Textarea name="notes" id="notes" rows={4} value={trainee.notes ?? ''} />
+							</div>
+							<div class="flex justify-end gap-2">
+								<Button type="button" variant="outline" onclick={() => (editMode = false)}>
+									Vazgeç
+								</Button>
+								<Button type="submit" disabled={saving}>
+									{#if saving}<LoaderCircle class="animate-spin" />{/if}
+									Kaydet
+								</Button>
 							</div>
 						</form>
 					{:else}
-						<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<div class="flex items-center gap-3 rounded-lg bg-muted p-3">
-								<Mail size={16} class="text-muted-foreground" />
-								<div>
-									<p class="text-xs text-muted-foreground">Email</p>
-									<a
-										href="mailto:{trainee.email}"
-										class="font-medium transition-colors hover:text-foreground"
-									>
-										{trainee.email}
-									</a>
-								</div>
+						<dl class="space-y-3 text-sm">
+							<div>
+								<dt class="text-muted-foreground">Kayıt tarihi</dt>
+								<dd class="font-medium">{formatDisplayDate(trainee.created_at)}</dd>
 							</div>
-
-							<div class="flex items-center gap-3 rounded-lg bg-muted p-3">
-								<Phone size={16} class="text-muted-foreground" />
-								<div>
-									<p class="text-xs text-muted-foreground">Telefon</p>
-									<a
-										href="tel:+90{trainee.phone}"
-										class="font-medium transition-colors hover:text-foreground"
-									>
-										{trainee.phone}
-									</a>
-								</div>
+							<div>
+								<dt class="text-muted-foreground">Notlar</dt>
+								<dd class="whitespace-pre-wrap">
+									{trainee.notes || 'Not yok'}
+								</dd>
 							</div>
-
-							<div class="flex items-center gap-3 rounded-lg bg-muted p-3 md:col-span-2">
-								<Calendar size={16} class="text-muted-foreground" />
-								<div>
-									<p class="text-xs text-muted-foreground">Kayıt Tarihi</p>
-									<p class="font-medium">{formatDisplayDate(trainee.created_at)}</p>
-								</div>
-							</div>
-						</div>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Notes Section -->
-			<Card.Root>
-				<Card.Header>
-					<Card.Title class="flex items-center gap-2 text-lg">
-						<StickyNote size={20} class="text-muted-foreground" />
-						Notlar
-					</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					{#if editMode}
-						<Textarea
-							name="notes"
-							placeholder="Öğrenci notları..."
-							rows={4}
-							form="trainee-form"
-							value={trainee.notes || ''}
-						/>
-					{:else}
-						<div class="rounded-lg bg-muted p-3">
-							{#if trainee.notes}
-								<p class="text-sm whitespace-pre-wrap">{trainee.notes}</p>
-							{:else}
-								<p class="text-sm text-muted-foreground italic">Henüz not eklenmemiş</p>
-							{/if}
-						</div>
+						</dl>
 					{/if}
 				</Card.Content>
 			</Card.Root>
 		</div>
-	{:else if trainee === undefined}
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-			<CardSkeleton class="lg:col-span-2" rows={3} />
-			<CardSkeleton rows={1} rowClass="h-24" />
-		</div>
-	{:else}
-		<Card.Root>
-			<Card.Content class="py-12 text-center">
-				<User size={48} class="mx-auto mb-4 text-muted-foreground/40" />
-				<h3 class="mb-2 text-lg font-semibold text-muted-foreground">Öğrenci bulunamadı</h3>
-				<p class="text-muted-foreground/70">Bu öğrenci mevcut değil veya kaldırılmış olabilir.</p>
-			</Card.Content>
-		</Card.Root>
-	{/if}
-
-	<!-- All Purchases -->
-	{#if trainee === null}
-		<!-- Trainee not found; skip purchases -->
-	{:else if groupMemberships === undefined}
-		<CardSkeleton rows={3} rowClass="h-12" />
-	{:else if groupMemberships === null}
-		<Card.Root>
-			<Card.Content class="py-12 text-center">
-				<PackageIcon size={48} class="mx-auto mb-4 text-muted-foreground/40" />
-				<h3 class="mb-2 text-lg font-semibold text-muted-foreground">Satın alımlar yüklenemedi</h3>
-				<p class="text-muted-foreground/70">Lütfen sayfayı yenileyip tekrar deneyin.</p>
-			</Card.Content>
-		</Card.Root>
-	{:else if sortedPurchases.length > 0}
-		<Card.Root>
-			<Card.Header>
-				<Card.Title class="flex items-center gap-2 text-lg">
-					<PackageIcon size={20} class="text-muted-foreground" />
-					Satın Alımlar
-				</Card.Title>
-			</Card.Header>
-			<Card.Content>
-				<Accordion.Root type="multiple" class="space-y-2">
-					{#each sortedPurchases as purchase (purchase.id)}
-						{@const remainingCount = getRemainingAppointments(purchase).length}
-						<Accordion.Item
-							value={String(purchase.id)}
-							class="rounded-lg border border-border px-4"
-						>
-							<!-- The kebab sits beside the trigger, not inside it, so it stays a separate control.
-							     bits-ui renders the accordion header as a div[role=heading]; stretch it to fill the row. -->
-							<div
-								class="flex items-center gap-1 [&>[role=heading]]:min-w-0 [&>[role=heading]]:flex-1"
-							>
-								<Accordion.Trigger class="min-w-0 items-center gap-3 hover:no-underline">
-									<div
-										class="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-									>
-										<div class="flex min-w-0 items-center gap-3">
-											<span class="truncate font-semibold">{purchase.package?.name}</span>
-											<Badge variant="secondary">
-												{purchase.package?.package_type === 'private' ? 'Özel' : 'Grup'}
-											</Badge>
-										</div>
-										<div
-											class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground tabular-nums sm:shrink-0"
-										>
-											{#if remainingCount > 0}
-												<span>{remainingCount} ders kaldı</span>
-											{/if}
-											<!-- Each date stays whole; a narrow row breaks only at the range dash -->
-											<span>
-												<span class="whitespace-nowrap">
-													{purchase.purchase_start_date
-														? formatDisplayDate(purchase.purchase_start_date)
-														: formatDisplayDate(purchase.joined_at)}
-												</span>
-												-
-												<span class="whitespace-nowrap">{getMembershipDisplayDate(purchase)}</span>
-											</span>
-										</div>
-									</div>
-								</Accordion.Trigger>
-								{#if hasPurchaseActions}
-									<!-- -mr-2 pulls the icon button into the row padding so the glyph mirrors the left inset -->
-									<div class="-mr-2 flex size-8 shrink-0 items-center justify-center">
-										{#if remainingCount > 0}
-											<ActionMenu actions={getPurchaseActions(purchase)} />
-										{/if}
-									</div>
-								{/if}
-							</div>
-							<Accordion.Content>
-								{#if purchase.appointments && purchase.appointments.length > 0}
-									<div class="rounded-lg border border-border">
-										<div class="border-b border-border bg-muted px-4 py-2">
-											<h5 class="text-sm font-semibold">Randevular</h5>
-										</div>
-										<div class="max-h-60 overflow-y-auto">
-											<div class="divide-y divide-border">
-												{#each purchase.appointments as appointment (appointment.id)}
-													<div class="flex items-center justify-between px-4 py-2 hover:bg-muted">
-														<div class="flex items-center gap-3">
-															<Calendar size={14} class="text-muted-foreground" />
-															<span class="text-sm">
-																{formatDisplayDate(appointment.date)} - {appointment.hour}:00
-															</span>
-														</div>
-														{#if isAppointmentFuture(appointment.date, appointment.hour)}
-															<Badge>Gelecek</Badge>
-														{:else}
-															<Badge variant="outline">Geçmiş</Badge>
-														{/if}
-													</div>
-												{/each}
-											</div>
-										</div>
-									</div>
-								{/if}
-							</Accordion.Content>
-						</Accordion.Item>
-					{/each}
-				</Accordion.Root>
-			</Card.Content>
-		</Card.Root>
-	{:else}
-		<Card.Root>
-			<Card.Content class="py-12 text-center">
-				<PackageIcon size={48} class="mx-auto mb-4 text-muted-foreground/40" />
-				<h3 class="mb-2 text-lg font-semibold text-muted-foreground">
-					Henüz satın alım yapılmamış
-				</h3>
-				<p class="text-muted-foreground/70">Bu öğrenci henüz herhangi bir paket satın almamış.</p>
-			</Card.Content>
-		</Card.Root>
 	{/if}
 </div>
 
-<!-- Archive Confirmation Modal -->
-<Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle">
-	<p class="mb-4">
-		<strong>{trainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz? Arşivlenen
-		öğrenciler listede görünmez hale gelecektir.
+<Modal bind:open={showArchiveModal} title="Öğrenciyi arşivle">
+	<p class="mb-4 text-sm">
+		<strong>{trainee?.name}</strong> arşivlenir ve öğrenci listesinde gizlenir. Yaklaşan dersleri takvimde
+		kalır; gerekiyorsa önce "Kalan dersleri sil" ile kaldırın.
 	</p>
 	<form
 		method="POST"
@@ -492,7 +465,7 @@
 			return async ({ result, update }) => {
 				archiving = false;
 				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla arşivlendi');
+					toast.success('Öğrenci arşivlendi');
 					showArchiveModal = false;
 				} else if (result.type === 'failure') {
 					toast.error(getActionErrorMessage(result));
@@ -503,25 +476,19 @@
 	>
 		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showArchiveModal = false)}>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={archiving}>
-				{#if archiving}
-					<LoaderCircle size={16} class="animate-spin" />
-				{:else}
-					<Archive size={16} />
-				{/if}
+				{#if archiving}<LoaderCircle class="animate-spin" />{:else}<Archive />{/if}
 				Arşivle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
-<!-- Restore Confirmation Modal -->
-<Modal bind:open={showRestoreModal} title="Öğrenciyi Geri Yükle">
-	<p class="mb-4">
-		<strong>{trainee?.name}</strong> adlı öğrenciyi geri yüklemek istediğinizden emin misiniz? Öğrenci
-		aktif öğrenciler listesinde görünür hale gelecektir.
+<Modal bind:open={showRestoreModal} title="Öğrenciyi geri yükle">
+	<p class="mb-4 text-sm">
+		<strong>{trainee?.name}</strong> yeniden öğrenci listesinde görünür.
 	</p>
 	<form
 		method="POST"
@@ -531,7 +498,7 @@
 			return async ({ result, update }) => {
 				archiving = false;
 				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla geri yüklendi');
+					toast.success('Öğrenci geri yüklendi');
 					showRestoreModal = false;
 				} else if (result.type === 'failure') {
 					toast.error(getActionErrorMessage(result));
@@ -542,59 +509,41 @@
 	>
 		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showRestoreModal = false)}>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={archiving}>
-				{#if archiving}
-					<LoaderCircle size={16} class="animate-spin" />
-				{:else}
-					<ArchiveRestore size={16} />
-				{/if}
-				Geri Yükle
+				{#if archiving}<LoaderCircle class="animate-spin" />{:else}<ArchiveRestore />{/if}
+				Geri yükle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
-<!-- Delete Remaining Lessons Modal -->
-<Modal bind:open={showDeleteLessonsModal} title="Kalan Dersleri Sil" onClose={closeDeleteLessons}>
+<Modal bind:open={showDeleteModal} title="Kalan dersleri sil">
 	{#if deleteTarget}
-		{@const remaining = getRemainingAppointments(deleteTarget)}
-		{@const isGroup = deleteTarget.package?.package_type === 'group'}
-		{@const teammates = deleteTarget.shared_trainees ?? []}
+		{@const remaining = deleteTarget.upcoming}
+		{@const teammates = deleteTarget.sharedTrainees}
 		{@const teammateNames = formatNames(teammates.map((t) => t.name))}
-		{@const isShared = !isGroup && teammates.length > 0}
-		{@const first = remaining[0]}
-		{@const last = remaining[remaining.length - 1]}
-		<div class="space-y-4">
-			<Alert.Root variant="destructive">
-				<TriangleAlert size={16} />
-				<Alert.Description>Bu işlem geri alınamaz. Geçmiş dersler etkilenmez.</Alert.Description>
-			</Alert.Root>
-
-			<div class="rounded-lg bg-muted p-4 text-sm">
+		{@const isShared = !deleteTarget.isGroup && teammates.length > 0}
+		<div class="space-y-4 text-sm">
+			<div class="rounded-md bg-muted p-3">
 				<div class="flex items-center justify-between gap-3">
-					<div class="flex min-w-0 items-center gap-2">
-						<span class="truncate font-semibold">{deleteTarget.package?.name}</span>
-						<Badge variant="secondary">{isGroup ? 'Grup' : 'Özel'}</Badge>
-					</div>
-					<span class="shrink-0 font-medium tabular-nums">{remaining.length} ders</span>
+					<span class="font-medium">{deleteTarget.packageName}</span>
+					<span class="font-medium tabular-nums">{remaining.length} ders</span>
 				</div>
-				{#if first && last}
+				{#if remaining.length > 0}
 					<p class="mt-1 text-muted-foreground">
-						{#if remaining.length === 1}
-							{formatDisplayDate(first.date)} · {first.hour}:00
-						{:else}
-							{formatDisplayDate(first.date)} - {formatDisplayDate(last.date)}
+						{formatSlotLabel(remaining[0].date, remaining[0].hour)}
+						{#if remaining.length > 1}
+							– {formatSlotLabel(
+								remaining[remaining.length - 1].date,
+								remaining[remaining.length - 1].hour
+							)}
 						{/if}
 					</p>
 				{/if}
-				{#if deleteTarget.pe_purchases?.successor_id}
-					<p class="mt-2 text-xs text-muted-foreground">
-						Bu satın alımın bir uzatması var; uzatmadaki dersler etkilenmez.
-					</p>
-				{/if}
 			</div>
+			<p class="text-muted-foreground">Geri alınamaz. Geçmiş dersler etkilenmez.</p>
 
 			<form
 				method="POST"
@@ -605,9 +554,8 @@
 					return async ({ result, update }) => {
 						deletingLessons = false;
 						if (result.type === 'success') {
-							const data = result.data as { message?: string } | undefined;
-							toast.success(data?.message || 'Kalan dersler silindi');
-							closeDeleteLessons();
+							toast.success('Kalan dersler silindi');
+							showDeleteModal = false;
 						} else if (result.type === 'failure') {
 							toast.error(getActionErrorMessage(result));
 						}
@@ -615,7 +563,7 @@
 					};
 				}}
 			>
-				<input type="hidden" name="purchaseId" value={deleteTarget.id} />
+				<input type="hidden" name="purchaseIds" value={deleteTarget.purchaseIds.join(',')} />
 				{#if isShared}
 					<input type="hidden" name="scope" value={deleteScope} />
 					<div class="grid gap-2">
@@ -623,48 +571,43 @@
 						<RadioGroup
 							value={deleteScope}
 							onValueChange={(v) => (deleteScope = v as RemainingLessonsScope)}
-							class="space-y-2"
 						>
 							<label class="flex cursor-pointer items-start gap-3">
 								<RadioGroupItem value="trainee" class="mt-0.5" />
-								<div class="flex flex-col">
-									<span class="text-sm">Yalnızca {trainee?.name} çıkarılsın</span>
-									<span class="text-xs text-muted-foreground">
-										Randevular {teammateNames} için takvimde kalır
+								<span>
+									Yalnızca {trainee?.name} çıkarılsın
+									<span class="block text-xs text-muted-foreground">
+										Dersler {teammateNames} için takvimde kalır
 									</span>
-								</div>
+								</span>
 							</label>
 							<label class="flex cursor-pointer items-start gap-3">
 								<RadioGroupItem value="all" class="mt-0.5" />
-								<div class="flex flex-col">
-									<span class="text-sm">Randevular tamamen silinsin</span>
-									<span class="text-xs text-muted-foreground">
+								<span>
+									Dersler tamamen silinsin
+									<span class="block text-xs text-muted-foreground">
 										{teammateNames} de bu dersleri kaybeder; oda ve eğitmen saatleri boşalır
 									</span>
-								</div>
+								</span>
 							</label>
 						</RadioGroup>
 					</div>
-				{:else if isGroup}
-					<p class="text-sm text-muted-foreground">
-						{trainee?.name} kalan grup derslerinden çıkarılır. Grup dersi diğer öğrenciler için devam
-						eder.
+				{:else if deleteTarget.isGroup}
+					<p class="text-muted-foreground">
+						{trainee?.name} kalan grup derslerinden çıkarılır; grup dersi diğerleri için devam eder.
 					</p>
 				{:else}
-					<p class="text-sm text-muted-foreground">
-						Bu derslerde başka öğrenci yok. Randevular takvimden silinir; oda ve eğitmen saatleri
-						boşalır.
+					<p class="text-muted-foreground">
+						Dersler takvimden silinir; oda ve eğitmen saatleri boşalır.
 					</p>
 				{/if}
 				<ModalFooter>
-					<Button type="button" variant="outline" onclick={closeDeleteLessons}>Vazgeç</Button>
+					<Button type="button" variant="outline" onclick={() => (showDeleteModal = false)}>
+						Vazgeç
+					</Button>
 					<Button type="submit" variant="destructive" disabled={deletingLessons}>
-						{#if deletingLessons}
-							<LoaderCircle size={16} class="animate-spin" />
-						{:else}
-							<Trash2 size={16} />
-						{/if}
-						{remaining.length} Dersi Sil
+						{#if deletingLessons}<LoaderCircle class="animate-spin" />{:else}<Trash2 />{/if}
+						{remaining.length} dersi sil
 					</Button>
 				</ModalFooter>
 			</form>

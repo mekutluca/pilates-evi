@@ -90,35 +90,36 @@ type PurchaseWithTrainees = Purchase & {
 	pe_packages?: Package | null;
 };
 
-// Type for trainee purchase memberships with extended fields for UI
-export interface TraineePurchaseMembership {
-	id: string;
-	trainee_id: string | null;
-	pe_purchases: {
-		id: string;
-		created_at: string;
-		successor_id: string | null;
-		reschedule_left: number;
-		lesson_count: number;
-		pe_packages: Package | null;
-	} | null;
-	// Extended UI fields
-	package?: Package | null;
-	joined_at: string;
-	purchase_id?: string;
-	purchase_end_date?: string | null;
-	purchase_start_date?: string | null;
-	appointments?: PurchaseAppointment[];
-	// Other trainees who share this purchase's upcoming appointments (private team lessons).
-	// Empty for group lessons, where each trainee attends under their own purchase.
-	shared_trainees?: SharedTrainee[];
-}
-
-// One appointment of a trainee's purchase, as listed on the trainee detail page.
-export interface PurchaseAppointment {
-	id: number;
+// One lesson of a trainee's kayıt, as listed on the trainee page
+export interface KayitLesson {
+	appointmentId: number;
 	date: string;
 	hour: number;
+	roomId: string;
+	roomName: string;
+	trainerName: string;
+}
+
+// A trainee's kayıt: a purchase and its renewals (the successor chain), shown as one card
+export interface TraineeKayit {
+	// First purchase of the chain
+	id: string;
+	// Latest purchase: renewals extend it, its credits apply now
+	currentPurchaseId: string;
+	purchaseIds: string[];
+	packageName: string;
+	isGroup: boolean;
+	// Lessons sold across the chain
+	lessonCount: number;
+	creditsLeft: number;
+	lessons: KayitLesson[];
+	upcoming: KayitLesson[];
+	// e.g. "Sal, Per · 10:00"
+	pattern: string;
+	roomName: string;
+	trainerName: string;
+	// Other trainees sharing the private lessons
+	sharedTrainees: SharedTrainee[];
 }
 
 // A teammate attached to the same private purchase appointments as the trainee being viewed.
@@ -166,31 +167,15 @@ export interface CreatePackageForm {
 }
 
 // A validated trainee form (TraineeRepository)
+// A trainee as pickers list them
+export type TraineeOption = Pick<Trainee, 'id' | 'name' | 'phone'>;
+
 export type TraineeInput = {
 	name: string;
 	phone: string;
 	email: string | null;
 	notes: string | null;
 };
-
-// Package purchase types for the new assignment flow
-export interface PackagePurchaseForm {
-	package_id: string;
-	room_id: string;
-	trainer_id: string;
-	start_date: string;
-	time_slots: SelectedTimeSlot[];
-	trainee_ids: string[];
-	duration_weeks?: number; // Weeks of lessons when joining existing group timeslots
-	package_count?: number; // Private packages: consecutive periods registered at once
-	selected_group_timeslots?: SelectedGroupTimeslot[]; // For selecting specific timeslots from existing groups
-}
-
-export interface SelectedTimeSlot {
-	day: string;
-	hour: number;
-	date?: string; // The actual date for this slot (YYYY-MM-DD format)
-}
 
 // Type for selecting a specific timeslot from an existing group lesson
 export interface SelectedGroupTimeslot {
@@ -210,10 +195,4 @@ export interface AvailableGroupTimeslot {
 	hour: number;
 	max_capacity: number;
 	current_capacity: number; // Number of trainees currently assigned to this specific timeslot
-}
-
-// Unique trainer entry derived from AvailableGroupTimeslot, used for the Program Seçimi trainer filter
-export interface GroupTrainerOption {
-	id: string;
-	name: string;
 }

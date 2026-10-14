@@ -1,14 +1,13 @@
 import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 import Users from '@lucide/svelte/icons/users';
-import type { Role } from './Role';
+import UsersRound from '@lucide/svelte/icons/users-round';
 import IdCard from '@lucide/svelte/icons/id-card';
-import TableCellsSplit from '@lucide/svelte/icons/table-cells-split';
-import Medal from '@lucide/svelte/icons/medal';
 import Calendar from '@lucide/svelte/icons/calendar';
-import Dumbbell from '@lucide/svelte/icons/dumbbell';
+import Package from '@lucide/svelte/icons/package';
+import DoorOpen from '@lucide/svelte/icons/door-open';
+import ShieldUser from '@lucide/svelte/icons/shield-user';
 import Plus from '@lucide/svelte/icons/plus';
-import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
-import Wrench from '@lucide/svelte/icons/wrench';
+import type { Role } from './Role';
 
 export interface Route {
 	href: string;
@@ -24,76 +23,74 @@ export const allRoutes: Route[] = [
 		label: 'Panel',
 		icon: LayoutDashboard,
 		availableToRoles: ['admin', 'coordinator', 'trainer', 'trainee'],
-		group: 'Genel'
+		group: 'Stüdyo'
 	},
 	{
 		href: '/schedule',
-		label: 'Haftalık Program',
+		label: 'Takvim',
 		icon: Calendar,
 		availableToRoles: ['admin', 'coordinator'],
-		group: 'Genel'
+		group: 'Stüdyo'
 	},
 	{
 		href: '/my-schedule',
-		label: 'Haftalık Programım',
+		label: 'Takvimim',
 		icon: Calendar,
 		availableToRoles: ['trainer'],
-		group: 'Genel'
-	},
-	{
-		href: '/new-assignment',
-		label: 'Yeni Kayıt',
-		icon: Plus,
-		availableToRoles: ['admin', 'coordinator'],
-		group: 'Genel'
-	},
-	{
-		href: '/transfer',
-		label: 'Randevu Değiştir',
-		icon: ArrowLeftRight,
-		availableToRoles: ['admin', 'coordinator'],
-		group: 'Genel'
-	},
-	{
-		href: '/trainers',
-		label: 'Eğitmenler',
-		icon: Users,
-		availableToRoles: ['admin', 'coordinator'],
-		group: 'Yönetim'
-	},
-	{
-		href: '/rooms',
-		label: 'Odalar',
-		icon: TableCellsSplit,
-		availableToRoles: ['admin', 'coordinator'],
-		group: 'Yönetim'
+		group: 'Stüdyo'
 	},
 	{
 		href: '/trainees',
 		label: 'Öğrenciler',
-		icon: Medal,
+		icon: Users,
 		availableToRoles: ['admin', 'coordinator'],
-		group: 'Yönetim'
+		group: 'Stüdyo'
+	},
+	{
+		href: '/group-lessons',
+		label: 'Grup Dersleri',
+		icon: UsersRound,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Stüdyo'
 	},
 	{
 		href: '/packages',
-		label: 'Dersler',
-		icon: Dumbbell,
-		availableToRoles: ['admin', 'coordinator'],
+		label: 'Paketler',
+		icon: Package,
+		availableToRoles: ['admin'],
 		group: 'Yönetim'
 	},
 	{
-		href: '/admin/users',
-		label: 'Yetkili Kullanıcılar',
+		href: '/trainers',
+		label: 'Eğitmenler',
 		icon: IdCard,
 		availableToRoles: ['admin'],
 		group: 'Yönetim'
 	},
 	{
-		href: '/operations',
-		label: 'Operasyonlar',
-		icon: Wrench,
-		availableToRoles: ['admin', 'coordinator'],
+		href: '/rooms',
+		label: 'Odalar',
+		icon: DoorOpen,
+		availableToRoles: ['admin'],
 		group: 'Yönetim'
+	},
+	{
+		href: '/admin/users',
+		label: 'Personel',
+		icon: ShieldUser,
+		availableToRoles: ['admin'],
+		group: 'Yönetim'
+	}
+];
+
+// Pages reached from inside the app rather than the nav; listed so the hooks guard
+// their subtree by role like nav routes.
+export const actionRoutes: Route[] = [
+	{
+		href: '/new-assignment',
+		label: 'Yeni Kayıt',
+		icon: Plus,
+		availableToRoles: ['admin', 'coordinator'],
+		group: 'Stüdyo'
 	}
 ];

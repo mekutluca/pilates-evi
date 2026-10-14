@@ -165,6 +165,29 @@ export function formatTurkishDate(dateStr: string): string {
 	return `${date.getDate()} ${TURKISH_MONTHS[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
 }
 
+const TURKISH_MONTHS_SHORT = [
+	'Oca',
+	'Şub',
+	'Mar',
+	'Nis',
+	'May',
+	'Haz',
+	'Tem',
+	'Ağu',
+	'Eyl',
+	'Eki',
+	'Kas',
+	'Ara'
+];
+
+/**
+ * A lesson slot as listed in previews and panels, e.g. "Salı 14 Eki · 10:00".
+ */
+export function formatSlotLabel(dateStr: string, hour: number): string {
+	const date = parseLocalDate(dateStr);
+	return `${TURKISH_DAYS[date.getDay()]} ${date.getDate()} ${TURKISH_MONTHS_SHORT[date.getMonth()]} · ${String(hour).padStart(2, '0')}:00`;
+}
+
 /**
  * Formats a date and hour as short Turkish date-time string
  * @param dateStr - The date string in YYYY-MM-DD format
@@ -224,20 +247,4 @@ export function addWeeksToDate(dateString: string, weeks: number): string {
 	const date = parseLocalDate(dateString);
 	date.setDate(date.getDate() + weeks * 7);
 	return formatDateForDB(date);
-}
-
-/**
- * Calculates end date based on start date and duration in weeks
- * @param startDate - The start date string
- * @param weeksDuration - Duration in weeks
- * @returns Formatted end date string or 'Belirsiz' if no duration
- */
-export function calculatePackageEndDate(
-	startDate: string | null,
-	weeksDuration: number | null
-): string {
-	if (!startDate || !weeksDuration) return 'Belirsiz';
-
-	const endDateString = addWeeksToDate(startDate, weeksDuration);
-	return formatDisplayDate(endDateString);
 }

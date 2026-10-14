@@ -27,12 +27,6 @@ export interface DayTrainee {
 	phone: string;
 }
 
-// A trainee of a closed group slot and the appointment they move into
-export interface MovedTrainee {
-	trainee: DayTrainee;
-	newAppointmentId: number;
-}
-
 // An appointment on a day being cancelled, flattened for the cancellation flow.
 export interface DayAppointment {
 	id: number;
@@ -52,23 +46,6 @@ export interface ShiftOutcome {
 	notifications: ScheduleChange[];
 	conflict?: DayCancellationConflict;
 	error?: string;
-}
-
-// An active group lesson as listed on the end-group-lesson operation page.
-export interface EndableGroupLesson {
-	id: string;
-	packageName: string;
-	roomName: string;
-	trainerName: string;
-	startDate: string | null;
-	timeslots: Array<{ day: string; hours: number[] }>;
-	// Date of the lesson's last appointment that has enrolled trainees.
-	lastEnrolledDate: string | null;
-	// Distinct trainees enrolled in the lesson's appointments from today on.
-	traineeCount: number;
-	// Earliest selectable end date: the day after the last enrolled
-	// appointment, but never earlier than tomorrow.
-	minEndDate: string;
 }
 
 export interface DayCancellationResult {
@@ -91,4 +68,28 @@ export interface CloseDayParams {
 	date: string;
 	appointmentIds?: number[];
 	strategy?: DayCancellationStrategy;
+}
+
+// What closing a day will do to one of its appointments (the preview before confirming)
+export type CloseDayOutcome = 'shift' | 'remove_empty' | 'conflict' | 'error';
+
+export interface CloseDayPreviewRow {
+	appointmentId: number;
+	hour: number;
+	roomName: string;
+	trainerName: string;
+	packageName: string;
+	traineeNames: string[];
+	outcome: CloseDayOutcome;
+	// Where the lesson goes (private: this appointment's new slot; group: the earliest
+	// trainee's next lesson)
+	newDate?: string;
+	newHour?: number;
+	note?: string;
+}
+
+export interface CloseDayPreview {
+	rows: CloseDayPreviewRow[];
+	// Clients who would be messaged
+	recipientCount: number;
 }

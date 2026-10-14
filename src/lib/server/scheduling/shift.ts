@@ -79,7 +79,7 @@ function planSlotShift({ series, timeSlots }: SlotShiftContext, slots: number): 
 }
 
 /** A move that failed before anything was written. */
-export function moveFailure(error: string): MoveOutcome {
+function moveFailure(error: string): MoveOutcome {
 	return { error, conflicts: [], moved: [] };
 }
 
@@ -124,12 +124,14 @@ export async function applyEnrollmentMoves(
 
 /**
  * Applies planned appointment moves after a batched conflict check. Conflicts come back
- * without anything written; otherwise the moves are applied in one transaction.
+ * without anything written; otherwise the moves are applied in one transaction. With
+ * `dryRun` the check runs and nothing is written (previews use the same path).
  */
 export async function applyPlannedMoves(
 	supabase: SupabaseClientType,
 	moved: MovedAppointment[],
-	resources?: MoveResources
+	resources?: MoveResources,
+	dryRun = false
 ): Promise<MoveOutcome> {
 	if (moved.length === 0) {
 		return moveFailure('Taşınacak randevu bulunamadı');
@@ -142,6 +144,7 @@ export async function applyPlannedMoves(
 
 	const conflicts = await new ConflictService(supabase).findMoveConflicts(planned);
 	if (conflicts.length > 0) return { error: null, conflicts, moved: [] };
+	if (dryRun) return { error: null, conflicts: [], moved };
 
 	const moveError = await applyAppointmentMoves(
 		supabase,
@@ -168,7 +171,8 @@ export async function applyPlannedMoves(
 export async function shiftSeriesBySlot(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
-	slots: number
+	slots: number,
+	dryRun = false
 ): Promise<MoveOutcome> {
 	if (slots <= 0) {
 		return moveFailure('Kaydırma sayısı pozitif olmalı');
@@ -176,7 +180,7 @@ export async function shiftSeriesBySlot(
 	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
 	if (typeof context === 'string') return moveFailure(context);
 
-	return applyPlannedMoves(supabase, planSlotShift(context, slots));
+	return applyPlannedMoves(supabase, planSlotShift(context, slots), undefined, dryRun);
 }
 
 /**
@@ -235,7 +239,7 @@ async function getTraineeRecordsForChain(
  * inside that group. The slot-shift action and UI preview both rely on this to walk the
  * trainee through their actual schedule rather than the group's full canonical pattern.
  */
-export async function buildTraineeEligibleByGroup(
+async function buildTraineeEligibleByGroup(
 	supabase: SupabaseClientType,
 	records: TraineeGroupSlot[],
 	fromDate: string
@@ -457,9 +461,9 @@ export async function checkMoveCapacity(
 }
 
 /**
- * Plans a single trainee's slot shift (see shiftTraineeRecordsBySlot) without writing:
- * resolves each record's target appointment and validates the targets.
- * positions in the trainee's *own* slot pattern within each group lesson they attend.
+ * Plans moving a single trainee's records, from `fromAppointmentId` on, `slots` positions
+ * forward in the trainee's *own* slot pattern within each group lesson they attend,
+ * without writing: resolves each record's target appointment and validates the targets.
  *
  * The trainee's own (day, hour) pattern is the right ground truth here — a trainee in a
  * Mon–Sun-at-13:00 group lesson who only attends Wed/Thu must shift Wed→Thu→next-Wed,
@@ -537,23 +541,33 @@ export async function planTraineeSlotShift(
 }
 
 /**
- * Shifts a single trainee's records, starting at `fromAppointmentId`, forward by `slots`
- * positions in the trainee's own pattern, in one transaction.
+ * A trainee's group-lesson records from `fromAppointmentId` on, the input of a weekly
+ * trainee shift (also used to preview it). Returns an error message when the trainee
+ * isn't enrolled there or the lesson isn't a group lesson.
  */
-export async function shiftTraineeRecordsBySlot(
+export async function listTraineeShiftCandidates(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
-	traineeId: string,
-	slots: number
-): Promise<TraineeShiftResult> {
-	const plan = await planTraineeSlotShift(supabase, fromAppointmentId, traineeId, slots);
-	if (plan.error) return plan;
-
-	const moveError = await applyEnrollmentMoves(supabase, plan.shifted);
-	if (moveError) {
-		return { error: 'Öğrenci kaydırma sırasında hata oluştu: ' + moveError, shifted: [] };
+	traineeId: string
+): Promise<WeeklyShiftCandidate[] | string> {
+	const { data: currentRecord } = await supabase
+		.from('pe_appointment_trainees')
+		.select('purchase_id, pe_appointments(date, hour, group_lesson_id)')
+		.eq('appointment_id', fromAppointmentId)
+		.eq('trainee_id', traineeId)
+		.maybeSingle();
+	if (!currentRecord?.pe_appointments) return 'Öğrenci kaydı bulunamadı';
+	if (!currentRecord.pe_appointments.group_lesson_id) {
+		return 'Bu işlem sadece grup dersleri için geçerlidir';
 	}
-	return plan;
+
+	const from = currentRecord.pe_appointments;
+	return (await getTraineeRecordsForChain(supabase, traineeId, currentRecord.purchase_id)).flatMap(
+		(record) =>
+			record.groupLessonId && compareSlots(record, from) >= 0
+				? [{ ...record, groupLessonId: record.groupLessonId }]
+				: []
+	);
 }
 
 /**
@@ -572,28 +586,8 @@ export async function shiftTraineeRecordsByWeeks(
 		return { error: WEEK_SHIFT_ERROR, shifted: [], skippedCount: 0 };
 	}
 
-	const { data: currentRecord } = await supabase
-		.from('pe_appointment_trainees')
-		.select('purchase_id, pe_appointments(date, hour, group_lesson_id)')
-		.eq('appointment_id', fromAppointmentId)
-		.eq('trainee_id', traineeId)
-		.maybeSingle();
-	if (!currentRecord?.pe_appointments) {
-		return { error: 'Öğrenci kaydı bulunamadı', shifted: [], skippedCount: 0 };
-	}
-	if (!currentRecord.pe_appointments.group_lesson_id) {
-		return { error: 'Bu işlem sadece grup dersleri için geçerlidir', shifted: [], skippedCount: 0 };
-	}
-
-	const from = currentRecord.pe_appointments;
-	const candidates: WeeklyShiftCandidate[] = (
-		await getTraineeRecordsForChain(supabase, traineeId, currentRecord.purchase_id)
-	).flatMap((record) =>
-		record.groupLessonId &&
-		(record.date > from.date || (record.date === from.date && record.hour >= from.hour))
-			? [{ ...record, groupLessonId: record.groupLessonId }]
-			: []
-	);
+	const candidates = await listTraineeShiftCandidates(supabase, fromAppointmentId, traineeId);
+	if (typeof candidates === 'string') return { error: candidates, shifted: [], skippedCount: 0 };
 
 	const { shiftMap, skippedCount } = await resolveWeeklyShiftTargets(supabase, candidates, weeks);
 	if (candidates.length > 0 && shiftMap.length === 0) {

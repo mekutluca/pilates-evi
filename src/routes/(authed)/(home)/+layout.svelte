@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Menu from '@lucide/svelte/icons/menu';
-	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Logout from '@lucide/svelte/icons/log-out';
 	import ActionMenu from '$lib/components/action-menu.svelte';
@@ -8,7 +8,6 @@
 	import { setActionDrawerContext } from '$lib/stores/action-drawer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { onMount } from 'svelte';
 	import { goto, invalidate, beforeNavigate, afterNavigate } from '$app/navigation';
@@ -21,6 +20,9 @@
 
 	let { children, data } = $props();
 	let { supabase, session, userRole } = $derived(data);
+	let userName = $derived(
+		(session?.user.user_metadata.fullName as string | undefined) || session?.user.email || 'Hesabım'
+	);
 	let loading = $state(false);
 	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -94,7 +96,7 @@
 			if (loadingTimer) clearTimeout(loadingTimer);
 			loadingTimer = setTimeout(() => {
 				loading = true;
-			}, 2000);
+			}, 400);
 		});
 
 		afterNavigate((navigation) => {
@@ -165,11 +167,13 @@
 {/snippet}
 
 <div class="flex h-screen flex-col">
-	<!-- Loading Overlay -->
+	<!-- Slow navigation indicator: a thin bar, the page stays usable -->
 	{#if loading}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
-			<Spinner class="size-8" />
-		</div>
+		<div
+			class="fixed inset-x-0 top-0 z-50 h-0.5 animate-pulse bg-primary"
+			role="progressbar"
+			aria-label="Sayfa yükleniyor"
+		></div>
 	{/if}
 
 	<!-- Top navbar -->
@@ -178,6 +182,7 @@
 			variant="ghost"
 			size="icon"
 			class="lg:hidden"
+			aria-label="Menüyü aç"
 			onclick={() => (mobileSidebarOpen = true)}
 		>
 			<Menu />
@@ -185,7 +190,12 @@
 		<div class="flex-1">
 			<Button variant="ghost" href="/" class="text-xl font-semibold">Pilates Evi</Button>
 		</div>
-		<ActionMenu actions={userMenuActions} trigger={Ellipsis} onOpenDrawer={handleOpenDrawer} />
+		<ActionMenu
+			actions={userMenuActions}
+			trigger={CircleUser}
+			label={userName}
+			onOpenDrawer={handleOpenDrawer}
+		/>
 	</header>
 
 	<!-- Main content area with sidebar and scrollable content -->

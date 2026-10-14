@@ -8,6 +8,8 @@ import { deleteAppointments } from '$lib/server/scheduling/cancellation';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 
+export const NO_REMAINING_LESSONS = 'Silinecek gelecek ders bulunamadı';
+
 /**
  * Deletes a trainee's upcoming lessons under one purchase. Past lessons are never touched.
  *
@@ -68,7 +70,7 @@ export async function deleteRemainingLessons(
 		}));
 
 	if (remaining.length === 0) {
-		return { deletedCount: 0, error: 'Silinecek gelecek ders bulunamadı' };
+		return { deletedCount: 0, error: NO_REMAINING_LESSONS };
 	}
 
 	const groupRecords = remaining.filter((r) => r.isGroup);

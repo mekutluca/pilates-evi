@@ -1,5 +1,6 @@
 import { JS_DAY_TO_NAME, type DayOfWeek, type SlotRef, type WeeklySlot } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
+import type { SelectedGroupTimeslot } from '$lib/types';
 import { formatDateForDB } from './date-utils';
 
 // Monday-first ordering used for recurring weekly time-slot patterns.
@@ -12,6 +13,39 @@ export const DAY_ORDER: Record<DayOfWeek, number> = {
 	saturday: 6,
 	sunday: 7
 };
+
+const SHORT_DAY_NAMES: Record<DayOfWeek, string> = {
+	monday: 'Pzt',
+	tuesday: 'Sal',
+	wednesday: 'Çar',
+	thursday: 'Per',
+	friday: 'Cum',
+	saturday: 'Cmt',
+	sunday: 'Paz'
+};
+
+/**
+ * A weekly pattern for people: "Sal, Per · 10:00" when every day shares the hour,
+ * otherwise "Sal 10:00, Per 18:00".
+ */
+export function formatWeeklyPattern(slots: WeeklySlot[]): string {
+	const sorted = sortTimeSlots(slots);
+	const hour = (h: number) => `${String(h).padStart(2, '0')}:00`;
+	if (sorted.length > 0 && sorted.every((s) => s.hour === sorted[0].hour)) {
+		return `${sorted.map((s) => SHORT_DAY_NAMES[s.day]).join(', ')} · ${hour(sorted[0].hour)}`;
+	}
+	return sorted.map((s) => `${SHORT_DAY_NAMES[s.day]} ${hour(s.hour)}`).join(', ');
+}
+
+/** A weekly slot as a key and in forms: "monday-10". */
+export function weeklySlotKey(slot: { day: string; hour: number }): string {
+	return `${slot.day}-${slot.hour}`;
+}
+
+/** A group lesson's weekly slot as a key and in forms: "<groupLessonId>|monday|10". */
+export function groupSlotKey(slot: SelectedGroupTimeslot): string {
+	return `${slot.group_lesson_id}|${slot.day}|${slot.hour}`;
+}
 
 /** Chronological order of concrete slots (date, then hour). */
 export function compareSlots(a: SlotRef, b: SlotRef): number {

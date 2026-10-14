@@ -28,8 +28,9 @@ export const validation = {
 		title: 'Geçerli bir e-posta adresi girin'
 	},
 	phone: {
-		pattern: '[0-9]{10}',
-		maxlength: 10,
-		title: '10 haneli telefon numarası girin (örn: 5551234567)'
+		// 10 digits, spaces allowed ("555 123 45 67"); the server normalizes
+		pattern: '\\s*[0-9](\\s*[0-9]){9}\\s*',
+		maxlength: 16,
+		title: '10 haneli telefon numarası girin (ör. 555 123 45 67)'
 	}
 } as const;

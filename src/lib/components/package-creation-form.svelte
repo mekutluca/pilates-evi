@@ -80,7 +80,7 @@
 <form class="space-y-4" onsubmit={handleSubmit}>
 	<!-- Package Name -->
 	<div class="grid gap-2">
-		<Label for="package-name" class="font-semibold">Ders Adı *</Label>
+		<Label for="package-name" class="font-semibold">Paket adı *</Label>
 		<Input
 			id="package-name"
 			type="text"
@@ -96,7 +96,7 @@
 		<Label for="package-description" class="font-semibold">Açıklama</Label>
 		<Textarea
 			id="package-description"
-			placeholder="Ders detayları..."
+			placeholder="Paket açıklaması (isteğe bağlı)"
 			rows={3}
 			bind:value={description}
 		/>
@@ -107,7 +107,7 @@
 		<!-- Weeks Duration -->
 		<div class="grid gap-2">
 			<Label for="weeks-duration" class="font-medium">
-				Ders Süresi (Hafta) {#if package_type === 'private'}*{/if}
+				Süre (hafta) {#if package_type === 'private'}*{/if}
 			</Label>
 			{#if package_type === 'private'}
 				<Input
@@ -129,7 +129,7 @@
 
 		<!-- Max Capacity -->
 		<div class="grid gap-2">
-			<Label for="max-capacity" class="font-medium">Maksimum Kapasite *</Label>
+			<Label for="max-capacity" class="font-medium">En fazla kişi *</Label>
 			<Input
 				id="max-capacity"
 				type="number"
@@ -145,7 +145,7 @@
 	<!-- Basic Configuration - Row 2: Min/Max Lessons -->
 	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 		<div class="grid gap-2">
-			<Label for="min-lessons-per-week" class="font-medium">Min Haftalık Ders *</Label>
+			<Label for="min-lessons-per-week" class="font-medium">Haftada en az ders *</Label>
 			<Input
 				id="min-lessons-per-week"
 				type="number"
@@ -158,7 +158,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="max-lessons-per-week" class="font-medium">Max Haftalık Ders *</Label>
+			<Label for="max-lessons-per-week" class="font-medium">Haftada en fazla ders *</Label>
 			<Input
 				id="max-lessons-per-week"
 				type="number"
@@ -180,7 +180,7 @@
 					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
 						<Medal class="size-4 text-warning" />
 					</div>
-					<h3 class="text-sm font-semibold">Öğrenci Yönetimi</h3>
+					<h3 class="text-sm font-semibold">Paket türü</h3>
 				</div>
 				<Separator class="my-3" />
 
@@ -191,7 +191,7 @@
 						<RadioGroupItem value="private" />
 						<div class="flex-1">
 							<div class="text-sm font-medium">Özel ders</div>
-							<div class="text-xs text-muted-foreground">Bireysel veya özel grup dersi</div>
+							<div class="text-xs text-muted-foreground">Bireysel veya sabit küçük grup</div>
 						</div>
 					</label>
 
@@ -201,7 +201,7 @@
 						<RadioGroupItem value="group" />
 						<div class="flex-1">
 							<div class="text-sm font-medium">Grup dersi</div>
-							<div class="text-xs text-muted-foreground">Herkese açık grup dersi</div>
+							<div class="text-xs text-muted-foreground">Haftalık grup dersine katılım</div>
 						</div>
 					</label>
 				</RadioGroup>
@@ -215,7 +215,7 @@
 					<div class="flex h-8 w-8 items-center justify-center rounded-full bg-warning/15">
 						<CalendarSync class="size-4 text-warning" />
 					</div>
-					<h3 class="text-sm font-semibold">Randevu Değiştirme Ayarları</h3>
+					<h3 class="text-sm font-semibold">Randevu değişikliği</h3>
 				</div>
 				<Separator class="my-3" />
 
@@ -225,14 +225,14 @@
 					>
 						<Checkbox bind:checked={reschedulable} />
 						<div class="flex-1">
-							<div class="text-sm font-medium">Randevu Değiştirme İzni</div>
-							<div class="text-xs text-muted-foreground">Derslerin zamanı değiştirilebilir</div>
+							<div class="text-sm font-medium">Randevu değişikliğine izin ver</div>
+							<div class="text-xs text-muted-foreground">Öğrenci talebiyle randevu taşınabilir</div>
 						</div>
 					</label>
 
 					{#if showRescheduleLimit}
 						<div class="rounded-lg bg-muted p-2">
-							<div class="mb-2 text-xs text-muted-foreground">Değiştirme Limiti</div>
+							<div class="mb-2 text-xs text-muted-foreground">Değişiklik hakkı</div>
 							<div class="flex items-center gap-2">
 								<Input
 									type="number"
@@ -253,7 +253,7 @@
 
 	<!-- Form Actions -->
 	<ModalFooter>
-		<Button type="button" variant="ghost" onclick={onCancel}>İptal</Button>
-		<Button type="submit" disabled={!canProceedLocal}>Dersi Oluştur</Button>
+		<Button type="button" variant="ghost" onclick={onCancel}>Vazgeç</Button>
+		<Button type="submit" disabled={!canProceedLocal}>Paketi oluştur</Button>
 	</ModalFooter>
 </form>

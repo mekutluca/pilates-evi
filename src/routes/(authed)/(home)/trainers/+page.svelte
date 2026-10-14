@@ -27,6 +27,11 @@
 
 	let { data } = $props();
 	let { trainers: initialTrainers, userRole } = $derived(data);
+	const subtitle = $derived.by(() => {
+		const active = (initialTrainers || []).filter((x) => x.is_active).length;
+		const archived = (initialTrainers || []).length - active;
+		return `${active} aktif eğitmen` + (archived > 0 ? `, ${archived} arşivde` : '');
+	});
 
 	let showArchived = $state(false);
 	let hasArchivedTrainers = $derived((initialTrainers || []).some((t) => !t.is_active));
@@ -181,12 +186,12 @@
 </svelte:head>
 
 <div class="p-6">
-	<PageHeader title="Eğitmenler" subtitle="Bu sayfada eğitmenleri yönetin" />
+	<PageHeader title="Eğitmenler" {subtitle} />
 
 	<!-- Search and Add Trainer Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara..." />
+			<SearchInput bind:value={searchTerm} placeholder="Eğitmen ara" />
 			{#if hasArchivedTrainers}
 				<label class="mt-2 flex cursor-pointer items-center gap-2">
 					<Switch bind:checked={showArchived} class="scale-75" />
@@ -254,7 +259,7 @@
 				type="tel"
 				name="phone"
 				bind:value={phone}
-				placeholder="5xx xxx xx xx"
+				placeholder="555 123 45 67"
 				pattern={validation.phone.pattern}
 				title={validation.phone.title}
 				maxlength={validation.phone.maxlength}
@@ -298,7 +303,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -349,7 +354,7 @@
 				type="tel"
 				name="phone"
 				bind:value={phone}
-				placeholder="5xx xxx xx xx"
+				placeholder="555 123 45 67"
 				pattern={validation.phone.pattern}
 				title={validation.phone.title}
 				maxlength={validation.phone.maxlength}
@@ -371,7 +376,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -379,7 +384,7 @@
 				{:else}
 					<Edit size={16} />
 				{/if}
-				Güncelle
+				Kaydet
 			</Button>
 		</ModalFooter>
 	</form>
@@ -423,7 +428,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}
@@ -475,7 +480,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -539,7 +544,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button
 				type="submit"

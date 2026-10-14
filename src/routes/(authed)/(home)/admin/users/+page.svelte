@@ -96,7 +96,7 @@
 		},
 		{
 			key: 'email',
-			title: 'Email',
+			title: 'E-posta',
 			render: (user: User) =>
 				`<div class="text-sm text-muted-foreground">${escapeHtml(user.email)}</div>`
 		},
@@ -163,20 +163,19 @@
 </script>
 
 <svelte:head>
-	<title>Yetkili Kullanıcılar · Pilates Evi</title>
+	<title>Personel · Pilates Evi</title>
 </svelte:head>
 
 <div class="p-6">
 	<PageHeader
-		back={{ href: '/', label: 'Panel' }}
-		title="Yetkili Kullanıcılar"
-		subtitle="Bu sayfada adminleri ve koordinatörleri yönetin"
+		title="Personel"
+		subtitle={`${users.length} kişi · yöneticiler ve koordinatörler; eğitmen hesapları Eğitmenler sayfasında`}
 	/>
 
 	<!-- Search and Add User Section -->
 	<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 		<div class="w-full lg:max-w-xs">
-			<SearchInput bind:value={searchTerm} placeholder="Kullanıcı ara..." />
+			<SearchInput bind:value={searchTerm} placeholder="Personel ara" />
 		</div>
 
 		<Button
@@ -230,7 +229,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="add-user-email">Email</Label>
+			<Label for="add-user-email">E-posta</Label>
 			<Input
 				id="add-user-email"
 				type="email"
@@ -271,7 +270,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -322,7 +321,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="edit-user-email">Email</Label>
+			<Label for="edit-user-email">E-posta</Label>
 			<Input id="edit-user-email" type="email" bind:value={email} disabled />
 			<input type="hidden" name="email" value={email} />
 		</div>
@@ -345,7 +344,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -353,7 +352,7 @@
 				{:else}
 					<Edit size={16} />
 				{/if}
-				Güncelle
+				Kaydet
 			</Button>
 		</ModalFooter>
 	</form>
@@ -385,7 +384,7 @@
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
 		<div class="grid gap-2">
-			<Label>Email</Label>
+			<Label>E-posta</Label>
 			<div
 				class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
 			>
@@ -414,7 +413,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" disabled={formLoading}>
 				{#if formLoading}
@@ -466,7 +465,7 @@
 					resetForm();
 				}}
 			>
-				İptal
+				Vazgeç
 			</Button>
 			<Button type="submit" variant="destructive" disabled={formLoading}>
 				{#if formLoading}

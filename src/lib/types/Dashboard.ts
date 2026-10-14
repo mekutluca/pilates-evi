@@ -1,61 +1,56 @@
-import type { Package, Trainee } from './index';
-import type { AppointmentWithDetails, SlotRef } from './Schedule';
+// Panel (dashboard) data
 
-// ===============================================
-// DASHBOARD STATISTICS TYPES
-// ===============================================
-
-// Trainee data from database query
-export interface TraineeFromQuery {
-	id: string;
-	name: string;
-	phone: string;
-	email: string | null;
-	is_active: boolean;
+// A lesson as the panel lists it
+export interface PanelLesson {
+	appointmentId: number;
+	date: string;
+	hour: number;
+	packageName: string;
+	roomId: string;
+	roomName: string;
+	trainerName: string;
+	traineeNames: string[];
+	isGroup: boolean;
 }
 
-// Purchase with related trainee and package information
-export interface PurchaseWithDetails {
-	id: string;
-	created_at: string;
-	trainee: TraineeFromQuery | null;
-	package: Package | null;
+// A trainee's kayıt whose last lesson is within the next two weeks (or was last week)
+// and that hasn't been renewed
+export interface EndingKayit {
+	traineeId: string;
+	traineeName: string;
+	purchaseId: string;
+	packageName: string;
+	// Lessons still ahead
+	remaining: number;
+	lastDate: string;
 }
 
-// Trainee approaching their last lessons with session details
-// A trainee whose current (not extended) purchase is about to run out
-export interface TraineeWithLastLesson {
-	trainee: Trainee;
-	lesson_count: number;
-	remaining_lessons: number;
-	package: Package | null;
-	// Date of their last upcoming lesson; null when none is left
-	last_lesson_date: string | null;
+// A kayıt opened this week (renewals are only counted)
+export interface NewKayit {
+	purchaseId: string;
+	createdAt: string;
+	packageName: string;
+	isGroup: boolean;
+	trainees: Array<{ id: string; name: string }>;
 }
 
-// Overall dashboard statistics for the current week (admin/coordinator/trainee view)
-export interface DashboardStats {
-	kind: 'org';
-	appointmentsCount: number;
-	uniqueTraineesCount: number;
-	purchasesThisWeek: PurchaseWithDetails[];
-	traineesWithLastLessons: TraineeWithLastLesson[];
+// Coordinator/admin panel
+export interface StudioPanel {
+	kind: 'studio';
+	today: PanelLesson[];
+	weekLessonCount: number;
+	weekTraineeCount: number;
+	ending: EndingKayit[];
+	newKayitlar: NewKayit[];
+	renewalCount: number;
 }
 
-// Dashboard statistics scoped to a single trainer's own lessons this week
-export interface TrainerDashboardStats {
+// Trainer panel: their own lessons
+export interface TrainerPanel {
 	kind: 'trainer';
-	weekAppointmentsCount: number;
-	todayAppointmentsCount: number;
-	uniqueTraineesCount: number;
-	weeklyAppointments: AppointmentWithDetails[];
+	today: PanelLesson[];
+	week: PanelLesson[];
+	weekTraineeCount: number;
 }
 
-export type AnyDashboardStats = DashboardStats | TrainerDashboardStats;
-
-// An upcoming enrollment row used to count a trainee's lessons left on a purchase
-export interface UpcomingEnrollmentRow {
-	trainee_id: string;
-	purchase_id: string;
-	pe_appointments: SlotRef;
-}
+export type Panel = StudioPanel | TrainerPanel;

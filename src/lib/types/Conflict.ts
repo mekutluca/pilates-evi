@@ -1,13 +1,5 @@
 // Types for room/trainer booking conflict checks
-import type { SlotRef } from '$lib/types/Schedule';
-
-// A room/trainer pair over a date range (availability previews and API queries)
-export interface SlotRange {
-	roomId: string;
-	trainerId: string;
-	startDate: string;
-	endDate: string;
-}
+import type { DayOfWeek, SlotRef } from '$lib/types/Schedule';
 
 // Which of an appointment's resources are taken at a slot
 export interface ResourceConflict {
@@ -46,23 +38,17 @@ export interface PlannedMove extends SlotRef {
 	trainerId: string;
 }
 
-// Minimal appointment shape returned to clients previewing availability
-export interface OccupiedSlot {
-	id: number;
-	room_id: string;
-	trainer_id: string;
-	date: string;
-	hour: number;
-}
-
-// A group session that is already full
-export interface CapacityIssue extends SlotRef {
-	currentCapacity: number;
-	maxCapacity: number;
-}
-
 // Result of validating planned enrollments against existing appointments
 export interface EnrollmentTargetCheck {
 	duplicates: Array<{ appointmentId: number; traineeId: string }>;
 	overCapacity: Array<{ appointmentId: number; current: number; max: number }>;
+}
+
+// A weekly slot whose room or trainer is taken on `count` of the dates in a range
+export interface BusyWeeklySlot {
+	day: DayOfWeek;
+	hour: number;
+	count: number;
+	// Taken on the range's first occurrence of the slot
+	first: boolean;
 }

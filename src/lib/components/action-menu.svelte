@@ -6,7 +6,13 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 
-	let { actions, trigger = MoreVertical, triggerClass, onOpenDrawer }: ActionMenuProps = $props();
+	let {
+		actions,
+		trigger = MoreVertical,
+		label,
+		triggerClass,
+		onOpenDrawer
+	}: ActionMenuProps = $props();
 
 	const drawerContext = getActionDrawerContext();
 
@@ -32,10 +38,19 @@
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
-				<Button variant="ghost" size="icon-sm" class={triggerClass} {...props}>
+				<Button
+					variant="ghost"
+					size={label ? 'sm' : 'icon-sm'}
+					class={triggerClass}
+					aria-label={label ?? 'İşlemler'}
+					{...props}
+				>
 					{#if trigger}
 						{@const TriggerComponent = trigger}
 						<TriggerComponent size={14} />
+					{/if}
+					{#if label}
+						<span>{label}</span>
 					{/if}
 				</Button>
 			{/snippet}
@@ -57,7 +72,13 @@
 
 <!-- Mobile: opens the global bottom sheet via context (sm and below) -->
 <div class="md:hidden">
-	<Button variant="ghost" size="icon-sm" class={triggerClass} onclick={openMobileDrawer}>
+	<Button
+		variant="ghost"
+		size="icon-sm"
+		class={triggerClass}
+		aria-label={label ?? 'İşlemler'}
+		onclick={openMobileDrawer}
+	>
 		{#if trigger}
 			{@const TriggerComponent = trigger}
 			<TriggerComponent size={14} />

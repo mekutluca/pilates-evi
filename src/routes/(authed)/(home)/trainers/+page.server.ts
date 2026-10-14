@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { normalizePhoneNumber, PHONE_ERROR } from '$lib/utils/phone-utils';
 import type { Actions, PageServerLoad } from './$types';
 import type { TrainerWithEmail } from '$lib/types';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
@@ -26,7 +27,8 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const name = getRequiredFormDataString(formData, 'name');
-		const phone = getRequiredFormDataString(formData, 'phone');
+		const phone = normalizePhoneNumber(getRequiredFormDataString(formData, 'phone'));
+		if (!phone) return fail(400, { success: false, message: PHONE_ERROR });
 
 		// A trainer is a login (their id) plus a pe_trainers row
 		const service = OrgUserService.fromLocals(locals);
@@ -60,12 +62,11 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
+		const phone = normalizePhoneNumber(getRequiredFormDataString(formData, 'phone'));
+		if (!phone) return fail(400, { success: false, message: PHONE_ERROR });
 		const { error: updateError } = await supabase
 			.from('pe_trainers')
-			.update({
-				name: getRequiredFormDataString(formData, 'name'),
-				phone: getRequiredFormDataString(formData, 'phone')
-			})
+			.update({ name: getRequiredFormDataString(formData, 'name'), phone })
 			.eq('id', getRequiredFormDataString(formData, 'trainerId'));
 
 		if (updateError) {

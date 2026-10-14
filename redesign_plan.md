@@ -241,3 +241,41 @@ Sibling comparison: dependencies are already aligned (Kit 2.63, Svelte 5.56, Vit
 - Dead code: legacy whole-group-join path (server), WhatsApp text messages and appointment-data builder, collision warnings (impossible under unique indexes), obsolete null checks and row types, `formatDateParam`, extend's local date helpers, `formData.get() as string` casts, layout try/catch. Room capacity removed from the UI.
 
 **Moved to Phase 2** (pages being rewritten): new-assignment client split and its remaining legacy state (`selectedGroupLessonId`, existing-member badge), week-navigation composable, CRUD modal manager, `use:enhance` factory, shared schedule-slot helper, extend/transfer three-state conflict checks.
+
+## Phase 2 brief (confirmed 2026-10-14)
+
+Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing available today is lost.** `PRODUCT.md` holds the product record and glossary.
+
+- **Nav:** Panel · Takvim · Öğrenciler · Grup Dersleri · Paketler* · Eğitmenler* · Odalar* · Personel* (*admin). Settings in the user menu with a label. "Yeni Kayıt", "Randevu Değiştir", "Operasyonlar" leave the nav (their functions move, see below).
+- **Öğrenci sayfası (hub):** contact + **Yeni kayıt** (wizard prefilled). Kayıt cards: package, weekly pattern, lessons left / total, credits, last lesson; **Yenile**, **Taşı** (series), **Kalan dersleri sil**. Upcoming randevular with **Taşı** / **İptal et**. Past kayıtlar collapsed.
+- **Takvim:** stays the week grid for one room or trainer. Appointment → side panel: details, trainees linked to their page, **Taşı**, **İptal et**, **Yenile**. Empty slot → "Bu saate kayıt" (wizard prefilled). Day header → **Günü kapat** with a preview of every affected lesson. Persistent "Taşınıyor… [Vazgeç]" bar while picking. Stay on the affected week after every action.
+- **Taşı (replaces reschedule mode + /transfer):** scope bu randevu / bundan sonrakiler / bugünden itibaren tümü; what: time (grid, any week), room, trainer, "N hafta", "N ders"; a single trainee inside a group is moved from their row. Reason: _Öğrenci talebi_ (credit + 23 h for coordinators) or _Stüdyo_ (free, cause required, cause goes in the message). Old → new preview before confirming.
+- **İptal et:** keeps both options (derslerini bir kaydır / ders hakkı düşsün); copy matches the option.
+- **Bildirim:** "Öğrencilere WhatsApp ile bildir" checkbox with recipient count on every flow that changes a lesson's time; defaults match today's behavior per flow (reschedule and close day on; shift on when a cause is given). Room/trainer-only changes and plain removals have no WhatsApp template and send nothing, as today.
+- **Grup Dersleri (new):** list (package, pattern, room, trainer, doluluk) + detail (roster, sessions): **Öğrenci ekle**, **Taşı** from a date (time/room/trainer; updates the lesson record), **Sonlandır**. Group creation moves here from the wizard.
+- **Yeni kayıt:** Öğrenci (search or inline create) → Paket (+ dönem) → Saatler (room, trainer, grid, explicit start date, no past slots) → **Özet**. Group: Öğrenci → Paket → slots → hafta → Özet. Only the steps the path uses.
+- **Yenile (replaces Uzat):** from the client page, prefilled with current days/hour/room/trainer, all editable (same pattern = old Uzat), dönem count, Özet; chained to the previous kayıt.
+- **Panel:** coordinator: today's lessons, "paketi bitmek üzere" (next 14 days) with **Yenile**, this week's new kayıtlar. Trainer: their day/week.
+- **Moved, not removed:** close a day (Operasyonlar → Takvim day header), end a group lesson (Operasyonlar → Grup Dersleri), create a group lesson (wizard → Grup Dersleri), Uzat (→ Yenile).
+- **Behavior changes (owner-chosen):** studio-caused moves don't spend client credits; notify checkbox everywhere a time changes.
+- **States:** empty (admin: create; coordinator: ask admin), conflict check checking/ok/failed (failed blocks confirm), skeleton loading; groups ≤ ~12, ~100 clients, long Turkish names.
+
+## Phase 2 progress
+
+**2026-10-14 — built (uncommitted; `npm run check`, `build`, `lint` clean; flows not yet exercised in a browser):**
+
+- **Nav** per the brief; `actionRoutes` guards `/new-assignment`. Labelled user menu, slim loading bar.
+- **Takvim:** side panel (details, trainees, Taşı, İptal et, Yenile, Grup dersi link), Taşı sheet (time on the grid, room/trainer, N hafta, N ders, single trainee; Öğrenci talebi / Stüdyo reason; notify checkbox; server dry-run preview), İptal et dialog, Günü kapat from the day header with a per-lesson preview. Empty slot → wizard prefilled. Week navigation is a shared `week-nav` component.
+- **Öğrenci sayfası:** typed kayıt chains; cards with pattern, lessons left/total, credits, last lesson; Yenile, Taşı, Kalan dersleri sil; upcoming randevular link to the calendar.
+- **Yenile** (`trainees/[id]/renew/[purchaseId]`) replaces Uzat; pattern, room, trainer, dönem and start date editable; live preview.
+- **Grup Dersleri** (`/group-lessons`, `/new`, `/[id]`): list (running + ended), create (package, room, trainer, weekly slots, start date; 26-week horizon, conflict preview), detail (stats, upcoming randevular, roster with Yenile, Öğrenci ekle → wizard, Taşı from a date — new weekday/hour per slot and/or room/trainer, updates the lesson's timeslots/room/trainer — and Sonlandır). `operations/*` removed.
+- **Yeni kayıt** rewritten: Öğrenci (search, inline create) → Paket (+ dönem / hafta) → Saatler (private: start date, room, trainer, week grid marking slots taken in any week of the kayıt; group: running time slots with capacity, trainer filter) → Özet (server preview). Prefill: `trainee_id`, `package_id`, `group_lesson_id`, `room_id`, `trainer_id`, `date`, `hour`. Group creation moved out; legacy existing-member state gone. Lands on the trainee page (one trainee) or the starting week.
+- **Panel:** coordinator — today's randevular, kayıtlar ending within 14 days (or ended last week) without a renewal, with Yenile; this week's new kayıtlar (+ renewal count). Trainer — today and the rest of the week. StatCard removed.
+- **Takvimim:** shared week nav and read-only appointment sheet.
+- **Copy:** Paketler page and form (Ders → Paket, one label per field), login strings, E-posta, Vazgeç/Kaydet, count subtitles, Personel title, phone inputs accept spaces (trainer phones normalized server-side like trainees), glossary sweep on the new screens.
+
+**Server modules added:** `scheduling/group-lessons.ts` (list/detail/plan create/plan move), `scheduling/lesson-plan.ts` (`planLessons` shared by `planRenewal` and `planAssignment`), `scheduling/lesson-plan-form.ts`, `scheduling/group-lesson-form.ts`, `scheduling/slot-form.ts`, `scheduling/move-form.ts`, `server/panel.ts`; `SchedulingService.move` / `moveGroupLesson`; `ConflictService.findBusyWeeklySlots`; `AppointmentRepository.getGroupLessonSessions`.
+
+**Cleanup:** one `actionResource` helper + `Loadable<T>` replace seven hand-written debounced preview effects and their local state types; `lesson-plan-summary` + `canConfirmPlan` shared by Yenile, Yeni kayıt and Yeni grup dersi; `weeklySlotKey` / `groupSlotKey` replace inline key builders.
+
+**Left for Phase 3/4:** one long + one short date format everywhere (several `date-utils` formatters still coexist); destructive confirms on the CRUD pages still read "Arşivle"/"Sil" without the object.

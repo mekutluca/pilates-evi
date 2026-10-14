@@ -30,6 +30,8 @@ export function formatPhoneNumber(phone: string): string {
  * stored 10-digit national form, e.g. "0555 123 45 67" → "5551234567". Returns null when
  * the input isn't a 10-digit number after stripping those prefixes.
  */
+export const PHONE_ERROR = 'Telefon numarası 10 haneli olmalıdır (ör. 555 123 45 67)';
+
 export function normalizePhoneNumber(input: string): string | null {
 	let digits = input.replace(/\D/g, '');
 	if (digits.length === 12 && digits.startsWith('90')) digits = digits.slice(2);

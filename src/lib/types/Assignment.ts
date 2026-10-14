@@ -1,3 +1,5 @@
+import type { LessonPlan, LessonPlanInput } from './Extension';
+
 // Payload types for the transactional pe_create_assignment RPC.
 // Keys are client-chosen strings correlating purchases/appointments with the
 // enrollments that reference them.
@@ -52,3 +54,14 @@ export type AssignmentResult = {
 	appointments_created: number;
 	enrollments_created: number;
 };
+
+// A new kayıt (Yeni kayıt wizard): the trainees, the package and its lessons
+export type AssignmentInput = LessonPlanInput & { packageId: string; traineeIds: string[] };
+
+// A planned new kayıt with the transactional payload that creates it
+export interface AssignmentPlan extends LessonPlan {
+	payload: AssignmentPayload;
+}
+
+// The Yeni kayıt wizard's steps
+export type AssignmentStep = 'trainee' | 'package' | 'slots' | 'summary';

@@ -1,9 +1,12 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	CancelTraineeAction,
+	ChangeOutcome,
 	OperationResult,
 	ShiftedTraineeRecord
 } from '$lib/types/Schedule';
+import type { ScheduleChange } from '$lib/types/WhatsApp';
+import { NotificationService } from '$lib/server/services/notification-service';
 import {
 	applyEnrollmentMoves,
 	checkMoveCapacity,
@@ -50,42 +53,90 @@ function formatConflictMessage(count: number): string {
 async function shiftPrivateSeriesByOne(
 	supabase: SupabaseClientType,
 	cancelledAppointmentId: number
-): Promise<OperationResult> {
+): Promise<ChangeOutcome> {
 	const result = await shiftSeriesBySlot(supabase, cancelledAppointmentId, 1);
 	if (result.conflicts.length > 0) {
-		return { error: formatConflictMessage(result.conflicts.length) };
+		return { error: formatConflictMessage(result.conflicts.length), changes: [] };
 	}
-	return { error: result.error };
+	if (result.error) return { error: result.error, changes: [] };
+	return { error: null, changes: NotificationService.changesFromMoves(result.moved) };
 }
 
-async function shiftGroupTraineesByOne(
+/**
+ * Moves every trainee of a group appointment one slot on in their own pattern, then
+ * removes the emptied appointment (cancelling a group lesson, alone or as part of a
+ * closed day). All trainees are planned first and moved in one transaction, so a failure
+ * on one never leaves the others moved and the slot half-emptied.
+ */
+export async function shiftGroupTraineesOn(
 	supabase: SupabaseClientType,
-	cancelledAppointmentId: number
-): Promise<OperationResult> {
-	const { data: trainees } = await supabase
-		.from('pe_appointment_trainees')
-		.select('trainee_id')
-		.eq('appointment_id', cancelledAppointmentId);
+	appointmentId: number
+): Promise<ChangeOutcome> {
+	const { data: appointment } = await supabase
+		.from('pe_appointments')
+		.select(
+			'date, hour, pe_group_lessons(pe_packages(name)), pe_appointment_trainees(trainee_id, pe_trainees(phone))'
+		)
+		.eq('id', appointmentId)
+		.maybeSingle();
+	if (!appointment) return { error: 'Randevu bulunamadı', changes: [] };
 
-	// Plan every trainee before moving anyone, then move them all in one transaction.
 	const moves: ShiftedTraineeRecord[] = [];
-	for (const { trainee_id } of trainees ?? []) {
-		const plan = await planTraineeSlotShift(supabase, cancelledAppointmentId, trainee_id, 1);
-		if (plan.error) return { error: plan.error };
+	const phoneByTarget: Array<{ phone: string; newAppointmentId: number }> = [];
+	for (const enrollment of appointment.pe_appointment_trainees) {
+		const plan = await planTraineeSlotShift(supabase, appointmentId, enrollment.trainee_id, 1);
+		if (plan.error) return { error: plan.error, changes: [] };
 		moves.push(...plan.shifted);
+		const own = plan.shifted.find((r) => r.oldAppointmentId === appointmentId);
+		if (own) {
+			phoneByTarget.push({
+				phone: enrollment.pe_trainees.phone,
+				newAppointmentId: own.newAppointmentId
+			});
+		}
 	}
 
 	const capacityError = await checkMoveCapacity(supabase, moves);
-	if (capacityError) return { error: capacityError };
+	if (capacityError) return { error: capacityError, changes: [] };
+	const moveError = await applyEnrollmentMoves(supabase, moves);
+	if (moveError) return { error: moveError, changes: [] };
 
-	return { error: await applyEnrollmentMoves(supabase, moves) };
+	const { data: targets } = await supabase
+		.from('pe_appointments')
+		.select('id, date, hour')
+		.in('id', [...new Set(phoneByTarget.map((p) => p.newAppointmentId))]);
+	const targetById = new Map((targets ?? []).map((t) => [t.id, t]));
+	const packageName = appointment.pe_group_lessons?.pe_packages.name ?? '';
+	const changes: ScheduleChange[] = phoneByTarget.flatMap(({ phone, newAppointmentId }) => {
+		const target = targetById.get(newAppointmentId);
+		return target
+			? [
+					{
+						phone,
+						packageName,
+						oldDate: appointment.date,
+						oldHour: appointment.hour,
+						newDate: target.date,
+						newHour: target.hour
+					}
+				]
+			: [];
+	});
+
+	const { error: deleteError } = await deleteAppointment(supabase, appointmentId);
+	return { error: deleteError, changes: deleteError ? [] : changes };
 }
 
+/**
+ * Cancels one appointment. Its trainees either lose the lesson (`remove`) or have their
+ * lessons shifted one slot on (`shift`); the schedule changes of a shift are returned so
+ * the caller can tell the trainees.
+ */
 export async function cancelAppointment(
 	supabase: SupabaseClientType,
 	appointmentId: number,
 	traineeAction: CancelTraineeAction | null
-): Promise<OperationResult> {
+): Promise<ChangeOutcome> {
 	const { data: appointment, error: fetchError } = await supabase
 		.from('pe_appointments')
 		.select('id, date, hour, purchase_id, group_lesson_id, pe_appointment_trainees(id)')
@@ -93,40 +144,25 @@ export async function cancelAppointment(
 		.single();
 
 	if (fetchError || !appointment) {
-		return { error: 'Randevu bulunamadı' };
+		return { error: 'Randevu bulunamadı', changes: [] };
 	}
 
 	if (!isAppointmentFuture(appointment.date, appointment.hour)) {
-		return { error: 'Geçmiş randevular iptal edilemez' };
+		return { error: 'Geçmiş randevular iptal edilemez', changes: [] };
 	}
 
-	const traineeCount = appointment.pe_appointment_trainees?.length ?? 0;
-
-	if (traineeCount === 0) {
-		return deleteAppointment(supabase, appointmentId);
+	if (appointment.pe_appointment_trainees.length > 0 && !traineeAction) {
+		return { error: 'Öğrenciler için işlem seçimi gerekli', changes: [] };
 	}
 
-	if (!traineeAction) {
-		return { error: 'Öğrenciler için işlem seçimi gerekli' };
+	if (appointment.pe_appointment_trainees.length === 0 || traineeAction === 'remove') {
+		return { ...(await deleteAppointment(supabase, appointmentId)), changes: [] };
 	}
 
-	if (traineeAction === 'remove') {
-		return deleteAppointment(supabase, appointmentId);
-	}
+	// The cancelled id is repurposed at the next slot of a private series; a group
+	// appointment is emptied and deleted
+	if (appointment.purchase_id) return shiftPrivateSeriesByOne(supabase, appointmentId);
+	if (appointment.group_lesson_id) return shiftGroupTraineesOn(supabase, appointmentId);
 
-	if (appointment.purchase_id) {
-		const { error } = await shiftPrivateSeriesByOne(supabase, appointmentId);
-		if (error) return { error };
-		// The cancelled id has been repurposed at the next slot; nothing to delete.
-		return { error: null };
-	}
-
-	if (appointment.group_lesson_id) {
-		const { error } = await shiftGroupTraineesByOne(supabase, appointmentId);
-		if (error) return { error };
-		// All trainees have been moved off; the original slot can be deleted safely.
-		return deleteAppointment(supabase, appointmentId);
-	}
-
-	return { error: 'Randevu için paket veya grup dersi bilgisi yok' };
+	return { error: 'Randevu için paket veya grup dersi bilgisi yok', changes: [] };
 }

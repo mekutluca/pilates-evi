@@ -111,6 +111,19 @@ export class AppointmentRepository {
 		return (await this.keepCanonicalGroupSlots(inScope)).sort(compareSlots);
 	}
 
+	/** A group lesson's upcoming sessions from `fromDate` on, chronological, one-offs included. */
+	async getGroupLessonSessions(
+		groupLessonId: string,
+		fromDate: string
+	): Promise<SeriesAppointment[]> {
+		const { data } = await this.supabase
+			.from('pe_appointments')
+			.select(SERIES_SELECT)
+			.eq('group_lesson_id', groupLessonId)
+			.gte('date', fromDate);
+		return (data ?? []).filter((row) => isAppointmentFuture(row.date, row.hour)).sort(compareSlots);
+	}
+
 	private async getTraineeAppointments(
 		anchorId: number,
 		traineeId: string

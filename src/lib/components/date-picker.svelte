@@ -56,7 +56,7 @@
 				Bugün
 			</Button>
 			{#if onClose}
-				<Button variant="ghost" size="xs" onclick={handleCancelClick}>İptal</Button>
+				<Button variant="ghost" size="xs" onclick={handleCancelClick}>Vazgeç</Button>
 			{/if}
 		</div>
 	</div>
