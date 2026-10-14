@@ -5,6 +5,8 @@
 	import WeekNav from '$lib/components/week-nav.svelte';
 	import AppointmentSheet from '$lib/components/scheduling/appointment-sheet.svelte';
 	import { goto } from '$app/navigation';
+	import { streamed } from '$lib/utils/streamed.svelte';
+	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
 	import { formatDateForDB, getWeekStart, parseLocalDate } from '$lib/utils/date-utils';
 	import {
 		computeAppointmentWarnings,
@@ -15,8 +17,13 @@
 
 	let { data } = $props();
 
-	const appointments = $derived(data.appointments);
 	const weekStart = $derived(parseLocalDate(data.weekStart));
+	// The week streams in: undefined while a new week loads (board skeleton)
+	const week = streamed(
+		() => data.appointments,
+		() => data.weekStart
+	);
+	const appointments = $derived(week.current ?? []);
 	// Capacity/collision flags, computed across the whole week
 	const appointmentWarnings = $derived(computeAppointmentWarnings(appointments));
 	const lessonCount = $derived(appointments.length);
@@ -62,11 +69,25 @@
 </svelte:head>
 
 <div class="space-y-6 p-4 lg:p-6">
-	<PageHeader title="Takvimim" subtitle={`${data.trainerName} · ${lessonCount} ders`} />
+	<PageHeader
+		title="Takvimim"
+		subtitle={week.current === undefined
+			? data.trainerName
+			: `${data.trainerName} · ${lessonCount} ders`}
+	/>
 
 	<WeekNav {weekStart} onNavigate={goToWeek} />
 
-	<Schedule {weekStart} entityName={data.trainerName} {getSlotData} onSlotClick={handleSlotClick} />
+	{#if week.current === undefined}
+		<ScheduleSkeleton />
+	{:else}
+		<Schedule
+			{weekStart}
+			entityName={data.trainerName}
+			{getSlotData}
+			onSlotClick={handleSlotClick}
+		/>
+	{/if}
 </div>
 
 <AppointmentSheet bind:open={sheetOpen} appointment={selected} userRole={data.userRole} />

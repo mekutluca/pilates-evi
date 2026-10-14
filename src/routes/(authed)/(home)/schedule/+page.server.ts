@@ -4,7 +4,6 @@ import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-ut
 import {
 	formatDateForDB,
 	getAppointmentDateTime,
-	getWeekEnd,
 	getWeekStart,
 	isAppointmentFuture,
 	parseLocalDate
@@ -33,7 +32,7 @@ export const load: PageServerLoad = async ({
 	const permissionError = requireStaff(user, userRole);
 	if (permissionError) {
 		return {
-			appointments: [],
+			appointments: Promise.resolve([]),
 			rooms: [],
 			trainers: []
 		};
@@ -48,46 +47,10 @@ export const load: PageServerLoad = async ({
 	const weekStart = getWeekStart(
 		weekParam && isIsoDate(weekParam) ? parseLocalDate(weekParam) : new Date()
 	);
-	const weekEnd = getWeekEnd(weekStart);
-
-	// Fetch appointments for the current week
-	const { data: appointments, error: appointmentsError } = await supabase
-		.from('pe_appointments')
-		.select(
-			`
-			*,
-			pe_rooms(id, name),
-			pe_trainers(id, name),
-			pe_purchases(
-				id,
-				reschedule_left,
-				successor_id,
-				pe_packages(id, name, package_type, weeks_duration, min_lessons_per_week, max_lessons_per_week, max_capacity)
-			),
-			pe_group_lessons(
-				id,
-				pe_packages(id, name, package_type, max_capacity)
-			),
-			pe_appointment_trainees(
-				id,
-				session_number,
-				total_sessions,
-				purchase_id,
-				pe_trainees(id, name),
-				pe_purchases(successor_id)
-			)
-		`
-		)
-		.gte('date', formatDateForDB(weekStart))
-		.lte('date', formatDateForDB(weekEnd))
-		.order('date, hour');
-
-	if (appointmentsError) {
-		console.error('Error fetching appointments:', appointmentsError);
-	}
 
 	return {
-		appointments: appointments || [],
+		// Streamed: the page shows the board skeleton until the week arrives
+		appointments: new AppointmentRepository(supabase).getWeek(weekStart),
 		rooms: activeRooms,
 		trainers: activeTrainers
 	};

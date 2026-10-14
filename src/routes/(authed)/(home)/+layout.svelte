@@ -12,8 +12,8 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { onMount } from 'svelte';
-	import { goto, invalidate, beforeNavigate, afterNavigate } from '$app/navigation';
-	import { page } from '$app/state';
+	import { goto, invalidate, afterNavigate } from '$app/navigation';
+	import { navigating, page } from '$app/state';
 	import { allRoutes, type Route } from '$lib/types/Route.js';
 	import type { Role } from '$lib/types/Role.js';
 	import type { ActionItem } from '$lib/types';
@@ -25,8 +25,6 @@
 	let userName = $derived(
 		(session?.user.user_metadata.fullName as string | undefined) || session?.user.email || 'Hesabım'
 	);
-	let loading = $state(false);
-	let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 
 	let mobileSidebarOpen = $state(false);
 	let mainEl = $state<HTMLElement | null>(null);
@@ -83,27 +81,7 @@
 			}
 		});
 
-		// Navigation loading logic
-		beforeNavigate((navigation) => {
-			const url = navigation.to?.url;
-
-			if (!url || (url.protocol && url.protocol !== 'http:' && url.protocol !== 'https:')) {
-				return;
-			}
-
-			if (url.origin && url.origin !== window.location.origin) {
-				return;
-			}
-
-			if (loadingTimer) clearTimeout(loadingTimer);
-			loadingTimer = setTimeout(() => {
-				loading = true;
-			}, 400);
-		});
-
 		afterNavigate((navigation) => {
-			if (loadingTimer) clearTimeout(loadingTimer);
-			loading = false;
 			mobileSidebarOpen = false;
 			if (mainEl && navigation.from?.url.pathname !== navigation.to?.url.pathname) {
 				mainEl.scrollTop = 0;
@@ -112,7 +90,6 @@
 
 		return () => {
 			data.subscription.unsubscribe();
-			if (loadingTimer) clearTimeout(loadingTimer);
 		};
 	});
 
@@ -138,7 +115,9 @@
 	let groupedRoutes = $derived(groupRoutes(availableRoutes));
 
 	function isRouteActive(route: Route): boolean {
-		return page.url.pathname === route.href || page.url.pathname.startsWith(route.href + '/');
+		// The page being opened counts at once, so the click shows before the data lands
+		const path = (navigating.to?.url ?? page.url).pathname;
+		return path === route.href || path.startsWith(route.href + '/');
 	}
 </script>
 
@@ -171,12 +150,14 @@
 
 <div class="flex h-screen flex-col">
 	<!-- Slow navigation indicator: a thin bar, the page stays usable -->
-	{#if loading}
+	{#if navigating.to}
 		<div
-			class="fixed inset-x-0 top-0 z-50 h-0.5 animate-pulse bg-primary"
+			class="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden bg-primary/15"
 			role="progressbar"
 			aria-label="Sayfa yükleniyor"
-		></div>
+		>
+			<div class="nav-progress h-full w-1/3 bg-primary"></div>
+		</div>
 	{/if}
 
 	<!-- Top navbar -->

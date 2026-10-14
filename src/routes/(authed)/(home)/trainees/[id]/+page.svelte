@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { streamed } from '$lib/utils/streamed.svelte';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -17,13 +19,7 @@
 	import LessonMeter from '$lib/components/lesson-meter.svelte';
 	import { isRenewalDue } from '$lib/utils/appointment-utils';
 	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
-	import type {
-		ActionItem,
-		KayitLesson,
-		RemainingLessonsScope,
-		Trainee,
-		TraineeKayit
-	} from '$lib/types';
+	import type { ActionItem, KayitLesson, RemainingLessonsScope, TraineeKayit } from '$lib/types';
 	import { formatDisplayDate, formatSlotLabel } from '$lib/utils/date-utils';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -42,24 +38,18 @@
 
 	let { data } = $props();
 
-	// Streamed data resolved into local state. `undefined` = loading, `null` = not found /
-	// failed. Stale values are kept during invalidation to avoid flashing skeletons.
-	let trainee = $state<Trainee | null | undefined>(undefined);
-	let kayitlar = $state<TraineeKayit[] | null | undefined>(undefined);
-
-	$effect(() => {
-		const promise = data.trainee;
-		promise.then((result) => {
-			if (data.trainee === promise) trainee = result;
-		});
-	});
-
-	$effect(() => {
-		const promise = data.kayitlar;
-		promise.then((result) => {
-			if (data.kayitlar === promise) kayitlar = result;
-		});
-	});
+	// Streamed: `undefined` = loading, `null` = not found / failed; the loaded trainee stays
+	// on screen while an action refreshes it
+	const traineeData = streamed(
+		() => data.trainee,
+		() => page.params.id ?? ''
+	);
+	const kayitData = streamed(
+		() => data.kayitlar,
+		() => page.params.id ?? ''
+	);
+	const trainee = $derived(traineeData.current);
+	const kayitlar = $derived(kayitData.current);
 
 	const active = $derived((kayitlar ?? []).filter((k) => k.upcoming.length > 0));
 	const finished = $derived((kayitlar ?? []).filter((k) => k.upcoming.length === 0));

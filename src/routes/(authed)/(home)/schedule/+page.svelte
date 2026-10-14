@@ -30,6 +30,8 @@
 		parseLocalDate
 	} from '$lib/utils/date-utils';
 	import { isIsoDate } from '$lib/utils/validation';
+	import { streamed } from '$lib/utils/streamed.svelte';
+	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
@@ -39,11 +41,9 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const appointments = $derived(data.appointments);
 	const rooms = $derived(data.rooms);
 	const trainers = $derived(data.trainers);
 	const isStaff = $derived(data.userRole === 'admin' || data.userRole === 'coordinator');
-	const appointmentWarnings = $derived(computeAppointmentWarnings(appointments));
 
 	// View (room or trainer) and the selected one live in the URL, so links and the week
 	// navigation keep them
@@ -62,6 +62,13 @@
 		const week = params.get('week');
 		return getWeekStart(week && isIsoDate(week) ? parseLocalDate(week) : new Date());
 	});
+	// The week streams in: undefined while a new week loads (board skeleton)
+	const week = streamed(
+		() => data.appointments,
+		() => formatDateForDB(weekStart)
+	);
+	const appointments = $derived(week.current ?? []);
+	const appointmentWarnings = $derived(computeAppointmentWarnings(appointments));
 
 	// Panels
 	let selected = $state<AppointmentWithDetails | null>(null);
@@ -298,13 +305,17 @@
 			viewMode === 'room'
 				? rooms.find((r) => r.id === selectedRoomId)
 				: trainers.find((t) => t.id === selectedTrainerId)}
-		<Schedule
-			{weekStart}
-			entityName={entity?.name ?? ''}
-			{getSlotData}
-			onSlotClick={handleSlotClick}
-			{dayActions}
-		/>
+		{#if week.current === undefined}
+			<ScheduleSkeleton />
+		{:else}
+			<Schedule
+				{weekStart}
+				entityName={entity?.name ?? ''}
+				{getSlotData}
+				onSlotClick={handleSlotClick}
+				{dayActions}
+			/>
+		{/if}
 	{/if}
 </div>
 

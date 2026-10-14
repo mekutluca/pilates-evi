@@ -18,7 +18,8 @@ import type {
 } from '$lib/types/Schedule';
 import type { SlotConflict } from '$lib/types/Conflict';
 import type { MovePreviewRow } from '$lib/types/Transfer';
-import type { GroupLessonSummary } from '$lib/types/GroupLesson';
+import type { GroupLessonDetail, GroupLessonSummary } from '$lib/types/GroupLesson';
+import type { RenewalFormData } from '$lib/types/Extension';
 import type { LessonPlanPreviewPayload, Loadable } from '$lib/types/Api';
 
 interface BackLink {
@@ -252,4 +253,21 @@ export interface StatStripItem {
 
 export interface StatStripProps {
 	items: StatStripItem[];
+}
+
+export interface LoadErrorProps {
+	// What failed, e.g. "Grup dersleri yüklenemedi."
+	message: string;
+}
+
+export interface GroupLessonDetailViewProps {
+	lesson: GroupLessonDetail;
+	rooms: Room[];
+	trainers: Trainer[];
+}
+
+export interface RenewFormProps {
+	renewal: RenewalFormData;
+	rooms: Room[];
+	trainers: Trainer[];
 }

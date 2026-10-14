@@ -145,6 +145,28 @@
 	@apply -mx-2 rounded-lg px-2 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none;
 }
 
+/* The navigation bar: a segment sliding across while a page loads */
+@keyframes nav-progress {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(300%);
+	}
+}
+
+.nav-progress {
+	animation: nav-progress 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nav-progress {
+		animation: none;
+		width: 100%;
+		opacity: 0.6;
+	}
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;

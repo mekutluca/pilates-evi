@@ -31,6 +31,7 @@ Routes parse input, check permissions, call one service/repository method and re
 - `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion); `lesson-plan.ts` plans a kayıt's lessons for both Yenile (`planRenewal`) and Yeni kayıt (`planAssignment`); `group-lessons.ts` lists, plans and moves group lessons; `*-form.ts` parse action forms into typed inputs (returning an error string when invalid)
 - `panel.ts` - Panel data (coordinator: today, kayıtlar ending soon, new kayıtlar; trainer: their week)
 - Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`); actions return `{ success, message, redirectTo? }`; previews are separate `preview*` actions that run the same planning without writing; pages keep a preview's latest result with `actionResource` (`$lib/utils/action-resource.svelte`), typed `Loadable<T>`
+- Data-heavy page loads stream: they return promises (resolving to `null` on failure) and the page shows a skeleton that mirrors its layout (`$lib/components/skeletons`), the data via `streamed()` (`$lib/utils/streamed.svelte`; keeps the loaded value while the same page refreshes) and `load-error.svelte` with a retry when it is `null`
 - Server time is pinned to `Europe/Istanbul` in `hooks.server.ts`
 
 ### Key Files

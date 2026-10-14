@@ -1,8 +1,8 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getWeekStart, getWeekEnd, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
+import { getWeekStart, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import { isIsoDate } from '$lib/utils/validation';
-import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
+import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
 	if (!user || userRole !== 'trainer') {
@@ -23,20 +23,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		weekParam && isIsoDate(weekParam) ? parseLocalDate(weekParam) : new Date()
 	);
 
-	const { data: appointments, error: appointmentsError } = await supabase
-		.from('pe_appointments')
-		.select(TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT)
-		.eq('trainer_id', trainer.id)
-		.gte('date', formatDateForDB(weekStart))
-		.lte('date', formatDateForDB(getWeekEnd(weekStart)))
-		.order('date', { ascending: true })
-		.order('hour', { ascending: true });
-	if (appointmentsError) {
-		console.error('Error fetching trainer appointments:', appointmentsError);
-	}
-
 	return {
-		appointments: appointments ?? [],
+		// Streamed: the page shows the board skeleton until the week arrives
+		appointments: new AppointmentRepository(supabase).getWeek(weekStart, trainer.id),
 		trainerName: trainer.name ?? '',
 		weekStart: formatDateForDB(weekStart)
 	};

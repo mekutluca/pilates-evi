@@ -16,10 +16,8 @@
 <Card.Root class={className}>
 	{#if title}
 		<Card.Header>
-			<div class="flex items-center gap-2">
-				<Skeleton class="size-5 rounded-full" />
-				<Skeleton class="h-5 w-40" />
-			</div>
+			<Skeleton class="h-5 w-40" />
+			<Skeleton class="h-4 w-56" />
 		</Card.Header>
 	{/if}
 	<Card.Content>

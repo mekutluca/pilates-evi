@@ -3,14 +3,15 @@ import type { SeriesAppointment, TransferScope } from '$lib/types/Transfer';
 import { compareSlots } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { getGroupLessonCanonicalSlots } from '$lib/server/scheduling/extension';
-import { formatDateForDB, getDayOfWeekFromDate, isAppointmentFuture } from '$lib/utils/date-utils';
+import {
+	formatDateForDB,
+	getDayOfWeekFromDate,
+	getWeekEnd,
+	isAppointmentFuture
+} from '$lib/utils/date-utils';
 
-// Shared pe_appointments select for a trainer's own appointments (room/package/trainee
-// relations), used by the dashboard and my-schedule pages. Kept as a plain string rather
-// than wrapped in a query-building function — passing it through a function boundary
-// causes the Supabase client's join-result type inference to collapse, so each call site must call
-// `.select(TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT)` directly inline.
-export const TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT = `
+// The week board's appointments with the relations its blocks, side panel and warnings use
+const WEEK_SELECT = `
 	*,
 	pe_purchases(
 		id,
@@ -50,6 +51,20 @@ const SERIES_SELECT = `
  */
 export class AppointmentRepository {
 	constructor(private supabase: SupabaseClientType) {}
+
+	/** A week's appointments (Monday `weekStart` on), optionally one trainer's, chronological. */
+	// Return type inferred from WEEK_SELECT, so pages keep the exact row shape
+	async getWeek(weekStart: Date, trainerId?: string) {
+		let query = this.supabase
+			.from('pe_appointments')
+			.select(WEEK_SELECT)
+			.gte('date', formatDateForDB(weekStart))
+			.lte('date', formatDateForDB(getWeekEnd(weekStart)));
+		if (trainerId) query = query.eq('trainer_id', trainerId);
+		const { data, error } = await query.order('date').order('hour');
+		if (error) console.error('Error fetching appointments:', error);
+		return data ?? [];
+	}
 
 	async getById(appointmentId: number): Promise<SeriesAppointment | null> {
 		const { data } = await this.supabase

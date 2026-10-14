@@ -1,6 +1,6 @@
 import type { DayOfWeek, SlotRef, WeeklySlot } from './Schedule';
 import type { SlotConflict } from './Conflict';
-import type { SelectedGroupTimeslot } from './index';
+import type { AvailableGroupTimeslot, Package, SelectedGroupTimeslot } from './index';
 
 export interface StartingAppointmentCandidate {
 	date: string; // YYYY-MM-DD
@@ -62,4 +62,21 @@ export interface RenewalPlan extends LessonPlan {
 	predecessorId: string;
 	rescheduleLeft: number;
 	chunks: ExtensionChunk[];
+}
+
+// What the Yenile form starts from (loaded for the kayıt's latest purchase)
+export interface RenewalFormData {
+	package: Package;
+	isGroup: boolean;
+	trainees: Array<{ id: string; name: string }>;
+	// Earliest start of the new period and the kayıt's current last lesson
+	earliestStart: string;
+	lastLessonDate: string | null;
+	// The current pattern, room and trainer (private) or group time slots (group)
+	currentSlots: WeeklySlot[];
+	currentRoomId: string;
+	currentTrainerId: string;
+	currentGroupSlots: SelectedGroupTimeslot[];
+	// The package's running group time slots to choose from
+	groupTimeslots: AvailableGroupTimeslot[];
 }

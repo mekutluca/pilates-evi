@@ -1,15 +1,15 @@
 <script lang="ts">
+	import { streamed } from '$lib/utils/streamed.svelte';
 	import type { PanelLesson } from '$lib/types/Dashboard';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+	import { CardSkeleton } from '$lib/components/skeletons/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Alert from '$lib/components/ui/alert/index.js';
+	import LoadError from '$lib/components/load-error.svelte';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
 	import LessonMeter from '$lib/components/lesson-meter.svelte';
 	import { cn } from '$lib/utils';
-	import AlertCircle from '@lucide/svelte/icons/alert-circle';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { DAYS_OF_WEEK, DAY_NAMES, getTimeString } from '$lib/types/Schedule';
@@ -25,6 +25,11 @@
 	let { data } = $props();
 
 	const today = formatDateForDB(new Date());
+	// Streamed: `undefined` while loading, `null` when it failed
+	const panelData = streamed(
+		() => data.panel,
+		() => 'panel'
+	);
 	const isTrainer = $derived(data.userRole === 'trainer');
 
 	function lessonHref(lesson: PanelLesson): string | undefined {
@@ -113,22 +118,20 @@
 		{/snippet}
 	</PageHeader>
 
-	{#await data.panel}
-		<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-			{#each { length: 4 }, i (i)}
-				<Skeleton class="h-22 rounded-md" />
-			{/each}
+	{#if panelData.current === undefined}
+		<div
+			class="grid gap-6 lg:grid-cols-5 lg:items-start"
+			role="status"
+			aria-label="Panel yükleniyor"
+		>
+			<CardSkeleton rows={3} rowClass="h-12" class="lg:col-span-3" />
+			<CardSkeleton rows={4} rowClass="h-20" class="lg:col-span-2 lg:row-span-2" />
+			<CardSkeleton rows={3} rowClass="h-10" class="lg:col-span-3" />
 		</div>
-		<div class="grid gap-6 lg:grid-cols-5">
-			<Skeleton class="h-80 rounded-xl lg:col-span-3" />
-			<Skeleton class="h-80 rounded-xl lg:col-span-2" />
-		</div>
-	{:then panel}
+	{:else}
+		{@const panel = panelData.current}
 		{#if !panel}
-			<Alert.Root variant="destructive">
-				<AlertCircle />
-				<Alert.Description>Panel yüklenemedi. Sayfayı yenileyip tekrar deneyin.</Alert.Description>
-			</Alert.Root>
+			<LoadError message="Panel yüklenemedi." />
 		{:else if panel.kind === 'trainer'}
 			<div class="grid gap-6 lg:grid-cols-2">
 				<Card.Root class="h-fit">
@@ -267,5 +270,5 @@
 				</Card.Root>
 			</div>
 		{/if}
-	{/await}
+	{/if}
 </div>

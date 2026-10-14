@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { streamed } from '$lib/utils/streamed.svelte';
 	import type { GroupLessonSummary } from '$lib/types/GroupLesson';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -9,14 +10,23 @@
 	import UsersRound from '@lucide/svelte/icons/users-round';
 	import { formatDisplayDate } from '$lib/utils/date-utils';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
+	import LoadError from '$lib/components/load-error.svelte';
+	import { CardSkeleton } from '$lib/components/skeletons/index.js';
+	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 
 	let { data } = $props();
 
-	const subtitle = $derived(
-		data.running.length === 0
-			? 'Devam eden grup dersi yok'
-			: `${data.running.length} devam eden grup dersi, ${data.running.reduce((n, l) => n + l.traineeCount, 0)} öğrenci`
+	// Streamed: `undefined` while loading, `null` when it failed
+	const lessons = streamed(
+		() => data.lessons,
+		() => 'group-lessons'
 	);
+
+	function summary(running: GroupLessonSummary[]): string {
+		return running.length === 0
+			? 'Devam eden grup dersi yok'
+			: `${running.length} devam eden grup dersi, ${running.reduce((n, l) => n + l.traineeCount, 0)} öğrenci`;
+	}
 </script>
 
 <svelte:head>
@@ -65,38 +75,50 @@
 {/snippet}
 
 <div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
-	<PageHeader title="Grup Dersleri" {subtitle}>
+	<PageHeader title="Grup Dersleri">
 		{#snippet actions()}
 			<Button href="/group-lessons/new">
 				<Plus />
 				Yeni grup dersi
 			</Button>
 		{/snippet}
+		{#if lessons.current === undefined}
+			<Skeleton class="mt-2 h-4 w-56" />
+		{:else if lessons.current}
+			<p class="mt-1 text-sm text-muted-foreground">{summary(lessons.current.running)}</p>
+		{/if}
 	</PageHeader>
 
-	{#if data.running.length === 0}
-		<Empty.Root class="surface">
-			<Empty.Header>
-				<Empty.Media variant="icon"><UsersRound /></Empty.Media>
-				<Empty.Title>Henüz devam eden grup dersi yok</Empty.Title>
-				<Empty.Description>
-					Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın; öğrenciler sonra
-					eklenir.
-				</Empty.Description>
-			</Empty.Header>
-		</Empty.Root>
+	{#if lessons.current === undefined}
+		<CardSkeleton title={false} rows={4} rowClass="h-12" />
+	{:else if lessons.current === null}
+		<LoadError message="Grup dersleri yüklenemedi." />
 	{:else}
-		{@render lessonTable(data.running, false)}
-	{/if}
+		{@const list = lessons.current}
+		{#if list.running.length === 0}
+			<Empty.Root class="surface">
+				<Empty.Header>
+					<Empty.Media variant="icon"><UsersRound /></Empty.Media>
+					<Empty.Title>Henüz devam eden grup dersi yok</Empty.Title>
+					<Empty.Description>
+						Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın; öğrenciler sonra
+						eklenir.
+					</Empty.Description>
+				</Empty.Header>
+			</Empty.Root>
+		{:else}
+			{@render lessonTable(list.running, false)}
+		{/if}
 
-	{#if data.ended.length > 0}
-		<Accordion.Root type="single">
-			<Accordion.Item value="ended">
-				<Accordion.Trigger>Sona eren grup dersleri ({data.ended.length})</Accordion.Trigger>
-				<Accordion.Content>
-					{@render lessonTable(data.ended, true)}
-				</Accordion.Content>
-			</Accordion.Item>
-		</Accordion.Root>
+		{#if list.ended.length > 0}
+			<Accordion.Root type="single">
+				<Accordion.Item value="ended">
+					<Accordion.Trigger>Sona eren grup dersleri ({list.ended.length})</Accordion.Trigger>
+					<Accordion.Content>
+						{@render lessonTable(list.ended, true)}
+					</Accordion.Content>
+				</Accordion.Item>
+			</Accordion.Root>
+		{/if}
 	{/if}
 </div>

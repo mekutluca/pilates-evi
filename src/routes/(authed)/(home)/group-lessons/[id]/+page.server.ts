@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { requireStaff } from '$lib/server/permissions';
+import { orNull } from '$lib/server/streaming';
 import { getGroupLesson } from '$lib/server/scheduling/group-lessons';
 import { parseGroupLessonMoveForm } from '$lib/server/scheduling/group-lesson-form';
 import { notifiedSuffix, wantsNotification } from '$lib/server/scheduling/move-form';
@@ -11,15 +12,18 @@ import { formatDateForDB, getTomorrow } from '$lib/utils/date-utils';
 import { isIsoDate, isValidUuid } from '$lib/utils/validation';
 
 export const load: PageServerLoad = async ({ params, parent, locals: { supabase } }) => {
-	if (!isValidUuid(params.id)) throw error(404, 'Grup dersi bulunamadı');
-	const [lesson, { rooms, trainers }] = await Promise.all([
-		getGroupLesson(supabase, params.id),
+	// A cheap existence check keeps a real 404; the detail itself streams in
+	const [{ data: exists }, { rooms, trainers }] = await Promise.all([
+		isValidUuid(params.id)
+			? supabase.from('pe_group_lessons').select('id').eq('id', params.id).maybeSingle()
+			: Promise.resolve({ data: null }),
 		parent()
 	]);
-	if (!lesson) throw error(404, 'Grup dersi bulunamadı');
+	if (!exists) throw error(404, 'Grup dersi bulunamadı');
 
 	return {
-		lesson,
+		// null when it can't be loaded
+		lesson: orNull(getGroupLesson(supabase, params.id), 'group lesson'),
 		rooms: rooms.filter((r) => r.is_active),
 		trainers: trainers.filter((t) => t.is_active)
 	};
