@@ -222,7 +222,7 @@
 											{item.trainee.name}
 										</a>
 										<p class="text-sm text-muted-foreground">
-											{item.session_number}/{item.total_sessions} ders
+											{item.lesson_count} derslik paket
 											{#if item.package}
 												- {item.package.name}
 											{/if}
@@ -230,11 +230,13 @@
 									</div>
 									<div class="flex flex-col items-end gap-1">
 										<Badge variant="outline">
-											{item.total_sessions - item.session_number} ders kaldı
+											{item.remaining_lessons > 0
+												? `${item.remaining_lessons} ders kaldı`
+												: 'Ders kalmadı'}
 										</Badge>
-										{#if item.appointment_date}
+										{#if item.last_lesson_date}
 											<span class="text-xs text-muted-foreground">
-												{formatDisplayDate(item.appointment_date)}
+												Son ders: {formatDisplayDate(item.last_lesson_date)}
 											</span>
 										{/if}
 									</div>

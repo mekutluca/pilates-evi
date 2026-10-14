@@ -16,7 +16,7 @@
 	import {
 		getWeekStart,
 		formatWeekRange,
-		formatDateParam,
+		formatDateForDB,
 		getDayOfWeekFromDate,
 		addDays
 	} from '$lib/utils/date-utils';
@@ -92,7 +92,7 @@
 	}
 
 	function navigateToWeek(date: Date) {
-		const weekParam = formatDateParam(date);
+		const weekParam = formatDateForDB(date);
 		goto(`?week=${weekParam}`);
 	}
 

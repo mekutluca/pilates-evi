@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
+import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { formatDateForDB } from '$lib/utils/date-utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
 import { requireAdmin } from '$lib/server/permissions';
@@ -13,15 +13,12 @@ export const actions: Actions = {
 		const formData = await request.formData();
 
 		const name = getRequiredFormDataString(formData, 'name');
-		const capacityStr = getFormDataString(formData, 'capacity');
-		const capacity = capacityStr ? Number(capacityStr) : null;
 		const sortOrder = await nextSortOrder(supabase, 'pe_rooms');
 
 		const { data: roomData, error: createError } = await supabase
 			.from('pe_rooms')
 			.insert({
 				name,
-				capacity,
 				sort_order: sortOrder
 			})
 			.select()
@@ -45,12 +42,10 @@ export const actions: Actions = {
 
 		const roomId = getRequiredFormDataString(formData, 'roomId');
 		const name = getRequiredFormDataString(formData, 'name');
-		const capacityStr = getFormDataString(formData, 'capacity');
-		const capacity = capacityStr ? Number(capacityStr) : null;
 
 		const { error: updateError } = await supabase
 			.from('pe_rooms')
-			.update({ name, capacity })
+			.update({ name })
 			.eq('id', roomId);
 
 		if (updateError) {

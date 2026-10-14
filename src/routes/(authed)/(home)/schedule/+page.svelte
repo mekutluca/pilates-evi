@@ -26,7 +26,7 @@
 	import {
 		getWeekStart,
 		formatWeekRange,
-		formatDateParam,
+		formatDateForDB,
 		getDateForDayOfWeek,
 		getDayOfWeekFromDate,
 		formatDayMonth,
@@ -114,7 +114,7 @@
 	let cancelTraineeAction = $state<CancelTraineeAction>('shift');
 
 	function navigateToWeek(date: Date) {
-		const weekParam = formatDateParam(date);
+		const weekParam = formatDateForDB(date);
 		goto(`?week=${weekParam}`);
 	}
 
@@ -801,7 +801,7 @@
 			>
 				<input type="hidden" name="appointmentId" value={selectedAppointment.id} />
 				<input type="hidden" name="newRoomId" value={selectedRescheduleSlot.roomId} />
-				<input type="hidden" name="newDate" value={formatDateParam(selectedRescheduleSlot.date)} />
+				<input type="hidden" name="newDate" value={formatDateForDB(selectedRescheduleSlot.date)} />
 				<input type="hidden" name="newHour" value={selectedRescheduleSlot.hour} />
 				<input type="hidden" name="source" value={rescheduleSource} />
 

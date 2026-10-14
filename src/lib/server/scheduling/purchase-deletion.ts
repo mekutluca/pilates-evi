@@ -4,7 +4,7 @@ import type {
 	RemainingLessonRecord,
 	RemainingLessonsScope
 } from '$lib/types';
-import { deleteAppointments } from '$lib/utils/cancellation-utils';
+import { deleteAppointments } from '$lib/server/scheduling/cancellation';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 

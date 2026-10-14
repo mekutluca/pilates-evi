@@ -4,7 +4,6 @@
 	import type {
 		TransferScope,
 		TransferConflict,
-		ExistingAppointment,
 		TransferOperation,
 		ShiftMode
 	} from '$lib/types/Transfer';
@@ -26,6 +25,12 @@
 		parseLocalDate
 	} from '$lib/utils/date-utils';
 	import { buildAppointmentSlotsFromStart, isSlotInPattern } from '$lib/utils/slot-utils';
+	import {
+		actionResultMessage,
+		fetchCapacityIssues,
+		fetchOccupiedSlots,
+		postAction
+	} from '$lib/utils/api-client';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -195,31 +200,21 @@
 			return;
 		}
 
-		// Get package capacity from group lesson
-		const groupLesson = data.appointment.pe_group_lessons;
-		const maxCapacity = groupLesson?.pe_packages?.max_capacity || 10;
-
 		// Check capacity for each target appointment
 		const minDate = targetAppointments[0].date;
 		const maxDate = targetAppointments[targetAppointments.length - 1].date;
 
-		const response = await fetch(
-			`/api/check-group-capacity?room_id=${data.appointment.room_id}&trainer_id=${data.appointment.trainer_id}&start_date=${minDate}&end_date=${maxDate}&max_capacity=${maxCapacity}`
-		);
-
-		if (!response.ok) {
-			throw new Error('Failed to check capacity');
-		}
-
-		const result = await response.json();
-		const capacityIssues = result.capacityIssues || [];
+		const capacityIssues = await fetchCapacityIssues({
+			roomId: data.appointment.room_id,
+			trainerId: data.appointment.trainer_id,
+			startDate: minDate,
+			endDate: maxDate
+		});
 
 		// Map capacity issues to conflicts
 		const foundConflicts: TransferConflict[] = [];
 		for (const target of targetAppointments) {
-			const issue = capacityIssues.find(
-				(i: { date: string; hour: number }) => i.date === target.date && i.hour === target.hour
-			);
+			const issue = capacityIssues.find((i) => i.date === target.date && i.hour === target.hour);
 
 			if (issue) {
 				foundConflicts.push({
@@ -318,19 +313,15 @@
 			const maxDate = dates[dates.length - 1];
 
 			// For shift mode, use the original room and trainer IDs
-			const roomIdToCheck = isShiftMode ? data.appointment.room_id || '' : selectedRoomId;
-			const trainerIdToCheck = isShiftMode ? data.appointment.trainer_id || '' : selectedTrainerId;
+			const roomIdToCheck = isShiftMode ? data.appointment.room_id : selectedRoomId;
+			const trainerIdToCheck = isShiftMode ? data.appointment.trainer_id : selectedTrainerId;
 
-			const response = await fetch(
-				`/api/check-conflicts?room_id=${roomIdToCheck}&trainer_id=${trainerIdToCheck}&start_date=${minDate}&end_date=${maxDate}`
-			);
-
-			if (!response.ok) {
-				throw new Error('Failed to check conflicts');
-			}
-
-			const result = await response.json();
-			const existingAppointments = (result.appointments || []) as ExistingAppointment[];
+			const existingAppointments = await fetchOccupiedSlots({
+				roomId: roomIdToCheck,
+				trainerId: trainerIdToCheck,
+				startDate: minDate,
+				endDate: maxDate
+			});
 
 			// Get all appointment IDs in the series that will be shifted (to exclude from conflicts)
 			const appointmentIdsInSeries = new Set(validAppointments.map((a) => a.id));
@@ -432,33 +423,14 @@
 				formData.append('cause', shiftCause);
 			}
 
-			const response = await fetch(`?/${actionName}`, {
-				method: 'POST',
-				body: formData
-			});
-
-			const result = await response.json();
-
-			if (result.type === 'redirect' || result.type === 'success') {
-				const location = result.location || '/schedule';
-				const url = new URL(location, window.location.origin);
-				const notified = url.searchParams.get('notified');
-				const notifiedMessage =
-					notified && Number(notified) > 0
-						? ` ${notified} öğrenciye bilgilendirme mesajı gönderildi.`
-						: '';
-				url.searchParams.delete('notified');
-				const skipped = url.searchParams.get('skipped');
-				const skippedMessage =
-					skipped && Number(skipped) > 0 ? ` ${skipped} randevu iptal edildiği için atlandı.` : '';
-				url.searchParams.delete('skipped');
-				toast.success(successMessage + notifiedMessage + skippedMessage);
-				goto(url.pathname + url.search);
-			} else if (result.type === 'failure') {
-				toast.error(result.data?.message || 'Bir hata oluştu');
+			const result = await postAction(actionName, formData);
+			if (result.type === 'success') {
+				toast.success(result.data?.message ?? successMessage);
+				goto(result.data?.redirectTo ?? '/schedule');
+			} else if (result.type === 'redirect') {
+				goto(result.location);
 			} else {
-				toast.error('Bir hata oluştu');
-				console.error('Unexpected result type:', result);
+				toast.error(actionResultMessage(result));
 			}
 		} catch (error) {
 			console.error('Transfer error:', error);

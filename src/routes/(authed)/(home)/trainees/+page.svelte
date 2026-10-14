@@ -215,7 +215,6 @@
 				placeholder="ornek@email.com"
 				pattern={validation.email.pattern}
 				title={validation.email.title}
-				required
 			/>
 		</div>
 
@@ -305,7 +304,6 @@
 				placeholder="ornek@email.com"
 				pattern={validation.email.pattern}
 				title={validation.email.title}
-				required
 			/>
 		</div>
 

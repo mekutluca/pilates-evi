@@ -7,7 +7,8 @@ import Users from '@lucide/svelte/icons/users';
 // ===============================================
 
 // Core entity types (direct from database)
-export type Room = Tables<'pe_rooms'>;
+// capacity is unused (being dropped from the table)
+export type Room = Omit<Tables<'pe_rooms'>, 'capacity'>;
 export type Trainer = Tables<'pe_trainers'>;
 export type Trainee = Tables<'pe_trainees'>;
 export type Package = Tables<'pe_packages'>;
@@ -97,18 +98,16 @@ export interface TraineePurchaseMembership {
 		id: string;
 		created_at: string;
 		successor_id: string | null;
-		reschedule_left: number | null;
+		reschedule_left: number;
+		lesson_count: number;
 		pe_packages: Package | null;
 	} | null;
 	// Extended UI fields
 	package?: Package | null;
 	joined_at: string;
-	left_at?: string | null;
 	purchase_id?: string;
 	purchase_end_date?: string | null;
 	purchase_start_date?: string | null;
-	is_extension?: boolean;
-	extension_number?: number;
 	appointments?: PurchaseAppointment[];
 	// Other trainees who share this purchase's upcoming appointments (private team lessons).
 	// Empty for group lessons, where each trainee attends under their own purchase.
@@ -174,9 +173,7 @@ export interface PackagePurchaseForm {
 	start_date: string;
 	time_slots: SelectedTimeSlot[];
 	trainee_ids: string[];
-	purchase_id?: string;
-	group_lesson_id?: string;
-	duration_weeks?: number; // For joining existing group lessons
+	duration_weeks?: number; // Weeks of lessons when joining existing group timeslots
 	package_count?: number; // Private packages: consecutive periods registered at once
 	selected_group_timeslots?: SelectedGroupTimeslot[]; // For selecting specific timeslots from existing groups
 }

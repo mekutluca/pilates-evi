@@ -8,7 +8,8 @@ import type {
 } from '$lib/types';
 import { getRequiredFormDataString, isAppointmentFuture } from '$lib/utils';
 import { requireStaff } from '$lib/server/permissions';
-import { deleteRemainingLessons } from '$lib/utils/purchase-deletion-utils';
+import { SchedulingService } from '$lib/server/services/scheduling-service';
+import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -51,6 +52,8 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				id,
 				created_at,
 				successor_id,
+				reschedule_left,
+				lesson_count,
 				pe_packages (
 					id,
 					name,
@@ -159,7 +162,8 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 					id: purchase.id,
 					created_at: purchase.created_at,
 					successor_id: purchase.successor_id,
-					reschedule_left: null,
+					reschedule_left: purchase.reschedule_left,
+					lesson_count: purchase.lesson_count,
 					pe_packages: purchase.pe_packages as Package | null
 				},
 				package: purchase.pe_packages as Package | null,
@@ -186,32 +190,11 @@ export const actions: Actions = {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
-		const traineeId = params.id;
+		const input = TraineeRepository.parseForm(await request.formData());
+		if (typeof input === 'string') return fail(400, { success: false, message: input });
 
-		if (!traineeId) {
-			throw error(400, 'Geçersiz öğrenci ID');
-		}
-
-		const formData = await request.formData();
-		const name = getRequiredFormDataString(formData, 'name');
-		const phone = getRequiredFormDataString(formData, 'phone');
-		const email = formData.get('email')?.toString() || null;
-		const notes = formData.get('notes')?.toString() || null;
-
-		const { error: updateError } = await supabase
-			.from('pe_trainees')
-			.update({
-				name,
-				phone,
-				email,
-				notes
-			})
-			.eq('id', traineeId);
-
-		if (updateError) {
-			console.error('Error updating trainee:', updateError);
-			return fail(500, { success: false, message: 'Öğrenci güncellenirken hata oluştu' });
-		}
+		const updateError = await new TraineeRepository(supabase).update(params.id, input);
+		if (updateError) return fail(400, { success: false, message: updateError });
 
 		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},
@@ -220,21 +203,8 @@ export const actions: Actions = {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
-		const traineeId = params.id;
-
-		if (!traineeId) {
-			throw error(400, 'Geçersiz öğrenci ID');
-		}
-
-		const { error: archiveError } = await supabase
-			.from('pe_trainees')
-			.update({ is_active: false })
-			.eq('id', traineeId);
-
-		if (archiveError) {
-			console.error('Error archiving trainee:', archiveError);
-			return fail(500, { success: false, message: 'Öğrenci arşivlenirken hata oluştu' });
-		}
+		const archiveError = await new TraineeRepository(supabase).setActive(params.id, false);
+		if (archiveError) return fail(400, { success: false, message: archiveError });
 
 		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
 	},
@@ -243,21 +213,8 @@ export const actions: Actions = {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
-		const traineeId = params.id;
-
-		if (!traineeId) {
-			throw error(400, 'Geçersiz öğrenci ID');
-		}
-
-		const { error: restoreError } = await supabase
-			.from('pe_trainees')
-			.update({ is_active: true })
-			.eq('id', traineeId);
-
-		if (restoreError) {
-			console.error('Error restoring trainee:', restoreError);
-			return fail(500, { success: false, message: 'Öğrenci geri yüklenirken hata oluştu' });
-		}
+		const restoreError = await new TraineeRepository(supabase).setActive(params.id, true);
+		if (restoreError) return fail(400, { success: false, message: restoreError });
 
 		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
 	},
@@ -266,19 +223,15 @@ export const actions: Actions = {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
-		const traineeId = params.id;
-
-		if (!traineeId) {
-			throw error(400, 'Geçersiz öğrenci ID');
-		}
-
 		const formData = await request.formData();
-		const purchaseId = getRequiredFormDataString(formData, 'purchaseId');
 		const scope: RemainingLessonsScope =
 			formData.get('scope')?.toString() === 'all' ? 'all' : 'trainee';
 
-		const result = await deleteRemainingLessons(supabase, purchaseId, traineeId, scope);
-
+		const result = await new SchedulingService(supabase).deleteRemainingLessons(
+			getRequiredFormDataString(formData, 'purchaseId'),
+			params.id,
+			scope
+		);
 		if (result.error) {
 			return fail(400, { success: false, message: result.error });
 		}

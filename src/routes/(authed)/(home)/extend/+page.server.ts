@@ -14,16 +14,17 @@ import {
 	getLastAppointmentDate,
 	getCanonicalPurchaseTimeSlots,
 	getFutureGroupAppointments
-} from '$lib/utils/extension-utils';
+} from '$lib/server/scheduling/extension';
 import {
 	calculateExtensionStartDate,
 	getStartingAppointmentCandidates,
 	buildAppointmentSlotsFromStart
 } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
-import { formatTurkishDate, parseLocalDate } from '$lib/utils/date-utils';
+import { formatDateForDB, formatTurkishDate, parseLocalDate } from '$lib/utils/date-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { requireStaff } from '$lib/server/permissions';
+import { getFormDataString } from '$lib/utils/form-utils';
 
 // Helper to get appointments for either private or group lessons
 async function getAppointmentsForPurchase(
@@ -239,22 +240,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		successor_id: lastPurchase.successor_id
 	};
 
-	// Format date helper
-	const formatLocalDate = (date: Date) => {
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	};
-
 	return {
 		purchaseInfo,
 		startCandidates,
-		lastAppointmentDate: lastAppDate ? formatLocalDate(new Date(lastAppDate)) : null,
+		lastAppointmentDate: lastAppDate ? formatDateForDB(new Date(lastAppDate)) : null,
 		purchaseChain: purchaseChain.map((p) => ({
 			id: p.id,
-			start_date: p.start_date ? formatLocalDate(p.start_date) : null,
-			end_date: p.end_date ? formatLocalDate(p.end_date) : null
+			start_date: p.start_date ? formatDateForDB(p.start_date) : null,
+			end_date: p.end_date ? formatDateForDB(p.end_date) : null
 		}))
 	};
 };
@@ -265,10 +258,10 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const purchaseId = formData.get('purchase_id') as string;
-		const packageCount = parseInt(formData.get('package_count') as string);
-		const startDateStr = formData.get('start_date') as string;
-		const startHour = parseInt(formData.get('start_hour') as string);
+		const purchaseId = getFormDataString(formData, 'purchase_id');
+		const packageCount = parseInt(getFormDataString(formData, 'package_count'));
+		const startDateStr = getFormDataString(formData, 'start_date');
+		const startHour = parseInt(getFormDataString(formData, 'start_hour'));
 
 		if (!purchaseId || !packageCount || packageCount < 1) {
 			return fail(400, {
@@ -418,7 +411,8 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: `${result.purchases_created} paket (${result.appointments_created} randevu) başarıyla oluşturuldu`
+			message: `${result.purchases_created} paket (${result.appointments_created} randevu) başarıyla oluşturuldu`,
+			redirectTo: `/schedule?week=${allAppointmentSlots[0].date}`
 		};
 	},
 
@@ -427,10 +421,10 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const purchaseId = formData.get('purchase_id') as string;
-		const assignmentWeeksStr = formData.get('assignment_weeks') as string;
-		const startDateStr = formData.get('start_date') as string;
-		const startHour = parseInt(formData.get('start_hour') as string);
+		const purchaseId = getFormDataString(formData, 'purchase_id');
+		const assignmentWeeksStr = getFormDataString(formData, 'assignment_weeks');
+		const startDateStr = getFormDataString(formData, 'start_date');
+		const startHour = parseInt(getFormDataString(formData, 'start_hour'));
 
 		if (!purchaseId || !assignmentWeeksStr) {
 			return fail(400, {
@@ -570,7 +564,8 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: `${assignmentWeeks} haftalık uzatma (${totalSessions} derse katılım) başarıyla oluşturuldu`
+			message: `${assignmentWeeks} haftalık uzatma (${totalSessions} derse katılım) başarıyla oluşturuldu`,
+			redirectTo: `/schedule?week=${sessionsToJoin[0].date}`
 		};
 	}
 };

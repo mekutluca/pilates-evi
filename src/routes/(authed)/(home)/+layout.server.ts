@@ -22,7 +22,7 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 			name: 'rooms',
 			query: supabase
 				.from('pe_rooms')
-				.select('id, name, capacity, is_active, organization_id, sort_order')
+				.select('id, name, is_active, organization_id, sort_order')
 				.order('sort_order', { ascending: true })
 		},
 		{
@@ -37,37 +37,20 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => 
 		}
 	] as const;
 
-	try {
-		const results = await Promise.all(queries.map((q) => q.query));
+	const results = await Promise.all(queries.map((q) => q.query));
 
-		const data: Record<string, (Trainer | Room | Trainee | Package)[]> = {};
+	// A failed list degrades to empty rather than breaking every page
+	const data: Record<string, (Trainer | Room | Trainee | Package)[]> = {};
+	queries.forEach((query, index) => {
+		const { data: queryData, error: queryError } = results[index];
+		if (queryError) console.error(`Error loading ${query.name}:`, queryError);
+		data[query.name] = queryData ?? [];
+	});
 
-		queries.forEach((query, index) => {
-			const { data: queryData, error: queryError } = results[index];
-
-			if (queryError) {
-				console.error(`Error loading ${query.name}:`, queryError);
-				// For critical errors, you might want to throw instead of returning empty array
-				data[query.name] = [];
-			} else {
-				data[query.name] = queryData || [];
-			}
-		});
-
-		return {
-			trainers: data.trainers as Trainer[],
-			rooms: data.rooms as Room[],
-			trainees: data.trainees as Trainee[],
-			packages: data.packages as Package[]
-		};
-	} catch (err) {
-		console.error('Failed to load application data:', err);
-		// Return empty data instead of throwing to prevent app crash
-		return {
-			trainers: [],
-			rooms: [],
-			trainees: [],
-			packages: []
-		};
-	}
+	return {
+		trainers: data.trainers as Trainer[],
+		rooms: data.rooms as Room[],
+		trainees: data.trainees as Trainee[],
+		packages: data.packages as Package[]
+	};
 };

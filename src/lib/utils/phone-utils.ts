@@ -24,3 +24,15 @@ export function formatPhoneNumber(phone: string): string {
 
 	return digits;
 }
+
+/**
+ * Normalizes a Turkish phone number as typed (spaces, dashes, +90, leading 0) to the
+ * stored 10-digit national form, e.g. "0555 123 45 67" → "5551234567". Returns null when
+ * the input isn't a 10-digit number after stripping those prefixes.
+ */
+export function normalizePhoneNumber(input: string): string | null {
+	let digits = input.replace(/\D/g, '');
+	if (digits.length === 12 && digits.startsWith('90')) digits = digits.slice(2);
+	if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+	return /^\d{10}$/.test(digits) ? digits : null;
+}

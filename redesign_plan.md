@@ -217,3 +217,27 @@ Sibling comparison: dependencies are already aligned (Kit 2.63, Svelte 5.56, Vit
 **Still open:**
 
 - Drop `pe_decrement_reschedule` once the new code is deployed.
+
+## Phase 1 progress
+
+**2026-10-14 — database (applied):**
+
+- `20261014172208_pe_lesson_count_email_scope_cleanup` — `pe_purchases.lesson_count` (backfilled, set by `pe_create_assignment` / `pe_extend_purchase`), trainee email unique per studio (`organization_id, lower(email)`), `pe_logs` and the `day_of_week` / `group_type` enums dropped.
+- `20261014172354_pe_drop_legacy_login_roles` — `pe_admin`, `pe_coordinator`, `pe_trainer`, `pe_trainee`, `pe_super_admin` Postgres roles dropped.
+- Waiting for the deploy: `supabase/pending-migrations/pe_post_deploy_drops.sql` drops `pe_rooms.capacity` and `pe_decrement_reschedule` (the live app still uses both).
+
+**Code:**
+
+- Server-only scheduling modules moved to `$lib/server/scheduling/` (shift, cancellation, day-cancellation, extension, purchase-deletion).
+- `AppointmentRepository.getSeries(id, scope, traineeId?)` replaces the six series loaders in transfer and shift code.
+- `ConflictService.findMoveConflicts` — batched (2 queries) check for moving sets; replaces the per-appointment loops in transfer, shift-by-weeks and slot shifts.
+- `SchedulingService` owns reschedule, transferResources (also updates the group lesson row), shiftSeriesByWeeks/BySlots, trainee shifts, cancel, closeDay, deleteRemainingLessons. Slot-shift planning loads the series once; the close-day "closest" search plans without writing.
+- `NotificationService` — one WhatsApp message per trainee per operation (their earliest change), batched; WhatsApp repository reduced to the template transport.
+- `OrgUserService` — staff/trainer accounts, membership check before every `auth.admin` call, per-member auth lookups instead of listing the whole shared project.
+- `TraineeRepository` — one validation for create/edit on both trainee pages; phones normalized to 10 digits; duplicate e-mail message.
+- `transfer/+page.server.ts` 1,077 → 231 lines; schedule, trainees, trainers, admin/users routes thin.
+- `postAction` / `actionResultMessage` / `fetchOccupiedSlots` / `fetchCapacityIssues` (`$lib/utils/api-client`) replace `fetch` + `response.json()` in transfer, extend, new-assignment; server messages reach the toast; flows land on the affected week. `getActionErrorMessage` devalue hack removed.
+- Dashboard "last lesson" counts real upcoming enrollments (and `lesson_count`), not `total_sessions − session_number`. Trainee page shows real reschedule credits.
+- Dead code: legacy whole-group-join path (server), WhatsApp text messages and appointment-data builder, collision warnings (impossible under unique indexes), obsolete null checks and row types, `formatDateParam`, extend's local date helpers, `formData.get() as string` casts, layout try/catch. Room capacity removed from the UI.
+
+**Moved to Phase 2** (pages being rewritten): new-assignment client split and its remaining legacy state (`selectedGroupLessonId`, existing-member badge), week-navigation composable, CRUD modal manager, `use:enhance` factory, shared schedule-slot helper, extend/transfer three-state conflict checks.

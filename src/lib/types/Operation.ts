@@ -1,4 +1,4 @@
-import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
+import type { ScheduleChange } from '$lib/types/WhatsApp';
 
 // How the still-conflicting appointments should be resolved after the initial day cancellation.
 // - 'shift'   : first pass — shift each appointment forward by one slot, skipping conflicts.
@@ -60,7 +60,7 @@ export interface RawDayRow {
 // Result of attempting to shift one appointment during a day cancellation.
 export interface ShiftOutcome {
 	shifted: boolean;
-	notifications: ShiftNotificationEntry[];
+	notifications: ScheduleChange[];
 	conflict?: DayCancellationConflict;
 	error?: string;
 }
@@ -105,7 +105,7 @@ export interface DayCancellationResult {
 	// Resolvable room/trainer conflicts that were skipped (private appointments only).
 	conflicts: DayCancellationConflict[];
 	// Trainee notifications to send for the appointments that were shifted in this pass.
-	notifications: ShiftNotificationEntry[];
+	notifications: ScheduleChange[];
 	// Non-resolvable issues encountered (e.g. a group trainee with no future slot to shift into).
 	warnings: string[];
 	// Fatal error that aborted the whole operation (e.g. an invalid/past day).

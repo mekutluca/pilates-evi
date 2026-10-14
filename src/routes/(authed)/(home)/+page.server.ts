@@ -8,10 +8,17 @@ import type {
 	TraineeFromQuery
 } from '$lib/types/Dashboard';
 import type { AppointmentWithRelations } from '$lib/types/Schedule';
-import { getWeekStart, getWeekEnd, formatDateForDB } from '$lib/utils/date-utils';
+import {
+	getWeekStart,
+	getWeekEnd,
+	formatDateForDB,
+	isAppointmentFuture
+} from '$lib/utils/date-utils';
 import { createAppointmentDetails } from '$lib/utils/appointment-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 import { TRAINER_APPOINTMENTS_WITH_RELATIONS_SELECT } from '$lib/server/repositories/appointment-repository';
+
+const ROW_PAGE = 1000;
 
 export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, parent }) => {
 	// Trainer-scoped stats: only this trainer's own lessons this week, RLS-compatible
@@ -102,7 +109,7 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 		// Query 2: Get appointment trainees for this week's appointments
 		const { data: appointmentTrainees, error: appointmentTraineesError } = await supabase
 			.from('pe_appointment_trainees')
-			.select('trainee_id, session_number, total_sessions, purchase_id, appointment_id')
+			.select('trainee_id, purchase_id, appointment_id')
 			.in('appointment_id', appointmentIds.length > 0 ? appointmentIds : [-1]); // Use -1 if no appointments to avoid empty IN clause
 
 		if (appointmentTraineesError) {
@@ -194,61 +201,66 @@ export const load: PageServerLoad = ({ locals: { supabase, user, userRole }, par
 				}));
 			}) || [];
 
-		// Find trainees with last lessons (within 2 sessions of completion).
-		// Purchases for all candidates are fetched in one batched query.
-		const lastLessonCandidates = (appointmentTrainees || []).filter(
-			(
-				at
-			): at is typeof at & {
-				trainee_id: string;
-				session_number: number;
-				total_sessions: number;
-			} => {
-				if (!at.trainee_id || at.session_number === null || at.total_sessions === null)
-					return false;
-				const remainingSessions = at.total_sessions - at.session_number;
-				return remainingSessions <= 2 && remainingSessions >= 0;
-			}
-		);
-
-		const candidatePurchaseIds = [
-			...new Set(lastLessonCandidates.map((at) => at.purchase_id).filter(isNonNull))
-		];
-		const { data: candidatePurchases } =
-			candidatePurchaseIds.length > 0
+		// Trainees whose current purchase (not yet extended) has at most 2 lessons left,
+		// counted from their actual upcoming enrollments
+		const weekPurchaseIds = [...new Set((appointmentTrainees ?? []).map((at) => at.purchase_id))];
+		const { data: openPurchases } =
+			weekPurchaseIds.length > 0
 				? await supabase
 						.from('pe_purchases')
-						.select('id, package_id, successor_id, pe_packages(*)')
-						.in('id', candidatePurchaseIds)
+						.select('id, lesson_count, pe_packages(*)')
+						.in('id', weekPurchaseIds)
+						.is('successor_id', null)
 				: { data: [] };
-		const purchaseById = new Map((candidatePurchases ?? []).map((p) => [p.id, p]));
+		const purchaseById = new Map((openPurchases ?? []).map((p) => [p.id, p]));
+
+		// Paged: the API caps a response at 1000 rows, and a cut-off list would make
+		// trainees look like they are running out of lessons
+		const upcomingRows: Array<{
+			trainee_id: string;
+			purchase_id: string;
+			pe_appointments: { date: string; hour: number };
+		}> = [];
+		const today = formatDateForDB(new Date());
+		for (let from = 0; purchaseById.size > 0; from += ROW_PAGE) {
+			const { data: page } = await supabase
+				.from('pe_appointment_trainees')
+				.select('trainee_id, purchase_id, pe_appointments!inner(date, hour)')
+				.in('purchase_id', [...purchaseById.keys()])
+				.gte('pe_appointments.date', today)
+				.order('id')
+				.range(from, from + ROW_PAGE - 1);
+			upcomingRows.push(...(page ?? []));
+			if ((page ?? []).length < ROW_PAGE) break;
+		}
+		const upcomingByPair = new Map<string, Array<{ date: string; hour: number }>>();
+		for (const row of upcomingRows) {
+			if (!isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) continue;
+			const key = `${row.trainee_id}|${row.purchase_id}`;
+			upcomingByPair.set(key, [...(upcomingByPair.get(key) ?? []), row.pe_appointments]);
+		}
 
 		const traineesWithLastLessons: TraineeWithLastLesson[] = [];
-		const processedTrainees = new Set<string>(); // Track to avoid duplicates
+		const processedTrainees = new Set<string>();
+		for (const at of appointmentTrainees ?? []) {
+			const purchase = purchaseById.get(at.purchase_id);
+			if (!purchase || processedTrainees.has(at.trainee_id)) continue;
 
-		for (const at of lastLessonCandidates) {
-			if (processedTrainees.has(at.trainee_id)) continue;
+			const upcoming = (upcomingByPair.get(`${at.trainee_id}|${at.purchase_id}`) ?? []).sort(
+				(a, b) => a.date.localeCompare(b.date) || a.hour - b.hour
+			);
+			if (upcoming.length > 2) continue;
 
 			const trainee = layoutData.trainees.find((t) => t.id === at.trainee_id);
 			if (!trainee) continue;
 
-			const purchaseData = at.purchase_id ? purchaseById.get(at.purchase_id) : undefined;
-
-			// Skip if the purchase has been extended (has a successor) — the trainee isn't
-			// actually nearing their last lesson, they continue in the successor purchase.
-			if (purchaseData?.successor_id) continue;
-
-			// Get appointment date
-			const appointment = appointments?.find((a) => a.id === at.appointment_id);
-
 			traineesWithLastLessons.push({
 				trainee,
-				session_number: at.session_number,
-				total_sessions: at.total_sessions,
-				package: purchaseData?.pe_packages || null,
-				appointment_date: appointment?.date || ''
+				lesson_count: purchase.lesson_count,
+				remaining_lessons: upcoming.length,
+				package: purchase.pe_packages,
+				last_lesson_date: upcoming[upcoming.length - 1]?.date ?? null
 			});
-
 			processedTrainees.add(at.trainee_id);
 		}
 

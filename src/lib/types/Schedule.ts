@@ -15,19 +15,6 @@ export interface ShiftConflict {
 	trainerConflict: boolean;
 }
 
-// Per-appointment record describing a series-shift outcome (for notifications/audit).
-export interface ShiftedAppointment {
-	id: number;
-	oldDate: string;
-	oldHour: number;
-	newDate: string;
-	newHour: number;
-	roomId: string | null;
-	trainerId: string | null;
-	purchaseId: string | null;
-	groupLessonId: string | null;
-}
-
 // One row of a pe_move_appointments call; omitted room/trainer stay unchanged. A type
 // alias (not an interface) so it is assignable to the RPC's Json parameter.
 export type AppointmentMove = {
@@ -37,12 +24,6 @@ export type AppointmentMove = {
 	room_id?: string;
 	trainer_id?: string;
 };
-
-export interface SeriesShiftResult {
-	error: string | null;
-	conflicts: ShiftConflict[];
-	shifted: ShiftedAppointment[];
-}
 
 export interface ShiftedTraineeRecord {
 	recordId: number;
@@ -55,42 +36,7 @@ export interface TraineeShiftResult {
 	shifted: ShiftedTraineeRecord[];
 }
 
-// A fully-populated appointment row as required by series-shift operations.
-export interface ShiftableAppointment {
-	id: number;
-	date: string;
-	hour: number;
-	room_id: string | null;
-	trainer_id: string | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-}
-
-// Raw pe_appointments query row before null-completeness narrowing to ShiftableAppointment.
-export interface RawAppointmentRow {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	room_id: string | null;
-	trainer_id: string | null;
-	purchase_id: string | null;
-	group_lesson_id: string | null;
-}
-
-// Raw pe_appointment_trainees query row (with joined appointment) for trainee shifts.
-export interface TraineeRecordRow {
-	id: number;
-	appointment_id: number | null;
-	purchase_id: string | null;
-	pe_appointments: {
-		id: number;
-		date: string | null;
-		hour: number | null;
-		group_lesson_id: string | null;
-	} | null;
-}
-
-// TraineeRecordRow narrowed and flattened, sorted chronologically for shifting.
+// A trainee's enrollment flattened with its appointment slot, for shifting.
 export interface SortedTraineeRecord {
 	recordId: number;
 	appointmentId: number;
@@ -103,8 +49,7 @@ export interface SortedTraineeRecord {
 export type EligibleAppointment = { id: number; date: string; hour: number };
 
 // A trainee's appointment record queued for a weeks-based shift, with its group lesson
-// resolved (the joined appointment's own group_lesson_id, falling back to the originating
-// appointment's when a record's own row lacks one).
+// resolved from the record's own appointment.
 export interface WeeklyShiftCandidate {
 	recordId: number;
 	appointmentId: number;
@@ -155,8 +100,6 @@ interface PackageInfo {
 // another appointment occupying the same (date, hour) for the same room or trainer.
 export interface AppointmentWarning {
 	exceededCapacity: boolean;
-	roomCollision: boolean;
-	trainerCollision: boolean;
 }
 
 // Purchase relation for appointments

@@ -23,12 +23,14 @@ export interface PurchaseWithDetails {
 }
 
 // Trainee approaching their last lessons with session details
+// A trainee whose current (not extended) purchase is about to run out
 export interface TraineeWithLastLesson {
 	trainee: Trainee;
-	session_number: number;
-	total_sessions: number;
+	lesson_count: number;
+	remaining_lessons: number;
 	package: Package | null;
-	appointment_date: string;
+	// Date of their last upcoming lesson; null when none is left
+	last_lesson_date: string | null;
 }
 
 // Overall dashboard statistics for the current week (admin/coordinator/trainee view)

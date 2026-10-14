@@ -70,21 +70,6 @@ export function getWeekEnd(date: Date): Date {
 }
 
 /**
- * Formats a date as YYYY-MM-DD for URL parameters
- * @param date - The date to format
- * @returns Formatted date string in YYYY-MM-DD format
- */
-export function formatDateParam(date: Date): string {
-	return (
-		date.getFullYear() +
-		'-' +
-		String(date.getMonth() + 1).padStart(2, '0') +
-		'-' +
-		String(date.getDate()).padStart(2, '0')
-	);
-}
-
-/**
  * Formats a date as YYYY-MM-DD for database storage using local time (not UTC)
  * This avoids timezone issues when converting dates
  * @param date - The date to format

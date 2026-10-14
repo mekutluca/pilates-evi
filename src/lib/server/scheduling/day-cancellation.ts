@@ -1,6 +1,6 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { ShiftConflict, ShiftedAppointment, ShiftedTraineeRecord } from '$lib/types/Schedule';
-import type { ShiftNotificationEntry } from '$lib/types/WhatsApp';
+import type { ShiftConflict, ShiftedTraineeRecord } from '$lib/types/Schedule';
+import type { ScheduleChange } from '$lib/types/WhatsApp';
 import type {
 	DayAppointment,
 	DayCancellationConflict,
@@ -14,9 +14,11 @@ import {
 	applyEnrollmentMoves,
 	checkMoveCapacity,
 	planTraineeSlotShift,
-	shiftSeriesBySlot
-} from '$lib/utils/shift-utils';
-import { deleteAppointment } from '$lib/utils/cancellation-utils';
+	shiftSeriesBySlot,
+	shiftSeriesToFirstFreeSlot
+} from '$lib/server/scheduling/shift';
+import { NotificationService } from '$lib/server/services/notification-service';
+import { deleteAppointment } from '$lib/server/scheduling/cancellation';
 import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
 
 // How far ahead the "closest free occurrence" search walks through the recurring pattern
@@ -95,24 +97,6 @@ function buildPrivateConflict(
 	};
 }
 
-function buildNotifications(
-	appt: DayAppointment,
-	newDate: string,
-	newHour: number
-): ShiftNotificationEntry[] {
-	const oldDateTime = formatShortTurkishDateTime(appt.date, appt.hour);
-	const newDateTime = formatShortTurkishDateTime(newDate, newHour);
-	return appt.trainees
-		.filter((t): t is DayTrainee & { phone: string } => !!t.phone)
-		.map((t) => ({ phone: t.phone, oldDateTime, newDateTime, packageName: appt.packageName }));
-}
-
-function shiftedOutcome(appt: DayAppointment, shifted: ShiftedAppointment[]): ShiftOutcome {
-	const moved = shifted.find((s) => s.id === appt.id);
-	const notifications = moved ? buildNotifications(appt, moved.newDate, moved.newHour) : [];
-	return { shifted: true, notifications };
-}
-
 // Shifts a private (purchase-backed) appointment's whole series forward, mirroring a single
 // appointment cancellation. The target slot is checked for room/trainer conflicts:
 // - 'shift'   : shift by one slot; on a conflict nothing moves and it is reported to resolve.
@@ -122,31 +106,24 @@ async function shiftPrivateAppointment(
 	appt: DayAppointment,
 	strategy: DayCancellationStrategy
 ): Promise<ShiftOutcome> {
-	if (strategy === 'closest') {
-		let lastConflicts: ShiftConflict[] = [];
-		for (let slots = 1; slots <= CLOSEST_PROBE_LIMIT; slots++) {
-			const result = await shiftSeriesBySlot(supabase, appt.id, slots);
-			if (result.error) return { shifted: false, notifications: [], error: result.error };
-			if (result.conflicts.length === 0) return shiftedOutcome(appt, result.shifted);
-			lastConflicts = result.conflicts;
-		}
-		return {
-			shifted: false,
-			notifications: [],
-			conflict: buildPrivateConflict(appt, lastConflicts, 'Uygun boş randevu bulunamadı')
-		};
-	}
+	const result =
+		strategy === 'closest'
+			? await shiftSeriesToFirstFreeSlot(supabase, appt.id, CLOSEST_PROBE_LIMIT)
+			: await shiftSeriesBySlot(supabase, appt.id, 1);
 
-	const result = await shiftSeriesBySlot(supabase, appt.id, 1);
 	if (result.error) return { shifted: false, notifications: [], error: result.error };
 	if (result.conflicts.length > 0) {
 		return {
 			shifted: false,
 			notifications: [],
-			conflict: buildPrivateConflict(appt, result.conflicts)
+			conflict: buildPrivateConflict(
+				appt,
+				result.conflicts,
+				strategy === 'closest' ? 'Uygun boş randevu bulunamadı' : undefined
+			)
 		};
 	}
-	return shiftedOutcome(appt, result.shifted);
+	return { shifted: true, notifications: NotificationService.changesFromMoves(result.moved) };
 }
 
 // Shifts each trainee on a group appointment forward by one slot within their own pattern, then
@@ -186,24 +163,23 @@ async function shiftGroupAppointment(
 			.from('pe_appointments')
 			.select('id, date, hour')
 			.in('id', newIds);
-		for (const row of data ?? []) {
-			if (row.date && row.hour !== null)
-				newSlotById.set(row.id, { date: row.date, hour: row.hour });
-		}
+		for (const row of data ?? []) newSlotById.set(row.id, { date: row.date, hour: row.hour });
 	}
 
-	const oldDateTime = formatShortTurkishDateTime(appt.date, appt.hour);
-	const notifications: ShiftNotificationEntry[] = [];
-	for (const { trainee, newAppointmentId } of moved) {
+	const notifications: ScheduleChange[] = moved.flatMap(({ trainee, newAppointmentId }) => {
 		const slot = newSlotById.get(newAppointmentId);
-		if (!trainee.phone || !slot) continue;
-		notifications.push({
-			phone: trainee.phone,
-			oldDateTime,
-			newDateTime: formatShortTurkishDateTime(slot.date, slot.hour),
-			packageName: appt.packageName
-		});
-	}
+		if (!trainee.phone || !slot) return [];
+		return [
+			{
+				phone: trainee.phone,
+				packageName: appt.packageName,
+				oldDate: appt.date,
+				oldHour: appt.hour,
+				newDate: slot.date,
+				newHour: slot.hour
+			}
+		];
+	});
 
 	const { error: deleteError } = await deleteAppointment(supabase, appt.id);
 	if (deleteError) return { shifted: false, notifications: [], error: deleteError };
@@ -220,8 +196,8 @@ async function shiftGroupAppointment(
  * (nearest free occurrence) resolves them. Empty slots are left
  * untouched.
  *
- * Notifications for the shifted appointments are returned (not sent) so the caller can dispatch
- * them with the WhatsApp repository and the user-supplied cause.
+ * Schedule changes for the shifted appointments are returned (not sent) so the caller can
+ * notify trainees with the user-supplied cause.
  */
 export async function cancelDay(
 	supabase: SupabaseClientType,

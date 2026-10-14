@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { getFormDataString } from '$lib/utils/form-utils';
 import type { Actions } from './$types';
 import type { CreatePackageForm } from '$lib/types';
 import { requireAdmin } from '$lib/server/permissions';
@@ -9,7 +10,7 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const packageFormJson = formData.get('packageData') as string;
+		const packageFormJson = getFormDataString(formData, 'packageData');
 
 		if (!packageFormJson) {
 			return fail(400, {
@@ -98,14 +99,14 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const packageId = formData.get('packageId') as string;
-		const name = formData.get('name') as string;
-		const description = formData.get('description') as string;
-		const minLessonsPerWeek = formData.get('min_lessons_per_week') as string;
-		const maxLessonsPerWeek = formData.get('max_lessons_per_week') as string;
-		const maxCapacity = formData.get('max_capacity') as string;
+		const packageId = getFormDataString(formData, 'packageId');
+		const name = getFormDataString(formData, 'name');
+		const description = getFormDataString(formData, 'description');
+		const minLessonsPerWeek = getFormDataString(formData, 'min_lessons_per_week');
+		const maxLessonsPerWeek = getFormDataString(formData, 'max_lessons_per_week');
+		const maxCapacity = getFormDataString(formData, 'max_capacity');
 		const reschedulable = formData.get('reschedulable') === 'true';
-		const rescheduleLimit = formData.get('reschedule_limit') as string;
+		const rescheduleLimit = getFormDataString(formData, 'reschedule_limit');
 
 		if (!packageId || !name || !minLessonsPerWeek || !maxLessonsPerWeek || !maxCapacity) {
 			return fail(400, {
@@ -174,7 +175,7 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const packageId = formData.get('packageId') as string;
+		const packageId = getFormDataString(formData, 'packageId');
 
 		if (!packageId) {
 			return fail(400, {
@@ -206,7 +207,7 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const packageId = formData.get('packageId') as string;
+		const packageId = getFormDataString(formData, 'packageId');
 
 		if (!packageId) {
 			return fail(400, {

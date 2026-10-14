@@ -14,7 +14,23 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 - Two Supabase clients: regular user client and admin service role client
 - Role-based access control with 4 roles: `admin`, `coordinator`, `trainer`, `trainee`
 - Roles are prefixed with `pe_` in Supabase but stripped to base role names in the app
-- Route protection implemented in `hooks.server.ts` using route definitions from `Route.ts`
+- The role comes from the user's active `pe_user_organizations` membership (hooks and the `pe_get_auth_org_role()` RLS helper both read it), so removing or demoting staff takes effect immediately; `app_metadata` only carries the organization id
+- Route protection implemented in `hooks.server.ts` using route definitions from `Route.ts`; a nav route guards its whole subtree (`/trainees` covers `/trainees/[id]`)
+- Coordinators do scheduling (book, move, cancel, close days, delete lessons); rooms, trainers, packages and staff accounts are admin-only
+
+### Server Layer
+
+Routes parse input, check permissions, call one service/repository method and report the result. Business logic lives in `src/lib/server/`:
+
+- `services/scheduling-service.ts` - every scheduling write: create assignment, reschedule, transfer room/trainer, shift by weeks/slots, trainee shifts, cancel appointment, close day, delete remaining lessons, end group lesson. Writes go through transactional RPCs (`pe_move_appointments`, `pe_move_enrollments`, `pe_reschedule_appointment`, `pe_create_assignment`, `pe_extend_purchase`, `pe_end_group_lesson`)
+- `services/conflict-service.ts` - room/trainer conflicts (`findSlotConflicts`, batched `findMoveConflicts`) and group enrollment capacity/duplicate checks
+- `services/notification-service.ts` - WhatsApp schedule-change messages, one per trainee per operation
+- `services/org-user-service.ts` - staff/trainer login accounts; checks studio membership before any `auth.admin` call (the Supabase project is shared with other apps)
+- `repositories/appointment-repository.ts` - `getSeries(appointmentId, scope, traineeId?)`: the appointments an operation covers (purchase chain, canonical group slots)
+- `repositories/purchase-repository.ts`, `repositories/trainee-repository.ts`
+- `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion)
+- Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`); actions return `{ success, message, redirectTo? }`
+- Server time is pinned to `Europe/Istanbul` in `hooks.server.ts`
 
 ### Key Files
 
@@ -43,7 +59,7 @@ Key entity types defined in `src/lib/types/`:
 
 - TailwindCSS v4 with shadcn-svelte components (built on bits-ui)
 - shadcn-svelte primitives live in `src/lib/components/ui/` (auto-generated; do not edit by hand unless intentionally customizing)
-- Custom font: Plus Jakarta Sans
+- Font: Nunito Sans Variable (`@fontsource-variable/nunito-sans`)
 - Uses `cn()` from `$lib/utils` (clsx + tailwind-merge) for conditional classes
 - Custom semantic color tokens defined in `src/app.css` extend the default shadcn palette: `info`, `success`, `warning` (each with a `-foreground` variant), in addition to the standard `primary`, `secondary`, `accent`, `destructive`, `muted`
 

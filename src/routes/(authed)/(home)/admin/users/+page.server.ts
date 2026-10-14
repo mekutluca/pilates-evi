@@ -1,296 +1,111 @@
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { requireAdmin, requireAdminClient, requireOrgMember } from '$lib/server/permissions';
+import { requireAdmin } from '$lib/server/permissions';
+import { OrgUserService, type MemberRole } from '$lib/server/services/org-user-service';
 
-export const load: PageServerLoad = async ({
-	locals: { admin: adminClient, user, userRole, organizationId }
-}) => {
-	// Ensure only admin users can access this page
-	if (!user || userRole !== 'admin') {
+const STAFF_ROLES = new Map<string, MemberRole>([
+	['admin', 'pe_admin'],
+	['coordinator', 'pe_coordinator']
+]);
+
+export const load: PageServerLoad = async ({ locals }) => {
+	if (!locals.user || locals.userRole !== 'admin') {
 		throw error(403, 'Bu sayfaya erişim yetkiniz yok');
 	}
+	const service = OrgUserService.fromLocals(locals);
 
-	const admin = requireAdminClient(adminClient);
-
-	if (!organizationId) {
-		throw error(400, 'Organizasyon bilgisi bulunamadı');
-	}
-
-	// Fetch users from pe_user_organizations for the current organization (admin and coordinator roles only)
-	const { data: orgUsers, error: usersError } = await admin
+	// Admins and coordinators of this studio (trainers are managed on their own page)
+	const { data: members, error: membersError } = await locals.supabase
 		.from('pe_user_organizations')
 		.select('user_id, role, created_at')
-		.eq('organization_id', organizationId)
+		.eq('organization_id', service.organizationId)
 		.eq('is_active', true)
 		.in('role', ['pe_admin', 'pe_coordinator']);
-
-	if (usersError) {
-		throw error(500, 'Kullanıcılar yüklenirken hata oluştu: ' + usersError.message);
+	if (membersError) {
+		throw error(500, 'Kullanıcılar yüklenirken hata oluştu: ' + membersError.message);
 	}
 
-	// Fetch all auth users in one call instead of one lookup per member
-	const { data: authUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-	const authUserById = new Map((authUsers?.users ?? []).map((u) => [u.id, u]));
-
-	const users = (orgUsers || []).map((orgUser) => {
-		const authUser = authUserById.get(orgUser.user_id);
+	const authUsers = await service.getAuthUsers((members ?? []).map((m) => m.user_id));
+	const users = (members ?? []).map((member) => {
+		const authUser = authUsers.get(member.user_id);
 		return {
-			id: orgUser.user_id,
-			email: authUser?.email || '',
-			fullName: authUser?.user_metadata?.fullName || '',
-			role: orgUser.role.replace('pe_', ''),
-			created_at: orgUser.created_at,
+			id: member.user_id,
+			email: authUser?.email ?? '',
+			fullName: authUser?.user_metadata?.fullName ?? '',
+			role: member.role.replace('pe_', ''),
+			created_at: member.created_at,
 			last_sign_in_at: authUser?.last_sign_in_at
 		};
 	});
 
-	return {
-		users
-	};
+	return { users };
 };
 
 export const actions: Actions = {
-	createUser: async ({
-		request,
-		locals: { admin: adminClient, user, userRole, organizationId }
-	}) => {
-		const denied = requireAdmin(user, userRole);
+	createUser: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
 		if (denied) return denied;
 
-		const admin = requireAdminClient(adminClient);
-
-		if (!organizationId) {
-			return fail(400, {
-				success: false,
-				message: 'Organizasyon bilgisi bulunamadı'
-			});
-		}
-
 		const formData = await request.formData();
+		const role = STAFF_ROLES.get(getRequiredFormDataString(formData, 'role'));
+		if (!role) return fail(400, { success: false, message: 'Geçersiz rol seçimi' });
 
-		const email = getRequiredFormDataString(formData, 'email');
-		const password = getRequiredFormDataString(formData, 'password');
-		const fullName = getRequiredFormDataString(formData, 'fullName');
-		const role = getRequiredFormDataString(formData, 'role');
-
-		// Validate role
-		if (!['admin', 'coordinator'].includes(role)) {
-			return fail(400, {
-				success: false,
-				message: 'Geçersiz rol seçimi'
-			});
-		}
-
-		// Create user using Supabase admin API
-		const { data: userData, error: createError } = await admin.auth.admin.createUser({
-			email,
-			password,
-			// `app` marks the user as pilates-evi's in the shared Supabase project
-			// so branded auth email templates can branch on it
-			user_metadata: { fullName, app: 'pilates-evi' },
-			email_confirm: true
+		const result = await OrgUserService.fromLocals(locals).createAccount({
+			email: getRequiredFormDataString(formData, 'email'),
+			password: getRequiredFormDataString(formData, 'password'),
+			fullName: getRequiredFormDataString(formData, 'fullName'),
+			role
 		});
+		if ('error' in result) return fail(500, { success: false, message: result.error });
 
-		if (createError || !userData.user) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı oluşturulurken hata: ' + createError?.message
-			});
-		}
-
-		// Add user to the organization with the specified role
-		const { error: orgUserError } = await admin.from('pe_user_organizations').insert({
-			user_id: userData.user.id,
-			organization_id: organizationId,
-			role: `pe_${role}`
-		});
-
-		if (orgUserError) {
-			// If organization user creation fails, clean up the user account
-			await admin.auth.admin.deleteUser(userData.user.id);
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı organizasyona eklenirken hata: ' + orgUserError.message
-			});
-		}
-
-		return {
-			success: true,
-			message: 'Kullanıcı başarıyla oluşturuldu'
-		};
+		return { success: true, message: 'Kullanıcı başarıyla oluşturuldu' };
 	},
 
-	updateUser: async ({
-		request,
-		locals: { supabase, admin: adminClient, user, userRole, organizationId }
-	}) => {
-		const denied = requireAdmin(user, userRole);
+	updateUser: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
 		if (denied) return denied;
 
-		const admin = requireAdminClient(adminClient);
-
-		if (!organizationId) {
-			return fail(400, {
-				success: false,
-				message: 'Organizasyon bilgisi bulunamadı'
-			});
-		}
-
 		const formData = await request.formData();
-		const userId = formData.get('userId') as string;
-		const fullName = formData.get('fullName') as string;
-		const role = formData.get('role') as string;
+		const role = STAFF_ROLES.get(getRequiredFormDataString(formData, 'role'));
+		if (!role) return fail(400, { success: false, message: 'Geçersiz rol seçimi' });
 
-		// Validate required fields
-		if (!userId || !fullName || !role) {
-			return fail(400, {
-				success: false,
-				message: 'Tüm alanlar gereklidir'
-			});
-		}
+		const updateError = await OrgUserService.fromLocals(locals).updateMember(
+			getRequiredFormDataString(formData, 'userId'),
+			{ fullName: getRequiredFormDataString(formData, 'fullName'), role }
+		);
+		if (updateError) return fail(400, { success: false, message: updateError });
 
-		// Validate role
-		if (!['admin', 'coordinator'].includes(role)) {
-			return fail(400, {
-				success: false,
-				message: 'Geçersiz rol seçimi'
-			});
-		}
-
-		const notMember = await requireOrgMember(supabase, userId);
-		if (notMember) return notMember;
-
-		// Update user metadata in auth
-		const { error: updateAuthError } = await admin.auth.admin.updateUserById(userId, {
-			user_metadata: { fullName }
-		});
-
-		if (updateAuthError) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı bilgileri güncellenirken hata: ' + updateAuthError.message
-			});
-		}
-
-		// Update role in pe_user_organizations
-		const { error: updateRoleError } = await admin
-			.from('pe_user_organizations')
-			.update({ role: `pe_${role}` })
-			.eq('user_id', userId)
-			.eq('organization_id', organizationId);
-
-		if (updateRoleError) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı rolü güncellenirken hata: ' + updateRoleError.message
-			});
-		}
-
-		return {
-			success: true,
-			message: 'Kullanıcı başarıyla güncellendi'
-		};
+		return { success: true, message: 'Kullanıcı başarıyla güncellendi' };
 	},
 
-	removeUser: async ({
-		request,
-		locals: { admin: adminClient, user, userRole, organizationId }
-	}) => {
-		const denied = requireAdmin(user, userRole);
+	removeUser: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
 		if (denied) return denied;
 
-		const admin = requireAdminClient(adminClient);
-
-		if (!organizationId) {
-			return fail(400, {
-				success: false,
-				message: 'Organizasyon bilgisi bulunamadı'
-			});
-		}
-
 		const formData = await request.formData();
-		const userId = formData.get('userId') as string;
-
-		if (!userId) {
-			return fail(400, {
-				success: false,
-				message: 'Kullanıcı ID gereklidir'
-			});
+		const userId = getRequiredFormDataString(formData, 'userId');
+		if (userId === locals.user?.id) {
+			return fail(400, { success: false, message: 'Kendinizi stüdyodan kaldıramazsınız' });
 		}
 
-		if (userId === user?.id) {
-			return fail(400, {
-				success: false,
-				message: 'Kendinizi organizasyondan kaldıramazsınız'
-			});
-		}
+		const removeError = await OrgUserService.fromLocals(locals).deactivateMember(userId);
+		if (removeError) return fail(400, { success: false, message: removeError });
 
-		// Deactivate the membership rather than deleting the auth account, since the
-		// same account may belong to other organizations.
-		const { error: removeError } = await admin
-			.from('pe_user_organizations')
-			.update({ is_active: false })
-			.eq('user_id', userId)
-			.eq('organization_id', organizationId);
-
-		if (removeError) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı kaldırılırken hata: ' + removeError.message
-			});
-		}
-
-		return {
-			success: true,
-			message: 'Kullanıcı organizasyondan kaldırıldı'
-		};
+		return { success: true, message: 'Kullanıcı stüdyodan kaldırıldı' };
 	},
 
-	resetPassword: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const denied = requireAdmin(user, userRole);
+	resetPassword: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
 		if (denied) return denied;
 
-		const admin = requireAdminClient(adminClient);
-
 		const formData = await request.formData();
-		const userId = formData.get('userId') as string;
-		const newPassword = formData.get('newPassword') as string;
+		const resetError = await OrgUserService.fromLocals(locals).resetPassword(
+			getRequiredFormDataString(formData, 'userId'),
+			getRequiredFormDataString(formData, 'newPassword')
+		);
+		if (resetError) return fail(400, { success: false, message: resetError });
 
-		// Validate required fields
-		if (!userId || !newPassword) {
-			return fail(400, {
-				success: false,
-				message: 'Kullanıcı ID ve yeni şifre gereklidir'
-			});
-		}
-
-		// Validate password length
-		if (newPassword.length < 6) {
-			return fail(400, {
-				success: false,
-				message: 'Şifre en az 6 karakter olmalıdır'
-			});
-		}
-
-		const notMember = await requireOrgMember(supabase, userId);
-		if (notMember) return notMember;
-
-		// Update user password using Supabase admin API
-		const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
-			password: newPassword
-		});
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Şifre sıfırlanırken hata: ' + updateError.message
-			});
-		}
-
-		return {
-			success: true,
-			message: 'Şifre başarıyla sıfırlandı'
-		};
+		return { success: true, message: 'Şifre başarıyla sıfırlandı' };
 	}
 };

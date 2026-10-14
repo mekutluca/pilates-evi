@@ -7,7 +7,6 @@ export interface WhatsAppConfig {
 	apiKey: string;
 	pluginId: string;
 	phoneNumberId: string;
-	apiVersion: string;
 }
 
 export interface SendTemplateMessageParams {
@@ -16,23 +15,10 @@ export interface SendTemplateMessageParams {
 	mapping?: TemplateMapping[];
 }
 
-export interface SendTextMessageParams {
-	phoneNumber: string;
-	text: string;
-}
-
 export interface TemplateMessageBody {
 	templateName: string;
 	whatsappPhoneNumberId: string;
 	mapping?: TemplateMapping[];
-}
-
-export interface SessionMessageBody {
-	messaging_product: 'whatsapp';
-	recipient_type: 'individual';
-	to: string;
-	type: 'text';
-	text: { body: string };
 }
 
 export interface ChakraResponse<T> {
@@ -51,49 +37,16 @@ export interface TemplateMessageData {
 	text: string;
 }
 
-export interface SessionMessageData {
-	whatsappMessageId: string;
-}
-
-export interface AppointmentQueryRow {
-	pe_appointments: {
-		date: string | null;
-		hour: number | null;
-		pe_trainers: { name: string | null } | null;
-		pe_purchases: { pe_packages: { name: string } | null } | null;
-		pe_group_lessons: { pe_packages: { name: string } | null } | null;
-	};
-	pe_trainees: {
-		name: string;
-		phone: string;
-	};
-}
-
-export interface RescheduleNotificationParams {
-	trainees: Array<{ phone: string }>;
-	oldDateTime: string; // e.g. "26 Şubat 11:00"
-	newDateTime: string; // e.g. "1 Mart 15:00"
-	packageName: string;
-	templateName: string;
-	cause?: string;
-}
-
-// A single trainee notification for a shifted appointment, where each entry can carry its
-// own old/new date-time (group trainees on the same appointment may land on different slots).
-export interface ShiftNotificationEntry {
+// One trainee's lesson moving from one slot to another.
+export interface ScheduleChange {
 	phone: string;
-	oldDateTime: string; // e.g. "26 Şubat 11:00"
-	newDateTime: string; // e.g. "1 Mart 15:00"
 	packageName: string;
+	oldDate: string;
+	oldHour: number;
+	newDate: string;
+	newHour: number;
 }
 
-export interface WhatsAppAppointmentData {
-	traineeName: string;
-	traineePhone: string;
-	trainerName: string;
-	packageName: string;
-	date: string; // YYYY-MM-DD
-	hour: number; // 9-22
-	formattedDate: string; // Turkish formatted, e.g. "31 Mart 2026 Salı"
-	formattedTime: string; // e.g. "10:00"
-}
+// Which WhatsApp template a schedule change is announced with: the studio moved the
+// lesson (with a cause), or the trainee asked for it.
+export type ScheduleChangeMessage = { kind: 'system'; cause: string } | { kind: 'trainee_request' };

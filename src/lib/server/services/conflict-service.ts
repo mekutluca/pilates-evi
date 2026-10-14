@@ -1,5 +1,6 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
+	PlannedMove,
 	SlotRef,
 	SlotConflict,
 	OccupiedSlot,
@@ -62,6 +63,65 @@ export class ConflictService {
 				trainerConflict: trainerTaken.has(slotKey(slot.date, slot.hour))
 			}))
 			.filter((c) => c.roomConflict || c.trainerConflict);
+	}
+
+	/**
+	 * Batched conflict check for a set of appointments moving at once (series shifts and
+	 * transfers): two queries regardless of size. Rows that are themselves moving don't
+	 * count as occupying their old slot, and two moves landing on the same room or trainer
+	 * slot conflict with each other.
+	 */
+	async findMoveConflicts(moves: PlannedMove[]): Promise<SlotConflict[]> {
+		if (moves.length === 0) return [];
+
+		const movingIds = new Set(moves.map((m) => m.id));
+		const dates = [...new Set(moves.map((m) => m.date))];
+		const roomIds = [...new Set(moves.map((m) => m.roomId))];
+		const trainerIds = [...new Set(moves.map((m) => m.trainerId))];
+		const hours = [...new Set(moves.map((m) => m.hour))];
+
+		const [roomRes, trainerRes] = await Promise.all([
+			this.supabase
+				.from('pe_appointments')
+				.select('id, date, hour, room_id')
+				.in('room_id', roomIds)
+				.in('date', dates)
+				.in('hour', hours),
+			this.supabase
+				.from('pe_appointments')
+				.select('id, date, hour, trainer_id')
+				.in('trainer_id', trainerIds)
+				.in('date', dates)
+				.in('hour', hours)
+		]);
+		if (roomRes.error) throw new Error(`Çakışma kontrolü başarısız: ${roomRes.error.message}`);
+		if (trainerRes.error)
+			throw new Error(`Çakışma kontrolü başarısız: ${trainerRes.error.message}`);
+
+		const roomTaken = new Set(
+			(roomRes.data ?? [])
+				.filter((r) => !movingIds.has(r.id))
+				.map((r) => `${r.room_id}|${r.date}|${r.hour}`)
+		);
+		const trainerTaken = new Set(
+			(trainerRes.data ?? [])
+				.filter((r) => !movingIds.has(r.id))
+				.map((r) => `${r.trainer_id}|${r.date}|${r.hour}`)
+		);
+
+		const conflicts: SlotConflict[] = [];
+		for (const move of moves) {
+			const roomKey = `${move.roomId}|${move.date}|${move.hour}`;
+			const trainerKey = `${move.trainerId}|${move.date}|${move.hour}`;
+			const roomConflict = roomTaken.has(roomKey);
+			const trainerConflict = trainerTaken.has(trainerKey);
+			if (roomConflict || trainerConflict) {
+				conflicts.push({ date: move.date, hour: move.hour, roomConflict, trainerConflict });
+			}
+			roomTaken.add(roomKey);
+			trainerTaken.add(trainerKey);
+		}
+		return conflicts;
 	}
 
 	/**

@@ -3,8 +3,8 @@ import type { Purchase } from '$lib/types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek } from '$lib/types/Schedule';
 import type { UpcomingGroupAppointment, GroupLessonTimeslot } from '$lib/types/Extension';
-import { parseLocalDate, formatDateForDB } from './date-utils';
-import { sortTimeSlots } from './slot-utils';
+import { parseLocalDate, formatDateForDB } from '$lib/utils/date-utils';
+import { sortTimeSlots } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 
 function isDayOfWeek(value: string): value is DayOfWeek {

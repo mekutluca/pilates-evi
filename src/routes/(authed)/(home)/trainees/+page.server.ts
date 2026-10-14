@@ -1,123 +1,64 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { getRequiredFormDataString, getFormDataString } from '$lib/utils/form-utils';
+import { getRequiredFormDataString } from '$lib/utils/form-utils';
 import { requireStaff } from '$lib/server/permissions';
+import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
 
 export const actions: Actions = {
 	createTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
-		const formData = await request.formData();
+		const input = TraineeRepository.parseForm(await request.formData());
+		if (typeof input === 'string') return fail(400, { success: false, message: input });
 
-		const name = getRequiredFormDataString(formData, 'name');
-		const email = getRequiredFormDataString(formData, 'email');
-		const phone = getRequiredFormDataString(formData, 'phone');
-		const notes = getFormDataString(formData, 'notes');
-
-		// Validate email format
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-			return fail(400, { success: false, message: 'Geçerli bir email adresi girin' });
-		}
-
-		// Generate a UUID for the new trainee
-		const traineeId = crypto.randomUUID();
-
-		const { error: createError } = await supabase.from('pe_trainees').insert({
-			id: traineeId,
-			name,
-			email,
-			phone,
-			notes: notes || null
-		});
-
-		if (createError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenci oluşturulurken hata: ' + createError.message
-			});
-		}
+		const createError = await new TraineeRepository(supabase).create(input);
+		if (createError) return fail(400, { success: false, message: createError });
 
 		return { success: true, message: 'Öğrenci başarıyla oluşturuldu' };
 	},
 
 	updateTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
+		const input = TraineeRepository.parseForm(formData);
+		if (typeof input === 'string') return fail(400, { success: false, message: input });
 
-		const traineeId = getRequiredFormDataString(formData, 'traineeId');
-		const name = getRequiredFormDataString(formData, 'name');
-		const email = getRequiredFormDataString(formData, 'email');
-		const phone = getRequiredFormDataString(formData, 'phone');
-		const notes = getFormDataString(formData, 'notes');
-
-		// Validate email format
-		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-			return fail(400, { success: false, message: 'Geçerli bir email adresi girin' });
-		}
-
-		const { error: updateError } = await supabase
-			.from('pe_trainees')
-			.update({
-				name,
-				email,
-				phone,
-				notes: notes || null
-			})
-			.eq('id', traineeId);
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenci güncellenirken hata: ' + updateError.message
-			});
-		}
+		const updateError = await new TraineeRepository(supabase).update(
+			getRequiredFormDataString(formData, 'traineeId'),
+			input
+		);
+		if (updateError) return fail(400, { success: false, message: updateError });
 
 		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
 	},
 
 	archiveTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
-		const traineeId = getRequiredFormDataString(formData, 'traineeId');
-
-		const { error: archiveError } = await supabase
-			.from('pe_trainees')
-			.update({ is_active: false })
-			.eq('id', traineeId);
-
-		if (archiveError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenci arşivlenirken hata: ' + archiveError.message
-			});
-		}
+		const archiveError = await new TraineeRepository(supabase).setActive(
+			getRequiredFormDataString(formData, 'traineeId'),
+			false
+		);
+		if (archiveError) return fail(400, { success: false, message: archiveError });
 
 		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
 	},
 
 	restoreTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireStaff(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
-		const traineeId = getRequiredFormDataString(formData, 'traineeId');
-
-		const { error: restoreError } = await supabase
-			.from('pe_trainees')
-			.update({ is_active: true })
-			.eq('id', traineeId);
-
-		if (restoreError) {
-			return fail(500, {
-				success: false,
-				message: 'Öğrenci geri yüklenirken hata: ' + restoreError.message
-			});
-		}
+		const restoreError = await new TraineeRepository(supabase).setActive(
+			getRequiredFormDataString(formData, 'traineeId'),
+			true
+		);
+		if (restoreError) return fail(400, { success: false, message: restoreError });
 
 		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
 	}

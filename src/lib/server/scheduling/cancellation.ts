@@ -5,7 +5,7 @@ import {
 	checkMoveCapacity,
 	planTraineeSlotShift,
 	shiftSeriesBySlot
-} from '$lib/utils/shift-utils';
+} from '$lib/server/scheduling/shift';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
 
 /**

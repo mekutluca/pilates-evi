@@ -11,9 +11,19 @@
 	import Play from '@lucide/svelte/icons/play';
 	import type { DayOfWeek } from '$lib/types/Schedule';
 	import { DAY_NAMES } from '$lib/types/Schedule';
-	import { parseLocalDate, formatTurkishDate, formatShortDisplayDate } from '$lib/utils/date-utils';
+	import {
+		parseLocalDate,
+		formatTurkishDate,
+		formatShortDisplayDate,
+		getDayOfWeekFromDate
+	} from '$lib/utils/date-utils';
 	import { buildAppointmentSlotsFromStart } from '$lib/utils/slot-utils';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import {
+		actionResultMessage,
+		fetchCapacityIssues,
+		fetchOccupiedSlots,
+		postAction
+	} from '$lib/utils/api-client';
 	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -63,24 +73,10 @@
 		return slots.map((slot, idx) => ({
 			date: slot.date,
 			hour: slot.hour,
-			day: getDayOfWeekName(slot.date),
+			day: getDayOfWeekFromDate(slot.date),
 			weekNumber: Math.floor(idx / purchaseInfo.lessons_per_week) + 1
 		}));
 	});
-
-	function getDayOfWeekName(dateStr: string): DayOfWeek {
-		const date = parseLocalDate(dateStr);
-		const names: DayOfWeek[] = [
-			'sunday',
-			'monday',
-			'tuesday',
-			'wednesday',
-			'thursday',
-			'friday',
-			'saturday'
-		];
-		return names[date.getDay()];
-	}
 
 	let conflicts = $state<Array<{ date: string; hour: number; reason: string }>>([]);
 	let capacityIssues = $state<
@@ -107,29 +103,27 @@
 			const minDate = dateStrings[0];
 			const maxDate = dateStrings[dateStrings.length - 1];
 
-			const response = await fetch(
-				`/api/check-conflicts?room_id=${purchaseInfo.room_id}&trainer_id=${purchaseInfo.trainer_id}&start_date=${minDate}&end_date=${maxDate}`
-			);
+			const existingAppointments = await fetchOccupiedSlots({
+				roomId: purchaseInfo.room_id,
+				trainerId: purchaseInfo.trainer_id,
+				startDate: minDate,
+				endDate: maxDate
+			});
 
-			if (response.ok) {
-				const result = await response.json();
-				const existingAppointments = result.appointments || [];
+			for (const preview of appointmentPreviews) {
+				const conflict = existingAppointments.find(
+					(apt) => apt.date === preview.date && apt.hour === preview.hour
+				);
 
-				for (const preview of appointmentPreviews) {
-					const conflict = existingAppointments.find(
-						(apt: { date: string; hour: number; room_id: string; trainer_id: string }) =>
-							apt.date === preview.date && apt.hour === preview.hour
-					);
-
-					if (conflict) {
-						const isRoomConflict = conflict.room_id === purchaseInfo.room_id;
-
-						conflicts.push({
-							date: preview.date,
-							hour: preview.hour,
-							reason: isRoomConflict ? 'Oda bu saatte dolu' : 'Eğitmen bu saatte dolu'
-						});
-					}
+				if (conflict) {
+					conflicts.push({
+						date: preview.date,
+						hour: preview.hour,
+						reason:
+							conflict.room_id === purchaseInfo.room_id
+								? 'Oda bu saatte dolu'
+								: 'Eğitmen bu saatte dolu'
+					});
 				}
 			}
 		} catch {
@@ -148,14 +142,12 @@
 			const minDate = dateStrings[0];
 			const maxDate = dateStrings[dateStrings.length - 1];
 
-			const response = await fetch(
-				`/api/check-group-capacity?room_id=${purchaseInfo.room_id}&trainer_id=${purchaseInfo.trainer_id}&start_date=${minDate}&end_date=${maxDate}&max_capacity=${purchaseInfo.max_capacity}`
-			);
-
-			if (response.ok) {
-				const result = await response.json();
-				capacityIssues = result.capacityIssues || [];
-			}
+			capacityIssues = await fetchCapacityIssues({
+				roomId: purchaseInfo.room_id,
+				trainerId: purchaseInfo.trainer_id,
+				startDate: minDate,
+				endDate: maxDate
+			});
 		} catch {
 			// Silently handle capacity check errors
 		} finally {
@@ -184,31 +176,21 @@
 			formData.append('start_date', selectedCandidate.date);
 			formData.append('start_hour', selectedCandidate.hour.toString());
 
-			let actionUrl = '';
+			let action = '';
 			if (isPrivatePackage) {
 				formData.append('package_count', packageCount.toString());
-				actionUrl = '?/extendPrivate';
+				action = 'extendPrivate';
 			} else if (isGroupPackage) {
 				formData.append('assignment_weeks', assignmentWeeks.toString());
-				actionUrl = '?/extendGroup';
+				action = 'extendGroup';
 			}
 
-			const response = await fetch(actionUrl, {
-				method: 'POST',
-				body: formData
-			});
-
-			const result = await response.json();
-
+			const result = await postAction(action, formData);
 			if (result.type === 'success') {
-				toast.success(result.data?.message || 'Uzatma başarıyla oluşturuldu');
-				goto('/schedule');
-			} else if (result.type === 'failure') {
-				toast.error(getActionErrorMessage(result));
-				console.error('Extension failed:', result);
+				toast.success(result.data?.message ?? 'Uzatma başarıyla oluşturuldu');
+				goto(result.data?.redirectTo ?? '/schedule');
 			} else {
-				toast.error('Beklenmeyen bir hata oluştu');
-				console.error('Unexpected result type:', result);
+				toast.error(actionResultMessage(result));
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';

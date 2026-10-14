@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isValidUuid } from '$lib/utils/validation';
+import type { CapacityIssue } from '$lib/types/Conflict';
 
 export const GET: RequestHandler = async ({ url, locals: { supabase, user, userRole } }) => {
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
@@ -41,12 +42,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, user, userR
 		throw error(500, 'Failed to fetch appointments');
 	}
 
-	const capacityIssues: Array<{
-		date: string;
-		hour: number;
-		currentCapacity: number;
-		maxCapacity: number;
-	}> = [];
+	const capacityIssues: CapacityIssue[] = [];
 
 	for (const appointment of appointments ?? []) {
 		const maxCapacity = appointment.pe_group_lessons.pe_packages.max_capacity;

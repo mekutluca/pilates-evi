@@ -159,7 +159,7 @@
 		}
 
 		if (membership.package?.package_type === 'group') {
-			return membership.left_at ? formatDisplayDate(membership.left_at) : 'Devam ediyor';
+			return 'Devam ediyor';
 		}
 
 		return calculatePackageEndDate(

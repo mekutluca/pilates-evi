@@ -2,13 +2,13 @@ import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import type {
 	PackagePurchaseForm,
-	ExistingGroupLesson,
 	Appointment,
 	AvailableGroupTimeslot,
 	GroupLessonQueryResult
 } from '$lib/types';
 import { parseLocalDate, getDayOfWeekFromDate, formatDateForDB } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
+import { getFormDataString } from '$lib/utils/form-utils';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import type {
@@ -60,7 +60,6 @@ export const load: PageServerLoad = async ({
 	}
 
 	let appointments: Appointment[] = [];
-	let existingGroupLessons: ExistingGroupLesson[] = [];
 	let existingGroupLessonTrainees: string[] = [];
 	const availableGroupTimeslots: AvailableGroupTimeslot[] = [];
 
@@ -90,62 +89,6 @@ export const load: PageServerLoad = async ({
 		} else if (groupLessons && groupLessons.length > 0) {
 			// Cast to proper type for joined query results
 			const typedGroupLessons = groupLessons as GroupLessonQueryResult[];
-
-			// Transform group lessons into the format expected by the UI
-			existingGroupLessons = typedGroupLessons.map((gl) => {
-				// Parse timeslots JSON to get day_time_combinations
-				const timeslots = gl.timeslots || [];
-				const day_time_combinations = Array.isArray(timeslots) ? timeslots : [];
-
-				return {
-					group_lesson_id: gl.id,
-					package_id: gl.package_id || '',
-					room_id: gl.room_id || '',
-					room_name: gl.pe_rooms?.name || '',
-					trainer_id: gl.trainer_id || '',
-					trainer_name: gl.pe_trainers?.name || '',
-					max_capacity: gl.pe_packages?.max_capacity || 0,
-					current_capacity: 0, // Will be calculated below with appointment_trainees
-					day_time_combinations
-				};
-			});
-
-			// Get current capacity for each group lesson using appointment_trainees.
-			// Two batched queries for all lessons instead of two per lesson.
-			const lessonIds = existingGroupLessons.map((gl) => gl.group_lesson_id);
-			const { data: lessonAppointments } = await supabase
-				.from('pe_appointments')
-				.select('id, group_lesson_id')
-				.in('group_lesson_id', lessonIds);
-
-			const lessonByAppointment = new Map(
-				(lessonAppointments ?? []).map((apt) => [apt.id, apt.group_lesson_id])
-			);
-
-			if (lessonByAppointment.size > 0) {
-				const { data: lessonEnrollments } = await supabase
-					.from('pe_appointment_trainees')
-					.select('appointment_id, trainee_id')
-					.in('appointment_id', [...lessonByAppointment.keys()]);
-
-				const traineesByLesson = new Map<string, Set<string>>();
-				for (const enrollment of lessonEnrollments ?? []) {
-					if (enrollment.appointment_id === null || !enrollment.trainee_id) continue;
-					const lessonId = lessonByAppointment.get(enrollment.appointment_id);
-					if (!lessonId) continue;
-					let set = traineesByLesson.get(lessonId);
-					if (!set) {
-						set = new Set<string>();
-						traineesByLesson.set(lessonId, set);
-					}
-					set.add(enrollment.trainee_id);
-				}
-
-				for (const groupLesson of existingGroupLessons) {
-					groupLesson.current_capacity =
-						traineesByLesson.get(groupLesson.group_lesson_id)?.size ?? 0;
-				}
-			}
 
 			// Build available timeslots with per-timeslot capacity.
 			// Capacity is computed against the next canonical appointment matching
@@ -296,7 +239,6 @@ export const load: PageServerLoad = async ({
 		trainers,
 		trainees,
 		appointments,
-		existingGroupLessons,
 		existingGroupLessonTrainees,
 		availableGroupTimeslots
 	};
@@ -308,7 +250,7 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const assignmentFormJson = formData.get('assignmentData') as string;
+		const assignmentFormJson = getFormDataString(formData, 'assignmentData');
 
 		if (!assignmentFormJson) {
 			return fail(400, {
@@ -350,22 +292,16 @@ export const actions: Actions = {
 		}
 
 		// Handle private vs group packages differently
-		// Priority: selected_group_timeslots > group_lesson_id (joining all timeslots) > new group lesson
+		// Group packages either join selected timeslots of existing lessons or open a new lesson
 		const isJoiningSelectedTimeslots =
 			packageData.package_type === 'group' &&
 			assignmentForm.selected_group_timeslots &&
 			assignmentForm.selected_group_timeslots.length > 0;
-		const isJoiningExistingGroupLesson =
-			packageData.package_type === 'group' &&
-			assignmentForm.group_lesson_id &&
-			!isJoiningSelectedTimeslots; // Mutually exclusive with selected timeslots
 		const isCreatingNewGroupLesson =
-			packageData.package_type === 'group' &&
-			!assignmentForm.group_lesson_id &&
-			!isJoiningSelectedTimeslots;
+			packageData.package_type === 'group' && !isJoiningSelectedTimeslots;
 
-		// Validate room, trainer, and time slots (NOT required for joining existing group or selected timeslots)
-		if (!isJoiningExistingGroupLesson && !isJoiningSelectedTimeslots) {
+		// Validate room, trainer, and time slots (not needed when joining selected timeslots)
+		if (!isJoiningSelectedTimeslots) {
 			if (
 				!assignmentForm.room_id ||
 				!assignmentForm.trainer_id ||
@@ -431,7 +367,7 @@ export const actions: Actions = {
 					message: `Maksimum ${packageData.max_capacity} öğrenci seçilebilir`
 				});
 			}
-		} else if (isJoiningExistingGroupLesson || isJoiningSelectedTimeslots) {
+		} else if (isJoiningSelectedTimeslots) {
 			if (assignmentForm.trainee_ids.length === 0) {
 				return fail(400, {
 					success: false,
@@ -449,15 +385,13 @@ export const actions: Actions = {
 		try {
 			// STEP 1: Determine how many weeks of appointments to create
 			let weeksToCreate: number;
-			let groupLessonId: string | null = null;
 
 			if (isCreatingNewGroupLesson) {
 				// For new group lessons, create 26 weeks of appointments
 				weeksToCreate = 26;
-			} else if (isJoiningExistingGroupLesson) {
-				// For joining existing group lesson, use the group_lesson_id from form
-				groupLessonId = assignmentForm.group_lesson_id!;
-				weeksToCreate = 0; // No new appointments for joining existing
+			} else if (isJoiningSelectedTimeslots) {
+				// Joining existing appointments: nothing new to create
+				weeksToCreate = 0;
 			} else {
 				// For private packages, use package duration × the number of periods
 				weeksToCreate = (packageData.weeks_duration || 1) * periodCount;
@@ -692,83 +626,6 @@ export const actions: Actions = {
 				}
 
 				successMessage = `${assignmentForm.trainee_ids.length} öğrenci seçilen zaman dilimlerine başarıyla eklendi. Toplam ${collectedAppointments.length} randevuya atandı.`;
-			} else if (isJoiningExistingGroupLesson) {
-				// Joining an existing group lesson: enroll into its upcoming appointments
-				const today = formatDateForDB(new Date());
-
-				const { data: upcomingAppointments, error: appointmentsError } = await supabase
-					.from('pe_appointments')
-					.select('id, date, hour')
-					.eq('group_lesson_id', groupLessonId!)
-					.gte('date', today)
-					.order('date, hour');
-
-				if (appointmentsError) {
-					return fail(500, {
-						success: false,
-						message: 'Grup dersi randevuları alınırken hata: ' + appointmentsError.message
-					});
-				}
-
-				if (!upcomingAppointments || upcomingAppointments.length === 0) {
-					return fail(400, {
-						success: false,
-						message: 'Bu grup dersi için gelecek tarihli randevu bulunamadı'
-					});
-				}
-
-				// Number of appointments per trainee follows the lesson's weekly slot count
-				const durationWeeks = assignmentForm.duration_weeks || 4;
-
-				const { data: groupLessonData } = await supabase
-					.from('pe_group_lessons')
-					.select('timeslots')
-					.eq('id', groupLessonId!)
-					.single();
-
-				const timeslots =
-					(groupLessonData?.timeslots as Array<{ day: string; hours: number[] }>) || [];
-				const lessonsPerWeek = timeslots.reduce((sum, ts) => sum + ts.hours.length, 0);
-				const appointmentsPerTrainee = durationWeeks * lessonsPerWeek;
-
-				const targetAppointments = upcomingAppointments.slice(0, appointmentsPerTrainee);
-				const enrollmentCheck = await conflictService.checkEnrollmentTargets({
-					appointmentIds: targetAppointments.map((apt) => apt.id),
-					traineeIds: assignmentForm.trainee_ids
-				});
-				if (enrollmentCheck.duplicates.length > 0) {
-					return fail(400, {
-						success: false,
-						message: 'Seçilen öğrencilerden en az biri bu grup dersine zaten kayıtlı'
-					});
-				}
-				if (enrollmentCheck.overCapacity.length > 0) {
-					return fail(400, {
-						success: false,
-						message: 'Grup dersinde yeterli kapasite yok'
-					});
-				}
-
-				// One purchase (with its own team) per trainee
-				for (const traineeId of assignmentForm.trainee_ids) {
-					purchases.push({
-						key: traineeId,
-						package_id: assignmentForm.package_id,
-						reschedule_left: rescheduleLeft,
-						trainee_ids: [traineeId]
-					});
-					enrollments.push(
-						...targetAppointments.map((apt, i) => ({
-							purchase_key: traineeId,
-							trainee_id: traineeId,
-							appointment_id: apt.id,
-							session_number: i + 1,
-							total_sessions: appointmentsPerTrainee
-						}))
-					);
-				}
-
-				successMessage = `${assignmentForm.trainee_ids.length} öğrenci grup dersine başarıyla eklendi. Her öğrenci ${appointmentsPerTrainee} randevuya atandı.`;
 			} else {
 				// Private package: one shared team, one purchase per period (later periods
 				// chained as extensions), new appointments, all trainees enrolled in every one
@@ -815,9 +672,12 @@ export const actions: Actions = {
 				enrollments
 			});
 
+			// Open the schedule on the week the new lessons start
+			const firstDate = newAppointments[0]?.date;
 			return {
 				success: true,
-				message: successMessage
+				message: successMessage,
+				redirectTo: firstDate ? `/schedule?week=${firstDate}` : '/schedule'
 			};
 		} catch (err) {
 			console.error('Appointment creation error:', err);

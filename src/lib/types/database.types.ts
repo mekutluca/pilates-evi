@@ -207,47 +207,6 @@ export type Database = {
 					}
 				];
 			};
-			pe_logs: {
-				Row: {
-					action: string;
-					created_at: string | null;
-					details: string | null;
-					id: string;
-					organization_id: string;
-					status: string;
-					user_full_name: string | null;
-					user_id: string | null;
-				};
-				Insert: {
-					action: string;
-					created_at?: string | null;
-					details?: string | null;
-					id?: string;
-					organization_id?: string;
-					status: string;
-					user_full_name?: string | null;
-					user_id?: string | null;
-				};
-				Update: {
-					action?: string;
-					created_at?: string | null;
-					details?: string | null;
-					id?: string;
-					organization_id?: string;
-					status?: string;
-					user_full_name?: string | null;
-					user_id?: string | null;
-				};
-				Relationships: [
-					{
-						foreignKeyName: 'pe_logs_organization_id_fkey';
-						columns: ['organization_id'];
-						isOneToOne: false;
-						referencedRelation: 'pe_organizations';
-						referencedColumns: ['id'];
-					}
-				];
-			};
 			pe_organizations: {
 				Row: {
 					created_at: string;
@@ -329,6 +288,7 @@ export type Database = {
 				Row: {
 					created_at: string;
 					id: string;
+					lesson_count: number;
 					organization_id: string;
 					package_id: string;
 					reschedule_left: number;
@@ -338,6 +298,7 @@ export type Database = {
 				Insert: {
 					created_at?: string;
 					id?: string;
+					lesson_count: number;
 					organization_id?: string;
 					package_id: string;
 					reschedule_left?: number;
@@ -347,6 +308,7 @@ export type Database = {
 				Update: {
 					created_at?: string;
 					id?: string;
+					lesson_count?: number;
 					organization_id?: string;
 					package_id?: string;
 					reschedule_left?: number;

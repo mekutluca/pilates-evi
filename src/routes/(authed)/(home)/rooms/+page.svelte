@@ -47,7 +47,6 @@
 	let formLoading = $state(false);
 
 	let name = $state('');
-	let capacity = $state<number | null>(null);
 
 	const getTableActions = (room: Room): ActionItem[] => {
 		if (userRole !== 'admin') return [];
@@ -92,12 +91,6 @@
 			key: 'name',
 			title: 'Ad',
 			sortable: false
-		},
-		{
-			key: 'capacity',
-			title: 'Kapasite',
-			sortable: false,
-			render: (room: Room) => String(room.capacity ?? '-')
 		}
 	];
 	const reorderColumn = {
@@ -113,7 +106,6 @@
 	function openEditModal(room: Room) {
 		selectedRoom = room;
 		name = room.name ?? '';
-		capacity = room.capacity;
 		showEditModal = true;
 	}
 
@@ -129,7 +121,6 @@
 
 	function resetForm() {
 		name = '';
-		capacity = null;
 		selectedRoom = null;
 	}
 </script>
@@ -201,11 +192,6 @@
 			<Input id="add-room-name" type="text" name="name" bind:value={name} required />
 		</div>
 
-		<div class="grid gap-2">
-			<Label for="add-room-capacity">Kapasite</Label>
-			<Input id="add-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
-		</div>
-
 		<ModalFooter>
 			<Button
 				type="button"
@@ -254,11 +240,6 @@
 		<div class="grid gap-2">
 			<Label for="edit-room-name">Oda Adı</Label>
 			<Input id="edit-room-name" type="text" name="name" bind:value={name} required />
-		</div>
-
-		<div class="grid gap-2">
-			<Label for="edit-room-capacity">Kapasite</Label>
-			<Input id="edit-room-capacity" type="number" name="capacity" bind:value={capacity} min="0" />
 		</div>
 
 		<ModalFooter>

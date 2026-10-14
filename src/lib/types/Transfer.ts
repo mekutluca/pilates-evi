@@ -1,3 +1,8 @@
+import type { Database } from '$lib/types/database.types';
+import type { ShiftConflict } from '$lib/types/Schedule';
+
+type PackageType = Database['public']['Enums']['package_type_enum'];
+
 export type TransferScope = 'single' | 'from_selected' | 'all_from_now';
 
 export type TransferOperation = 'transfer' | 'shift';
@@ -12,27 +17,50 @@ export type TransferConflict = {
 	trainerConflict: boolean;
 };
 
-export type AppointmentWithRelations = {
+// An appointment with the relations scheduling operations need: room/trainer names for
+// previews, package names and trainee phones for notifications. Shape of
+// AppointmentRepository's SERIES_SELECT.
+export type SeriesAppointment = {
 	id: number;
-	date: string | null;
-	hour: number | null;
-	room_id: string | null;
-	trainer_id: string | null;
+	date: string;
+	hour: number;
+	room_id: string;
+	trainer_id: string;
 	purchase_id: string | null;
 	group_lesson_id: string | null;
-	pe_rooms: { id: string; name: string } | null;
-	pe_trainers: { id: string; name: string } | null;
-	pe_purchases: { id: string; pe_packages: { name: string; package_type: string } | null } | null;
+	organization_id: string;
+	pe_rooms: { id: string; name: string | null };
+	pe_trainers: { id: string; name: string | null };
+	pe_purchases: {
+		id: string;
+		reschedule_left: number;
+		pe_packages: { name: string; package_type: PackageType };
+	} | null;
 	pe_group_lessons: {
 		id: string;
-		pe_packages: { name: string; package_type: string; max_capacity: number } | null;
+		pe_packages: { name: string; package_type: PackageType; max_capacity: number };
 	} | null;
 	pe_appointment_trainees: Array<{
 		id: number;
-		session_number: number | null;
-		total_sessions: number | null;
-		pe_trainees: { id: string; name: string; phone: string } | null;
+		trainee_id: string;
+		session_number: number;
+		total_sessions: number;
+		pe_trainees: { id: string; name: string; phone: string };
 	}>;
+};
+
+// An appointment a scheduling operation moved, with where it went.
+export type MovedAppointment = {
+	appointment: SeriesAppointment;
+	newDate: string;
+	newHour: number;
+};
+
+// Result of a series move: conflicts (nothing written) or the moved appointments.
+export type MoveOutcome = {
+	error: string | null;
+	conflicts: ShiftConflict[];
+	moved: MovedAppointment[];
 };
 
 export type ExistingAppointment = {
@@ -41,46 +69,4 @@ export type ExistingAppointment = {
 	room_id: string;
 	trainer_id: string;
 	id: number;
-};
-
-// Type for appointment summary results from database queries
-export type AppointmentSummaryResult = {
-	id: number;
-	date: string | null;
-	hour: number | null;
-	group_lesson_id: string | null;
-	pe_rooms: { id: string; name: string } | null;
-	pe_trainers: { id: string; name: string } | null;
-};
-
-// Type for trainee appointment query results
-export type TraineeApptResult = {
-	pe_appointments: AppointmentWithRelations | null;
-};
-
-// Type for trainee appointment summary query results
-export type TraineeApptSummaryResult = {
-	pe_appointments: AppointmentSummaryResult | null;
-};
-
-// Type for appointment records with appointment details (used in server actions)
-export type RecordWithAppt = {
-	id: number;
-	appointment_id: number;
-	session_number: number | null;
-	pe_appointments: {
-		date: string | null;
-		hour: number | null;
-		group_lesson_id: string | null;
-	} | null;
-};
-
-// Type for the trainee's own appointment_trainee row when starting a weeks-based shift
-export type TraineeShiftSourceRecord = {
-	purchase_id: string | null;
-	pe_appointments: {
-		date: string | null;
-		hour: number | null;
-		group_lesson_id: string | null;
-	} | null;
 };

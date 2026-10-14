@@ -1,8 +1,7 @@
 import {
 	PRIVATE_CHAKRA_API_KEY,
 	PRIVATE_CHAKRA_PLUGIN_ID,
-	PRIVATE_CHAKRA_WHATSAPP_PHONE_NUMBER_ID,
-	PRIVATE_CHAKRA_WHATSAPP_API_VERSION
+	PRIVATE_CHAKRA_WHATSAPP_PHONE_NUMBER_ID
 } from '$env/static/private';
 import { WhatsAppRepository } from './WhatsAppRepository';
 
@@ -15,8 +14,7 @@ export function getWhatsAppRepository(): WhatsAppRepository {
 		instance = new WhatsAppRepository({
 			apiKey: PRIVATE_CHAKRA_API_KEY,
 			pluginId: PRIVATE_CHAKRA_PLUGIN_ID,
-			phoneNumberId: PRIVATE_CHAKRA_WHATSAPP_PHONE_NUMBER_ID,
-			apiVersion: PRIVATE_CHAKRA_WHATSAPP_API_VERSION
+			phoneNumberId: PRIVATE_CHAKRA_WHATSAPP_PHONE_NUMBER_ID
 		});
 	}
 	return instance;

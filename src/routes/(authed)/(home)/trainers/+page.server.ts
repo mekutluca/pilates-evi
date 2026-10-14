@@ -3,125 +3,70 @@ import type { Actions, PageServerLoad } from './$types';
 import type { TrainerWithEmail } from '$lib/types';
 import { getRequiredFormDataString, formatDateForDB } from '$lib/utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
-import { requireAdmin, requireAdminClient, requireOrgMember } from '$lib/server/permissions';
+import { requireAdmin } from '$lib/server/permissions';
+import { OrgUserService } from '$lib/server/services/org-user-service';
 
-export const load: PageServerLoad = async ({ locals: { admin: adminClient }, parent }) => {
-	const admin = requireAdminClient(adminClient);
+export const load: PageServerLoad = async ({ locals, parent }) => {
 	const { trainers } = await parent();
 
-	// Trainer emails live in auth.users; fetch all org users in one call
-	// instead of one lookup per trainer.
-	const { data: authUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-	const authUserById = new Map((authUsers?.users ?? []).map((u) => [u.id, u]));
-
+	// Trainer emails live in auth.users
+	const authUsers = await OrgUserService.fromLocals(locals).getAuthUsers(trainers.map((t) => t.id));
 	const trainersWithEmail: TrainerWithEmail[] = trainers.map((trainer) => ({
 		...trainer,
-		email: authUserById.get(trainer.id)?.email ?? null
+		email: authUsers.get(trainer.id)?.email ?? null
 	}));
 
 	return { trainers: trainersWithEmail };
 };
 
 export const actions: Actions = {
-	createTrainer: async ({
-		request,
-		locals: { supabase, admin: adminClient, user, userRole, organizationId }
-	}) => {
-		const permissionError = requireAdmin(user, userRole);
-		if (permissionError) return permissionError;
-
-		const admin = requireAdminClient(adminClient);
-
-		if (!organizationId) {
-			return fail(400, {
-				success: false,
-				message: 'Organizasyon bilgisi bulunamadı'
-			});
-		}
+	createTrainer: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
-
 		const name = getRequiredFormDataString(formData, 'name');
 		const phone = getRequiredFormDataString(formData, 'phone');
-		const email = getRequiredFormDataString(formData, 'email');
-		const password = getRequiredFormDataString(formData, 'password');
 
-		// Create user account using Supabase admin API
-		const { data: userData, error: createUserError } = await admin.auth.admin.createUser({
-			email,
-			password,
-			// `app` marks the user as pilates-evi's in the shared Supabase project
-			// so branded auth email templates can branch on it
-			user_metadata: { fullName: name, app: 'pilates-evi' },
-			email_confirm: true
-		});
-
-		if (createUserError || !userData.user) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı hesabı oluşturulurken hata: ' + createUserError?.message
-			});
-		}
-
-		// Add user to the organization with trainer role
-		const { error: orgUserError } = await admin.from('pe_user_organizations').insert({
-			user_id: userData.user.id,
-			organization_id: organizationId,
+		// A trainer is a login (their id) plus a pe_trainers row
+		const service = OrgUserService.fromLocals(locals);
+		const account = await service.createAccount({
+			email: getRequiredFormDataString(formData, 'email'),
+			password: getRequiredFormDataString(formData, 'password'),
+			fullName: name,
 			role: 'pe_trainer'
 		});
+		if ('error' in account) return fail(500, { success: false, message: account.error });
 
-		if (orgUserError) {
-			// If organization user creation fails, clean up the user account
-			await admin.auth.admin.deleteUser(userData.user.id);
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı organizasyona eklenirken hata: ' + orgUserError.message
-			});
-		}
-
-		// Create trainer in pe_trainers table using auth user id
-		const sortOrder = await nextSortOrder(supabase, 'pe_trainers');
-		const { error: createError } = await supabase.from('pe_trainers').insert({
-			id: userData.user.id,
+		const { error: createError } = await locals.supabase.from('pe_trainers').insert({
+			id: account.userId,
 			name,
 			phone,
-			sort_order: sortOrder
+			sort_order: await nextSortOrder(locals.supabase, 'pe_trainers')
 		});
-
 		if (createError) {
-			// If trainer creation fails, clean up the user account and organization entry
-			await admin.from('pe_user_organizations').delete().eq('user_id', userData.user.id);
-			await admin.auth.admin.deleteUser(userData.user.id);
+			await service.deleteAccount(account.userId);
 			return fail(500, {
 				success: false,
 				message: 'Eğitmen oluşturulurken hata: ' + createError.message
 			});
 		}
 
-		return {
-			success: true,
-			message: 'Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu'
-		};
+		return { success: true, message: 'Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu' };
 	},
 
 	updateTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireAdmin(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
-
-		const trainerId = getRequiredFormDataString(formData, 'trainerId');
-		const name = getRequiredFormDataString(formData, 'name');
-		const phone = getRequiredFormDataString(formData, 'phone');
-
-		// Update trainer in pe_trainers table
 		const { error: updateError } = await supabase
 			.from('pe_trainers')
 			.update({
-				name,
-				phone
+				name: getRequiredFormDataString(formData, 'name'),
+				phone: getRequiredFormDataString(formData, 'phone')
 			})
-			.eq('id', trainerId);
+			.eq('id', getRequiredFormDataString(formData, 'trainerId'));
 
 		if (updateError) {
 			return fail(500, {
@@ -129,41 +74,29 @@ export const actions: Actions = {
 				message: 'Eğitmen güncellenirken hata: ' + updateError.message
 			});
 		}
-
-		return {
-			success: true,
-			message: 'Eğitmen başarıyla güncellendi'
-		};
+		return { success: true, message: 'Eğitmen başarıyla güncellendi' };
 	},
 
-	archiveTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const permissionError = requireAdmin(user, userRole);
-		if (permissionError) return permissionError;
-
-		const admin = requireAdminClient(adminClient);
+	archiveTrainer: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
-		const notMember = await requireOrgMember(supabase, trainerId);
-		if (notMember) return notMember;
 
-		// Check if trainer has future appointments
-		const today = formatDateForDB(new Date());
-		const { data: futureAppointments, error: checkError } = await supabase
+		const { data: futureAppointments, error: checkError } = await locals.supabase
 			.from('pe_appointments')
 			.select('id')
 			.eq('trainer_id', trainerId)
-			.gte('date', today)
+			.gte('date', formatDateForDB(new Date()))
 			.limit(1);
-
 		if (checkError) {
 			return fail(500, {
 				success: false,
 				message: 'Gelecek randevular kontrol edilirken hata: ' + checkError.message
 			});
 		}
-
-		if (futureAppointments && futureAppointments.length > 0) {
+		if ((futureAppointments ?? []).length > 0) {
 			return fail(400, {
 				success: false,
 				message:
@@ -171,24 +104,13 @@ export const actions: Actions = {
 			});
 		}
 
-		// Ban the user account for 100 years (effectively indefinite)
-		const { error: disableError } = await admin.auth.admin.updateUserById(trainerId, {
-			ban_duration: '876000h' // 100 years
-		});
+		const blockError = await OrgUserService.fromLocals(locals).setSignInBlocked(trainerId, true);
+		if (blockError) return fail(400, { success: false, message: blockError });
 
-		if (disableError) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı hesabı devre dışı bırakılırken hata: ' + disableError.message
-			});
-		}
-
-		// Archive trainer by setting is_active to false
-		const { error: archiveError } = await supabase
+		const { error: archiveError } = await locals.supabase
 			.from('pe_trainers')
 			.update({ is_active: false })
 			.eq('id', trainerId);
-
 		if (archiveError) {
 			return fail(500, {
 				success: false,
@@ -202,35 +124,20 @@ export const actions: Actions = {
 		};
 	},
 
-	restoreTrainer: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const permissionError = requireAdmin(user, userRole);
-		if (permissionError) return permissionError;
-
-		const admin = requireAdminClient(adminClient);
+	restoreTrainer: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
+		if (denied) return denied;
 
 		const formData = await request.formData();
 		const trainerId = getRequiredFormDataString(formData, 'trainerId');
-		const notMember = await requireOrgMember(supabase, trainerId);
-		if (notMember) return notMember;
 
-		// Unban the user account
-		const { error: enableError } = await admin.auth.admin.updateUserById(trainerId, {
-			ban_duration: 'none' // Remove ban
-		});
+		const unblockError = await OrgUserService.fromLocals(locals).setSignInBlocked(trainerId, false);
+		if (unblockError) return fail(400, { success: false, message: unblockError });
 
-		if (enableError) {
-			return fail(500, {
-				success: false,
-				message: 'Kullanıcı hesabı etkinleştirilirken hata: ' + enableError.message
-			});
-		}
-
-		// Restore trainer by setting is_active to true
-		const { error: restoreError } = await supabase
+		const { error: restoreError } = await locals.supabase
 			.from('pe_trainers')
 			.update({ is_active: true })
 			.eq('id', trainerId);
-
 		if (restoreError) {
 			return fail(500, {
 				success: false,
@@ -244,47 +151,23 @@ export const actions: Actions = {
 		};
 	},
 
-	resetPassword: async ({ request, locals: { supabase, admin: adminClient, user, userRole } }) => {
-		const denied = requireAdmin(user, userRole);
+	resetPassword: async ({ request, locals }) => {
+		const denied = requireAdmin(locals.user, locals.userRole);
 		if (denied) return denied;
 
-		const admin = requireAdminClient(adminClient);
-
 		const formData = await request.formData();
-		const trainerId = getRequiredFormDataString(formData, 'trainerId');
-		const newPassword = getRequiredFormDataString(formData, 'newPassword');
-		const notMember = await requireOrgMember(supabase, trainerId);
-		if (notMember) return notMember;
+		const resetError = await OrgUserService.fromLocals(locals).resetPassword(
+			getRequiredFormDataString(formData, 'trainerId'),
+			getRequiredFormDataString(formData, 'newPassword')
+		);
+		if (resetError) return fail(400, { success: false, message: resetError });
 
-		// Validate password length
-		if (newPassword.length < 6) {
-			return fail(400, {
-				success: false,
-				message: 'Şifre en az 6 karakter olmalıdır'
-			});
-		}
-
-		// Update user password using Supabase admin API
-		const { error: updateError } = await admin.auth.admin.updateUserById(trainerId, {
-			password: newPassword
-		});
-
-		if (updateError) {
-			return fail(500, {
-				success: false,
-				message: 'Şifre sıfırlanırken hata: ' + updateError.message
-			});
-		}
-
-		return {
-			success: true,
-			message: 'Şifre başarıyla sıfırlandı'
-		};
+		return { success: true, message: 'Şifre başarıyla sıfırlandı' };
 	},
 
 	moveTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
-		const permissionError = requireAdmin(user, userRole);
-		if (permissionError) return permissionError;
+		const denied = requireAdmin(user, userRole);
+		if (denied) return denied;
 
 		return moveRow(supabase, 'pe_trainers', request);
 	}

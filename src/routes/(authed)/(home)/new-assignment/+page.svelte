@@ -25,11 +25,11 @@
 	import {
 		getWeekStart,
 		formatWeekRange,
-		formatDateParam,
+		formatDateForDB,
 		getDateForDayOfWeek,
 		addDays
 	} from '$lib/utils/date-utils';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
+	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import Schedule from '$lib/components/schedule.svelte';
 	import type { ScheduleSlot } from '$lib/types/Schedule';
 	import DatePicker from '$lib/components/date-picker.svelte';
@@ -114,7 +114,7 @@
 	function getCurrentWeekMonday(): string {
 		const today = new Date();
 		const weekStart = getWeekStart(today);
-		return formatDateParam(weekStart);
+		return formatDateForDB(weekStart);
 	}
 
 	// Assignment form data
@@ -292,24 +292,24 @@
 	});
 
 	async function goToPreviousWeek() {
-		assignmentForm.start_date = formatDateParam(addDays(currentWeekStart, -7));
+		assignmentForm.start_date = formatDateForDB(addDays(currentWeekStart, -7));
 		await reloadAppointments();
 	}
 
 	async function goToNextWeek() {
-		assignmentForm.start_date = formatDateParam(addDays(currentWeekStart, 7));
+		assignmentForm.start_date = formatDateForDB(addDays(currentWeekStart, 7));
 		await reloadAppointments();
 	}
 
 	async function goToCurrentWeek() {
 		const currentMonday = getWeekStart(new Date());
-		assignmentForm.start_date = formatDateParam(currentMonday);
+		assignmentForm.start_date = formatDateForDB(currentMonday);
 		await reloadAppointments();
 	}
 
 	async function handleDateSelect(date: Date) {
 		const weekStart = getWeekStart(date);
-		assignmentForm.start_date = formatDateParam(weekStart);
+		assignmentForm.start_date = formatDateForDB(weekStart);
 		showDatePicker = false;
 		await reloadAppointments();
 	}
@@ -485,13 +485,6 @@
 			assignmentForm.package_count = packageCount;
 		}
 
-		// Set group_lesson_id if an existing group lesson was selected (legacy flow)
-		if (selectedGroupLessonId) {
-			assignmentForm.group_lesson_id = selectedGroupLessonId;
-			// Include duration_weeks for joining existing group lessons
-			assignmentForm.duration_weeks = assignmentWeeks;
-		}
-
 		// Set selected_group_timeslots if joining specific timeslots from existing groups
 		if (joinExistingTimeslots && selectedGroupTimeslots.length > 0) {
 			assignmentForm.selected_group_timeslots = selectedGroupTimeslots;
@@ -505,23 +498,12 @@
 			const formData = new FormData();
 			formData.append('assignmentData', JSON.stringify(assignmentForm));
 
-			const response = await fetch('?/createAssignment', {
-				method: 'POST',
-				body: formData
-			});
-
-			const result = await response.json();
-
+			const result = await postAction('createAssignment', formData);
 			if (result.type === 'success') {
-				toast.success(result.data?.message || 'Kayıt tamamlandı');
-				goto('/schedule');
-			} else if (result.type === 'failure') {
-				toast.error(getActionErrorMessage(result));
-				console.error('Assignment creation failed:', result);
+				toast.success(result.data?.message ?? 'Kayıt tamamlandı');
+				goto(result.data?.redirectTo ?? '/schedule');
 			} else {
-				// Catch-all for unexpected response types
-				toast.error('Bir hata oluştu');
-				console.error('Unexpected result type:', result);
+				toast.error(actionResultMessage(result));
 			}
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
@@ -602,7 +584,7 @@
 			// Calculate the actual date for this day in the current week
 			const weekStart = currentWeekStart;
 			const slotDate = getDateForDayOfWeek(weekStart, day);
-			const dateString = formatDateParam(slotDate);
+			const dateString = formatDateForDB(slotDate);
 
 			// For new group lessons, allow unlimited timeslots (trainer can teach any number)
 			// For private packages, enforce max_lessons_per_week restriction
@@ -683,7 +665,7 @@
 			const weekStart = new Date(startDate);
 			weekStart.setDate(startDate.getDate() + week * 7);
 			const slotDate = getDateForDayOfWeek(weekStart, day);
-			slotDates.push(formatDateParam(slotDate));
+			slotDates.push(formatDateForDB(slotDate));
 		}
 
 		// Check if ANY of these dates has a conflicting appointment

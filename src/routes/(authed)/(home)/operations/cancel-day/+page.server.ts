@@ -1,8 +1,8 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { cancelDay } from '$lib/utils/day-cancellation-utils';
-import { getWhatsAppRepository } from '$lib/whatsapp';
+import { cancelDay } from '$lib/server/scheduling/day-cancellation';
+import { NotificationService } from '$lib/server/services/notification-service';
 import { formatDateForDB } from '$lib/utils/date-utils';
 import type { DayCancellationStrategy } from '$lib/types/Operation';
 import { requireStaff } from '$lib/server/permissions';
@@ -49,13 +49,10 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: result.error });
 		}
 
-		let notifiedCount = 0;
-		if (result.notifications.length > 0) {
-			notifiedCount = await getWhatsAppRepository().sendShiftNotifications(
-				result.notifications,
-				reason
-			);
-		}
+		const notifiedCount = await new NotificationService().notify(result.notifications, {
+			kind: 'system',
+			cause: reason
+		});
 
 		const parts: string[] = [];
 		if (result.shiftedCount > 0) parts.push(`${result.shiftedCount} randevu kaydırıldı`);

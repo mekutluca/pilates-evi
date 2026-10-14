@@ -4,34 +4,27 @@ import type {
 	DayOfWeek,
 	EligibleAppointment,
 	GroupLessonHorizonInfo,
-	RawAppointmentRow,
-	SeriesShiftResult,
-	ShiftableAppointment,
 	ShiftConflict,
-	ShiftedAppointment,
 	ShiftedTraineeRecord,
 	SortedTraineeRecord,
-	TraineeRecordRow,
 	TraineeShiftResult,
 	WeeklyShiftCandidate,
 	WeeklyShiftResolution
 } from '$lib/types/Schedule';
+import type { MovedAppointment, MoveOutcome, SeriesAppointment } from '$lib/types/Transfer';
+import type { PlannedMove } from '$lib/types/Conflict';
 import {
 	getGroupLessonCanonicalSlots,
 	getPurchaseSuccessorChain
-} from '$lib/utils/extension-utils';
+} from '$lib/server/scheduling/extension';
+import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
+import { ConflictService } from '$lib/server/services/conflict-service';
 import { addWeeksToDate, getDayOfWeekFromDate, parseLocalDate } from '$lib/utils/date-utils';
 import {
 	buildAppointmentSlotsFromStart,
 	isSlotInPattern,
 	sortTimeSlots
 } from '$lib/utils/slot-utils';
-
-const APPOINTMENT_FIELDS = 'id, date, hour, room_id, trainer_id, purchase_id, group_lesson_id';
-
-function isCompleteAppointment(row: RawAppointmentRow): row is ShiftableAppointment {
-	return !!row.date && row.hour !== null;
-}
 
 function sortByDateHour<T extends { date: string; hour: number }>(items: T[]): T[] {
 	return [...items].sort((a, b) => {
@@ -41,98 +34,70 @@ function sortByDateHour<T extends { date: string; hour: number }>(items: T[]): T
 	});
 }
 
-async function getSeriesAppointments(
+// A series loaded once for slot-shift planning: its appointments from the anchor on and
+// the recurring weekly pattern they follow.
+type SlotShiftContext = {
+	series: SeriesAppointment[];
+	timeSlots: Array<{ day: DayOfWeek; hour: number }>;
+};
+
+async function loadSlotShiftContext(
 	supabase: SupabaseClientType,
-	from: ShiftableAppointment
-): Promise<ShiftableAppointment[]> {
-	if (from.purchase_id) {
-		const chain = await getPurchaseSuccessorChain(supabase, from.purchase_id);
-		const { data } = await supabase
-			.from('pe_appointments')
-			.select(APPOINTMENT_FIELDS)
-			.in('purchase_id', chain)
-			.or(`date.gt.${from.date},and(date.eq.${from.date},hour.gte.${from.hour})`)
-			.order('date', { ascending: true })
-			.order('hour', { ascending: true });
-		return ((data as RawAppointmentRow[] | null) ?? []).filter(isCompleteAppointment);
-	}
+	fromAppointmentId: number
+): Promise<SlotShiftContext | string> {
+	const series = await new AppointmentRepository(supabase).getSeries(
+		fromAppointmentId,
+		'from_selected'
+	);
+	if (series.length === 0) return 'Kaydırılacak randevu bulunamadı';
 
-	if (from.group_lesson_id) {
-		const { data } = await supabase
-			.from('pe_appointments')
-			.select(APPOINTMENT_FIELDS)
-			.eq('group_lesson_id', from.group_lesson_id)
-			.or(`date.gt.${from.date},and(date.eq.${from.date},hour.gte.${from.hour})`)
-			.order('date', { ascending: true })
-			.order('hour', { ascending: true });
-		const rows = ((data as RawAppointmentRow[] | null) ?? []).filter(isCompleteAppointment);
-		const { slotKeys } = await getGroupLessonCanonicalSlots(supabase, from.group_lesson_id);
-		if (slotKeys.size === 0) return rows;
-		return rows.filter((a) => slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`));
-	}
+	// Group lessons follow their stored pattern; private series the one their own
+	// appointments form
+	const groupLessonId = series[0].group_lesson_id;
+	const canonical = groupLessonId
+		? (await getGroupLessonCanonicalSlots(supabase, groupLessonId)).slots
+		: [];
+	const timeSlots =
+		canonical.length > 0
+			? canonical
+			: sortTimeSlots([
+					...new Map(
+						series.map((a) => {
+							const day = getDayOfWeekFromDate(a.date);
+							return [`${day}-${a.hour}`, { day, hour: a.hour }] as const;
+						})
+					).values()
+				]);
 
-	return [];
+	if (!isSlotInPattern(timeSlots, parseLocalDate(series[0].date), series[0].hour)) {
+		return 'Randevu ders saatleriyle uyuşmuyor';
+	}
+	return { series, timeSlots };
 }
 
-async function getRecurringTimeSlots(
-	supabase: SupabaseClientType,
-	from: ShiftableAppointment,
-	appointments: ShiftableAppointment[]
-): Promise<Array<{ day: DayOfWeek; hour: number }>> {
-	if (from.group_lesson_id) {
-		const { slots } = await getGroupLessonCanonicalSlots(supabase, from.group_lesson_id);
-		if (slots.length > 0) return slots;
-	}
-
-	const seen = new Set<string>();
-	const result: Array<{ day: DayOfWeek; hour: number }> = [];
-	for (const apt of appointments) {
-		const day = getDayOfWeekFromDate(apt.date);
-		const key = `${day}-${apt.hour}`;
-		if (seen.has(key)) continue;
-		seen.add(key);
-		result.push({ day, hour: apt.hour });
-	}
-	return sortTimeSlots(result);
+// Every appointment of the series moves `slots` positions forward in its pattern.
+function planSlotShift({ series, timeSlots }: SlotShiftContext, slots: number): MovedAppointment[] {
+	const targets = buildAppointmentSlotsFromStart(
+		parseLocalDate(series[0].date),
+		series[0].hour,
+		timeSlots,
+		series.length + slots
+	);
+	return series.map((appointment, i) => ({
+		appointment,
+		newDate: targets[i + slots].date,
+		newHour: targets[i + slots].hour
+	}));
 }
 
-async function findSeriesShiftConflicts(
-	supabase: SupabaseClientType,
-	plan: Array<{ source: ShiftableAppointment; newDate: string; newHour: number }>,
-	seriesIds: Set<number>
-): Promise<ShiftConflict[]> {
-	const conflicts: ShiftConflict[] = [];
-	for (const { source, newDate, newHour } of plan) {
-		let roomConflict = false;
-		let trainerConflict = false;
-
-		if (source.room_id) {
-			const { data } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('room_id', source.room_id)
-				.eq('date', newDate)
-				.eq('hour', newHour)
-				.neq('id', source.id);
-			roomConflict = !!data?.some((row) => !seriesIds.has(row.id));
-		}
-
-		if (source.trainer_id) {
-			const { data } = await supabase
-				.from('pe_appointments')
-				.select('id')
-				.eq('trainer_id', source.trainer_id)
-				.eq('date', newDate)
-				.eq('hour', newHour)
-				.neq('id', source.id);
-			trainerConflict = !!data?.some((row) => !seriesIds.has(row.id));
-		}
-
-		if (roomConflict || trainerConflict) {
-			conflicts.push({ date: newDate, hour: newHour, roomConflict, trainerConflict });
-		}
-	}
-	return conflicts;
+function toPlannedMoves(moved: MovedAppointment[]): PlannedMove[] {
+	return moved.map(({ appointment, newDate, newHour }) => ({
+		id: appointment.id,
+		date: newDate,
+		hour: newHour,
+		roomId: appointment.room_id,
+		trainerId: appointment.trainer_id
+	}));
 }
 
 /**
@@ -165,98 +130,83 @@ export async function applyEnrollmentMoves(
 }
 
 /**
+ * Applies planned appointment moves after a batched conflict check. Conflicts come back
+ * without anything written; otherwise the moves are applied in one transaction.
+ */
+export async function applyPlannedMoves(
+	supabase: SupabaseClientType,
+	moved: MovedAppointment[],
+	resources?: { roomId?: string; trainerId?: string }
+): Promise<MoveOutcome> {
+	if (moved.length === 0) {
+		return { error: 'Taşınacak randevu bulunamadı', conflicts: [], moved: [] };
+	}
+	const planned = toPlannedMoves(moved).map((m) => ({
+		...m,
+		roomId: resources?.roomId ?? m.roomId,
+		trainerId: resources?.trainerId ?? m.trainerId
+	}));
+
+	const conflicts = await new ConflictService(supabase).findMoveConflicts(planned);
+	if (conflicts.length > 0) return { error: null, conflicts, moved: [] };
+
+	const moveError = await applyAppointmentMoves(
+		supabase,
+		planned.map((m) => ({
+			id: m.id,
+			date: m.date,
+			hour: m.hour,
+			...(resources?.roomId && { room_id: resources.roomId }),
+			...(resources?.trainerId && { trainer_id: resources.trainerId })
+		}))
+	);
+	if (moveError) {
+		return { error: 'Taşıma sırasında hata oluştu: ' + moveError, conflicts: [], moved: [] };
+	}
+	return { error: null, conflicts: [], moved };
+}
+
+/**
  * Shifts the series containing `fromAppointmentId` forward by `slots` positions in its
- * recurring time-slot pattern. Used by both the transfer page (user-supplied slots) and
- * the cancellation flow (slots = 1 on the cancelled appointment).
- *
- * - Private (purchase-backed) series: timeslots are inferred from the existing future
- *   appointments; the purchase successor chain is included so extensions move with it.
- * - Group lesson series: timeslots come from `pe_group_lessons.timeslots` and off-pattern
- *   appointments (one-off reschedule destinations) are excluded from both the series and
- *   the recurring pattern.
- *
- * Conflicts (room/trainer at the new slot, ignoring members of the same series) are
- * surfaced via the result without applying the shift. The move itself is one transaction.
+ * recurring time-slot pattern (transfer page "Tekli", and a cancelled appointment's
+ * series with slots = 1). Private series include their purchase chain; group series
+ * leave one-off reschedule destinations out of both the series and the pattern.
  */
 export async function shiftSeriesBySlot(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
 	slots: number
-): Promise<SeriesShiftResult> {
+): Promise<MoveOutcome> {
 	if (slots <= 0) {
-		return { error: 'Kaydırma sayısı pozitif olmalı', conflicts: [], shifted: [] };
+		return { error: 'Kaydırma sayısı pozitif olmalı', conflicts: [], moved: [] };
 	}
+	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
+	if (typeof context === 'string') return { error: context, conflicts: [], moved: [] };
 
-	const { data: rawFrom } = await supabase
-		.from('pe_appointments')
-		.select(APPOINTMENT_FIELDS)
-		.eq('id', fromAppointmentId)
-		.single();
+	return applyPlannedMoves(supabase, planSlotShift(context, slots));
+}
 
-	if (!rawFrom || !isCompleteAppointment(rawFrom as RawAppointmentRow)) {
-		return { error: 'Randevu bulunamadı', conflicts: [], shifted: [] };
+/**
+ * Shifts the series to the nearest offset (1..maxSlots positions) whose every target slot
+ * is free — the day-closing "closest free occurrence" resolution. Plans are checked
+ * without writing; only the first conflict-free one is applied.
+ */
+export async function shiftSeriesToFirstFreeSlot(
+	supabase: SupabaseClientType,
+	fromAppointmentId: number,
+	maxSlots: number
+): Promise<MoveOutcome> {
+	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
+	if (typeof context === 'string') return { error: context, conflicts: [], moved: [] };
+
+	const conflictService = new ConflictService(supabase);
+	let lastConflicts: ShiftConflict[] = [];
+	for (let slots = 1; slots <= maxSlots; slots++) {
+		const moved = planSlotShift(context, slots);
+		lastConflicts = await conflictService.findMoveConflicts(toPlannedMoves(moved));
+		if (lastConflicts.length === 0) return applyPlannedMoves(supabase, moved);
 	}
-	const from = rawFrom as ShiftableAppointment;
-
-	const series = await getSeriesAppointments(supabase, from);
-	if (series.length === 0) {
-		return { error: 'Kaydırılacak randevu bulunamadı', conflicts: [], shifted: [] };
-	}
-
-	const timeSlots = await getRecurringTimeSlots(supabase, from, series);
-	if (timeSlots.length === 0) {
-		return { error: 'Ders saatleri çıkarılamadı', conflicts: [], shifted: [] };
-	}
-
-	const startDate = parseLocalDate(series[0].date);
-	if (!isSlotInPattern(timeSlots, startDate, series[0].hour)) {
-		return { error: 'Randevu ders saatleriyle uyuşmuyor', conflicts: [], shifted: [] };
-	}
-	const allSlots = buildAppointmentSlotsFromStart(
-		startDate,
-		series[0].hour,
-		timeSlots,
-		series.length + slots
-	);
-
-	const plan: Array<{ source: ShiftableAppointment; newDate: string; newHour: number }> = [];
-	for (let i = 0; i < series.length; i++) {
-		const target = allSlots[i + slots];
-		if (!target) continue;
-		plan.push({ source: series[i], newDate: target.date, newHour: target.hour });
-	}
-
-	if (plan.length === 0) {
-		return { error: 'Kaydırılacak randevu bulunamadı', conflicts: [], shifted: [] };
-	}
-
-	const seriesIds = new Set(series.map((a) => a.id));
-	const conflicts = await findSeriesShiftConflicts(supabase, plan, seriesIds);
-	if (conflicts.length > 0) {
-		return { error: null, conflicts, shifted: [] };
-	}
-
-	const moveError = await applyAppointmentMoves(
-		supabase,
-		plan.map((step) => ({ id: step.source.id, date: step.newDate, hour: step.newHour }))
-	);
-	if (moveError) {
-		return { error: 'Kaydırma sırasında hata oluştu: ' + moveError, conflicts: [], shifted: [] };
-	}
-
-	const shifted: ShiftedAppointment[] = plan.map((step) => ({
-		id: step.source.id,
-		oldDate: step.source.date,
-		oldHour: step.source.hour,
-		newDate: step.newDate,
-		newHour: step.newHour,
-		roomId: step.source.room_id,
-		trainerId: step.source.trainer_id,
-		purchaseId: step.source.purchase_id,
-		groupLessonId: step.source.group_lesson_id
-	}));
-
-	return { error: null, conflicts: [], shifted };
+	return { error: null, conflicts: lastConflicts, moved: [] };
 }
 
 async function getTraineeRecordsForChain(
@@ -271,11 +221,10 @@ async function getTraineeRecordsForChain(
 		.eq('trainee_id', traineeId)
 		.in('purchase_id', chain);
 
-	const rows = (data ?? []) as TraineeRecordRow[];
 	const usable: SortedTraineeRecord[] = [];
-	for (const row of rows) {
+	for (const row of data ?? []) {
 		const apt = row.pe_appointments;
-		if (!apt?.date || apt.hour === null || row.appointment_id === null) continue;
+		if (!apt || row.appointment_id === null) continue;
 		usable.push({
 			recordId: row.id,
 			appointmentId: row.appointment_id,
@@ -623,4 +572,70 @@ export async function shiftTraineeRecordsBySlot(
 		return { error: 'Öğrenci kaydırma sırasında hata oluştu: ' + moveError, shifted: [] };
 	}
 	return plan;
+}
+
+/**
+ * Moves a single trainee's group-lesson records, from `fromAppointmentId` on, `weeks`
+ * weeks later (or earlier) within their own group lessons, in one transaction. Targets
+ * beyond a lesson's generated horizon are created; targets that were cancelled are
+ * skipped and counted.
+ */
+export async function shiftTraineeRecordsByWeeks(
+	supabase: SupabaseClientType,
+	fromAppointmentId: number,
+	traineeId: string,
+	weeks: number
+): Promise<TraineeShiftResult & { skippedCount: number }> {
+	if (!Number.isInteger(weeks) || weeks === 0 || weeks < -52 || weeks > 52) {
+		return {
+			error: 'Kaydırma süresi -52 ile 52 hafta arasında olmalı',
+			shifted: [],
+			skippedCount: 0
+		};
+	}
+
+	const { data: currentRecord } = await supabase
+		.from('pe_appointment_trainees')
+		.select('purchase_id, pe_appointments(date, hour, group_lesson_id)')
+		.eq('appointment_id', fromAppointmentId)
+		.eq('trainee_id', traineeId)
+		.maybeSingle();
+	if (!currentRecord?.pe_appointments) {
+		return { error: 'Öğrenci kaydı bulunamadı', shifted: [], skippedCount: 0 };
+	}
+	if (!currentRecord.pe_appointments.group_lesson_id) {
+		return { error: 'Bu işlem sadece grup dersleri için geçerlidir', shifted: [], skippedCount: 0 };
+	}
+
+	const from = currentRecord.pe_appointments;
+	const candidates: WeeklyShiftCandidate[] = (
+		await getTraineeRecordsForChain(supabase, traineeId, currentRecord.purchase_id)
+	).flatMap((record) =>
+		record.groupLessonId &&
+		(record.date > from.date || (record.date === from.date && record.hour >= from.hour))
+			? [{ ...record, groupLessonId: record.groupLessonId }]
+			: []
+	);
+
+	const { shiftMap, skippedCount } = await resolveWeeklyShiftTargets(supabase, candidates, weeks);
+	if (candidates.length > 0 && shiftMap.length === 0) {
+		return {
+			error: 'Kaydırılacak randevu bulunamadı; hedef tarihlerin tümü iptal edilmiş görünüyor',
+			shifted: [],
+			skippedCount
+		};
+	}
+
+	const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);
+	if (guardError) return { error: guardError, shifted: [], skippedCount };
+
+	const moveError = await applyEnrollmentMoves(supabase, shiftMap);
+	if (moveError) {
+		return {
+			error: 'Öğrenci kaydırma sırasında hata oluştu: ' + moveError,
+			shifted: [],
+			skippedCount
+		};
+	}
+	return { error: null, shifted: shiftMap, skippedCount };
 }
