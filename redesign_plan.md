@@ -224,7 +224,7 @@ Sibling comparison: dependencies are already aligned (Kit 2.63, Svelte 5.56, Vit
 
 - `20261014172208_pe_lesson_count_email_scope_cleanup` — `pe_purchases.lesson_count` (backfilled, set by `pe_create_assignment` / `pe_extend_purchase`), trainee email unique per studio (`organization_id, lower(email)`), `pe_logs` and the `day_of_week` / `group_type` enums dropped.
 - `20261014172354_pe_drop_legacy_login_roles` — `pe_admin`, `pe_coordinator`, `pe_trainer`, `pe_trainee`, `pe_super_admin` Postgres roles dropped.
-- Waiting for the deploy: `supabase/pending-migrations/pe_post_deploy_drops.sql` drops `pe_rooms.capacity` and `pe_decrement_reschedule` (the live app still uses both).
+- `20261014194141_pe_post_deploy_drops` — `pe_rooms.capacity` and `pe_decrement_reschedule` dropped (applied 2026-10-14, before the Phase 0–2 deploy, at the owner's call).
 
 **Code:**
 

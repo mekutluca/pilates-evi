@@ -341,7 +341,6 @@ export type Database = {
 			};
 			pe_rooms: {
 				Row: {
-					capacity: number | null;
 					id: string;
 					is_active: boolean;
 					name: string | null;
@@ -349,7 +348,6 @@ export type Database = {
 					sort_order: number;
 				};
 				Insert: {
-					capacity?: number | null;
 					id?: string;
 					is_active?: boolean;
 					name?: string | null;
@@ -357,7 +355,6 @@ export type Database = {
 					sort_order?: number;
 				};
 				Update: {
-					capacity?: number | null;
 					id?: string;
 					is_active?: boolean;
 					name?: string | null;
@@ -534,10 +531,6 @@ export type Database = {
 					p_purchases: Json;
 				};
 				Returns: Json;
-			};
-			pe_decrement_reschedule: {
-				Args: { p_purchase_id: string };
-				Returns: number;
 			};
 			pe_end_group_lesson: {
 				Args: { p_end_date: string; p_group_lesson_id: string };
