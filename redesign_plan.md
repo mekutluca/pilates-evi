@@ -285,7 +285,7 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 
 - **Direction (owner-pinned):** the house style shared with invest-track, dr.villa, ustama-emanet and rahmet-turizm, keeping the studio orange (#c2410c) as the one accent. Contract in `src/app.html`; rulebook in `DESIGN.md`.
 - **System:** stone tokens, `primary-ink` for orange type, Attention Yellow = needs a renewal, red = conflict (tint only), ordered orange chart ramp, themed selection / caret / scrollbar; shadcn "maia" components ported from the siblings (pill controls, ringed cards, no resting shadows); light / dark / system theme toggle (`mode-watcher`).
-- **Shell:** brand mark (pilates ring, also `static/favicon.svg`), studio name next to the product name (from the membership in `hooks.server.ts`), page header with actions on the right, centred `max-w-6xl` pages (calendar pages full width).
+- **Shell:** brand mark (exercise ball on a mat since 1.3.0, also `static/favicon.svg`), studio name next to the product name (from the membership in `hooks.server.ts`), page header with actions on the right, centred `max-w-6xl` pages (calendar pages full width).
 - **Signature objects:** weekly pattern chip and lesson meter on the client hub, Panel renewals, group lessons; one renewal rule (`isRenewalDue`, 14 days) everywhere.
 - **Week board rebuilt:** orange-tinted lesson blocks (package, trainees, other dimension), quiet free cells, today column, one-click room / trainer pills, week nav in the header, scroll to today on phones.
 - **Panel:** today as a timeline (past dimmed, Sıradaki), renewals with chip + meter + Yenile, new kayıtlar; phones read Bugün → renewals → new kayıtlar.

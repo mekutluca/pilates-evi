@@ -311,7 +311,7 @@ A row of figures in one card, cells split by hairlines (two columns on phones). 
 - **Style:** grouped lists in the sidebar ("Stüdyo", "Yönetim") under 12px/600 muted group names, separated by hairlines; items 14px with a 16px lucide icon, 10px radius, 8px/12px padding.
 - **States:** active = Studio Orange fill with On Orange text at 500; hover = Bench fill.
 - **Mobile:** the same list in a left Sheet from a ghost menu button.
-- **Brand:** the mark is a pilates ring (an open circle with two handle blocks) in On Orange on a Studio Orange rounded tile; the favicon is the same drawing.
+- **Brand:** the mark is an exercise ball resting on a mat, in On Orange on a Studio Orange rounded tile (the ball's seam cut in the tile colour); the favicon is the same drawing.
 
 ### Week Board (signature surface)
 
