@@ -14,7 +14,7 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 - Two Supabase clients: regular user client and admin service role client
 - Role-based access control with 4 roles: `admin`, `coordinator`, `trainer`, `trainee`
 - Roles are prefixed with `pe_` in Supabase but stripped to base role names in the app
-- The role comes from the user's active `pe_user_organizations` membership (hooks and the `pe_get_auth_org_role()` RLS helper both read it), so removing or demoting staff takes effect immediately; only the organization id is read from `app_metadata` (the stale `organization_role` key is dropped by the post-deploy migration `20261015130000`, which must wait until this code is live: the old app reads it)
+- The role comes from the user's active `pe_user_organizations` membership (hooks and the `pe_get_auth_org_role()` RLS helper both read it), so removing or demoting staff takes effect immediately; only the organization id is kept in `app_metadata`
 - Route protection implemented in `hooks.server.ts` using route definitions from `Route.ts`; a nav route guards its whole subtree (`/trainees` covers `/trainees/[id]`)
 - Coordinators do scheduling (book, move, cancel, close days, delete lessons); rooms, trainers, packages and staff accounts are admin-only
 

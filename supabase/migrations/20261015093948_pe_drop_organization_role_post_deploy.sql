@@ -1,4 +1,4 @@
--- POST-DEPLOY: apply only after the redesigned app is live. The pre-redesign app reads the
+-- Applied after the redesigned app went live. The pre-redesign app reads the
 -- role from app_metadata.organization_role; the redesigned one reads the membership.
 -- pe_switch_organization stops writing the key and it is removed from this app's users.
 
