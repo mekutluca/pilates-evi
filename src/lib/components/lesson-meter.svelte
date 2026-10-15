@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { LessonMeterProps } from '$lib/types/ComponentProps';
 	import { cn } from '$lib/utils';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 
 	// How far a kayıt has come: the done share fills the track in the orange ramp; once a
 	// renewal is due the fill goes quiet and the amber count carries the meaning
@@ -35,7 +35,7 @@
 			renewalDue ? 'text-warning-foreground' : 'text-muted-foreground'
 		)}
 	>
-		{#if renewalDue}<CalendarClock class="size-3.5" aria-hidden="true" />{/if}
+		{#if renewalDue}<ClockAlert class="size-3.5" aria-hidden="true" />{/if}
 		{left === 0 ? 'Bitti' : `${left} ders kaldı`}
 		{#if renewalDue}<span class="sr-only">, yenileme zamanı</span>{/if}
 	</span>

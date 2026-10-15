@@ -192,6 +192,7 @@ Warm stone neutrals carrying one burnt orange, one signage yellow with a single 
 
 - **Studio Orange** (`oklch(0.553 0.195 38.402)`, `#c2410c`): the accent. Filled primary button (Panel "Yeni kayıt", the client hub's "Yeni kayıt"), the active sidebar item, the brand mark tile, the filled days in a pattern chip, the slow-navigation bar. As a tint: lesson blocks on the week board (10% fill, 25% ring), today's column (3.5%), a chosen slot's label cell (5% with a 30% ring), the "Taşınıyor" bar's ring (40%). Also the browser surfaces: `::selection` at 20%, `accent-color`, `caret-color`. In dark mode the fill deepens to **Studio Orange Deep** (`oklch(0.47 0.157 37.304)`) so On Orange text keeps contrast.
 - **On Orange** (`oklch(0.98 0.016 73.684)`, `#fff7ed`): text and strokes on an orange surface, including the ring and blocks in the mark.
+- **Accent** (`--accent`, equal to Studio Orange; Deep in dark mode): the shadcn interaction highlight — a keyboard-focused or hovered menu item, today in the date picker. A transient state under the pointer or focus, never a resting fill.
 - **Orange Ink** (`--primary-ink`): orange used as type — today's day name in the board header, a selected-slot label, the check in the trainee picker. In light mode it equals Studio Orange; in dark mode it lifts to `oklch(0.75 0.183 55.934)` so it reads on Paper Dark. Never set orange type with `--primary` directly.
 
 ### Secondary
@@ -215,7 +216,7 @@ Warm stone neutrals carrying one burnt orange, one signage yellow with a single 
 
 ### Named Rules
 
-**The One Orange Rule.** Studio Orange is solid on exactly two things: the one primary action of the screen and the active nav item. Booked slots, today and pattern days get the tint or a small mark. A second filled orange element on a screen is a bug.
+**The One Orange Rule.** Studio Orange is solid on exactly two things at rest: the one primary action of the screen and the active nav item. Booked slots, today and pattern days get the tint or a small mark. Transient states may fill it (Accent on a focused menu item, the "İçeriğe geç" skip link while focused). A second resting orange fill on a screen is a bug.
 
 **The Yellow-Is-Renewal Rule.** Yellow means a client's kayıt ends within `RENEWAL_WINDOW_DAYS` (14 days) and has not been renewed: "Son ders" on the board, the amber count on the lesson meter, renewal-due counts. It is a to-do for the desk, and it disappears when "Yenile" is done. Nothing else may be yellow.
 
@@ -250,7 +251,9 @@ A fixed app shell: a 56px top bar (Paper, hairline bottom) with the brand mark, 
 
 Every page opens with the page header: `h1` and one muted subtitle line on the left (optional back link above, optional details under the title), actions on the right, wrapping under on narrow screens. At most one action is primary.
 
-The Panel is a 3 + 2 grid at `lg` (today's lessons and new registrations left, renewals right). The client hub is a 2 + 1 grid (kayıt cards left, Bilgiler right). The calendar page puts week navigation in the header actions, the Oda / Eğitmen toggle and entity pills under the header, then the week board full width. Side work (move, appointment details, close day) happens in a right Sheet up to 448px wide, never on a new page. Breakpoints are Tailwind's (`sm` 640, `md` 768, `lg` 1024, `xl` 1280).
+The Panel is a 3 + 2 grid at `lg` (today's lessons and new registrations left, renewals right). The client hub is a 2 + 1 grid (kayıt cards left, Bilgiler right). The calendar page puts week navigation in the header actions, the Oda / Eğitmen toggle and entity pills under the header, then the week board full width. Side work (move, appointment details) happens in a right Sheet, never on a new page: 448px for details, 512px for the Taşı sheets, full width on phones. Breakpoints are Tailwind's (`sm` 640, `md` 768, `lg` 1024, `xl` 1280).
+
+Phones are a supported second device: dialogs fit the dynamic viewport (`100dvh` minus 2rem, scrolling inside), sheet and wizard footers stick to the bottom with the primary action first, tables drop secondary columns below `md`, and small icon buttons grow to 44px touch targets.
 
 ## Elevation & Depth
 
@@ -293,6 +296,7 @@ Borders are 1px hairline; cards and lesson blocks use an inset ring rather than 
 - **Background:** Paper on the Bench-30% page.
 - **Shadow Strategy:** none; 1px Ink-at-10% ring.
 - **Internal Padding:** 24px (`sm` cards 16px), 24px between header, content and footer. Lists inside cards are `divide-y` rows with 10px vertical padding; no card in a card.
+- **Title:** `Card.Title` renders an `h2` (16px/500) so card titles sit in the page outline under the page `h1`.
 - **In code:** `Card.Root` for titled cards; the `surface` utility (`src/app.css`) for any other container that should read as a card (the week board, stat strip, tables, empty states). Clickable rows inside a card use the `row-link` utility.
 
 ### Stat Strip
@@ -332,11 +336,15 @@ The weekly pattern as an object: a small 8px-radius Paper chip with a hairline b
 
 ### Lesson Meter (signature)
 
-How far a kayıt has come: a 6px fully-round Bench track (min 64px, flexible) filled by the done share in Meter Orange, with a 500ms ease-out width transition (off under `prefers-reduced-motion`), then a 12px/600 tabular count — "N ders kaldı" or "Bitti". When a renewal is due (`isRenewalDue`: last lesson within 14 days), the fill goes quiet (Ink at 25%) and the count turns Amber Ink, so the yellow meaning is carried by the number, not the bar. Exposed as `role="meter"` with a Turkish label.
+How far a kayıt has come: a 6px fully-round Bench track (min 64px, flexible) filled by the used share in Meter Orange, with a 500ms ease-out width transition (off under `prefers-reduced-motion`), then a 12px/600 tabular count — "N ders kaldı" or "Bitti". The total is the lessons the kayıt was sold with; "kaldı" is always the lessons still on the calendar, so a cancelled or deleted lesson counts as used. When a renewal is due (`isRenewalDue`: last lesson within 14 days), the fill goes quiet (Ink at 25%) and the count turns Amber Ink with a clock-alert icon and a screen-reader "yenileme zamanı", so the meaning never rests on colour alone. Exposed as `role="meter"` with a Turkish label.
 
 ### Sheets
 
-Right Sheet, full width on phones, 448px from `sm`; a hairline-bordered header with the action as title and the lesson as a muted subtitle; content in 24px sections; definition lists as a two-column grid (muted term, 500 value); footer with outline "Vazgeç" and the primary submit.
+Right Sheet, full width on phones, 448px (details) or 512px (Taşı) from `sm`; a hairline-bordered header with the action as title and the lesson as a muted subtitle; content in 24px sections; definition lists as a two-column grid (muted term, 500 value); a sticky footer with outline "Vazgeç" and the primary submit. Previews inside a sheet ("Önizleme") are a live region, and a "→" between old and new slot is read out as "yeni saat / oda / eğitmen".
+
+### Load Error
+
+What a block shows when its data failed to load, instead of looking empty: a full-width strip, 18px radius, Conflict Red at 10% with red 14px text, a triangle-alert icon, the failure in one sentence ("Haftanın dersleri yüklenemedi.") and an outline "Tekrar dene" that reloads just that data. It replaces the block's content in place, inside the same layout as its skeleton.
 
 ## Do's and Don'ts
 
@@ -345,7 +353,8 @@ Right Sheet, full width on phones, 448px from `sm`; a hairline-bordered header w
 - **Do** spend solid Studio Orange only on the one primary action per screen and the active nav item; tint it for booked slots and today.
 - **Do** set orange type with `--primary-ink`.
 - **Do** name every kayıt with its pattern chip and show its progress with the lesson meter.
-- **Do** keep yellow for renewal due (14-day window) with Amber Ink as its text, and red as a 10% tint for conflicts and destructive actions.
+- **Do** keep yellow for renewal due (14-day window) with Amber Ink as its text and the clock-alert icon beside it, and red as a 10% tint for conflicts and destructive actions.
+- **Do** show a failed load as the Load Error strip with "Tekrar dene", never as an empty list.
 - **Do** separate with hairlines, tone steps (Paper / Bench-30 / Bench-60) and whitespace; cards at 18px with the 10% ring.
 - **Do** open every page with the page header (title, one muted line, actions right) inside a `max-w-6xl` column.
 - **Do** do side work (move, details, close day) in a right Sheet over the week board.

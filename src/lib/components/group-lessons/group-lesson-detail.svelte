@@ -14,7 +14,7 @@
 	import StatStrip from '$lib/components/stat-strip.svelte';
 	import { cn } from '$lib/utils';
 	import { isRenewalDue } from '$lib/utils/appointment-utils';
-	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
 	import { getTimeString } from '$lib/types/Schedule';
 
@@ -158,7 +158,7 @@
 											renewalDue ? 'font-medium text-warning-foreground' : 'text-muted-foreground'
 										)}
 									>
-										{#if renewalDue}<CalendarClock class="size-3.5" aria-hidden="true" />{/if}
+										{#if renewalDue}<ClockAlert class="size-3.5" aria-hidden="true" />{/if}
 										{member.upcomingCount} ders kaldı · son {formatShortDate(member.lastDate)}
 										{#if renewalDue}<span class="sr-only">, yenileme zamanı</span>{/if}
 									</span>
