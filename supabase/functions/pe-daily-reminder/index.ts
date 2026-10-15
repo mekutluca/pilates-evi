@@ -33,7 +33,8 @@ Deno.serve(async (req) => {
 		new Date(Date.now() + 24 * 60 * 60 * 1000)
 	);
 
-	// Query tomorrow's enrollments with the trainee and package
+	// Tomorrow's enrollments of active trainees in studios with WhatsApp on (the Demo
+	// studio is off: its trainees are synthetic)
 	const queryStart = performance.now();
 	const { data: rows, error: queryError } = await supabase
 		.from('pe_appointment_trainees')
@@ -45,11 +46,12 @@ Deno.serve(async (req) => {
 				pe_purchases(pe_packages(name)),
 				pe_group_lessons(pe_packages(name))
 			),
-			pe_trainees!inner(name, phone)
+			pe_trainees!inner(name, phone, pe_organizations!inner(whatsapp_enabled))
 		`
 		)
 		.eq('pe_appointments.date', tomorrowStr)
-		.eq('pe_trainees.is_active', true);
+		.eq('pe_trainees.is_active', true)
+		.eq('pe_trainees.pe_organizations.whatsapp_enabled', true);
 
 	const queryDuration = Math.round(performance.now() - queryStart);
 	console.log(

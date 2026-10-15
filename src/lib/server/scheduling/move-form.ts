@@ -59,6 +59,7 @@ export function wantsNotification(formData: FormData): boolean {
 /** Appended to a success message when clients were messaged (null: not asked to). */
 export function notifiedSuffix(result: NotifyResult | null): string {
 	if (!result) return '';
+	if (result.disabled) return ' Bu stüdyoda WhatsApp kapalı; mesaj gönderilmedi.';
 	const sent = result.sent > 0 ? ` ${result.sent} öğrenciye WhatsApp mesajı gönderildi.` : '';
 	const failed =
 		result.failed > 0

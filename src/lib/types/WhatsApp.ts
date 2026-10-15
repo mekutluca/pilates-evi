@@ -53,6 +53,8 @@ export interface ScheduleChange {
 export interface NotifyResult {
 	sent: number;
 	failed: number;
+	// The studio has WhatsApp off (the Demo studio): nothing was sent
+	disabled: boolean;
 }
 
 export type ScheduleChangeMessage = { kind: 'system'; cause: string } | { kind: 'trainee_request' };

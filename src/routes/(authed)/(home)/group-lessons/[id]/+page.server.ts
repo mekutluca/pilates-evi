@@ -47,7 +47,7 @@ export const actions: Actions = {
 		};
 	},
 
-	move: async ({ request, params, locals: { supabase, user, userRole } }) => {
+	move: async ({ request, params, locals: { supabase, user, userRole, organizationId } }) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
@@ -72,7 +72,9 @@ export const actions: Actions = {
 		}
 
 		const notified = notify
-			? await new NotificationService().notify(result.changes, { kind: 'system', cause })
+			? await (
+					await NotificationService.forStudio(supabase, organizationId)
+				).notify(result.changes, { kind: 'system', cause })
 			: null;
 		return {
 			success: true,

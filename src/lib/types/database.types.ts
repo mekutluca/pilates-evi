@@ -213,18 +213,21 @@ export type Database = {
 					id: string;
 					is_active: boolean;
 					name: string;
+					whatsapp_enabled: boolean;
 				};
 				Insert: {
 					created_at?: string;
 					id?: string;
 					is_active?: boolean;
 					name: string;
+					whatsapp_enabled?: boolean;
 				};
 				Update: {
 					created_at?: string;
 					id?: string;
 					is_active?: boolean;
 					name?: string;
+					whatsapp_enabled?: boolean;
 				};
 				Relationships: [];
 			};

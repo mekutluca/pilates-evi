@@ -1,4 +1,5 @@
 import type { MovedAppointment } from '$lib/types/Transfer';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { NotifyResult, ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp';
 import type { WhatsAppRepository } from '$lib/whatsapp/WhatsAppRepository';
 import { getWhatsAppRepository } from '$lib/whatsapp';
@@ -23,7 +24,27 @@ function compareOld(a: ScheduleChange, b: ScheduleChange) {
  * first lesson that changed, not one per appointment.
  */
 export class NotificationService {
-	constructor(private whatsapp: WhatsAppRepository = getWhatsAppRepository()) {}
+	constructor(
+		private whatsapp: WhatsAppRepository = getWhatsAppRepository(),
+		private enabled = true
+	) {}
+
+	/**
+	 * For the signed-in user's studio: one with WhatsApp off (`whatsapp_enabled`, the Demo
+	 * studio) sends nothing. An unreadable setting counts as off.
+	 */
+	static async forStudio(
+		supabase: SupabaseClientType,
+		organizationId: string | null
+	): Promise<NotificationService> {
+		if (!organizationId) return new NotificationService(undefined, false);
+		const { data } = await supabase
+			.from('pe_organizations')
+			.select('whatsapp_enabled')
+			.eq('id', organizationId)
+			.maybeSingle();
+		return new NotificationService(undefined, data?.whatsapp_enabled === true);
+	}
 
 	/** One change per trainee per moved appointment. */
 	static changesFromMoves(moved: MovedAppointment[]): ScheduleChange[] {
@@ -49,6 +70,7 @@ export class NotificationService {
 	 * Failed sends are counted, not thrown: the schedule change itself has been saved.
 	 */
 	async notify(changes: ScheduleChange[], message: ScheduleChangeMessage): Promise<NotifyResult> {
+		if (!this.enabled) return { sent: 0, failed: 0, disabled: true };
 		const firstChange = new Map<string, ScheduleChange>();
 		for (const change of [...changes].sort(compareOld)) {
 			const key = `${change.phone}|${change.packageName}`;
@@ -63,7 +85,7 @@ export class NotificationService {
 			);
 			sent += results.filter(Boolean).length;
 		}
-		return { sent, failed: toSend.length - sent };
+		return { sent, failed: toSend.length - sent, disabled: false };
 	}
 
 	private async send(change: ScheduleChange, message: ScheduleChangeMessage): Promise<boolean> {

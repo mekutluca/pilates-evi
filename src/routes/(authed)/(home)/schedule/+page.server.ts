@@ -64,7 +64,10 @@ function changeMessage(reason: MoveReason): ScheduleChangeMessage {
 }
 
 export const actions: Actions = {
-	rescheduleAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
+	rescheduleAppointment: async ({
+		request,
+		locals: { supabase, user, userRole, organizationId }
+	}) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
@@ -155,7 +158,9 @@ export const actions: Actions = {
 		}
 
 		const notified = wantsNotification(formData)
-			? await new NotificationService().notify(
+			? await (
+					await NotificationService.forStudio(supabase, organizationId)
+				).notify(
 					NotificationService.changesFromMoves([{ appointment, newDate, newHour }]),
 					changeMessage(reason)
 				)
@@ -168,7 +173,7 @@ export const actions: Actions = {
 		};
 	},
 
-	cancelAppointment: async ({ request, locals: { supabase, user, userRole } }) => {
+	cancelAppointment: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
@@ -193,7 +198,9 @@ export const actions: Actions = {
 		const cause = getFormDataString(formData, 'cause').trim();
 		const notified =
 			wantsNotification(formData) && cause
-				? await new NotificationService().notify(changes, { kind: 'system', cause })
+				? await (
+						await NotificationService.forStudio(supabase, organizationId)
+					).notify(changes, { kind: 'system', cause })
 				: null;
 
 		return {
@@ -223,7 +230,7 @@ export const actions: Actions = {
 		};
 	},
 
-	move: async ({ request, locals: { supabase, user, userRole } }) => {
+	move: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
@@ -243,7 +250,9 @@ export const actions: Actions = {
 		}
 
 		const notified = wantsNotification(formData)
-			? await new NotificationService().notify(result.changes, changeMessage(reason))
+			? await (
+					await NotificationService.forStudio(supabase, organizationId)
+				).notify(result.changes, changeMessage(reason))
 			: null;
 		const skipped =
 			result.skippedCount > 0 ? ` ${result.skippedCount} randevu iptal edildiği için atlandı.` : '';
@@ -266,7 +275,7 @@ export const actions: Actions = {
 		return { success: true, preview: await new SchedulingService(supabase).previewCloseDay(date) };
 	},
 
-	closeDay: async ({ request, locals: { supabase, user, userRole } }) => {
+	closeDay: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
@@ -292,7 +301,9 @@ export const actions: Actions = {
 		if (result.error) return fail(400, { success: false, message: result.error });
 
 		const notified = wantsNotification(formData)
-			? await new NotificationService().notify(result.notifications, { kind: 'system', cause })
+			? await (
+					await NotificationService.forStudio(supabase, organizationId)
+				).notify(result.notifications, { kind: 'system', cause })
 			: null;
 
 		const parts: string[] = [];
