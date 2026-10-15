@@ -1,7 +1,7 @@
 import { JS_DAY_TO_NAME, type DayOfWeek, type SlotRef, type WeeklySlot } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
 import type { SelectedGroupTimeslot } from '$lib/types';
-import { formatDateForDB } from './date-utils';
+import { formatDateForDB, getDayOfWeekFromDate } from './date-utils';
 
 // Monday-first ordering used for recurring weekly time-slot patterns.
 export const DAY_ORDER: Record<DayOfWeek, number> = {
@@ -64,6 +64,24 @@ export function sortTimeSlots<T extends WeeklySlot>(slots: T[]): T[] {
  * Whether (date, hour) is one of the pattern's recurring slots — the precondition of
  * buildAppointmentSlotsFromStart, for callers that would rather skip than throw.
  */
+/**
+ * The weekly pattern a run of lessons follows: the (day, hour) slots that recur. A lesson
+ * moved once shows up a single time and is left out, so it doesn't add a weekday to the
+ * pattern; when nothing recurs (a last week) every slot counts.
+ */
+export function recurringPattern(lessons: SlotRef[]): WeeklySlot[] {
+	const counts = new Map<string, { slot: WeeklySlot; count: number }>();
+	for (const { date, hour } of lessons) {
+		const slot = { day: getDayOfWeekFromDate(date), hour };
+		const entry = counts.get(weeklySlotKey(slot)) ?? { slot, count: 0 };
+		entry.count++;
+		counts.set(weeklySlotKey(slot), entry);
+	}
+	const all = [...counts.values()];
+	const recurring = all.filter((e) => e.count > 1);
+	return sortTimeSlots((recurring.length > 0 ? recurring : all).map((e) => e.slot));
+}
+
 export function isSlotInPattern(timeSlots: WeeklySlot[], date: Date, hour: number): boolean {
 	const dayName = JS_DAY_TO_NAME[date.getDay()];
 	return timeSlots.some((s) => s.day === dayName && s.hour === hour);

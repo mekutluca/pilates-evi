@@ -236,11 +236,7 @@
 											</Button>
 										</div>
 										<PatternChip slots={kayit.slots} class="w-fit" />
-										<LessonMeter
-											done={kayit.total - kayit.remaining}
-											total={kayit.total}
-											renewalDue
-										/>
+										<LessonMeter total={kayit.total} left={kayit.remaining} renewalDue />
 									</li>
 								{/each}
 							</ul>

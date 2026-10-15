@@ -5,9 +5,9 @@
 
 	// How far a kayıt has come: the done share fills the track in the orange ramp; once a
 	// renewal is due the fill goes quiet and the amber count carries the meaning
-	let { done, total, renewalDue = false, class: className }: LessonMeterProps = $props();
+	let { total, left, renewalDue = false, class: className }: LessonMeterProps = $props();
 
-	const left = $derived(Math.max(total - done, 0));
+	const done = $derived(Math.max(total - left, 0));
 	const share = $derived(total > 0 ? Math.min(done / total, 1) : 0);
 </script>
 

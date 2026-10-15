@@ -18,6 +18,7 @@ import {
 import { NotificationService } from '$lib/server/services/notification-service';
 import { deleteAppointment, shiftGroupTraineesOn } from '$lib/server/scheduling/cancellation';
 import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 // How far ahead the "closest free occurrence" search walks through the recurring pattern
 // before giving up (≈ six months for a weekly slot).
@@ -36,11 +37,13 @@ async function getDayAppointments(
 	supabase: SupabaseClientType,
 	date: string
 ): Promise<DayAppointment[]> {
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from('pe_appointments')
 		.select(DAY_APPOINTMENT_SELECT)
 		.eq('date', date)
 		.order('hour', { ascending: true });
+	// An unread day must not pass as an empty one ("Gün kapatıldı" with nothing done)
+	if (error) throw new Error(dbErrorMessage(error, 'Günün dersleri yüklenemedi. Tekrar deneyin.'));
 
 	return (data ?? []).map((row) => ({
 		id: row.id,
@@ -88,17 +91,19 @@ function buildPrivateConflict(
 
 // Shifts a private (purchase-backed) appointment's whole series forward, mirroring a single
 // appointment cancellation. The target slot is checked for room/trainer conflicts:
-// - 'shift'   : shift by one slot; on a conflict nothing moves and it is reported to resolve.
-// - 'closest' : walk forward through the recurring pattern to the first conflict-free occurrence.
+// - 'shift'   : shift by `slots` (the series' lessons on the day, usually one); on a conflict
+//               nothing moves and it is reported to resolve.
+// - 'closest' : walk forward from `slots` positions to the first conflict-free occurrence.
 async function shiftPrivateAppointment(
 	supabase: SupabaseClientType,
 	appt: DayAppointment,
-	strategy: DayCancellationStrategy
+	strategy: DayCancellationStrategy,
+	slots: number
 ): Promise<ShiftOutcome> {
 	const result =
 		strategy === 'closest'
-			? await shiftSeriesToFirstFreeSlot(supabase, appt.id, CLOSEST_PROBE_LIMIT)
-			: await shiftSeriesBySlot(supabase, appt.id, 1);
+			? await shiftSeriesToFirstFreeSlot(supabase, appt.id, CLOSEST_PROBE_LIMIT, slots)
+			: await shiftSeriesBySlot(supabase, appt.id, slots);
 
 	if (result.error) return { shifted: false, notifications: [], error: result.error };
 	if (result.conflicts.length > 0) {
@@ -126,6 +131,11 @@ async function shiftGroupAppointment(
 	return error
 		? { shifted: false, notifications: [], error }
 		: { shifted: true, notifications: changes };
+}
+
+// How many of the day's lessons belong to the private series bought with `purchaseId`
+function sameSeriesOnDay(appointments: DayAppointment[], purchaseId: string): number {
+	return appointments.filter((a) => a.purchaseId === purchaseId && a.trainees.length > 0).length;
 }
 
 /**
@@ -158,9 +168,14 @@ export async function cancelDay(
 		error: null
 	};
 
-	for (const appt of appointments) {
-		if (idFilter && !idFilter.has(appt.id)) continue;
-		if (!isAppointmentFuture(appt.date, appt.hour)) continue;
+	const inScope = appointments.filter(
+		(a) => (!idFilter || idFilter.has(a.id)) && isAppointmentFuture(a.date, a.hour)
+	);
+	// A series with several lessons on the day moves once, past all of them; its other
+	// lessons on the day moved with it (purchase id → whether that shift succeeded)
+	const handledSeries = new Map<string, boolean>();
+
+	for (const appt of inScope) {
 		if (appt.trainees.length === 0) {
 			// Empty slots (typically pre-created group lesson rows with no enrollments yet) on a
 			// cancelled day have no trainees to shift; just remove the row.
@@ -175,7 +190,18 @@ export async function cancelDay(
 
 		let outcome: ShiftOutcome | null = null;
 		if (appt.purchaseId) {
-			outcome = await shiftPrivateAppointment(supabase, appt, strategy);
+			const handled = handledSeries.get(appt.purchaseId);
+			if (handled !== undefined) {
+				if (handled) result.shiftedCount++;
+				continue;
+			}
+			outcome = await shiftPrivateAppointment(
+				supabase,
+				appt,
+				strategy,
+				sameSeriesOnDay(inScope, appt.purchaseId)
+			);
+			handledSeries.set(appt.purchaseId, !outcome.error && !outcome.conflict);
 		} else if (appt.groupLessonId) {
 			outcome = await shiftGroupAppointment(supabase, appt);
 		}
@@ -211,6 +237,8 @@ export async function previewCloseDay(
 	);
 	const phones = new Set<string>();
 	const rows: CloseDayPreviewRow[] = [];
+	// One dry run per private series, as the real run shifts each series once
+	const seriesRuns = new Map<string, Awaited<ReturnType<typeof shiftSeriesBySlot>>>();
 
 	for (const appt of appointments) {
 		const base = {
@@ -228,7 +256,15 @@ export async function previewCloseDay(
 		}
 
 		if (appt.purchaseId) {
-			const result = await shiftSeriesBySlot(supabase, appt.id, 1, true);
+			const result =
+				seriesRuns.get(appt.purchaseId) ??
+				(await shiftSeriesBySlot(
+					supabase,
+					appt.id,
+					sameSeriesOnDay(appointments, appt.purchaseId),
+					true
+				));
+			seriesRuns.set(appt.purchaseId, result);
 			const own = result.moved.find((m) => m.appointment.id === appt.id);
 			if (result.error) {
 				rows.push({ ...base, outcome: 'error', note: result.error });

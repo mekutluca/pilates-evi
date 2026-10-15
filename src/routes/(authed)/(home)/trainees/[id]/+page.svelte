@@ -62,6 +62,8 @@
 	let showRestoreModal = $state(false);
 	let archiving = $state(false);
 	let expanded = $state<Record<string, boolean>>({});
+	// Kayıtlar whose past lessons are open
+	let pastOpen = $state<Record<string, boolean>>({});
 
 	let deleteTarget = $state<TraineeKayit | null>(null);
 	let deleteScope = $state<RemainingLessonsScope>('trainee');
@@ -134,6 +136,36 @@
 			: []
 	);
 </script>
+
+<!-- A kayıt's lessons already behind (attended, or passed): newest first, opened on demand -->
+{#snippet pastLessons(kayit: TraineeKayit)}
+	{@const past = kayit.lessons
+		.filter((l) => !kayit.upcoming.some((u) => u.appointmentId === l.appointmentId))
+		.reverse()}
+	{#if past.length > 0}
+		<div>
+			<Button
+				variant="link"
+				size="sm"
+				class="px-0"
+				aria-expanded={pastOpen[kayit.id] ?? false}
+				onclick={() => (pastOpen[kayit.id] = !pastOpen[kayit.id])}
+			>
+				{pastOpen[kayit.id] ? 'Geçmiş dersleri gizle' : `Geçmiş dersler (${past.length})`}
+			</Button>
+			{#if pastOpen[kayit.id]}
+				<ul class="divide-y text-sm text-muted-foreground">
+					{#each past as lesson (lesson.appointmentId)}
+						<li class="py-1.5 sm:flex sm:gap-3">
+							<span class="block tabular-nums">{formatSlotLabel(lesson.date, lesson.hour)}</span>
+							<span class="block truncate">{lesson.roomName} · {lesson.trainerName}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
 
 <svelte:head>
 	<title>{trainee ? `${trainee.name} · ` : ''}Öğrenci · Pilates Evi</title>
@@ -224,7 +256,6 @@
 
 				{#each active as kayit (kayit.id)}
 					{@const next = kayit.upcoming[0]}
-					{@const done = kayit.lessons.length - kayit.upcoming.length}
 					{@const visible = expanded[kayit.id]
 						? kayit.upcoming
 						: kayit.upcoming.slice(0, VISIBLE_LESSONS)}
@@ -247,8 +278,8 @@
 						</Card.Header>
 						<Card.Content class="space-y-4">
 							<LessonMeter
-								{done}
 								total={kayit.lessonCount}
+								left={kayit.upcoming.length}
 								renewalDue={isRenewalDue(kayit.upcoming[kayit.upcoming.length - 1].date)}
 							/>
 							<dl class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -346,6 +377,7 @@
 									</Button>
 								{/if}
 							</section>
+							{@render pastLessons(kayit)}
 						</Card.Content>
 					</Card.Root>
 				{/each}
@@ -357,27 +389,30 @@
 							<Accordion.Content>
 								<ul class="divide-y text-sm">
 									{#each finished as kayit (kayit.id)}
-										<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-											<span class="font-medium">{kayit.packageName}</span>
-											<PatternChip slots={kayit.slots} />
-											<span class="text-muted-foreground">
-												{kayit.lessons.length} ders
-												{#if kayit.lessons.length > 0}
-													· {formatDisplayDate(kayit.lessons[0].date)} – {formatDisplayDate(
-														kayit.lessons[kayit.lessons.length - 1].date
-													)}
+										<li class="py-2">
+											<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+												<span class="font-medium">{kayit.packageName}</span>
+												<PatternChip slots={kayit.slots} />
+												<span class="text-muted-foreground">
+													{kayit.lessons.length} ders
+													{#if kayit.lessons.length > 0}
+														· {formatDisplayDate(kayit.lessons[0].date)} – {formatDisplayDate(
+															kayit.lessons[kayit.lessons.length - 1].date
+														)}
+													{/if}
+												</span>
+												{#if trainee.is_active}
+													<Button
+														variant="ghost"
+														size="sm"
+														class="ml-auto"
+														href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
+													>
+														Yenile<span class="sr-only">: {kayit.packageName}</span>
+													</Button>
 												{/if}
-											</span>
-											{#if trainee.is_active}
-												<Button
-													variant="ghost"
-													size="sm"
-													class="ml-auto"
-													href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
-												>
-													Yenile<span class="sr-only">: {kayit.packageName}</span>
-												</Button>
-											{/if}
+											</div>
+											{@render pastLessons(kayit)}
 										</li>
 									{/each}
 								</ul>

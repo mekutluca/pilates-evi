@@ -295,13 +295,11 @@ export async function listGroupTimeslots(
 		)
 		.eq('package_id', packageId)
 		.is('end_date', null);
-	if (error) {
-		console.error('Error loading group lessons:', error);
-		return [];
-	}
+	// Failures throw: an empty list would read as "no group lesson running"
+	if (error) throw new Error(dbErrorMessage(error, 'Grup dersleri yüklenemedi. Tekrar deneyin.'));
 	if (!lessons || lessons.length === 0) return [];
 
-	const { data: upcoming } = await supabase
+	const { data: upcoming, error: upcomingError } = await supabase
 		.from('pe_appointments')
 		.select('id, date, hour, group_lesson_id, pe_appointment_trainees(trainee_id)')
 		.in(
@@ -311,6 +309,9 @@ export async function listGroupTimeslots(
 		.gte('date', formatDateForDB(new Date()))
 		.order('date')
 		.order('hour');
+	if (upcomingError) {
+		throw new Error(dbErrorMessage(upcomingError, 'Grup dersleri yüklenemedi. Tekrar deneyin.'));
+	}
 	const future = (upcoming ?? []).filter((a) => isAppointmentFuture(a.date, a.hour));
 
 	return lessons.flatMap((lesson) =>

@@ -3,8 +3,6 @@
 @import 'shadcn-svelte/tailwind.css';
 @import '@fontsource-variable/nunito-sans';
 
-@plugin '@tailwindcss/typography';
-
 @custom-variant dark (&:is(.dark *));
 
 /* Pilates Evi in the house style (invest-track, dr.villa, ustama-emanet, rahmet-turizm):

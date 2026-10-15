@@ -1,6 +1,6 @@
 import type { AssignmentPayload, AssignmentResult } from '$lib/types/Assignment';
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { CancelTraineeAction, ChangeOutcome, WeeklyShiftCandidate } from '$lib/types/Schedule';
+import type { CancelTraineeAction, ChangeOutcome } from '$lib/types/Schedule';
 import type {
 	MoveOutcome,
 	MovePreviewRow,
@@ -18,8 +18,6 @@ import { AppointmentRepository } from '$lib/server/repositories/appointment-repo
 import {
 	applyEnrollmentMoves,
 	applyPlannedMoves,
-	listTraineeShiftCandidates,
-	pastWeeklyTargetError,
 	STARTED_LESSON_ERROR,
 	planTraineeSlotShift,
 	shiftSeriesBySlot,
@@ -177,30 +175,21 @@ export class SchedulingService {
 				);
 			}
 			case 'trainee_weeks': {
-				if (!dryRun) {
-					const result = await shiftTraineeRecordsByWeeks(
-						this.supabase,
-						request.appointmentId,
-						request.traineeId,
-						request.weeks
-					);
-					if (result.error) return moveResultFailure(result.error);
-					return this.describeTraineeMoves(
-						request.traineeId,
-						result.shifted.map((m) => [m.oldAppointmentId, m.newAppointmentId]),
-						result.skippedCount
-					);
-				}
-				if (!isValidWeekShift(request.weeks)) return moveResultFailure(WEEK_SHIFT_ERROR);
-				const candidates = await listTraineeShiftCandidates(
+				// The preview runs the same planning (skips, capacity) without writing
+				const result = await shiftTraineeRecordsByWeeks(
 					this.supabase,
 					request.appointmentId,
-					request.traineeId
+					request.traineeId,
+					request.weeks,
+					dryRun
 				);
-				if (typeof candidates === 'string') return moveResultFailure(candidates);
-				const pastError = pastWeeklyTargetError(candidates, request.weeks);
-				if (pastError) return moveResultFailure(pastError);
-				return this.describeTraineeWeeklyPreview(request.traineeId, candidates, request.weeks);
+				if (result.error) return moveResultFailure(result.error);
+				return this.describeTraineeWeeklyShift(
+					request.traineeId,
+					result.movingAppointmentIds,
+					request.weeks,
+					result.skippedCount
+				);
 			}
 		}
 	}
@@ -333,20 +322,18 @@ export class SchedulingService {
 		return { error: null, conflicts: [], rows, changes, skippedCount };
 	}
 
-	// Preview of a weekly trainee shift: each record lands `weeks` later in its own lesson
-	private async describeTraineeWeeklyPreview(
+	// A weekly trainee shift: each moving lesson lands `weeks` later in its own group lesson
+	private async describeTraineeWeeklyShift(
 		traineeId: string,
-		candidates: WeeklyShiftCandidate[],
-		weeks: number
+		appointmentIds: number[],
+		weeks: number,
+		skippedCount: number
 	): Promise<MoveResult> {
 		const [{ data: appointments }, { data: trainee }] = await Promise.all([
 			this.supabase
 				.from('pe_appointments')
 				.select('id, date, hour, room_id, trainer_id, pe_group_lessons(pe_packages(name))')
-				.in(
-					'id',
-					candidates.map((c) => c.appointmentId)
-				),
+				.in('id', appointmentIds),
 			this.supabase.from('pe_trainees').select('phone').eq('id', traineeId).maybeSingle()
 		]);
 		const ordered = (appointments ?? []).sort(compareSlots);
@@ -368,7 +355,7 @@ export class SchedulingService {
 						newHour: a.hour
 					}))
 				: [],
-			skippedCount: 0
+			skippedCount
 		};
 	}
 

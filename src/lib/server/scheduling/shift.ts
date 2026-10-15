@@ -5,10 +5,12 @@ import type {
 	GroupLessonHorizonInfo,
 	MoveTargets,
 	ShiftedTraineeRecord,
+	SlotRef,
 	SlotShiftContext,
 	SortedTraineeRecord,
 	TraineeGroupSlot,
 	TraineeShiftResult,
+	TraineeWeeklyShiftResult,
 	WeeklyShiftCandidate,
 	WeeklyShiftResolution
 } from '$lib/types/Schedule';
@@ -31,8 +33,9 @@ import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 import {
 	buildAppointmentSlotsFromStart,
 	compareSlots,
+	getStartingAppointmentCandidates,
 	isSlotInPattern,
-	sortTimeSlots
+	recurringPattern
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
 
@@ -43,10 +46,7 @@ function pastTargetError(date: string, hour: number): string {
 }
 
 /** A trainee's weekly shift may not land any of their lessons in the past. */
-export function pastWeeklyTargetError(
-	candidates: WeeklyShiftCandidate[],
-	weeks: number
-): string | null {
+function pastWeeklyTargetError(candidates: WeeklyShiftCandidate[], weeks: number): string | null {
 	const past = candidates.find((c) => !isAppointmentFuture(addWeeksToDate(c.date, weeks), c.hour));
 	return past ? pastTargetError(addWeeksToDate(past.date, weeks), past.hour) : null;
 }
@@ -67,32 +67,35 @@ async function loadSlotShiftContext(
 	const canonical = groupLessonId
 		? (await getGroupLessonCanonicalSlots(supabase, groupLessonId)).slots
 		: [];
-	const timeSlots =
-		canonical.length > 0
-			? canonical
-			: sortTimeSlots([
-					...new Map(
-						series.map((a) => {
-							const day = getDayOfWeekFromDate(a.date);
-							return [`${day}-${a.hour}`, { day, hour: a.hour }] as const;
-						})
-					).values()
-				]);
-
-	if (!isSlotInPattern(timeSlots, parseLocalDate(series[0].date), series[0].hour)) {
-		return 'Randevu ders saatleriyle uyuşmuyor';
-	}
+	const timeSlots = canonical.length > 0 ? canonical : recurringPattern(series);
+	if (timeSlots.length === 0) return 'Serinin haftalık düzeni bulunamadı';
 	return { series, timeSlots };
 }
 
-// Every appointment of the series moves `slots` positions forward in its pattern.
+/**
+ * Every appointment of the series moves `slots` positions forward in its pattern. A first
+ * lesson that was moved once sits off the pattern: it keeps its place in the order and the
+ * pattern continues after it, so shifting it by one takes it to the series' next lesson
+ * time and everything after moves along.
+ */
 function planSlotShift({ series, timeSlots }: SlotShiftContext, slots: number): MovedAppointment[] {
-	const targets = buildAppointmentSlotsFromStart(
-		parseLocalDate(series[0].date),
-		series[0].hour,
-		timeSlots,
-		series.length + slots
-	);
+	const [first] = series;
+	const total = series.length + slots;
+	const firstDate = parseLocalDate(first.date);
+	let targets: SlotRef[];
+	if (isSlotInPattern(timeSlots, firstDate, first.hour)) {
+		targets = buildAppointmentSlotsFromStart(firstDate, first.hour, timeSlots, total);
+	} else {
+		const next = getStartingAppointmentCandidates(timeSlots, firstDate, timeSlots.length + 1).find(
+			(c) => compareSlots(c, first) > 0
+		);
+		// The pattern has a slot every week, so one comes within a week and a slot of the first
+		if (!next) throw new Error('No pattern slot after the first lesson');
+		targets = [
+			{ date: first.date, hour: first.hour },
+			...buildAppointmentSlotsFromStart(parseLocalDate(next.date), next.hour, timeSlots, total - 1)
+		];
+	}
 	return series.map((appointment, i) => ({
 		appointment,
 		newDate: targets[i + slots].date,
@@ -135,16 +138,19 @@ async function applyAppointmentMoves(
 }
 
 /**
- * Moves enrollment records to other appointments in one transaction
- * (pe_move_enrollments) and renumbers sessions within each affected purchase.
+ * Moves enrollment records to other appointments and deletes `emptiedIds` (appointments the
+ * moves leave empty) in one transaction (pe_move_enrollments); session numbers follow by
+ * trigger.
  */
 export async function applyEnrollmentMoves(
 	supabase: SupabaseClientType,
-	moves: ShiftedTraineeRecord[]
+	moves: ShiftedTraineeRecord[],
+	emptiedIds: number[] = []
 ): Promise<string | null> {
-	if (moves.length === 0) return null;
+	if (moves.length === 0 && emptiedIds.length === 0) return null;
 	const { error } = await supabase.rpc('pe_move_enrollments', {
-		p_moves: moves.map((m) => ({ id: m.recordId, appointment_id: m.newAppointmentId }))
+		p_moves: moves.map((m) => ({ id: m.recordId, appointment_id: m.newAppointmentId })),
+		p_delete_appointment_ids: emptiedIds
 	});
 	return error
 		? dbErrorMessage(
@@ -222,21 +228,23 @@ export async function shiftSeriesBySlot(
 }
 
 /**
- * Shifts the series to the nearest offset (1..maxSlots positions) whose every target slot
- * is free — the day-closing "closest free occurrence" resolution. Plans are checked
- * without writing; only the first conflict-free one is applied.
+ * Shifts the series to the nearest offset (minSlots..maxSlots positions) whose every target
+ * slot is free — the day-closing "closest free occurrence" resolution. `minSlots` is how
+ * many of the series' lessons sit on the closed day, so every one of them leaves it. Plans
+ * are checked without writing; only the first conflict-free one is applied.
  */
 export async function shiftSeriesToFirstFreeSlot(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
-	maxSlots: number
+	maxSlots: number,
+	minSlots = 1
 ): Promise<MoveOutcome> {
 	const context = await loadSlotShiftContext(supabase, fromAppointmentId);
 	if (typeof context === 'string') return moveFailure(context);
 
 	const conflictService = new ConflictService(supabase);
 	let lastConflicts: SlotConflict[] = [];
-	for (let slots = 1; slots <= maxSlots; slots++) {
+	for (let slots = minSlots; slots < minSlots + maxSlots; slots++) {
 		const moved = planSlotShift(context, slots);
 		lastConflicts = await conflictService.findMoveConflicts(toPlannedMoves(moved));
 		if (lastConflicts.length === 0) return applyPlannedMoves(supabase, moved);
@@ -342,10 +350,13 @@ async function getGroupLessonHorizonInfo(
 async function resolveWeeklyShiftTargets(
 	supabase: SupabaseClientType,
 	candidates: WeeklyShiftCandidate[],
-	weeks: number
+	weeks: number,
+	dryRun: boolean
 ): Promise<WeeklyShiftResolution> {
 	const lessonCache = new Map<string, GroupLessonHorizonInfo | null>();
 	const shiftMap: ShiftedTraineeRecord[] = [];
+	const createdIds: number[] = [];
+	const toCreateFromIds: number[] = [];
 	let skippedCount = 0;
 
 	for (const candidate of candidates) {
@@ -374,6 +385,10 @@ async function resolveWeeklyShiftTargets(
 		const withinLessonLifetime = !lesson?.end_date || targetDate <= lesson.end_date;
 
 		if (lesson && beyondHorizon && withinLessonLifetime && lesson.room_id && lesson.trainer_id) {
+			if (dryRun) {
+				toCreateFromIds.push(candidate.appointmentId);
+				continue;
+			}
 			const { data: created } = await supabase
 				.from('pe_appointments')
 				.insert({
@@ -388,6 +403,7 @@ async function resolveWeeklyShiftTargets(
 				.single();
 
 			if (created) {
+				createdIds.push(created.id);
 				shiftMap.push({
 					recordId: candidate.recordId,
 					oldAppointmentId: candidate.appointmentId,
@@ -401,7 +417,7 @@ async function resolveWeeklyShiftTargets(
 		skippedCount++;
 	}
 
-	return { shiftMap, skippedCount };
+	return { shiftMap, skippedCount, createdIds, toCreateFromIds };
 }
 
 async function loadMoveTargets(
@@ -583,7 +599,7 @@ export async function planTraineeSlotShift(
  * trainee shift (also used to preview it). Returns an error message when the trainee
  * isn't enrolled there or the lesson isn't a group lesson.
  */
-export async function listTraineeShiftCandidates(
+async function listTraineeShiftCandidates(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
 	traineeId: string
@@ -614,40 +630,57 @@ export async function listTraineeShiftCandidates(
  * beyond a lesson's generated horizon are created; targets that were cancelled are
  * skipped and counted.
  */
+/**
+ * Moves a trainee's lessons from `fromAppointmentId` on `weeks` weeks within their group
+ * lessons. A target date without a session is skipped (cancelled, or after the lesson ends);
+ * one beyond the top-up horizon is created. The dry run (previews) plans and checks the
+ * same way and writes nothing.
+ */
 export async function shiftTraineeRecordsByWeeks(
 	supabase: SupabaseClientType,
 	fromAppointmentId: number,
 	traineeId: string,
-	weeks: number
-): Promise<TraineeShiftResult & { skippedCount: number }> {
-	if (!isValidWeekShift(weeks)) {
-		return { error: WEEK_SHIFT_ERROR, shifted: [], skippedCount: 0 };
-	}
+	weeks: number,
+	dryRun = false
+): Promise<TraineeWeeklyShiftResult> {
+	const failure = (error: string, skippedCount = 0): TraineeWeeklyShiftResult => ({
+		error,
+		shifted: [],
+		skippedCount,
+		movingAppointmentIds: []
+	});
+	if (!isValidWeekShift(weeks)) return failure(WEEK_SHIFT_ERROR);
 
 	const candidates = await listTraineeShiftCandidates(supabase, fromAppointmentId, traineeId);
-	if (typeof candidates === 'string') return { error: candidates, shifted: [], skippedCount: 0 };
+	if (typeof candidates === 'string') return failure(candidates);
 	const pastError = pastWeeklyTargetError(candidates, weeks);
-	if (pastError) return { error: pastError, shifted: [], skippedCount: 0 };
+	if (pastError) return failure(pastError);
 
-	const { shiftMap, skippedCount } = await resolveWeeklyShiftTargets(supabase, candidates, weeks);
-	if (candidates.length > 0 && shiftMap.length === 0) {
-		return {
-			error: 'Kaydırılacak randevu bulunamadı; hedef tarihlerin tümü iptal edilmiş görünüyor',
-			shifted: [],
-			skippedCount
-		};
+	const { shiftMap, skippedCount, createdIds, toCreateFromIds } = await resolveWeeklyShiftTargets(
+		supabase,
+		candidates,
+		weeks,
+		dryRun
+	);
+	// Sessions created for this shift go again when it doesn't happen, so they don't hold
+	// the room and trainer
+	const fail = async (error: string) => {
+		if (createdIds.length > 0) {
+			await supabase.from('pe_appointments').delete().in('id', createdIds);
+		}
+		return failure(error, skippedCount);
+	};
+	if (candidates.length > 0 && shiftMap.length + toCreateFromIds.length === 0) {
+		return fail('Kaydırılacak randevu bulunamadı; hedef tarihlerin tümü iptal edilmiş görünüyor');
 	}
 
 	const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);
-	if (guardError) return { error: guardError, shifted: [], skippedCount };
+	if (guardError) return fail(guardError);
+
+	const movingAppointmentIds = [...shiftMap.map((m) => m.oldAppointmentId), ...toCreateFromIds];
+	if (dryRun) return { error: null, shifted: shiftMap, skippedCount, movingAppointmentIds };
 
 	const moveError = await applyEnrollmentMoves(supabase, shiftMap);
-	if (moveError) {
-		return {
-			error: 'Öğrenci kaydırma sırasında hata oluştu: ' + moveError,
-			shifted: [],
-			skippedCount
-		};
-	}
-	return { error: null, shifted: shiftMap, skippedCount };
+	if (moveError) return fail(moveError);
+	return { error: null, shifted: shiftMap, skippedCount, movingAppointmentIds };
 }

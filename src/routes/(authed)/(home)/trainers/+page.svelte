@@ -232,7 +232,6 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu',
 			onSuccess: () => {
 				showAddModal = false;
 				resetForm();

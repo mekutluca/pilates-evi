@@ -247,9 +247,10 @@ export interface PatternChipProps {
 }
 
 export interface LessonMeterProps {
-	// Lessons already behind and the kayıt's total
-	done: number;
+	// The lessons the kayıt was sold with and its upcoming ones; cancelled or deleted
+	// lessons count as used, so "N ders kaldı" is always the lessons on the calendar
 	total: number;
+	left: number;
 	// Few lessons left and no renewal yet
 	renewalDue?: boolean;
 	class?: string;

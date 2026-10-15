@@ -59,9 +59,14 @@ export const actions: Actions = {
 			fullName: getRequiredFormDataString(formData, 'fullName'),
 			role
 		});
-		if ('error' in result) return fail(500, { success: false, message: result.error });
+		if ('error' in result) return fail(400, { success: false, message: result.error });
 
-		return { success: true, message: 'Kullanıcı başarıyla oluşturuldu' };
+		return {
+			success: true,
+			message: result.existingLogin
+				? 'Kişi stüdyoya eklendi. Mevcut hesabıyla, kendi şifresiyle giriş yapabilir.'
+				: 'Kullanıcı oluşturuldu'
+		};
 	},
 
 	updateUser: async ({ request, locals }) => {

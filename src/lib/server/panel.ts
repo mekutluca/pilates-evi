@@ -1,4 +1,5 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { SlotRef } from '$lib/types/Schedule';
 import type {
 	EndingKayit,
 	NewKayit,
@@ -6,38 +7,15 @@ import type {
 	StudioPanel,
 	TrainerPanel
 } from '$lib/types/Dashboard';
-import {
-	addDays,
-	formatDateForDB,
-	getDayOfWeekFromDate,
-	getWeekStart,
-	isAppointmentFuture
-} from '$lib/utils/date-utils';
+import { addDays, formatDateForDB, getWeekStart, isAppointmentFuture } from '$lib/utils/date-utils';
 import { renewalWindowEnd } from '$lib/utils/appointment-utils';
-import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
+import { recurringPattern } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
+import { pagedRows } from '$lib/server/paging';
 
-const ROW_PAGE = 1000;
 // "Paketi bitmek üzere": the last lesson is within the renewal window ahead…
 // …or was at most this many days ago, without a renewal
 const ENDED_BEHIND_DAYS = 7;
-
-// The API caps a response at 1000 rows; a cut-off list would make kayıtlar look like
-// they are ending, so these reads are paged
-async function pagedRows<T>(
-	fetchPage: (
-		from: number,
-		to: number
-	) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
-): Promise<T[]> {
-	const rows: T[] = [];
-	for (let from = 0; ; from += ROW_PAGE) {
-		const { data, error } = await fetchPage(from, from + ROW_PAGE - 1);
-		if (error) throw new Error(error.message);
-		rows.push(...(data ?? []));
-		if ((data ?? []).length < ROW_PAGE) return rows;
-	}
-}
 
 // This week's lessons, optionally one trainer's, chronological, and how many distinct
 // trainees they have
@@ -84,6 +62,7 @@ async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit
 	const windowStart = formatDateForDB(addDays(today, -ENDED_BEHIND_DAYS));
 	const windowEnd = renewalWindowEnd();
 
+	// Paged: a cut-off list would make kayıtlar look like they are ending
 	const inWindow = await pagedRows((from, to) =>
 		supabase
 			.from('pe_appointment_trainees')
@@ -121,6 +100,7 @@ async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit
 	);
 
 	const byKayit = new Map<string, EndingKayit>();
+	const lessonsByKayit = new Map<string, SlotRef[]>();
 	for (const row of inWindow) {
 		const purchase = ending.get(row.purchase_id);
 		if (!purchase) continue;
@@ -138,12 +118,10 @@ async function endingKayitlar(supabase: SupabaseClientType): Promise<EndingKayit
 		const { date, hour } = row.pe_appointments;
 		if (isAppointmentFuture(date, hour)) entry.remaining++;
 		if (date > entry.lastDate) entry.lastDate = date;
-		const slot = { day: getDayOfWeekFromDate(date), hour };
-		if (!entry.slots.some((s) => weeklySlotKey(s) === weeklySlotKey(slot))) {
-			entry.slots = sortTimeSlots([...entry.slots, slot]);
-		}
+		lessonsByKayit.set(key, [...(lessonsByKayit.get(key) ?? []), { date, hour }]);
 		byKayit.set(key, entry);
 	}
+	for (const [key, entry] of byKayit) entry.slots = recurringPattern(lessonsByKayit.get(key) ?? []);
 	return [...byKayit.values()].sort(
 		(a, b) =>
 			a.lastDate.localeCompare(b.lastDate) || a.traineeName.localeCompare(b.traineeName, 'tr')
@@ -164,7 +142,7 @@ async function weekKayitlar(
 	if (error) throw new Error(dbErrorMessage(error, 'Kayıtlar yüklenemedi. Tekrar deneyin.'));
 	if (!purchases || purchases.length === 0) return { newKayitlar: [], renewalCount: 0 };
 
-	const [{ data: predecessors }, { data: teams }] = await Promise.all([
+	const [predecessorsRes, teamsRes] = await Promise.all([
 		supabase
 			.from('pe_purchases')
 			.select('successor_id')
@@ -177,9 +155,12 @@ async function weekKayitlar(
 			.select('id, pe_trainees(id, name)')
 			.in('id', [...new Set(purchases.map((p) => p.team_id))])
 	]);
-	const renewals = new Set((predecessors ?? []).map((p) => p.successor_id));
+	// A failed read would count renewals as new kayıtlar
+	const failed = predecessorsRes.error ?? teamsRes.error;
+	if (failed) throw new Error(dbErrorMessage(failed, 'Kayıtlar yüklenemedi. Tekrar deneyin.'));
+	const renewals = new Set((predecessorsRes.data ?? []).map((p) => p.successor_id));
 	const teamMembers = new Map<string, Array<{ id: string; name: string }>>();
-	for (const member of teams ?? []) {
+	for (const member of teamsRes.data ?? []) {
 		teamMembers.set(member.id, [...(teamMembers.get(member.id) ?? []), member.pe_trainees]);
 	}
 

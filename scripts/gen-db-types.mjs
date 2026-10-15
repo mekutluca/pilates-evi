@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Regenerates the Database types from the linked Supabase project, keeping only
 // pe_-prefixed tables/functions/enums (the Postgres instance is shared with other
-// apps). Writes src/lib/types/database.types.ts; the edge function uses an
-// untyped client today, so no mirror copy under supabase/functions/_shared yet.
+// apps). Writes src/lib/types/database.types.ts, which the pe-daily-reminder edge
+// function imports as well.
 // Usage: npm run gen:db-types
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';

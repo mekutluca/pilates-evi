@@ -66,10 +66,10 @@ async function shiftPrivateSeriesByOne(
 }
 
 /**
- * Moves every trainee of a group appointment one slot on in their own pattern, then
- * removes the emptied appointment (cancelling a group lesson, alone or as part of a
- * closed day). All trainees are planned first and moved in one transaction, so a failure
- * on one never leaves the others moved and the slot half-emptied.
+ * Moves every trainee of a group appointment one slot on in their own pattern and removes
+ * the emptied appointment (cancelling a group lesson, alone or as part of a closed day).
+ * All trainees are planned first, then moved and the appointment deleted in one
+ * transaction: a failure leaves everything as it was.
  */
 export async function shiftGroupTraineesOn(
 	supabase: SupabaseClientType,
@@ -101,9 +101,6 @@ export async function shiftGroupTraineesOn(
 
 	const capacityError = await checkMoveCapacity(supabase, moves);
 	if (capacityError) return { error: capacityError, changes: [] };
-	const moveError = await applyEnrollmentMoves(supabase, moves);
-	if (moveError) return { error: moveError, changes: [] };
-
 	const { data: targets } = await supabase
 		.from('pe_appointments')
 		.select('id, date, hour')
@@ -126,8 +123,9 @@ export async function shiftGroupTraineesOn(
 			: [];
 	});
 
-	const { error: deleteError } = await deleteAppointment(supabase, appointmentId);
-	return { error: deleteError, changes: deleteError ? [] : changes };
+	// The trainees move and the emptied appointment goes in one transaction
+	const moveError = await applyEnrollmentMoves(supabase, moves, [appointmentId]);
+	return moveError ? { error: moveError, changes: [] } : { error: null, changes };
 }
 
 /**

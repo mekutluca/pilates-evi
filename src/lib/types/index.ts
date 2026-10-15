@@ -9,7 +9,7 @@ import Users from '@lucide/svelte/icons/users';
 
 // Core entity types (direct from database)
 // capacity is unused (being dropped from the table)
-export type Room = Omit<Tables<'pe_rooms'>, 'capacity'>;
+export type Room = Tables<'pe_rooms'>;
 export type Trainer = Tables<'pe_trainers'>;
 export type Trainee = Tables<'pe_trainees'>;
 export type Package = Tables<'pe_packages'>;

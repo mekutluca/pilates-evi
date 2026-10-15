@@ -1,4 +1,4 @@
--- Complete the hardening started in 20260610120300_pe_function_hygiene.sql.
+-- Complete the hardening started in 20260610115737_pe_function_hygiene.sql.
 --
 -- That migration revoked EXECUTE from `anon`, but Postgres auto-grants EXECUTE
 -- to PUBLIC on every CREATE FUNCTION. Since `anon` is a member of PUBLIC, the

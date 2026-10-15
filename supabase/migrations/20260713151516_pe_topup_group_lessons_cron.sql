@@ -1,5 +1,5 @@
 -- Weekly group lesson appointment top-up. New group lessons are created with
--- 26 weeks of appointments (new-assignment/+page.server.ts); this keeps every
+-- 26 weeks of appointments (group-lessons/new); this keeps every
 -- active lesson's horizon at CURRENT_DATE + p_weeks by generating the missing
 -- slots from the lesson's timeslots JSON ({day, hours[]}, English day names).
 -- Slots whose room or trainer is already booked are silently skipped via the

@@ -5,6 +5,7 @@ import type { GroupLessonTimeslot } from '$lib/types/Extension';
 import { parseLocalDate } from '$lib/utils/date-utils';
 import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 function isDayOfWeek(value: string): value is DayOfWeek {
 	return (DAYS_OF_WEEK as readonly string[]).includes(value);
@@ -50,7 +51,7 @@ export async function getLastAppointmentDate(
 	purchaseId: string
 ): Promise<Date | null> {
 	// First try direct purchase_id (for private lessons)
-	const { data: directData } = await supabase
+	const { data: directData, error: directError } = await supabase
 		.from('pe_appointments')
 		.select('date')
 		.eq('purchase_id', purchaseId)
@@ -58,12 +59,15 @@ export async function getLastAppointmentDate(
 		.limit(1)
 		.maybeSingle();
 
+	// A failed read must not pass as "no lessons": renewals could then start before the last one
+	if (directError)
+		throw new Error(dbErrorMessage(directError, 'Kaydın dersleri yüklenemedi. Tekrar deneyin.'));
 	if (directData && directData.date) {
 		return parseLocalDate(directData.date);
 	}
 
 	// Try via pe_appointment_trainees (for group lessons)
-	const { data: traineeData } = await supabase
+	const { data: traineeData, error: traineeError } = await supabase
 		.from('pe_appointment_trainees')
 		.select('pe_appointments(date)')
 		.eq('purchase_id', purchaseId)
@@ -71,6 +75,8 @@ export async function getLastAppointmentDate(
 		.limit(1)
 		.maybeSingle();
 
+	if (traineeError)
+		throw new Error(dbErrorMessage(traineeError, 'Kaydın dersleri yüklenemedi. Tekrar deneyin.'));
 	const apt = traineeData?.pe_appointments;
 	if (apt && !Array.isArray(apt) && apt.date) {
 		return parseLocalDate(apt.date);

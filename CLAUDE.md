@@ -14,7 +14,7 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 - Two Supabase clients: regular user client and admin service role client
 - Role-based access control with 4 roles: `admin`, `coordinator`, `trainer`, `trainee`
 - Roles are prefixed with `pe_` in Supabase but stripped to base role names in the app
-- The role comes from the user's active `pe_user_organizations` membership (hooks and the `pe_get_auth_org_role()` RLS helper both read it), so removing or demoting staff takes effect immediately; `app_metadata` only carries the organization id
+- The role comes from the user's active `pe_user_organizations` membership (hooks and the `pe_get_auth_org_role()` RLS helper both read it), so removing or demoting staff takes effect immediately; only the organization id is read from `app_metadata` (the stale `organization_role` key is dropped by the post-deploy migration `20261015130000`, which must wait until this code is live: the old app reads it)
 - Route protection implemented in `hooks.server.ts` using route definitions from `Route.ts`; a nav route guards its whole subtree (`/trainees` covers `/trainees/[id]`)
 - Coordinators do scheduling (book, move, cancel, close days, delete lessons); rooms, trainers, packages and staff accounts are admin-only
 
@@ -22,10 +22,10 @@ This is a SvelteKit application for a Pilates studio management system ("pilates
 
 Routes parse input, check permissions, call one service/repository method and report the result. Business logic lives in `src/lib/server/`:
 
-- `services/scheduling-service.ts` - every scheduling write: create assignment, reschedule, `move` (every Taşı kind, with `dryRun` for previews), `moveGroupLesson`, cancel appointment, close day (+ preview), delete remaining lessons, end group lesson. Writes go through transactional RPCs (`pe_move_appointments`, `pe_move_enrollments`, `pe_reschedule_appointment`, `pe_create_assignment`, `pe_extend_purchase`, `pe_end_group_lesson`)
+- `services/scheduling-service.ts` - every scheduling write: create assignment, reschedule, `move` (every Taşı kind, with `dryRun` for previews), `moveGroupLesson`, cancel appointment, close day (+ preview), delete remaining lessons, end group lesson. Writes go through transactional RPCs (`pe_move_appointments`, `pe_move_enrollments` — which can also delete the appointments a move empties, `pe_reschedule_appointment`, `pe_create_assignment`, `pe_extend_purchase`, `pe_end_group_lesson`). Session numbers (`session_number`/`total_sessions`, behind "Son ders") are kept in calendar order by database triggers; code never renumbers
 - `services/conflict-service.ts` - room/trainer conflicts (`findSlotConflicts`, batched `findMoveConflicts`, `findBusyWeeklySlots` for the wizard grid) and group enrollment capacity/duplicate checks
 - `services/notification-service.ts` - WhatsApp schedule-change messages, one per trainee per operation
-- `services/org-user-service.ts` - staff/trainer login accounts; checks studio membership before any `auth.admin` call (the Supabase project is shared with other apps)
+- `services/org-user-service.ts` - staff/trainer login accounts; checks studio membership before any `auth.admin` call (the Supabase project is shared with other apps). Adding an e-mail that already has a login (removed staff, another app's user) finds it with `pe_auth_user_id` (service role only) and reactivates or adds the membership without touching its password
 - `repositories/appointment-repository.ts` - `getSeries(appointmentId, scope, traineeId?)`: the appointments an operation covers (purchase chain, canonical group slots); `getGroupLessonSessions`
 - `repositories/purchase-repository.ts`, `repositories/trainee-repository.ts`
 - `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion); `lesson-plan.ts` plans a kayıt's lessons for both Yenile (`planRenewal`) and Yeni kayıt (`planAssignment`); `group-lessons.ts` lists, plans and moves group lessons; `*-form.ts` parse action forms into typed inputs (returning an error string when invalid)
@@ -55,8 +55,8 @@ Routes parse input, check permissions, call one service/repository method and re
 
 Key entity types defined in `src/lib/types/`:
 
-- User, Trainer, Trainee, Training, Room
-- ActionItem, ActionResult for UI interactions
+- User, Trainer, Trainee, Room, Package
+- ActionItem for row actions; component props in `ComponentProps.ts`, action payloads in `Api.ts`
 - Role for authorization
 
 ### Styling

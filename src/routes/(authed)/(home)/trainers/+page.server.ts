@@ -45,7 +45,23 @@ export const actions: Actions = {
 			fullName: name,
 			role: 'pe_trainer'
 		});
-		if ('error' in account) return fail(500, { success: false, message: account.error });
+		if ('error' in account) return fail(400, { success: false, message: account.error });
+
+		// A returning trainer still has their row (archived): restoring keeps their history
+		if (account.existingLogin) {
+			const { data: existingTrainer } = await locals.supabase
+				.from('pe_trainers')
+				.select('id')
+				.eq('id', account.userId)
+				.maybeSingle();
+			if (existingTrainer) {
+				await service.undoCreateAccount(account);
+				return fail(400, {
+					success: false,
+					message: 'Bu eğitmen arşivde. "Arşivlenenleri göster" ile bulup geri yükleyin.'
+				});
+			}
+		}
 
 		const { error: createError } = await locals.supabase.from('pe_trainers').insert({
 			id: account.userId,
@@ -54,14 +70,19 @@ export const actions: Actions = {
 			sort_order: await nextSortOrder(locals.supabase, 'pe_trainers')
 		});
 		if (createError) {
-			await service.deleteAccount(account.userId);
+			await service.undoCreateAccount(account);
 			return fail(500, {
 				success: false,
 				message: dbErrorMessage(createError, 'Eğitmen kaydedilemedi. Tekrar deneyin.')
 			});
 		}
 
-		return { success: true, message: 'Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu' };
+		return {
+			success: true,
+			message: account.existingLogin
+				? 'Eğitmen eklendi. Mevcut hesabıyla, kendi şifresiyle giriş yapabilir.'
+				: 'Eğitmen ve kullanıcı hesabı oluşturuldu'
+		};
 	},
 
 	updateTrainer: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -104,7 +125,8 @@ export const actions: Actions = {
 		);
 		if (blocked) return blocked;
 
-		const blockError = await OrgUserService.fromLocals(locals).setSignInBlocked(trainerId, true);
+		const service = OrgUserService.fromLocals(locals);
+		const blockError = await service.setSignInBlocked(trainerId, true);
 		if (blockError) return fail(400, { success: false, message: blockError });
 
 		const { data: archived, error: archiveError } = await locals.supabase
@@ -112,6 +134,10 @@ export const actions: Actions = {
 			.update({ is_active: false })
 			.eq('id', trainerId)
 			.select('id');
+		// Not archived after all: the login works again, as before
+		if (archiveError || (archived ?? []).length === 0) {
+			await service.setSignInBlocked(trainerId, false);
+		}
 		if (archiveError) {
 			return fail(500, {
 				success: false,
@@ -133,7 +159,8 @@ export const actions: Actions = {
 		const trainerId = getFormDataUuid(await request.formData(), 'trainerId');
 		if (!trainerId) return fail(400, { success: false, message: NOT_FOUND });
 
-		const unblockError = await OrgUserService.fromLocals(locals).setSignInBlocked(trainerId, false);
+		const service = OrgUserService.fromLocals(locals);
+		const unblockError = await service.setSignInBlocked(trainerId, false);
 		if (unblockError) return fail(400, { success: false, message: unblockError });
 
 		const { data: restored, error: restoreError } = await locals.supabase
@@ -141,6 +168,10 @@ export const actions: Actions = {
 			.update({ is_active: true })
 			.eq('id', trainerId)
 			.select('id');
+		// Still archived: the login stays blocked, as before
+		if (restoreError || (restored ?? []).length === 0) {
+			await service.setSignInBlocked(trainerId, true);
+		}
 		if (restoreError) {
 			return fail(500, {
 				success: false,

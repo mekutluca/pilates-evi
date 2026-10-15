@@ -55,8 +55,12 @@
 	let trainerId = $state(untrack(() => appointment?.trainer_id ?? ''));
 	let source = $state<'trainee' | 'studio'>('trainee');
 	let cause = $state('');
-	// Moving a single trainee never messaged anyone before; keep that the default
-	let notify = $state(untrack(() => !trainee));
+	// Defaults as before the redesign: a single move notifies, a series shift only once a
+	// cause is given, a single trainee's move never; ticking or unticking the box wins
+	let notifyChoice = $state<boolean | null>(null);
+	const notify = $derived(
+		notifyChoice ?? (trainee ? false : mode === 'time' ? true : cause.trim().length > 0)
+	);
 	let submitting = $state(false);
 
 	const modes = $derived<MoveMode[]>(
@@ -308,7 +312,7 @@
 					</div>
 
 					<label class="flex cursor-pointer items-center gap-3 text-sm">
-						<Checkbox bind:checked={notify} />
+						<Checkbox bind:checked={() => notify, (checked) => (notifyChoice = checked)} />
 						Öğrencilere WhatsApp ile bildir{recipients > 0 ? ` (${recipients} kişi)` : ''}
 					</label>
 				{/if}

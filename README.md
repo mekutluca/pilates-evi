@@ -22,7 +22,7 @@ node --env-file=.env build   # serves on PORT (default 3000)
 ```
 
 The built server in `build/` reads its configuration from the process environment:
-`PUBLIC_SUPABASE_*` and `PRIVATE_SUPABASE_SECRET_KEY` are baked in at build time
+`PUBLIC_SUPABASE_*`, `PRIVATE_SUPABASE_SECRET_KEY` and `PRIVATE_CHAKRA_*` (WhatsApp) are baked in at build time
 (`$env/static/*`), while `ORIGIN`, `PORT`, `HOST` and `BODY_SIZE_LIMIT` are read at
 runtime. Set `ORIGIN` to the public URL (e.g. `https://pilates.example.com`) or form
 submissions are rejected as cross-site. Put it behind a reverse proxy (nginx/Caddy)

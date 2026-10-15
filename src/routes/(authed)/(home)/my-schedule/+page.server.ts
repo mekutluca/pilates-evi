@@ -11,11 +11,15 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	}
 
 	// A trainer's account id is their pe_trainers id
-	const { data: trainer } = await supabase
+	const { data: trainer, error: trainerError } = await supabase
 		.from('pe_trainers')
 		.select('id, name')
 		.eq('id', user.id)
-		.single();
+		.maybeSingle();
+	if (trainerError) {
+		console.error('Error loading trainer:', trainerError);
+		throw error(500, 'Takviminiz yüklenemedi. Sayfayı yenileyin.');
+	}
 	if (!trainer) throw error(404, 'Eğitmen kaydınız bulunamadı');
 
 	// Week from the URL (any day of it), defaulting to the current week

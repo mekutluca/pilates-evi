@@ -18,6 +18,7 @@ import type {
 	EnrollmentTargetCheck
 } from '$lib/types/Conflict';
 import { dbErrorMessage } from '$lib/server/db-errors';
+import { pagedRows } from '$lib/server/paging';
 
 /**
  * Single source of truth for room/trainer booking conflicts.
@@ -86,14 +87,19 @@ export class ConflictService {
 		fromDate: string;
 		toDate: string;
 	}): Promise<BusyWeeklySlot[]> {
-		const { data, error } = await this.supabase
-			.from('pe_appointments')
-			.select('date, hour')
-			.or(`room_id.eq.${params.roomId},trainer_id.eq.${params.trainerId}`)
-			.gte('date', params.fromDate)
-			.lt('date', params.toDate);
-		if (error)
-			throw new Error(dbErrorMessage(error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
+		// A long kayıt on a busy room passes PostgREST's 1000-row page
+		const data = await pagedRows(
+			(from, to) =>
+				this.supabase
+					.from('pe_appointments')
+					.select('date, hour')
+					.or(`room_id.eq.${params.roomId},trainer_id.eq.${params.trainerId}`)
+					.gte('date', params.fromDate)
+					.lt('date', params.toDate)
+					.order('id')
+					.range(from, to),
+			'Çakışma kontrolü başarısız. Tekrar deneyin.'
+		);
 
 		// Each taken date counts once even when both room and trainer are taken
 		const firstWeekEnd = formatDateForDB(addDays(parseLocalDate(params.fromDate), 7));

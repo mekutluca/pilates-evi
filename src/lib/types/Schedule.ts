@@ -47,6 +47,13 @@ export interface TraineeShiftResult {
 	shifted: ShiftedTraineeRecord[];
 }
 
+// A trainee's weekly shift: what moved (or, as a dry run, would move) and what was skipped
+export interface TraineeWeeklyShiftResult extends TraineeShiftResult {
+	skippedCount: number;
+	// The trainee's appointments that move (dry runs can't name targets not created yet)
+	movingAppointmentIds: number[];
+}
+
 // A trainee's enrollment flattened with its appointment slot, for shifting.
 export interface SortedTraineeRecord {
 	recordId: number;
@@ -81,6 +88,10 @@ export interface WeeklyShiftCandidate {
 export interface WeeklyShiftResolution {
 	shiftMap: ShiftedTraineeRecord[];
 	skippedCount: number;
+	// Group sessions created beyond the top-up horizon to receive the shift
+	createdIds: number[];
+	// Dry run: appointments whose target session would be created
+	toCreateFromIds: number[];
 }
 
 // Group lesson fields needed to decide whether a missing target appointment slot should be

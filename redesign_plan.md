@@ -1,6 +1,6 @@
 # Pilates Evi — Full Review & Redesign Plan (2026-10)
 
-_Assessment date: 2026-10-14. Sources: impeccable critique (dual-agent design review + deterministic detector), operations/IA inventory, server & code review, live DB review of `pe_*` objects (project `nhvzcpxkdjyftemalcki`, read-only). Items marked ✔ were re-verified by hand. Supersedes the open items of `fable_review.md`._
+_Assessment date: 2026-10-14. Sources: impeccable critique (dual-agent design review + deterministic detector), operations/IA inventory, server & code review, live DB review of `pe_*` objects (project `nhvzcpxkdjyftemalcki`, read-only). Items marked ✔ were re-verified by hand. Supersedes the open items of the earlier `fable_review.md` (since removed)._
 
 ## Decisions (owner, 2026-10-14)
 
@@ -60,7 +60,7 @@ Everything here is either silently corrupting data, reporting success when nothi
 
 ## Phase 1 — Consolidation (code)
 
-Still open from `fable_review.md` plus new duplication.
+Still open from the earlier review plus new duplication.
 
 | Current                                                                                                                                                                  | Target                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -214,9 +214,7 @@ Sibling comparison: dependencies are already aligned (Kit 2.63, Svelte 5.56, Vit
 - `pe-daily-reminder` redeployed (v13; boots, rejects unauthenticated calls). The deployed snapshot carries a stub for the type-only `database.types.ts` import.
 - `20261014171135_pe_daily_reminder_cron_vault` — the cron job reads its bearer token from Vault (`pe_cron_secret`), timeout 150 s, job defined in a migration. Check `net._http_response` after the next 10:00 UTC run.
 
-**Still open:**
-
-- Drop `pe_decrement_reschedule` once the new code is deployed.
+**Closed later:** `pe_decrement_reschedule` dropped in `20261014194141_pe_post_deploy_drops`.
 
 ## Phase 1 progress
 
@@ -263,7 +261,7 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 
 ## Phase 2 progress
 
-**2026-10-14 — built (uncommitted; `npm run check`, `build`, `lint` clean; flows not yet exercised in a browser):**
+**2026-10-14 — built (commit `697f120`; flows exercised in the browser in Phases 3–4):**
 
 - **Nav** per the brief; `actionRoutes` guards `/new-assignment`. Labelled user menu, slim loading bar.
 - **Takvim:** side panel (details, trainees, Taşı, İptal et, Yenile, Grup dersi link), Taşı sheet (time on the grid, room/trainer, N hafta, N ders, single trainee; Öğrenci talebi / Stüdyo reason; notify checkbox; server dry-run preview), İptal et dialog, Günü kapat from the day header with a per-lesson preview. Empty slot → wizard prefilled. Week navigation is a shared `week-nav` component.
@@ -279,11 +277,11 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 
 **Cleanup:** one `actionResource` helper + `Loadable<T>` replace seven hand-written debounced preview effects and their local state types; `lesson-plan-summary` + `canConfirmPlan` shared by Yenile, Yeni kayıt and Yeni grup dersi; `weeklySlotKey` / `groupSlotKey` replace inline key builders.
 
-**Left for Phase 3/4:** one long + one short date format everywhere (several `date-utils` formatters still coexist); destructive confirms on the CRUD pages still read "Arşivle"/"Sil" without the object.
+**Left for Phase 3/4 (done in Phase 4):** one long + one short date format everywhere; destructive confirms name their object.
 
 ## Phase 3 progress
 
-**2026-10-14/15 — new identity (uncommitted):**
+**2026-10-14/15 — new identity (commits `cca5569`, `ba20022`):**
 
 - **Direction (owner-pinned):** the house style shared with invest-track, dr.villa, ustama-emanet and rahmet-turizm, keeping the studio orange (#c2410c) as the one accent. Contract in `src/app.html`; rulebook in `DESIGN.md`.
 - **System:** stone tokens, `primary-ink` for orange type, Attention Yellow = needs a renewal, red = conflict (tint only), ordered orange chart ramp, themed selection / caret / scrollbar; shadcn "maia" components ported from the siblings (pill controls, ringed cards, no resting shadows); light / dark / system theme toggle (`mode-watcher`).
@@ -295,7 +293,7 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 
 ## Phase 4 progress
 
-**2026-10-15 — hardening, phone layout, accessibility (uncommitted):**
+**2026-10-15 — hardening, phone layout, accessibility (commit `2e90170`):**
 
 - **Copy:** one date vocabulary in `date-utils` ("14 Ekim 2026", "14 Eki", slot labels, week ranges); sentence-case menus and titles; confirm buttons name their object ("Öğrenciyi arşivle").
 - **Errors users see:** no raw Supabase/Auth text anywhere (`dbErrorMessage` / `authErrorMessage`: RPC messages and known Auth codes pass, the rest is a Turkish "what failed, what to do"); login form rewritten (no native submit, unreachable server vs wrong password vs generic, "Giriş yapılıyor…"); missing form fields are a readable 400; `enhanceForm` / `postAction` keep the form on network errors.
@@ -305,3 +303,10 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 - **Phone:** modals and sheets fit `dvh` with sticky footers, secondary table columns hide below md, wizard footer and step pills compact, 44px touch targets on the small icon buttons.
 - **Accessibility:** contrast-safe muted text and red (recorded in DESIGN.md); skip link, nav labels, `main` landmarks, h1 on login/error, card titles as h2; sortable headers are buttons with `aria-sort`, rows are links; labelled radio groups, cause field, password hints, numbered weekly-slot fields; wizard packages are native radios (arrow keys) and focus moves to each step's heading; renewal due has an icon and words, not only amber; "→" moves read as "yeni saat / oda / eğitmen"; week picker is a labelled dialog (Escape, focus return, live week range); repeated row buttons and menus carry the row's name; theme menu uses radio items.
 - **Verification:** svelte-check, prettier, build clean; Playwright: login (wrong password toast, skip link first), every nav page, keyboard wizard, action probes for the new server checks, renewal start rule against the Demo org; phone/desktop captures; detector shows only the static `error.html` and stock calendar findings.
+
+## Final checkup (2026-10-15)
+
+- **Restored from before the redesign:** past lesson dates on the trainee page; series shifts notify only once a cause is given.
+- **Fixed:** one-off moves no longer join a series' weekly pattern (`recurringPattern`), and a shift can start from a moved lesson; closing a day moves a series with two lessons that day once, past both (also "en yakın boş saat"); "N ders kaldı" counts the lessons on the calendar everywhere; failed reads show a retry instead of empty data; the one-trainee week-shift preview runs the real planning; group cancel-with-shift is one transaction; "Son ders" follows the calendar (session numbers kept by triggers); staff edits limited to staff; trainer archive/restore undo the login block on failure.
+- **Roles:** coordinators read rooms/trainers/packages through RLS but have no list pages; removed staff can be added back (existing logins are linked, passwords untouched); verified admin, coordinator and trainer logins and route access end to end.
+- **Post-deploy:** apply `20261015130000_pe_drop_organization_role_post_deploy.sql` once this version is live.

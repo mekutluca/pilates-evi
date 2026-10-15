@@ -523,6 +523,7 @@ export type Database = {
 			[_ in never]: never;
 		};
 		Functions: {
+			pe_auth_user_id: { Args: { p_email: string }; Returns: string };
 			pe_create_assignment: {
 				Args: {
 					p_appointments: Json;
@@ -547,8 +548,15 @@ export type Database = {
 			pe_get_auth_org_id: { Args: never; Returns: string };
 			pe_get_auth_org_role: { Args: never; Returns: string };
 			pe_move_appointments: { Args: { p_moves: Json }; Returns: number };
-			pe_move_enrollments: { Args: { p_moves: Json }; Returns: number };
+			pe_move_enrollments: {
+				Args: { p_delete_appointment_ids?: number[]; p_moves: Json };
+				Returns: number;
+			};
 			pe_purchase_chain: { Args: { p_purchase_id: string }; Returns: string[] };
+			pe_renumber_sessions: {
+				Args: { p_purchase_ids: string[] };
+				Returns: undefined;
+			};
 			pe_reschedule_appointment: {
 				Args: {
 					p_appointment_id: number;

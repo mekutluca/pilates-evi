@@ -6,8 +6,7 @@ import { requireStaff } from '$lib/server/permissions';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
 import { NO_REMAINING_LESSONS } from '$lib/server/scheduling/purchase-deletion';
 import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
-import { compareSlots, sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
-import { getDayOfWeekFromDate } from '$lib/utils/date-utils';
+import { compareSlots, recurringPattern } from '$lib/utils/slot-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 import { isValidUuid } from '$lib/utils/validation';
 import { orNull } from '$lib/server/streaming';
@@ -123,14 +122,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				creditsLeft: current.reschedule_left,
 				lessons,
 				upcoming,
-				slots: sortTimeSlots([
-					...new Map(
-						patternSource.map((l) => {
-							const slot = { day: getDayOfWeekFromDate(l.date), hour: l.hour };
-							return [weeklySlotKey(slot), slot] as const;
-						})
-					).values()
-				]),
+				slots: recurringPattern(patternSource),
 				roomName: latest?.roomName ?? '',
 				trainerName: latest?.trainerName ?? '',
 				sharedTrainees: [...shared.values()]
