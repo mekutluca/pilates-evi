@@ -125,6 +125,12 @@ Key entity types defined in `src/lib/types/`:
 - `NativeSelect` for simple form selects (preserves form binding semantics)
 - `Calendar` (used internally by `$lib/components/date-picker.svelte`, replacing `cally`)
 
+## Testing
+
+- `npm test`: unit tests (`src/**/*.test.ts`, Vitest), pure logic with the clock pinned by `vi.setSystemTime`; no database
+- `npm run test:regression`: `test/regression/` calls the routes' form actions as the Demo admin against the real (shared) database. It resets the Demo studio first with `pe_reset_demo_data()` (refuses any other studio; fixtures are relative to the current week) and checks studio-wide invariants after each test. Needs `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` in `.env.local`
+- `npm run demo:reset` restores the demo data; the `regression-check` skill runs the whole check and says how to add coverage for a new flow (fixture in the reset function + a test + a checklist row)
+
 ## Development Guidelines
 
 - **Never use `unknown` or `any` types** - Always define proper TypeScript types

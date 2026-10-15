@@ -570,6 +570,7 @@ export type Database = {
 				};
 				Returns: number;
 			};
+			pe_reset_demo_data: { Args: never; Returns: Json };
 			pe_switch_organization: { Args: { p_org_id: string }; Returns: undefined };
 			pe_topup_group_lesson_appointments: {
 				Args: { p_weeks?: number };

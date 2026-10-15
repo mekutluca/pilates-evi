@@ -3,8 +3,10 @@ import { DAYS_OF_WEEK } from '$lib/types/Schedule';
 
 /** An hour of the day (0–23) from form text, or null. */
 export function parseHour(value: string): number | null {
+	// Digits only: Number('') is 0, which would read a missing hour as midnight
+	if (!/^\d{1,2}$/.test(value)) return null;
 	const hour = Number(value);
-	return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : null;
+	return hour <= 23 ? hour : null;
 }
 
 /** One weekly slot from "monday-10", or null. */
