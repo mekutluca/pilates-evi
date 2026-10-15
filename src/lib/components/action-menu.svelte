@@ -5,11 +5,13 @@
 	import type { ActionItem } from '$lib/types';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import { cn } from '$lib/utils';
 
 	let {
 		actions,
 		trigger = MoreVertical,
 		label,
+		ariaLabel,
 		triggerClass,
 		onOpenDrawer
 	}: ActionMenuProps = $props();
@@ -42,7 +44,7 @@
 					variant="ghost"
 					size={label ? 'sm' : 'icon-sm'}
 					class={triggerClass}
-					aria-label={label ?? 'İşlemler'}
+					aria-label={label ?? ariaLabel ?? 'İşlemler'}
 					{...props}
 				>
 					{#if trigger}
@@ -75,8 +77,8 @@
 	<Button
 		variant="ghost"
 		size="icon-sm"
-		class={triggerClass}
-		aria-label={label ?? 'İşlemler'}
+		class={cn('size-11', triggerClass)}
+		aria-label={label ?? ariaLabel ?? 'İşlemler'}
 		onclick={openMobileDrawer}
 	>
 		{#if trigger}

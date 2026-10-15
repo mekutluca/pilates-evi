@@ -5,11 +5,16 @@
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import { invalidateAll } from '$app/navigation';
 
-	// A streamed block that failed to load: a red-tinted strip with a retry in place
-	let { message }: LoadErrorProps = $props();
+	// A block that failed to load: a red-tinted strip with a retry in place
+	let { message, onRetry }: LoadErrorProps = $props();
 	let retrying = $state(false);
 
+	// Reloads the page's data unless the caller retries something narrower (a preview)
 	async function retry() {
+		if (onRetry) {
+			onRetry();
+			return;
+		}
 		retrying = true;
 		await invalidateAll();
 		retrying = false;

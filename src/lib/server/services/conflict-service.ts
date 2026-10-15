@@ -17,6 +17,7 @@ import type {
 	SlotConflict,
 	EnrollmentTargetCheck
 } from '$lib/types/Conflict';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 /**
  * Single source of truth for room/trainer booking conflicts.
@@ -49,9 +50,12 @@ export class ConflictService {
 				.in('date', dates)
 		]);
 
-		if (roomRes.error) throw new Error(`Çakışma kontrolü başarısız: ${roomRes.error.message}`);
+		if (roomRes.error)
+			throw new Error(dbErrorMessage(roomRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
 		if (trainerRes.error)
-			throw new Error(`Çakışma kontrolü başarısız: ${trainerRes.error.message}`);
+			throw new Error(
+				dbErrorMessage(trainerRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.')
+			);
 
 		const excluded = new Set(excludeAppointmentIds);
 		const slotKey = (date: string, hour: number) => `${date}|${hour}`;
@@ -88,7 +92,8 @@ export class ConflictService {
 			.or(`room_id.eq.${params.roomId},trainer_id.eq.${params.trainerId}`)
 			.gte('date', params.fromDate)
 			.lt('date', params.toDate);
-		if (error) throw new Error(`Çakışma kontrolü başarısız: ${error.message}`);
+		if (error)
+			throw new Error(dbErrorMessage(error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
 
 		// Each taken date counts once even when both room and trainer are taken
 		const firstWeekEnd = formatDateForDB(addDays(parseLocalDate(params.fromDate), 7));
@@ -135,9 +140,12 @@ export class ConflictService {
 				.in('date', dates)
 				.in('hour', hours)
 		]);
-		if (roomRes.error) throw new Error(`Çakışma kontrolü başarısız: ${roomRes.error.message}`);
+		if (roomRes.error)
+			throw new Error(dbErrorMessage(roomRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
 		if (trainerRes.error)
-			throw new Error(`Çakışma kontrolü başarısız: ${trainerRes.error.message}`);
+			throw new Error(
+				dbErrorMessage(trainerRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.')
+			);
 
 		const roomTaken = new Set(
 			(roomRes.data ?? [])
@@ -183,7 +191,8 @@ export class ConflictService {
 				.eq('hour', hour);
 			if (exclude.length > 0) query = query.neq('id', exclude[0]);
 			const { data, error } = await query;
-			if (error) throw new Error(`Çakışma kontrolü başarısız: ${error.message}`);
+			if (error)
+				throw new Error(dbErrorMessage(error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
 			return (data ?? []).length > 0;
 		};
 
@@ -219,9 +228,13 @@ export class ConflictService {
 		]);
 
 		if (targetsRes.error)
-			throw new Error(`Randevular kontrol edilemedi: ${targetsRes.error.message}`);
+			throw new Error(
+				dbErrorMessage(targetsRes.error, 'Randevular kontrol edilemedi. Tekrar deneyin.')
+			);
 		if (enrollmentsRes.error)
-			throw new Error(`Kayıtlar kontrol edilemedi: ${enrollmentsRes.error.message}`);
+			throw new Error(
+				dbErrorMessage(enrollmentsRes.error, 'Kayıtlar kontrol edilemedi. Tekrar deneyin.')
+			);
 
 		const traineeSet = new Set(traineeIds);
 		const duplicates: EnrollmentTargetCheck['duplicates'] = [];

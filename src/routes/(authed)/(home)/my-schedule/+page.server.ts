@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types';
 import { getWeekStart, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import { isIsoDate } from '$lib/utils/validation';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
+import { orNull } from '$lib/server/streaming';
 
 export const load: PageServerLoad = async ({ locals: { supabase, user, userRole }, url }) => {
 	if (!user || userRole !== 'trainer') {
@@ -24,8 +25,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 	);
 
 	return {
-		// Streamed: the page shows the board skeleton until the week arrives
-		appointments: new AppointmentRepository(supabase).getWeek(weekStart, trainer.id),
+		// Streamed: the page shows the board skeleton until the week arrives; null if it failed
+		appointments: orNull(
+			new AppointmentRepository(supabase).getWeek(weekStart, trainer.id),
+			'week'
+		),
 		trainerName: trainer.name ?? '',
 		weekStart: formatDateForDB(weekStart)
 	};

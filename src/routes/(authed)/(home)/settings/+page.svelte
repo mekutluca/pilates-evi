@@ -1,11 +1,11 @@
 <script lang="ts">
+	import { enhanceForm } from '$lib/utils/enhance';
 	import Mail from '@lucide/svelte/icons/mail';
 	import MailWarning from '@lucide/svelte/icons/mail-warning';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -13,8 +13,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
-	import { validation } from '$lib/utils/validation';
+	import { MIN_PASSWORD_LENGTH, validation } from '$lib/utils/validation';
 	import { roleLabels } from '$lib/types/Role';
 
 	let { data } = $props();
@@ -86,18 +85,11 @@
 				<form
 					method="POST"
 					action="?/updateEmail"
-					use:enhance={() => {
-						updatingEmail = true;
-						return async ({ result, update }) => {
-							updatingEmail = false;
-							if (result.type === 'success') {
-								toast.success('Onay bağlantısı yeni e-posta adresinize gönderildi');
-							} else if (result.type === 'failure') {
-								toast.error(getActionErrorMessage(result));
-							}
-							await update({ reset: false });
-						};
-					}}
+					use:enhance={enhanceForm({
+						busy: (b) => (updatingEmail = b),
+						success: 'Onay bağlantısı yeni e-posta adresinize gönderildi',
+						reset: false
+					})}
 				>
 					<Card.Content class="space-y-4">
 						{#if pendingEmail}
@@ -154,25 +146,20 @@
 				<form
 					method="POST"
 					action="?/updatePassword"
-					use:enhance={() => {
-						updatingPassword = true;
-						return async ({ result, update }) => {
-							updatingPassword = false;
-							if (result.type === 'success') {
-								toast.success('Şifreniz başarıyla güncellendi');
-								currentPassword = '';
-								newPassword = '';
-								newPasswordConfirm = '';
-							} else if (result.type === 'failure') {
-								toast.error(getActionErrorMessage(result));
-							}
-							await update({ reset: false });
-						};
-					}}
+					use:enhance={enhanceForm({
+						busy: (b) => (updatingPassword = b),
+						success: 'Şifreniz başarıyla güncellendi',
+						onSuccess: () => {
+							currentPassword = '';
+							newPassword = '';
+							newPasswordConfirm = '';
+						},
+						reset: false
+					})}
 				>
 					<Card.Content class="space-y-4">
 						<div class="grid gap-2">
-							<Label for="currentPassword">Mevcut Şifre</Label>
+							<Label for="currentPassword">Mevcut şifre</Label>
 							<Input
 								id="currentPassword"
 								name="currentPassword"
@@ -183,30 +170,38 @@
 							/>
 						</div>
 						<div class="grid gap-2">
-							<Label for="newPassword">Yeni Şifre</Label>
+							<Label for="newPassword">Yeni şifre</Label>
 							<Input
 								id="newPassword"
 								name="newPassword"
 								type="password"
 								autocomplete="new-password"
-								minlength={6}
+								minlength={MIN_PASSWORD_LENGTH}
+								aria-describedby="newPassword-hint"
 								required
 								bind:value={newPassword}
 							/>
+							<p id="newPassword-hint" class="text-xs text-muted-foreground">
+								En az {MIN_PASSWORD_LENGTH} karakter
+							</p>
 						</div>
 						<div class="grid gap-2">
-							<Label for="newPasswordConfirm">Yeni Şifre (Tekrar)</Label>
+							<Label for="newPasswordConfirm">Yeni şifre (tekrar)</Label>
 							<Input
 								id="newPasswordConfirm"
 								name="newPasswordConfirm"
 								type="password"
 								autocomplete="new-password"
-								minlength={6}
+								minlength={MIN_PASSWORD_LENGTH}
+								aria-invalid={passwordMismatch || undefined}
+								aria-describedby={passwordMismatch ? 'newPasswordConfirm-error' : undefined}
 								required
 								bind:value={newPasswordConfirm}
 							/>
 							{#if passwordMismatch}
-								<p class="text-sm text-destructive">Yeni şifreler eşleşmiyor</p>
+								<p id="newPasswordConfirm-error" class="text-sm text-destructive">
+									Yeni şifreler eşleşmiyor
+								</p>
 							{/if}
 						</div>
 					</Card.Content>

@@ -10,8 +10,9 @@
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import { defaultErrorMessage } from '$lib/utils/errors';
 	import type { ErrorKind } from '$lib/types/ErrorState';
+	import type { ErrorStateProps } from '$lib/types/ComponentProps';
 
-	let { status, message }: { status: number; message?: string } = $props();
+	let { status, message }: ErrorStateProps = $props();
 
 	// 401 is folded into forbidden: the auth guard redirects unauthenticated
 	// visitors, so a 401 that reaches the page is an authorization problem.
@@ -40,7 +41,7 @@
 			<copy.icon />
 		</Empty.Media>
 		<p class="text-sm text-muted-foreground tabular-nums">Hata {status}</p>
-		<Empty.Title>{copy.title}</Empty.Title>
+		<Empty.Title role="heading" aria-level={1}>{copy.title}</Empty.Title>
 		<Empty.Description>{description}</Empty.Description>
 	</Empty.Header>
 	<Empty.Content>

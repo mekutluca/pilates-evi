@@ -14,6 +14,7 @@
 	import { cn } from '$lib/utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
+	import { tick } from 'svelte';
 
 	const MAX_RESULTS = 8;
 
@@ -25,6 +26,8 @@
 	let name = $state('');
 	let phone = $state('');
 	let email = $state('');
+	let nameInput = $state<HTMLInputElement | null>(null);
+	let createButton = $state<HTMLButtonElement | null>(null);
 
 	const byId = $derived(new Map(trainees.map((t) => [t.id, t])));
 	const matches = $derived.by(() => {
@@ -44,12 +47,21 @@
 		selected = selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id];
 	}
 
-	function openCreate() {
+	// Focus follows the form: into it on open, back to "Yeni öğrenci" when it closes
+	async function openCreate() {
 		// A search that isn't a phone number is most likely the new trainee's name
 		name = /\d/.test(search) ? '' : search.trim();
 		phone = /\d/.test(search) ? search.trim() : '';
 		email = '';
 		creating = true;
+		await tick();
+		nameInput?.focus();
+	}
+
+	async function closeCreate() {
+		creating = false;
+		await tick();
+		createButton?.focus();
 	}
 
 	async function create() {
@@ -63,8 +75,8 @@
 		if (result.type === 'success' && result.data) {
 			onCreated(result.data.trainee);
 			selected = [...selected, result.data.trainee.id];
-			creating = false;
 			search = '';
+			closeCreate();
 			toast.success(result.data.message ?? 'Öğrenci eklendi');
 		} else {
 			toast.error(actionResultMessage(result));
@@ -74,13 +86,13 @@
 
 <div class="space-y-4">
 	{#if selected.length > 0}
-		<div class="flex flex-wrap gap-2" aria-label="Seçilen öğrenciler">
+		<div class="flex flex-wrap gap-2" role="group" aria-label="Seçilen öğrenciler">
 			{#each selected as id (id)}
 				<Badge variant="secondary" class="gap-1 py-1 pr-1 pl-2.5 text-sm">
 					{byId.get(id)?.name ?? '-'}
 					<button
 						type="button"
-						class="rounded-full p-0.5 hover:bg-muted-foreground/20"
+						class="-m-1 rounded-full p-1.5 hover:bg-muted-foreground/20"
 						aria-label={`${byId.get(id)?.name ?? ''} seçimini kaldır`}
 						onclick={() => toggle(id)}
 					>
@@ -103,7 +115,13 @@
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div class="grid gap-2">
 					<Label for="new-trainee-name">Ad soyad</Label>
-					<Input id="new-trainee-name" bind:value={name} required autocomplete="off" />
+					<Input
+						id="new-trainee-name"
+						bind:value={name}
+						bind:ref={nameInput}
+						required
+						autocomplete="off"
+					/>
 				</div>
 				<div class="grid gap-2">
 					<Label for="new-trainee-phone">Telefon</Label>
@@ -122,7 +140,7 @@
 				<Input id="new-trainee-email" type="email" bind:value={email} autocomplete="off" />
 			</div>
 			<div class="flex justify-end gap-2">
-				<Button type="button" variant="outline" onclick={() => (creating = false)}>Vazgeç</Button>
+				<Button type="button" variant="outline" onclick={closeCreate}>Vazgeç</Button>
 				<Button type="submit" disabled={saving || !name.trim() || !phone.trim()}>
 					{#if saving}<LoaderCircle class="animate-spin" />{/if}
 					Öğrenciyi ekle
@@ -132,17 +150,25 @@
 	{:else}
 		<div class="flex flex-col gap-2 sm:flex-row">
 			<div class="flex-1">
-				<SearchInput bind:value={search} placeholder="Ad veya telefon ile ara" />
+				<SearchInput
+					bind:value={search}
+					placeholder="Ad veya telefon ile ara"
+					label="Öğrenci ara"
+				/>
 			</div>
-			<Button variant="outline" onclick={openCreate}>
+			<Button variant="outline" bind:ref={createButton} onclick={openCreate}>
 				<Plus />
 				Yeni öğrenci
 			</Button>
 		</div>
 
-		{#if matches.length === 0}
+		{#if trainees.length === 0}
 			<p class="py-4 text-sm text-muted-foreground">
-				"{search}" ile eşleşen öğrenci yok. Yeni öğrenci olarak ekleyebilirsiniz.
+				Henüz öğrenci yok. "Yeni öğrenci" ile ilk öğrenciyi ekleyin.
+			</p>
+		{:else if matches.length === 0}
+			<p class="py-4 text-sm text-muted-foreground">
+				"{search.trim()}" ile eşleşen öğrenci yok. Yeni öğrenci olarak ekleyebilirsiniz.
 			</p>
 		{:else}
 			<ul class="divide-y rounded-xl border">
@@ -153,7 +179,7 @@
 							type="button"
 							aria-pressed={isSelected}
 							class={cn(
-								'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
+								'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
 								isSelected && 'bg-muted/50'
 							)}
 							onclick={() => toggle(trainee.id)}

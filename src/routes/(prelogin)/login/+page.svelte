@@ -18,10 +18,10 @@
 				<span class="text-lg font-semibold">Pilates Evi</span>
 			</a>
 		</div>
-		<div class="flex flex-1 items-center justify-center">
+		<main class="flex flex-1 items-center justify-center">
 			<div class="w-full max-w-xs">
-				<LoginForm formType="login" {supabase} />
+				<LoginForm {supabase} />
 			</div>
-		</div>
+		</main>
 	</div>
 </div>

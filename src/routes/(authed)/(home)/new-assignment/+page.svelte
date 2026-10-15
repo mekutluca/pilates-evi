@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LoadError from '$lib/components/load-error.svelte';
 	import type {
 		AvailabilityPayload,
 		GroupTimeslotsPayload,
@@ -23,7 +24,8 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { untrack } from 'svelte';
+	import { isIntInRange, MAX_GROUP_WEEKS, MAX_PERIODS } from '$lib/utils/validation';
+	import { tick, untrack } from 'svelte';
 	import { cn } from '$lib/utils';
 	import {
 		formatDateForDB,
@@ -294,16 +296,19 @@
 				if (!isGroup && traineeIds.length > pkg.max_capacity) {
 					return `Bu pakette en fazla ${pkg.max_capacity} öğrenci olabilir.`;
 				}
-				if (!isGroup && (!Number.isInteger(periods) || periods < 1 || periods > 12)) {
-					return 'Dönem sayısı 1 ile 12 arasında olmalı.';
+				if (!isGroup && !isIntInRange(periods, 1, MAX_PERIODS)) {
+					return `Dönem sayısı 1 ile ${MAX_PERIODS} arasında olmalı.`;
 				}
-				if (isGroup && (!Number.isInteger(weeks) || weeks < 1 || weeks > 26)) {
-					return 'Hafta sayısı 1 ile 26 arasında olmalı.';
+				if (isGroup && !isIntInRange(weeks, 1, MAX_GROUP_WEEKS)) {
+					return `Hafta sayısı 1 ile ${MAX_GROUP_WEEKS} arasında olmalı.`;
 				}
 				return null;
 			case 'slots': {
 				if (!pkg) return 'Bir paket seçin.';
 				if (!startDate || startDate < today) return 'Başlangıç bugün veya sonrası olmalı.';
+				if (!isGroup && (data.rooms.length === 0 || data.trainers.length === 0)) {
+					return 'Aktif oda veya eğitmen yok; önce Odalar ve Eğitmenler sayfasından ekleyin.';
+				}
 				const count = isGroup ? groupSlots.length : timeSlots.length;
 				if (count < pkg.min_lessons_per_week || count > pkg.max_lessons_per_week) {
 					return `${perWeekLabel(pkg.min_lessons_per_week, pkg.max_lessons_per_week)} seçin (${count} seçili).`;
@@ -318,13 +323,22 @@
 		}
 	});
 
+	let stepPanel = $state<HTMLElement | null>(null);
+
+	// Screen reader and keyboard users land on the new step's heading
+	async function goTo(id: AssignmentStep) {
+		step = id;
+		await tick();
+		stepPanel?.querySelector('h2')?.focus();
+	}
+
 	function next() {
 		if (blocker || stepIndex >= STEPS.length - 1) return;
-		step = STEPS[stepIndex + 1].id;
+		goTo(STEPS[stepIndex + 1].id);
 	}
 
 	function back() {
-		if (stepIndex > 0) step = STEPS[stepIndex - 1].id;
+		if (stepIndex > 0) goTo(STEPS[stepIndex - 1].id);
 	}
 </script>
 
@@ -344,33 +358,36 @@
 					disabled={!done}
 					aria-current={s.id === step ? 'step' : undefined}
 					class={cn(
-						'flex items-center gap-2 rounded-full border px-3 py-1',
+						'flex min-h-9 items-center gap-2 rounded-full border px-3 py-1',
 						s.id === step &&
 							'border-foreground/15 bg-secondary font-semibold text-secondary-foreground',
 						done && 'hover:bg-muted',
 						!done && s.id !== step && 'text-muted-foreground'
 					)}
-					onclick={() => (step = s.id)}
+					onclick={() => goTo(s.id)}
 				>
 					{#if done}
 						<Check class="size-3.5" />
+						<span class="sr-only">(tamamlandı)</span>
 					{:else}
 						<span class="tabular-nums">{i + 1}</span>
 					{/if}
-					{s.label}
+					<!-- Phones show only the current step's name -->
+					<span class={cn(s.id !== step && 'max-sm:sr-only')}>{s.label}</span>
 				</button>
 				{#if i < STEPS.length - 1}
-					<span class="h-px w-4 bg-border" aria-hidden="true"></span>
+					<span class="h-px w-4 bg-border max-sm:w-2" aria-hidden="true"></span>
 				{/if}
 			</li>
 		{/each}
 	</ol>
 
-	<Card.Root>
-		<Card.Content class="space-y-6">
+	<!-- overflow-visible lets the footer stick on phones -->
+	<Card.Root class="overflow-visible">
+		<Card.Content class="space-y-6" bind:ref={stepPanel}>
 			{#if step === 'trainee'}
 				<div>
-					<h2 class="text-lg font-semibold">Kimin için?</h2>
+					<h2 class="text-lg font-semibold outline-none" tabindex="-1">Kimin için?</h2>
 					<p class="text-sm text-muted-foreground">
 						Birden fazla öğrenci seçerseniz özel derste aynı derslere katılırlar; grup dersinde her
 						biri kendi kaydını alır.
@@ -383,7 +400,7 @@
 				/>
 			{:else if step === 'package'}
 				<div>
-					<h2 class="text-lg font-semibold">Paket</h2>
+					<h2 class="text-lg font-semibold outline-none" tabindex="-1">Paket</h2>
 					<p class="text-sm text-muted-foreground">{traineeNames.join(', ')}</p>
 				</div>
 
@@ -408,21 +425,26 @@
 								{#each section.list as p (p.id)}
 									{@const tooSmall =
 										p.package_type === 'private' && traineeIds.length > p.max_capacity}
-									<button
-										type="button"
-										role="radio"
-										aria-checked={packageId === p.id}
-										disabled={tooSmall}
+									<!-- Native radios: arrow keys move between packages, disabled ones are skipped -->
+									<label
 										class={cn(
-											'rounded-xl border p-3 text-left text-sm transition-colors',
-											'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+											'cursor-pointer rounded-xl border p-3 text-left text-sm transition-colors',
+											'has-focus-visible:ring-2 has-focus-visible:ring-ring',
 											packageId === p.id
 												? 'border-primary ring-1 ring-primary'
 												: 'hover:bg-muted/50',
 											tooSmall && 'cursor-not-allowed opacity-50'
 										)}
-										onclick={() => selectPackage(p.id)}
 									>
+										<input
+											type="radio"
+											name="wizard-package"
+											class="sr-only"
+											value={p.id}
+											checked={packageId === p.id}
+											disabled={tooSmall}
+											onchange={() => selectPackage(p.id)}
+										/>
 										<span class="font-medium">{p.name}</span>
 										<span class="block text-muted-foreground">
 											{perWeekLabel(p.min_lessons_per_week, p.max_lessons_per_week)}
@@ -436,7 +458,7 @@
 											<span class="block text-xs">{traineeIds.length} öğrenci için uygun değil</span
 											>
 										{/if}
-									</button>
+									</label>
 								{/each}
 							</div>
 						</fieldset>
@@ -447,12 +469,24 @@
 					{#if isGroup}
 						<div class="grid gap-2 sm:max-w-56">
 							<Label for="wizard-weeks">Kaç hafta?</Label>
-							<Input id="wizard-weeks" type="number" min={1} max={26} bind:value={weeks} />
+							<Input
+								id="wizard-weeks"
+								type="number"
+								min={1}
+								max={MAX_GROUP_WEEKS}
+								bind:value={weeks}
+							/>
 						</div>
 					{:else}
 						<div class="grid gap-2 sm:max-w-56">
 							<Label for="wizard-periods">Kaç dönem?</Label>
-							<Input id="wizard-periods" type="number" min={1} max={12} bind:value={periods} />
+							<Input
+								id="wizard-periods"
+								type="number"
+								min={1}
+								max={MAX_PERIODS}
+								bind:value={periods}
+							/>
 							<p class="text-xs text-muted-foreground">
 								1 dönem = {pkg.weeks_duration} hafta; toplam {totalWeeks} hafta.
 							</p>
@@ -461,7 +495,7 @@
 				{/if}
 			{:else if step === 'slots' && pkg}
 				<div>
-					<h2 class="text-lg font-semibold">Saatler</h2>
+					<h2 class="text-lg font-semibold outline-none" tabindex="-1">Saatler</h2>
 					<p class="text-sm text-muted-foreground">
 						{pkg.name} · {perWeekLabel(pkg.min_lessons_per_week, pkg.max_lessons_per_week)}
 					</p>
@@ -475,7 +509,7 @@
 					{#if !isGroup}
 						<div class="grid gap-2">
 							<Label for="wizard-room">Oda</Label>
-							<NativeSelect id="wizard-room" bind:value={roomId}>
+							<NativeSelect class="w-full" id="wizard-room" bind:value={roomId}>
 								{#each data.rooms as room (room.id)}
 									<option value={room.id}>{room.name}</option>
 								{/each}
@@ -483,7 +517,7 @@
 						</div>
 						<div class="grid gap-2">
 							<Label for="wizard-trainer">Eğitmen</Label>
-							<NativeSelect id="wizard-trainer" bind:value={trainerId}>
+							<NativeSelect class="w-full" id="wizard-trainer" bind:value={trainerId}>
 								{#each data.trainers as trainer (trainer.id)}
 									<option value={trainer.id}>{trainer.name}</option>
 								{/each}
@@ -499,7 +533,7 @@
 							Grup saatleri yükleniyor…
 						</p>
 					{:else if groupTimeslots.current.status === 'failed'}
-						<p class="text-sm text-destructive">{groupTimeslots.current.message}</p>
+						<LoadError message={groupTimeslots.current.message} onRetry={groupTimeslots.retry} />
 					{:else if allGroupTimeslots.length === 0}
 						<p class="text-sm text-muted-foreground">
 							Bu paketin devam eden grup dersi yok. Önce
@@ -511,7 +545,11 @@
 							{#if groupTrainers.length > 1}
 								<div class="grid gap-2">
 									<Label for="wizard-trainer-filter">Eğitmen</Label>
-									<NativeSelect id="wizard-trainer-filter" bind:value={trainerFilter}>
+									<NativeSelect
+										class="w-full"
+										id="wizard-trainer-filter"
+										bind:value={trainerFilter}
+									>
 										<option value="">Tümü</option>
 										{#each groupTrainers as [id, name] (id)}
 											<option value={id}>{name}</option>
@@ -520,7 +558,11 @@
 								</div>
 							{/if}
 							{#if groupLessonFilter}
-								<Button variant="link" class="px-0" onclick={() => (groupLessonFilter = '')}>
+								<Button
+									variant="link"
+									class="h-auto px-0 text-left whitespace-normal"
+									onclick={() => (groupLessonFilter = '')}
+								>
 									Diğer grup derslerinin saatlerini de göster
 								</Button>
 							{/if}
@@ -546,9 +588,17 @@
 											onclick={() => toggleGroupSlot(timeslot)}
 										>
 											<span class="flex items-center justify-between gap-2">
-												<span class="font-medium tabular-nums">{getTimeString(timeslot.hour)}</span>
-												<span class="text-muted-foreground tabular-nums">
+												<span class="font-medium tabular-nums">
+													<span class="sr-only">{DAY_NAMES[day]}</span>
+													{getTimeString(timeslot.hour)}
+												</span>
+												<span class="text-muted-foreground tabular-nums" aria-hidden="true">
 													{full ? 'Dolu' : `${timeslot.current_capacity}/${timeslot.max_capacity}`}
+												</span>
+												<span class="sr-only">
+													{full
+														? 'dolu'
+														: `${timeslot.max_capacity} kişilik, ${timeslot.current_capacity} kayıtlı`}
 												</span>
 											</span>
 											<span class="block text-muted-foreground">
@@ -587,7 +637,7 @@
 					{/if}
 				{/if}
 			{:else if step === 'summary' && pkg}
-				<h2 class="text-lg font-semibold">Özet</h2>
+				<h2 class="text-lg font-semibold outline-none" tabindex="-1">Özet</h2>
 				<dl class="grid gap-3 text-sm sm:grid-cols-[10rem_1fr]">
 					<dt class="text-muted-foreground">Öğrenci</dt>
 					<dd>{traineeNames.join(', ')}</dd>
@@ -606,30 +656,44 @@
 					</dd>
 				</dl>
 
-				<LessonPlanSummary plan={preview.current} idleMessage="" />
+				<LessonPlanSummary plan={preview.current} idleMessage="" onRetry={preview.retry} />
 			{/if}
 		</Card.Content>
 
-		<Card.Footer class="flex flex-wrap items-center justify-between gap-3 border-t">
+		<!-- Phones: the primary action on top, full width, pinned to the bottom while scrolling -->
+		<Card.Footer
+			class="flex-col-reverse items-stretch gap-3 border-t max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:bg-card sm:flex-row sm:items-center sm:justify-between"
+		>
 			<div>
 				{#if stepIndex > 0}
-					<Button variant="outline" onclick={back}>
+					<Button variant="outline" class="w-full sm:w-auto" onclick={back}>
 						<ArrowLeft />
 						Geri
 					</Button>
 				{/if}
 			</div>
-			<div class="flex flex-wrap items-center gap-3">
+			<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
 				{#if blocker && step !== 'summary'}
-					<span class="text-sm text-muted-foreground">{blocker}</span>
+					<span
+						id="wizard-blocker"
+						class="text-sm text-muted-foreground sm:text-right"
+						aria-live="polite"
+					>
+						{blocker}
+					</span>
 				{/if}
 				{#if step === 'summary'}
-					<Button onclick={submit} disabled={!canCreate || submitting}>
+					<Button class="w-full sm:w-auto" onclick={submit} disabled={!canCreate || submitting}>
 						{#if submitting}<LoaderCircle class="animate-spin" />{/if}
 						Kaydı oluştur
 					</Button>
 				{:else}
-					<Button onclick={next} disabled={blocker !== null}>
+					<Button
+						class="w-full sm:w-auto"
+						onclick={next}
+						disabled={blocker !== null}
+						aria-describedby={blocker ? 'wizard-blocker' : undefined}
+					>
 						Devam
 						<ArrowRight />
 					</Button>

@@ -1,6 +1,7 @@
 import type { Purchase } from '$lib/types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { ExtensionChunk, ExtensionResult } from '$lib/types/Extension';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 /**
  * Data access for pe_purchases. Successor chains (purchase → extension →
@@ -20,7 +21,7 @@ export class PurchaseRepository {
 			p_purchase_id: purchaseId
 		});
 		if (error) {
-			throw new Error(`Satın alma zinciri alınamadı: ${error.message}`);
+			throw new Error(dbErrorMessage(error, 'Satın alma zinciri alınamadı. Tekrar deneyin.'));
 		}
 		return data && data.length > 0 ? data : [purchaseId];
 	}
@@ -60,7 +61,12 @@ export class PurchaseRepository {
 			p_chunks: chunks
 		});
 		if (error) {
-			throw new Error(`Uzatma işlemi başarısız: ${error.message}`);
+			throw new Error(
+				dbErrorMessage(
+					error,
+					'Kayıt yenilenemedi. Saatler bu arada dolmuş olabilir; özeti kontrol edip tekrar deneyin.'
+				)
+			);
 		}
 		// The RPC returns jsonb; its shape is fixed by the SQL function body.
 		return data as ExtensionResult;

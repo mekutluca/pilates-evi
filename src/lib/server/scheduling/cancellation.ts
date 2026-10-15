@@ -14,6 +14,7 @@ import {
 	shiftSeriesBySlot
 } from '$lib/server/scheduling/shift';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 /**
  * Removes appointment rows; their trainee links follow via ON DELETE CASCADE. Fails when
@@ -31,7 +32,9 @@ export async function deleteAppointments(
 		.in('id', appointmentIds)
 		.select('id');
 	if (error) {
-		return { error: error.message };
+		return {
+			error: dbErrorMessage(error, 'Randevu silinemedi. Sayfayı yenileyip tekrar deneyin.')
+		};
 	}
 	if ((data ?? []).length !== appointmentIds.length) {
 		return { error: 'Randevular silinemedi; bu işlem için yetkiniz olmayabilir' };

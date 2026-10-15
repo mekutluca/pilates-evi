@@ -33,6 +33,7 @@ import {
 	getStartingAppointmentCandidates,
 	weeklySlotKey
 } from '$lib/utils/slot-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 // New group lessons get this many weeks of sessions; the weekly top-up cron keeps the
 // horizon there
@@ -62,7 +63,7 @@ export async function listGroupLessons(
 	else if (!options.includeEnded) query = query.is('end_date', null);
 
 	const { data, error } = await query;
-	if (error) throw new Error(`Grup dersleri yüklenemedi: ${error.message}`);
+	if (error) throw new Error(dbErrorMessage(error, 'Grup dersleri yüklenemedi. Tekrar deneyin.'));
 
 	const today = formatDateForDB(new Date());
 	const tomorrow = formatDateForDB(getTomorrow());
@@ -116,7 +117,8 @@ export async function getGroupLesson(
 		.gte('date', formatDateForDB(new Date()))
 		.order('date')
 		.order('hour');
-	if (error) throw new Error(`Grup dersi randevuları yüklenemedi: ${error.message}`);
+	if (error)
+		throw new Error(dbErrorMessage(error, 'Grup dersi randevuları yüklenemedi. Tekrar deneyin.'));
 
 	const patternKeys = new Set(summary.slots.map(weeklySlotKey));
 	const upcoming = (data ?? []).filter((a) => isAppointmentFuture(a.date, a.hour));
@@ -356,7 +358,7 @@ export async function collectGroupSessions(
 		.gte('date', fromDate)
 		.order('date')
 		.order('hour');
-	if (error) return `Grup dersi randevuları alınırken hata: ${error.message}`;
+	if (error) return dbErrorMessage(error, 'Grup dersi saatleri alınamadı. Tekrar deneyin.');
 
 	return (data ?? [])
 		.filter(

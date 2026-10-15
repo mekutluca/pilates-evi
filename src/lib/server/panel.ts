@@ -15,6 +15,7 @@ import {
 } from '$lib/utils/date-utils';
 import { renewalWindowEnd } from '$lib/utils/appointment-utils';
 import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 const ROW_PAGE = 1000;
 // "Paketi bitmek üzere": the last lesson is within the renewal window ahead…
@@ -57,7 +58,7 @@ async function weekLessons(
 	if (trainerId) query = query.eq('trainer_id', trainerId);
 
 	const { data, error } = await query.order('date').order('hour');
-	if (error) throw new Error(`Randevular yüklenemedi: ${error.message}`);
+	if (error) throw new Error(dbErrorMessage(error, 'Randevular yüklenemedi. Tekrar deneyin.'));
 
 	const rows = data ?? [];
 	const traineeCount = new Set(
@@ -160,7 +161,7 @@ async function weekKayitlar(
 		.gte('created_at', weekStart.toISOString())
 		.lt('created_at', addDays(weekStart, 7).toISOString())
 		.order('created_at', { ascending: false });
-	if (error) throw new Error(`Kayıtlar yüklenemedi: ${error.message}`);
+	if (error) throw new Error(dbErrorMessage(error, 'Kayıtlar yüklenemedi. Tekrar deneyin.'));
 	if (!purchases || purchases.length === 0) return { newKayitlar: [], renewalCount: 0 };
 
 	const [{ data: predecessors }, { data: teams }] = await Promise.all([

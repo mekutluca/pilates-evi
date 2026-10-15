@@ -167,7 +167,6 @@ export interface CreatePackageForm {
 	reschedule_limit?: number;
 }
 
-// A validated trainee form (TraineeRepository)
 // A trainee as pickers list them
 export type TraineeOption = Pick<Trainee, 'id' | 'name' | 'phone'>;
 

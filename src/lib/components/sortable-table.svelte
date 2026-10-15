@@ -21,7 +21,8 @@
 		defaultSortOrder = 'asc',
 		actions = [],
 		actionsTitle = 'İşlemler',
-		onRowClick,
+		rowHref,
+		rowLabel,
 		itemsPerPage = 10
 	}: SortableTableProps<T> = $props();
 
@@ -182,16 +183,22 @@
 
 	// Links and buttons inside a row (e.g. mailto/tel anchors injected via render)
 	// handle their own click; don't also trigger the row action.
-	function handleRowClick(e: MouseEvent, item: T) {
-		if (
-			e.target instanceof Element &&
-			e.target.closest('a, button, input, label, select, textarea')
-		) {
-			return;
-		}
-		onRowClick?.(item);
+	function ariaSort(key: string): 'ascending' | 'descending' | 'none' {
+		if (sortKey !== key) return 'none';
+		return sortOrder === 'asc' ? 'ascending' : 'descending';
 	}
 </script>
+
+{#snippet cellContent(item: T, column: Column<T>, globalIndex: number)}
+	{#if column.renderComponent}
+		{@const Component = column.renderComponent}
+		<Component {item} index={globalIndex} />
+	{:else if column.render}
+		{@html getColumnValue(item, column, globalIndex)}
+	{:else}
+		{getColumnValue(item, column, globalIndex)}
+	{/if}
+{/snippet}
 
 <Card.Root>
 	<Card.Content class="p-0">
@@ -208,25 +215,26 @@
 						<Table.Row>
 							{#each columns as column (column.key)}
 								<Table.Head
-									class={cn(
-										column.class || '',
-										isColumnSortable(column)
-											? 'cursor-pointer transition-colors select-none hover:bg-muted'
-											: 'select-none'
-									)}
-									onclick={() => handleSort(column.key)}
+									class={cn(column.class || '', 'select-none')}
+									aria-sort={isColumnSortable(column) ? ariaSort(column.key) : undefined}
 								>
-									<div class="flex items-center gap-2">
-										<span>{column.title}</span>
-										{#if isColumnSortable(column)}
-											{@const SortIcon = getSortIcon(column.key)}
+									{#if isColumnSortable(column)}
+										{@const SortIcon = getSortIcon(column.key)}
+										<button
+											type="button"
+											class="-mx-2 flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+											onclick={() => handleSort(column.key)}
+										>
+											<span>{column.title}</span>
 											{#if SortIcon}
 												<SortIcon size={14} class="text-muted-foreground" />
 											{:else}
-												<div class="w-[14px]"></div>
+												<span class="w-[14px]"></span>
 											{/if}
-										{/if}
-									</div>
+										</button>
+									{:else}
+										<span>{column.title}</span>
+									{/if}
 								</Table.Head>
 							{/each}
 							{#if actions && (typeof actions === 'function' || actions.length > 0)}
@@ -239,31 +247,35 @@
 					<Table.Body>
 						{#each paginatedData() as item, index ((typeof item === 'object' && item && 'id' in item ? item.id : null) || index)}
 							{@const globalIndex = (currentPage - 1) * pageSize + index}
+							{@const href = rowHref?.(item)}
 							<tr
 								data-slot="table-row"
 								class={cn(
 									'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
-									onRowClick ? 'cursor-pointer' : ''
+									href && 'relative'
 								)}
 								animate:flip={{ duration: prefersReducedMotion.current ? 0 : 220 }}
-								onclick={(e: MouseEvent) => handleRowClick(e, item)}
 							>
-								{#each columns as column (column.key)}
+								{#each columns as column, columnIndex (column.key)}
 									<Table.Cell class={column.class || ''}>
-										{#if column.renderComponent}
-											{@const Component = column.renderComponent}
-											<Component {item} index={globalIndex} />
-										{:else if column.render}
-											{@html getColumnValue(item, column, globalIndex)}
+										{#if href && columnIndex === 0}
+											<!-- The row's link: its overlay makes the whole row clickable -->
+											<a
+												{href}
+												class="font-medium after:absolute after:inset-0 hover:underline focus-visible:outline-none after:focus-visible:ring-2 after:focus-visible:ring-ring after:focus-visible:ring-inset"
+											>
+												{@render cellContent(item, column, globalIndex)}
+											</a>
 										{:else}
-											{getColumnValue(item, column, globalIndex)}
+											{@render cellContent(item, column, globalIndex)}
 										{/if}
 									</Table.Cell>
 								{/each}
 								{#if actions && (typeof actions === 'function' ? actions(item).length > 0 : actions.length > 0)}
 									{@const itemActions = typeof actions === 'function' ? actions(item) : actions}
-									<Table.Cell class="text-right" onclick={(e: MouseEvent) => e.stopPropagation()}>
+									<Table.Cell class="relative z-10 text-right">
 										<ActionMenu
+											ariaLabel={rowLabel ? `${rowLabel(item)} işlemleri` : undefined}
 											actions={itemActions.map((action): ActionItem => ({
 												...action,
 												handler: async () => {
@@ -291,10 +303,11 @@
 				</div>
 
 				{#if totalPages > 1}
-					<div class="flex items-center gap-1">
+					<nav class="flex flex-wrap items-center justify-center gap-1" aria-label="Sayfalama">
 						<Button
 							variant="outline"
 							size="sm"
+							aria-label="Önceki sayfa"
 							onclick={() => goToPage(currentPage - 1)}
 							disabled={currentPage === 1}
 						>
@@ -303,11 +316,12 @@
 
 						{#each getPageNumbers() as page, index (index)}
 							{#if page === '...'}
-								<Button variant="outline" size="sm" disabled>...</Button>
+								<span class="px-1 text-muted-foreground" aria-hidden="true">…</span>
 							{:else}
 								<Button
-									variant={currentPage === page ? 'default' : 'outline'}
+									variant={currentPage === page ? 'secondary' : 'outline'}
 									size="sm"
+									aria-current={currentPage === page ? 'page' : undefined}
 									onclick={() => goToPage(page as number)}
 								>
 									{page}
@@ -318,12 +332,13 @@
 						<Button
 							variant="outline"
 							size="sm"
+							aria-label="Sonraki sayfa"
 							onclick={() => goToPage(currentPage + 1)}
 							disabled={currentPage === totalPages}
 						>
 							»
 						</Button>
-					</div>
+					</nav>
 				{/if}
 
 				<div class="flex items-center gap-2">
@@ -333,8 +348,13 @@
 						</span>
 						<span class="text-muted-foreground/40">•</span>
 					{/if}
-					<span class="text-sm text-muted-foreground">Sayfa başına:</span>
-					<NativeSelect class="w-20" value={String(pageSize)} onchange={handlePageSizeChange}>
+					<label for="table-page-size" class="text-sm text-muted-foreground">Sayfa başına:</label>
+					<NativeSelect
+						id="table-page-size"
+						class="w-20"
+						value={String(pageSize)}
+						onchange={handlePageSizeChange}
+					>
 						<option value="10">10</option>
 						<option value="25">25</option>
 						<option value="50">50</option>

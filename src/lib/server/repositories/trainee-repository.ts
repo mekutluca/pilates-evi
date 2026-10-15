@@ -1,7 +1,8 @@
-import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { DbErrorLike, SupabaseClientType } from '$lib/types/Supabase';
 import type { TraineeInput } from '$lib/types';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { normalizePhoneNumber, PHONE_ERROR } from '$lib/utils/phone-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UNIQUE_VIOLATION = '23505';
@@ -32,7 +33,7 @@ export class TraineeRepository {
 	/** Creates a trainee (with `id` when the caller needs it); returns an error message. */
 	async create(input: TraineeInput, id: string = crypto.randomUUID()): Promise<string | null> {
 		const { error } = await this.supabase.from('pe_trainees').insert({ id, ...input });
-		return error ? this.describe(error, 'Öğrenci oluşturulurken hata') : null;
+		return error ? this.describe(error, 'Öğrenci kaydedilemedi. Tekrar deneyin.') : null;
 	}
 
 	async update(traineeId: string, input: TraineeInput): Promise<string | null> {
@@ -41,7 +42,7 @@ export class TraineeRepository {
 			.update(input)
 			.eq('id', traineeId)
 			.select('id');
-		if (error) return this.describe(error, 'Öğrenci güncellenirken hata');
+		if (error) return this.describe(error, 'Öğrenci kaydedilemedi. Tekrar deneyin.');
 		return (data ?? []).length === 0 ? 'Öğrenci bulunamadı' : null;
 	}
 
@@ -53,17 +54,19 @@ export class TraineeRepository {
 			.eq('id', traineeId)
 			.select('id');
 		if (error) {
-			return (
-				(active ? 'Öğrenci geri yüklenirken hata: ' : 'Öğrenci arşivlenirken hata: ') +
-				error.message
+			return dbErrorMessage(
+				error,
+				active
+					? 'Öğrenci geri yüklenemedi. Tekrar deneyin.'
+					: 'Öğrenci arşivlenemedi. Tekrar deneyin.'
 			);
 		}
 		return (data ?? []).length === 0 ? 'Öğrenci bulunamadı' : null;
 	}
 
-	private describe(error: { code: string; message: string }, prefix: string): string {
+	private describe(error: DbErrorLike, fallback: string): string {
 		return error.code === UNIQUE_VIOLATION
 			? 'Bu e-posta adresiyle kayıtlı başka bir öğrenci var'
-			: `${prefix}: ${error.message}`;
+			: dbErrorMessage(error, fallback);
 	}
 }

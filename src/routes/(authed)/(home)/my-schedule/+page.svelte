@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { streamed } from '$lib/utils/streamed.svelte';
 	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
+	import LoadError from '$lib/components/load-error.svelte';
 	import { formatDateForDB, getWeekStart, parseLocalDate } from '$lib/utils/date-utils';
 	import {
 		computeAppointmentWarnings,
@@ -71,15 +72,15 @@
 <div class="space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Takvimim"
-		subtitle={week.current === undefined
-			? data.trainerName
-			: `${data.trainerName} · ${lessonCount} ders`}
+		subtitle={!week.current ? data.trainerName : `${data.trainerName} · ${lessonCount} ders`}
 	/>
 
 	<WeekNav {weekStart} onNavigate={goToWeek} />
 
 	{#if week.current === undefined}
 		<ScheduleSkeleton />
+	{:else if week.current === null}
+		<LoadError message="Haftanın dersleri yüklenemedi." />
 	{:else}
 		<Schedule
 			{weekStart}

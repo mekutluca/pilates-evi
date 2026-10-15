@@ -52,7 +52,10 @@ const SERIES_SELECT = `
 export class AppointmentRepository {
 	constructor(private supabase: SupabaseClientType) {}
 
-	/** A week's appointments (Monday `weekStart` on), optionally one trainer's, chronological. */
+	/**
+	 * A week's appointments (Monday `weekStart` on), optionally one trainer's, chronological.
+	 * Throws on a failed query: an empty board would read as a free week.
+	 */
 	// Return type inferred from WEEK_SELECT, so pages keep the exact row shape
 	async getWeek(weekStart: Date, trainerId?: string) {
 		let query = this.supabase
@@ -62,8 +65,8 @@ export class AppointmentRepository {
 			.lte('date', formatDateForDB(getWeekEnd(weekStart)));
 		if (trainerId) query = query.eq('trainer_id', trainerId);
 		const { data, error } = await query.order('date').order('hour');
-		if (error) console.error('Error fetching appointments:', error);
-		return data ?? [];
+		if (error) throw error;
+		return data;
 	}
 
 	async getById(appointmentId: number): Promise<SeriesAppointment | null> {

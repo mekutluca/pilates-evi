@@ -49,6 +49,12 @@ export interface ScheduleChange {
 
 // Which WhatsApp template a schedule change is announced with: the studio moved the
 // lesson (with a cause), or the trainee asked for it.
+// What NotificationService.notify did: messages sent and messages that failed
+export interface NotifyResult {
+	sent: number;
+	failed: number;
+}
+
 export type ScheduleChangeMessage = { kind: 'system'; cause: string } | { kind: 'trainee_request' };
 
 // One daily reminder (pe-daily-reminder edge function)

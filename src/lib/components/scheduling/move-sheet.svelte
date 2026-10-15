@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LoadError from '$lib/components/load-error.svelte';
+	import CauseField from './cause-field.svelte';
 	import type { MoveSheetProps } from '$lib/types/ComponentProps';
 	import type { MovePreviewPayload } from '$lib/types/Api';
 	import type { MoveMode, TransferScope } from '$lib/types/Transfer';
@@ -9,11 +11,10 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import MoveArrow from './move-arrow.svelte';
 	import CalendarSearch from '@lucide/svelte/icons/calendar-search';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
@@ -156,9 +157,12 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="w-full gap-0 overflow-y-auto sm:max-w-lg">
+	<Sheet.Content
+		side="right"
+		class="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+	>
 		{#if appointment}
-			<Sheet.Header class="border-b">
+			<Sheet.Header class="border-b pr-12">
 				<Sheet.Title>Taşı{trainee ? `: ${trainee.name}` : ''}</Sheet.Title>
 				<Sheet.Description>
 					{appointment.package_name} · {formatSlotLabel(appointment.date, appointment.hour)}
@@ -167,8 +171,9 @@
 
 			<div class="space-y-6 px-6 py-5">
 				<div class="grid gap-2">
-					<Label>Ne değişsin?</Label>
+					<Label id="move-mode-label">Ne değişsin?</Label>
 					<ToggleGroup.Root
+						aria-labelledby="move-mode-label"
 						type="single"
 						variant="outline"
 						spacing={1}
@@ -187,14 +192,14 @@
 						{#if pickedSlot}
 							<div class="flex items-center gap-3 rounded-xl border p-3 text-sm">
 								<span>{formatSlotLabel(appointment.date, appointment.hour)}</span>
-								<ArrowRight class="size-4 text-muted-foreground" />
+								<MoveArrow label="yeni saat" class="size-4" />
 								<span class="font-medium">{formatSlotLabel(pickedSlot.date, pickedSlot.hour)}</span>
 							</div>
 							{#if pickedSlot.roomId !== appointment.room_id}
-								<p class="text-xs text-muted-foreground">
-									Oda: {roomNames.get(appointment.room_id) ?? '-'} → {roomNames.get(
-										pickedSlot.roomId
-									) ?? '-'}
+								<p class="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+									Oda: {roomNames.get(appointment.room_id) ?? '-'}
+									<MoveArrow label="yeni oda" class="size-3" />
+									{roomNames.get(pickedSlot.roomId) ?? '-'}
 								</p>
 							{/if}
 						{/if}
@@ -210,7 +215,7 @@
 					<div class="grid grid-cols-2 gap-3">
 						<div class="grid gap-2">
 							<Label for="move-room">Oda</Label>
-							<NativeSelect id="move-room" bind:value={roomId}>
+							<NativeSelect class="w-full" id="move-room" bind:value={roomId}>
 								{#each rooms as room (room.id)}
 									<option value={room.id}>{room.name}</option>
 								{/each}
@@ -218,7 +223,7 @@
 						</div>
 						<div class="grid gap-2">
 							<Label for="move-trainer">Eğitmen</Label>
-							<NativeSelect id="move-trainer" bind:value={trainerId}>
+							<NativeSelect class="w-full" id="move-trainer" bind:value={trainerId}>
 								{#each trainers as t (t.id)}
 									<option value={t.id}>{t.name}</option>
 								{/each}
@@ -245,8 +250,12 @@
 
 				{#if !trainee && (mode === 'transfer' || mode === 'weeks')}
 					<div class="grid gap-2">
-						<Label>Hangi randevular?</Label>
-						<RadioGroup value={scope} onValueChange={(v) => (pickedScope = v as TransferScope)}>
+						<Label id="move-scope-label">Hangi randevular?</Label>
+						<RadioGroup
+							aria-labelledby="move-scope-label"
+							value={scope}
+							onValueChange={(v) => (pickedScope = v as TransferScope)}
+						>
 							{#each Object.entries(SCOPE_LABELS) as [value, label] (value)}
 								<label class="flex cursor-pointer items-center gap-3 text-sm">
 									<RadioGroupItem {value} />
@@ -263,8 +272,12 @@
 
 				{#if changesTime}
 					<div class="grid gap-2">
-						<Label>Değişikliği kim istedi?</Label>
-						<RadioGroup value={source} onValueChange={(v) => (source = v as 'trainee' | 'studio')}>
+						<Label id="move-source-label">Değişikliği kim istedi?</Label>
+						<RadioGroup
+							aria-labelledby="move-source-label"
+							value={source}
+							onValueChange={(v) => (source = v as 'trainee' | 'studio')}
+						>
 							<label class="flex cursor-pointer items-start gap-3 text-sm">
 								<RadioGroupItem value="trainee" class="mt-0.5" />
 								<span>
@@ -287,12 +300,7 @@
 							</label>
 						</RadioGroup>
 						{#if source === 'studio'}
-							<Textarea
-								bind:value={cause}
-								rows={2}
-								placeholder="Sebep (öğrencilere gönderilen mesajda yer alır)"
-								aria-label="Sebep"
-							/>
+							<CauseField bind:value={cause} id="cause-move" />
 						{/if}
 						{#if creditBlock}
 							<p class="text-sm text-destructive">{creditBlock}</p>
@@ -318,7 +326,7 @@
 								Kontrol ediliyor…
 							</p>
 						{:else if preview.current.status === 'failed'}
-							<p class="text-sm text-destructive">{preview.current.message}</p>
+							<LoadError message={preview.current.message} onRetry={preview.retry} />
 						{:else}
 							{#if preview.current.value.conflicts.length > 0}
 								<ConflictList
@@ -335,7 +343,7 @@
 				{/if}
 			</div>
 
-			<Sheet.Footer class="flex-row justify-end gap-2 border-t">
+			<Sheet.Footer class="sticky bottom-0 flex-row justify-end gap-2 border-t bg-popover">
 				<Button variant="outline" onclick={() => (open = false)}>Vazgeç</Button>
 				<Button onclick={submit} disabled={!canSubmit}>
 					{#if submitting}

@@ -2,6 +2,7 @@
 	import type { PackageCreationFormProps } from '$lib/types/ComponentProps';
 	import Medal from '@lucide/svelte/icons/medal';
 	import CalendarSync from '@lucide/svelte/icons/calendar-sync';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -11,8 +12,14 @@
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
+	import { MAX_PACKAGE_WEEKS } from '$lib/utils/validation';
 
-	const { onSubmit, onCancel, isVisible = true }: PackageCreationFormProps = $props();
+	const {
+		onSubmit,
+		onCancel,
+		isVisible = true,
+		submitting = false
+	}: PackageCreationFormProps = $props();
 
 	// Local state for form fields
 	let name = $state('');
@@ -115,6 +122,7 @@
 					type="number"
 					placeholder="Örn: 4"
 					min="1"
+					max={MAX_PACKAGE_WEEKS}
 					bind:value={weeks_duration}
 					required
 				/>
@@ -180,11 +188,15 @@
 					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
 						<Medal class="size-4 text-muted-foreground" />
 					</div>
-					<h3 class="text-sm font-semibold">Paket türü</h3>
+					<h3 id="package-type-label" class="text-sm font-semibold">Paket türü</h3>
 				</div>
 				<Separator class="my-3" />
 
-				<RadioGroup bind:value={package_type} class="space-y-2">
+				<RadioGroup
+					bind:value={package_type}
+					class="space-y-2"
+					aria-labelledby="package-type-label"
+				>
 					<label
 						class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
 					>
@@ -232,9 +244,12 @@
 
 					{#if showRescheduleLimit}
 						<div class="rounded-lg bg-muted p-2">
-							<div class="mb-2 text-xs text-muted-foreground">Değişiklik hakkı</div>
+							<label for="reschedule-limit" class="mb-2 block text-xs text-foreground/70">
+								Değişiklik hakkı
+							</label>
 							<div class="flex items-center gap-2">
 								<Input
+									id="reschedule-limit"
 									type="number"
 									class="h-8 w-16"
 									placeholder="∞"
@@ -254,6 +269,9 @@
 	<!-- Form Actions -->
 	<ModalFooter>
 		<Button type="button" variant="ghost" onclick={onCancel}>Vazgeç</Button>
-		<Button type="submit" disabled={!canProceedLocal}>Paketi oluştur</Button>
+		<Button type="submit" disabled={!canProceedLocal || submitting}>
+			{#if submitting}<LoaderCircle class="animate-spin" />{/if}
+			Paketi oluştur
+		</Button>
 	</ModalFooter>
 </form>

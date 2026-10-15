@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import { enhanceForm } from '$lib/utils/enhance';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Edit from '@lucide/svelte/icons/edit';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
@@ -14,12 +14,11 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import ReorderCell from '$lib/components/reorder-cell.svelte';
 	import type { ActionItem, ReorderContext } from '$lib/types';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { badgeHtml, escapeHtml } from '$lib/utils/html-utils';
 	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
-	import { validation } from '$lib/utils/validation';
+	import { MIN_PASSWORD_LENGTH, validation } from '$lib/utils/validation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -78,7 +77,7 @@
 				icon: Edit
 			},
 			{
-				label: 'Şifre Sıfırla',
+				label: 'Şifreyi sıfırla',
 				handler: (id?: string | number) => {
 					if (!id) return;
 					const t = trainers.find((t) => t.id === String(id));
@@ -101,7 +100,7 @@
 			});
 		} else {
 			baseActions.push({
-				label: 'Geri Yükle',
+				label: 'Geri yükle',
 				handler: (id?: string | number) => {
 					if (!id) return;
 					const t = trainers.find((t) => t.id === String(id));
@@ -122,6 +121,7 @@
 		},
 		{
 			key: 'phone',
+			class: 'hidden md:table-cell',
 			title: 'Telefon',
 			sortable: false,
 			render: (trainer: TrainerWithEmail) =>
@@ -220,6 +220,7 @@
 		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
+		rowLabel={(trainer) => trainer.name ?? ''}
 	/>
 </div>
 
@@ -229,22 +230,14 @@
 		method="POST"
 		action="?/createTrainer"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu');
-					showAddModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Eğitmen ve kullanıcı hesabı başarıyla oluşturuldu',
+			onSuccess: () => {
+				showAddModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<div class="grid gap-2">
 			<Label for="add-trainer-name">Eğitmen Adı</Label>
@@ -287,10 +280,14 @@
 				type="password"
 				name="password"
 				bind:value={password}
-				placeholder="Minimum 6 karakter"
-				minlength={6}
+				autocomplete="new-password"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-describedby="add-trainer-password-hint"
 				required
 			/>
+			<p id="add-trainer-password-hint" class="text-xs text-muted-foreground">
+				En az {MIN_PASSWORD_LENGTH} karakter
+			</p>
 		</div>
 
 		<ModalFooter>
@@ -317,27 +314,19 @@
 </Modal>
 
 <!-- Edit Trainer Modal -->
-<Modal bind:open={showEditModal} title="Eğitmen Düzenle" onClose={resetForm}>
+<Modal bind:open={showEditModal} title="Eğitmeni düzenle" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/updateTrainer"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Eğitmen başarıyla güncellendi');
-					showEditModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Eğitmen başarıyla güncellendi',
+			onSuccess: () => {
+				showEditModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
@@ -390,7 +379,7 @@
 </Modal>
 
 <!-- Archive Trainer Modal -->
-<Modal bind:open={showArchiveModal} title="Eğitmeni Arşivle" onClose={resetForm}>
+<Modal bind:open={showArchiveModal} title="Eğitmeni arşivle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni arşivlemek istediğinizden emin misiniz? Arşivlenen
 		eğitmenler listede görünmez hale gelecektir.
@@ -399,22 +388,14 @@
 		method="POST"
 		action="?/archiveTrainer"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Eğitmen başarıyla arşivlendi');
-					showArchiveModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Eğitmen başarıyla arşivlendi',
+			onSuccess: () => {
+				showArchiveModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
@@ -435,14 +416,14 @@
 				{:else}
 					<Archive size={16} />
 				{/if}
-				Arşivle
+				Eğitmeni arşivle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
 <!-- Restore Trainer Modal -->
-<Modal bind:open={showRestoreModal} title="Eğitmeni Geri Yükle" onClose={resetForm}>
+<Modal bind:open={showRestoreModal} title="Eğitmeni geri yükle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni geri yüklemek istediğinizden emin misiniz?
 		Eğitmen aktif eğitmenler listesinde görünür hale gelecektir.
@@ -451,22 +432,14 @@
 		method="POST"
 		action="?/restoreTrainer"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Eğitmen başarıyla geri yüklendi');
-					showRestoreModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Eğitmen başarıyla geri yüklendi',
+			onSuccess: () => {
+				showRestoreModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
@@ -487,14 +460,14 @@
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
-				Geri Yükle
+				Eğitmeni geri yükle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
 <!-- Reset Password Modal -->
-<Modal bind:open={showResetPasswordModal} title="Şifre Sıfırla" onClose={resetForm}>
+<Modal bind:open={showResetPasswordModal} title="Şifreyi sıfırla" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedTrainer?.name}</strong> adlı eğitmenin şifresini sıfırlamak istediğinizden emin misiniz?
 	</p>
@@ -502,36 +475,32 @@
 		method="POST"
 		action="?/resetPassword"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Şifre başarıyla sıfırlandı');
-					showResetPasswordModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Şifre başarıyla sıfırlandı',
+			onSuccess: () => {
+				showResetPasswordModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
 		<div class="grid gap-2">
-			<Label for="reset-trainer-password">Yeni Şifre</Label>
+			<Label for="reset-trainer-password">Yeni şifre</Label>
 			<Input
 				id="reset-trainer-password"
 				type="password"
 				name="newPassword"
 				bind:value={newPassword}
-				placeholder="Minimum 6 karakter"
-				minlength={6}
+				autocomplete="new-password"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-describedby="reset-trainer-password-hint"
 				required
 			/>
+			<p id="reset-trainer-password-hint" class="text-xs text-muted-foreground">
+				En az {MIN_PASSWORD_LENGTH} karakter
+			</p>
 		</div>
 
 		<ModalFooter>

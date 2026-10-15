@@ -24,7 +24,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.eq('is_active', true)
 		.in('role', ['pe_admin', 'pe_coordinator']);
 	if (membersError) {
-		throw error(500, 'Kullanıcılar yüklenirken hata oluştu: ' + membersError.message);
+		console.error('Error loading staff:', membersError);
+		throw error(500, 'Personel listesi yüklenemedi. Sayfayı yenileyin.');
 	}
 
 	const authUsers = await service.getAuthUsers((members ?? []).map((m) => m.user_id));
@@ -71,10 +72,16 @@ export const actions: Actions = {
 		const role = STAFF_ROLES.get(getRequiredFormDataString(formData, 'role'));
 		if (!role) return fail(400, { success: false, message: 'Geçersiz rol seçimi' });
 
-		const updateError = await OrgUserService.fromLocals(locals).updateMember(
-			getRequiredFormDataString(formData, 'userId'),
-			{ fullName: getRequiredFormDataString(formData, 'fullName'), role }
-		);
+		const userId = getRequiredFormDataString(formData, 'userId');
+		// The studio must keep an admin who can undo the change
+		if (userId === locals.user?.id && role !== 'pe_admin') {
+			return fail(400, { success: false, message: 'Kendi rolünüzü değiştiremezsiniz' });
+		}
+
+		const updateError = await OrgUserService.fromLocals(locals).updateMember(userId, {
+			fullName: getRequiredFormDataString(formData, 'fullName'),
+			role
+		});
 		if (updateError) return fail(400, { success: false, message: updateError });
 
 		return { success: true, message: 'Kullanıcı başarıyla güncellendi' };

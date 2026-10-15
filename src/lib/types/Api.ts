@@ -54,3 +54,14 @@ export type GroupTimeslotsPayload = ActionPayload & { timeslots: AvailableGroupT
 
 // Yeni kayıt: a trainee created inline
 export type CreatedTraineePayload = ActionPayload & { trainee: TraineeOption };
+
+// enhanceForm(): what a form does around its action
+export interface EnhanceFormOptions {
+	// Set while the request is in flight
+	busy?: (busy: boolean) => void;
+	// Success toast; defaults to the action's own message
+	success?: string;
+	onSuccess?: () => void;
+	// Reset the form fields after the action (default true)
+	reset?: boolean;
+}

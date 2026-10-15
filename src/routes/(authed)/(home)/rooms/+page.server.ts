@@ -1,9 +1,12 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { getRequiredFormDataString } from '$lib/utils/form-utils';
-import { formatDateForDB } from '$lib/utils/date-utils';
+import { getFormDataUuid, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { moveRow, nextSortOrder } from '$lib/server/reorder';
 import { requireAdmin } from '$lib/server/permissions';
+import { dbErrorMessage } from '$lib/server/db-errors';
+import { futureLessonsBlock } from '$lib/server/archive';
+
+const NOT_FOUND = 'Oda bulunamadı. Sayfayı yenileyin.';
 
 export const actions: Actions = {
 	createRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -12,7 +15,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 
-		const name = getRequiredFormDataString(formData, 'name');
+		const name = getRequiredFormDataString(formData, 'name').trim();
 		const sortOrder = await nextSortOrder(supabase, 'pe_rooms');
 
 		const { data: roomData, error: createError } = await supabase
@@ -27,7 +30,7 @@ export const actions: Actions = {
 		if (createError || !roomData) {
 			return fail(500, {
 				success: false,
-				message: 'Oda oluşturulurken hata: ' + createError?.message
+				message: dbErrorMessage(createError, 'Oda kaydedilemedi. Tekrar deneyin.')
 			});
 		}
 
@@ -40,20 +43,23 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 
-		const roomId = getRequiredFormDataString(formData, 'roomId');
-		const name = getRequiredFormDataString(formData, 'name');
+		const roomId = getFormDataUuid(formData, 'roomId');
+		if (!roomId) return fail(400, { success: false, message: NOT_FOUND });
+		const name = getRequiredFormDataString(formData, 'name').trim();
 
-		const { error: updateError } = await supabase
+		const { data: updated, error: updateError } = await supabase
 			.from('pe_rooms')
 			.update({ name })
-			.eq('id', roomId);
+			.eq('id', roomId)
+			.select('id');
 
 		if (updateError) {
 			return fail(500, {
 				success: false,
-				message: 'Oda güncellenirken hata: ' + updateError.message
+				message: dbErrorMessage(updateError, 'Oda kaydedilemedi. Tekrar deneyin.')
 			});
 		}
+		if ((updated ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
 		return { success: true, message: 'Oda başarıyla güncellendi' };
 	},
@@ -62,44 +68,30 @@ export const actions: Actions = {
 		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
-		const formData = await request.formData();
-		const roomId = getRequiredFormDataString(formData, 'roomId');
+		const roomId = getFormDataUuid(await request.formData(), 'roomId');
+		if (!roomId) return fail(400, { success: false, message: NOT_FOUND });
 
-		// Check if room has future appointments
-		const today = formatDateForDB(new Date());
-		const { data: futureAppointments, error: checkError } = await supabase
-			.from('pe_appointments')
-			.select('id')
-			.eq('room_id', roomId)
-			.gte('date', today)
-			.limit(1);
+		const blocked = await futureLessonsBlock(
+			supabase,
+			'room_id',
+			roomId,
+			'Bu odanın gelecek randevuları var. Odayı arşivlemeden önce randevuları başka bir odaya taşıyın.'
+		);
+		if (blocked) return blocked;
 
-		if (checkError) {
-			return fail(500, {
-				success: false,
-				message: 'Gelecek randevular kontrol edilirken hata: ' + checkError.message
-			});
-		}
-
-		if (futureAppointments && futureAppointments.length > 0) {
-			return fail(400, {
-				success: false,
-				message:
-					'Bu odanın gelecek randevuları var. Odayı arşivlemeden önce randevuları başka bir odaya aktarmalısınız.'
-			});
-		}
-
-		const { error: archiveError } = await supabase
+		const { data: archived, error: archiveError } = await supabase
 			.from('pe_rooms')
 			.update({ is_active: false })
-			.eq('id', roomId);
+			.eq('id', roomId)
+			.select('id');
 
 		if (archiveError) {
 			return fail(500, {
 				success: false,
-				message: 'Oda arşivlenirken hata: ' + archiveError.message
+				message: dbErrorMessage(archiveError, 'Oda arşivlenemedi. Tekrar deneyin.')
 			});
 		}
+		if ((archived ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
 		return { success: true, message: 'Oda başarıyla arşivlendi' };
 	},
@@ -108,20 +100,22 @@ export const actions: Actions = {
 		const permissionError = requireAdmin(user, userRole);
 		if (permissionError) return permissionError;
 
-		const formData = await request.formData();
-		const roomId = getRequiredFormDataString(formData, 'roomId');
+		const roomId = getFormDataUuid(await request.formData(), 'roomId');
+		if (!roomId) return fail(400, { success: false, message: NOT_FOUND });
 
-		const { error: restoreError } = await supabase
+		const { data: restored, error: restoreError } = await supabase
 			.from('pe_rooms')
 			.update({ is_active: true })
-			.eq('id', roomId);
+			.eq('id', roomId)
+			.select('id');
 
 		if (restoreError) {
 			return fail(500, {
 				success: false,
-				message: 'Oda geri yüklenirken hata: ' + restoreError.message
+				message: dbErrorMessage(restoreError, 'Oda geri yüklenemedi. Tekrar deneyin.')
 			});
 		}
+		if ((restored ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
 		return { success: true, message: 'Oda başarıyla geri yüklendi' };
 	},

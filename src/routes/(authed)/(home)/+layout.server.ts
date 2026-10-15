@@ -1,56 +1,41 @@
 import { error } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import type { Trainer, Room, Trainee, Package } from '$lib/types';
 
-export const load: LayoutServerLoad = async ({ locals: { supabase, user } }) => {
-	// Ensure user is authenticated
-	if (!user) {
-		throw error(401, 'Authentication required');
+// Studio lists the staff pages pick from; loaded on every navigation, so only what the UI uses
+export const load: LayoutServerLoad = async ({ locals: { supabase, user, userRole } }) => {
+	if (!user) throw error(401, 'Oturum açmanız gerekiyor');
+
+	// Trainers and trainees see only their own pages: no studio lists (trainee notes, emails)
+	if (userRole !== 'admin' && userRole !== 'coordinator') {
+		return { trainers: [], rooms: [], trainees: [], packages: [] };
 	}
 
-	// Fetch essential data concurrently with proper error handling.
-	// These run on every navigation — select only what the UI consumes.
-	const queries = [
-		{
-			name: 'trainers',
-			query: supabase
-				.from('pe_trainers')
-				.select('id, name, phone, is_active, organization_id, sort_order')
-				.order('sort_order', { ascending: true })
-		},
-		{
-			name: 'rooms',
-			query: supabase
-				.from('pe_rooms')
-				.select('id, name, is_active, organization_id, sort_order')
-				.order('sort_order', { ascending: true })
-		},
-		{
-			name: 'trainees',
-			query: supabase
-				.from('pe_trainees')
-				.select('id, name, phone, email, notes, is_active, created_at, auth_id, organization_id')
-		},
-		{
-			name: 'packages',
-			query: supabase.from('pe_packages').select('*').order('created_at', { ascending: false })
-		}
-	] as const;
+	const [trainers, rooms, trainees, packages] = await Promise.all([
+		supabase
+			.from('pe_trainers')
+			.select('id, name, phone, is_active, organization_id, sort_order')
+			.order('sort_order', { ascending: true }),
+		supabase
+			.from('pe_rooms')
+			.select('id, name, is_active, organization_id, sort_order')
+			.order('sort_order', { ascending: true }),
+		supabase
+			.from('pe_trainees')
+			.select('id, name, phone, email, notes, is_active, created_at, auth_id, organization_id'),
+		supabase.from('pe_packages').select('*').order('created_at', { ascending: false })
+	]);
 
-	const results = await Promise.all(queries.map((q) => q.query));
-
-	// A failed list degrades to empty rather than breaking every page
-	const data: Record<string, (Trainer | Room | Trainee | Package)[]> = {};
-	queries.forEach((query, index) => {
-		const { data: queryData, error: queryError } = results[index];
-		if (queryError) console.error(`Error loading ${query.name}:`, queryError);
-		data[query.name] = queryData ?? [];
-	});
+	// Empty lists would read as "no trainees / no rooms"; the error page offers a retry
+	const failed = trainers.error ?? rooms.error ?? trainees.error ?? packages.error;
+	if (failed) {
+		console.error('Error loading studio lists:', failed);
+		throw error(500, 'Stüdyo bilgileri yüklenemedi. Sayfayı yenileyin.');
+	}
 
 	return {
-		trainers: data.trainers as Trainer[],
-		rooms: data.rooms as Room[],
-		trainees: data.trainees as Trainee[],
-		packages: data.packages as Package[]
+		trainers: trainers.data ?? [],
+		rooms: rooms.data ?? [],
+		trainees: trainees.data ?? [],
+		packages: packages.data ?? []
 	};
 };

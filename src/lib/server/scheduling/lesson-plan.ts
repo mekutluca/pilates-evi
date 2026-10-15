@@ -6,17 +6,25 @@ import type {
 	AssignmentPlan,
 	AssignmentPurchasePayload
 } from '$lib/types/Assignment';
-import type { Package } from '$lib/types';
+import type { Package, SelectedGroupTimeslot } from '$lib/types';
+import { dbErrorMessage } from '$lib/server/db-errors';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { collectGroupSessions } from '$lib/server/scheduling/group-lessons';
-import { isAppointmentFuture, parseLocalDate } from '$lib/utils/date-utils';
+import {
+	formatDateForDB,
+	formatDisplayDate,
+	isAppointmentFuture,
+	parseLocalDate
+} from '$lib/utils/date-utils';
+import { getLastAppointmentDate } from '$lib/server/scheduling/extension';
 import {
 	buildAppointmentSlotsFromStart,
+	calculateExtensionStartDate,
 	getStartingAppointmentCandidates,
 	weeklySlotKey
 } from '$lib/utils/slot-utils';
-import { isValidUuid } from '$lib/utils/validation';
+import { isIntInRange, isValidUuid, MAX_GROUP_WEEKS, MAX_PERIODS } from '$lib/utils/validation';
 
 // A package's weekly lesson count must fall between its min and max
 function lessonsPerWeekError(pkg: Package, count: number): string | null {
@@ -24,6 +32,39 @@ function lessonsPerWeekError(pkg: Package, count: number): string | null {
 	return pkg.min_lessons_per_week === pkg.max_lessons_per_week
 		? `Bu paket için haftada ${pkg.min_lessons_per_week} ders seçilmeli`
 		: `Bu paket için haftada ${pkg.min_lessons_per_week}–${pkg.max_lessons_per_week} ders seçilmeli`;
+}
+
+// New private lessons need a room and trainer that are in use (not archived)
+async function activePlaceError(
+	supabase: SupabaseClientType,
+	roomId: string,
+	trainerId: string
+): Promise<string | null> {
+	const [{ data: room }, { data: trainer }] = await Promise.all([
+		supabase.from('pe_rooms').select('is_active').eq('id', roomId).maybeSingle(),
+		supabase.from('pe_trainers').select('is_active').eq('id', trainerId).maybeSingle()
+	]);
+	if (!room?.is_active) return 'Seçilen oda bulunamadı ya da arşivde';
+	if (!trainer?.is_active) return 'Seçilen eğitmen bulunamadı ya da arşivde';
+	return null;
+}
+
+// Joined group lessons must be this package's and still running
+async function openGroupLessonsError(
+	supabase: SupabaseClientType,
+	packageId: string,
+	slots: SelectedGroupTimeslot[]
+): Promise<string | null> {
+	const ids = [...new Set(slots.map((s) => s.group_lesson_id))];
+	const { data, error } = await supabase
+		.from('pe_group_lessons')
+		.select('id, package_id, end_date')
+		.in('id', ids);
+	if (error) return dbErrorMessage(error, 'Grup dersleri kontrol edilemedi. Tekrar deneyin.');
+	const open = (data ?? []).filter((l) => l.package_id === packageId && l.end_date === null);
+	return open.length === ids.length
+		? null
+		: 'Seçilen grup dersi bu pakete ait değil ya da sona ermiş';
 }
 
 // Reschedule credits a new purchase of the package starts with
@@ -60,9 +101,11 @@ async function planLessons(
 			return 'Aynı gün ve saat iki kez seçilmiş';
 		}
 		if (!pkg.weeks_duration) return 'Paket süresi belirsiz';
-		if (!Number.isInteger(input.periods) || input.periods < 1 || input.periods > 12) {
-			return 'Dönem sayısı 1 ile 12 arasında olmalı';
+		if (!isIntInRange(input.periods, 1, MAX_PERIODS)) {
+			return `Dönem sayısı 1 ile ${MAX_PERIODS} arasında olmalı`;
 		}
+		const placeError = await activePlaceError(supabase, input.roomId, input.trainerId);
+		if (placeError) return placeError;
 
 		// A slot earlier today has passed; the pattern then starts at the next one
 		const first = getStartingAppointmentCandidates(
@@ -91,9 +134,12 @@ async function planLessons(
 
 	const countError = lessonsPerWeekError(pkg, input.groupSlots.length);
 	if (countError) return countError;
-	if (!Number.isInteger(input.weeks) || input.weeks < 1 || input.weeks > 26) {
-		return 'Hafta sayısı 1 ile 26 arasında olmalı';
+	if (!isIntInRange(input.weeks, 1, MAX_GROUP_WEEKS)) {
+		return `Hafta sayısı 1 ile ${MAX_GROUP_WEEKS} arasında olmalı`;
 	}
+
+	const lessonError = await openGroupLessonsError(supabase, pkg.id, input.groupSlots);
+	if (lessonError) return lessonError;
 
 	const total = input.weeks * input.groupSlots.length;
 	const sessions = await collectGroupSessions(supabase, input.groupSlots, input.startDate, total);
@@ -129,6 +175,14 @@ export async function planRenewal(
 		supabase.from('pe_teams').select('trainee_id').eq('id', last.team_id)
 	]);
 	if (!pkg) return 'Paket bulunamadı';
+
+	// The new lessons follow the kayıt's last one
+	const earliestStart = formatDateForDB(
+		calculateExtensionStartDate(await getLastAppointmentDate(supabase, last.id))
+	);
+	if (input.startDate < earliestStart) {
+		return `Yeni dönem en erken ${formatDisplayDate(earliestStart)} tarihinde başlayabilir`;
+	}
 
 	const plan = await planLessons(
 		supabase,

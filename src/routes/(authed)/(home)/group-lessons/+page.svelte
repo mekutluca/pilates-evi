@@ -40,7 +40,7 @@
 				<Table.Row>
 					<Table.Head>Paket</Table.Head>
 					<Table.Head>Program</Table.Head>
-					<Table.Head>Oda · Eğitmen</Table.Head>
+					<Table.Head class="hidden md:table-cell">Oda · Eğitmen</Table.Head>
 					<Table.Head class="text-right">{ended ? 'Bitiş' : 'Öğrenci'}</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -56,7 +56,7 @@
 							</a>
 						</Table.Cell>
 						<Table.Cell><PatternChip slots={lesson.slots} /></Table.Cell>
-						<Table.Cell class="text-muted-foreground">
+						<Table.Cell class="hidden text-muted-foreground md:table-cell">
 							{lesson.roomName} · {lesson.trainerName}
 						</Table.Cell>
 						<Table.Cell class="text-right tabular-nums">

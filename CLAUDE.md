@@ -30,7 +30,8 @@ Routes parse input, check permissions, call one service/repository method and re
 - `repositories/purchase-repository.ts`, `repositories/trainee-repository.ts`
 - `scheduling/` - planning helpers behind the services (slot shifts, cancellation, day closing, extension, lesson deletion); `lesson-plan.ts` plans a kayıt's lessons for both Yenile (`planRenewal`) and Yeni kayıt (`planAssignment`); `group-lessons.ts` lists, plans and moves group lessons; `*-form.ts` parse action forms into typed inputs (returning an error string when invalid)
 - `panel.ts` - Panel data (coordinator: today, kayıtlar ending soon, new kayıtlar; trainer: their week)
-- Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`); actions return `{ success, message, redirectTo? }`; previews are separate `preview*` actions that run the same planning without writing; pages keep a preview's latest result with `actionResource` (`$lib/utils/action-resource.svelte`), typed `Loadable<T>`
+- Forms posting with `use:enhance` use `enhanceForm({ busy, success, onSuccess, reset })` from `$lib/utils/enhance` (busy flag, toast, stays on the form on network/server errors)
+- Client code posts to actions outside `use:enhance` with `postAction` from `$lib/utils/api-client` (decodes results with SvelteKit's `deserialize`; never throws: a failed request comes back as an `error` result with `REQUEST_FAILED`, a redirect is followed with `goto`); actions return `{ success, message, redirectTo? }`; previews are separate `preview*` actions that run the same planning without writing; pages keep a preview's latest result with `actionResource` (`$lib/utils/action-resource.svelte`), typed `Loadable<T>`
 - Data-heavy page loads stream: they return promises (resolving to `null` on failure) and the page shows a skeleton that mirrors its layout (`$lib/components/skeletons`), the data via `streamed()` (`$lib/utils/streamed.svelte`; keeps the loaded value while the same page refreshes) and `load-error.svelte` with a retry when it is `null`
 - Server time is pinned to `Europe/Istanbul` in `hooks.server.ts`
 
@@ -44,7 +45,7 @@ Routes parse input, check permissions, call one service/repository method and re
 ### Component Architecture
 
 - Reusable components in `src/lib/components/`
-- `sortable-table.svelte` - Generic table with sorting, searching, and action menus
+- `sortable-table.svelte` - Generic table with sorting, searching, and action menus; rows open through `rowHref` (a link on the first column) and `rowLabel` names each row's menu
 - `scheduling/` - calendar panels (appointment sheet, Taşı sheet, cancel / close-day dialogs, group lesson move sheet and end dialog) and shared pieces (`conflict-list`, `move-preview-list`, `weekly-slots-field`); `week-nav.svelte`; `assignment/trainee-picker.svelte`
 - `action-menu.svelte` - Dropdown menu for row actions
 - `global-action-drawer.svelte` - Global action drawer using Svelte 5 stores
@@ -134,8 +135,9 @@ Key entity types defined in `src/lib/types/`:
 
 ### Error Handling Guidelines
 
-- **Form validation errors**: Use `getRequiredFormDataString()` without try-catch - it throws descriptive errors that SvelteKit handles appropriately
-- **Database operations**: Handle Supabase errors explicitly by checking the `error` return value
+- **Form validation errors**: Use `getRequiredFormDataString()` without try-catch - a missing field throws `error(400)` with a Turkish message the form's toast shows; posted ids go through `getFormDataUuid()` (null when missing or malformed)
+- **Database operations**: Handle Supabase errors explicitly by checking the `error` return value; never show `error.message` to users: use `dbErrorMessage(error, fallback)` / `authErrorMessage(error, fallback)` from `$lib/server/db-errors` (our RPCs' own `P0001` messages and known Auth codes pass through, everything else is logged and replaced by the Turkish fallback)
+- **Updates by id** select the row back (`.select('id')`) and report "not found" when nothing matched
 - **Only use try-catch for**:
   - External API calls that might fail unexpectedly
   - Complex operations where you need to clean up resources

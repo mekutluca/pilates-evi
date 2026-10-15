@@ -7,17 +7,30 @@
 	let {
 		value = $bindable(''),
 		placeholder = '',
+		label,
 		clearTitle = 'Aramayı temizle',
 		classes = ''
 	}: SearchInputProps = $props();
 
+	let input = $state<HTMLInputElement | null>(null);
+
+	// Clearing keeps the cursor in the field, ready for the next search
 	function clear() {
 		value = '';
+		input?.focus();
 	}
 </script>
 
 <div class="relative {classes}">
-	<Input type="text" {placeholder} bind:value class="pr-8" />
+	<!-- The browser's own clear button is hidden: ours below works everywhere -->
+	<Input
+		type="search"
+		{placeholder}
+		aria-label={label ?? (placeholder || 'Ara')}
+		bind:value
+		bind:ref={input}
+		class="pr-8 [&::-webkit-search-cancel-button]:appearance-none"
+	/>
 	{#if value?.trim()}
 		<Button
 			variant="ghost"

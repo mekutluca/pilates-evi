@@ -57,4 +57,9 @@ export interface TrainerPanel {
 	weekTraineeCount: number;
 }
 
-export type Panel = StudioPanel | TrainerPanel;
+// Trainee accounts have no views yet
+export interface TraineePanel {
+	kind: 'trainee';
+}
+
+export type Panel = StudioPanel | TrainerPanel | TraineePanel;

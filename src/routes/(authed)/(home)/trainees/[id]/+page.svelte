@@ -1,6 +1,9 @@
 <script lang="ts">
+	import { enhanceForm } from '$lib/utils/enhance';
+	import { cn } from '$lib/utils';
 	import { page } from '$app/state';
 	import { streamed } from '$lib/utils/streamed.svelte';
+	import LoadError from '$lib/components/load-error.svelte';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -22,8 +25,6 @@
 	import type { ActionItem, KayitLesson, RemainingLessonsScope, TraineeKayit } from '$lib/types';
 	import { formatDisplayDate, formatSlotLabel } from '$lib/utils/date-utils';
 	import { enhance } from '$app/forms';
-	import { toast } from 'svelte-sonner';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { validation } from '$lib/utils/validation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -38,8 +39,8 @@
 
 	let { data } = $props();
 
-	// Streamed: `undefined` = loading, `null` = not found / failed; the loaded trainee stays
-	// on screen while an action refreshes it
+	// Streamed: `undefined` = loading, `null` = failed; the loaded trainee stays on screen
+	// while an action refreshes it
 	const traineeData = streamed(
 		() => data.trainee,
 		() => page.params.id ?? ''
@@ -48,7 +49,8 @@
 		() => data.kayitlar,
 		() => page.params.id ?? ''
 	);
-	const trainee = $derived(traineeData.current);
+	// null: no such trainee
+	const trainee = $derived(traineeData.current?.trainee);
 	const kayitlar = $derived(kayitData.current);
 
 	const active = $derived((kayitlar ?? []).filter((k) => k.upcoming.length > 0));
@@ -151,7 +153,7 @@
 					<Pencil />
 					Düzenle
 				</Button>
-				<ActionMenu actions={menuActions} />
+				<ActionMenu actions={menuActions} ariaLabel="Öğrenci işlemleri" />
 			{/snippet}
 			<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
 				{#if !trainee.is_active}
@@ -167,7 +169,7 @@
 				{#if trainee.email}
 					<a
 						href="mailto:{trainee.email}"
-						class="inline-flex items-center gap-1.5 hover:text-foreground"
+						class="inline-flex min-w-0 items-center gap-1.5 break-all hover:text-foreground"
 					>
 						<Mail class="size-3.5" />
 						{trainee.email}
@@ -175,8 +177,10 @@
 				{/if}
 			</div>
 		</PageHeader>
-	{:else if trainee === undefined}
+	{:else if traineeData.current === undefined}
 		<PageHeaderSkeleton actions />
+	{:else if traineeData.current === null}
+		<LoadError message="Öğrenci yüklenemedi." />
 	{:else}
 		<Empty.Root class="border">
 			<Empty.Header>
@@ -196,7 +200,7 @@
 				{#if kayitlar === undefined}
 					<CardSkeleton rows={3} rowClass="h-12" />
 				{:else if kayitlar === null}
-					<p class="text-sm text-destructive">Kayıtlar yüklenemedi; sayfayı yenileyin.</p>
+					<LoadError message="Kayıtlar yüklenemedi." />
 				{:else if active.length === 0}
 					<Empty.Root class="border">
 						<Empty.Header>
@@ -235,7 +239,10 @@
 								<span>{kayit.roomName} · {kayit.trainerName}</span>
 							</Card.Description>
 							<Card.Action>
-								<ActionMenu actions={kayitActions(kayit)} />
+								<ActionMenu
+									actions={kayitActions(kayit)}
+									ariaLabel={`${kayit.packageName} işlemleri`}
+								/>
 							</Card.Action>
 						</Card.Header>
 						<Card.Content class="space-y-4">
@@ -278,11 +285,11 @@
 									href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
 								>
 									<RefreshCw />
-									Yenile
+									Yenile<span class="sr-only">: {kayit.packageName}</span>
 								</Button>
 								<Button variant="outline" size="sm" href={calendarLink(next, 'move', kayit)}>
 									<MoveRight />
-									Taşı
+									Taşı<span class="sr-only">: {kayit.packageName}</span>
 								</Button>
 							</div>
 
@@ -307,7 +314,9 @@
 													size="sm"
 													href={calendarLink(lesson, 'move', kayit)}
 												>
-													Taşı
+													Taşı<span class="sr-only"
+														>: {formatSlotLabel(lesson.date, lesson.hour)}</span
+													>
 												</Button>
 												{#if !kayit.isGroup}
 													<Button
@@ -315,7 +324,9 @@
 														size="sm"
 														href={calendarLink(lesson, 'cancel', kayit)}
 													>
-														İptal et
+														İptal et<span class="sr-only"
+															>: {formatSlotLabel(lesson.date, lesson.hour)}</span
+														>
 													</Button>
 												{/if}
 											</span>
@@ -364,7 +375,7 @@
 													class="ml-auto"
 													href="/trainees/{trainee.id}/renew/{kayit.currentPurchaseId}"
 												>
-													Yenile
+													Yenile<span class="sr-only">: {kayit.packageName}</span>
 												</Button>
 											{/if}
 										</li>
@@ -376,7 +387,8 @@
 				{/if}
 			</div>
 
-			<Card.Root class="h-fit">
+			<!-- Editing on a phone brings the form above the kayıt cards -->
+			<Card.Root class={cn('h-fit', editMode && 'max-lg:order-first')}>
 				<Card.Header>
 					<Card.Title>Bilgiler</Card.Title>
 				</Card.Header>
@@ -386,19 +398,13 @@
 							method="POST"
 							action="?/update"
 							class="space-y-4"
-							use:enhance={() => {
-								saving = true;
-								return async ({ result, update }) => {
-									saving = false;
-									if (result.type === 'success') {
-										editMode = false;
-										toast.success('Öğrenci güncellendi');
-									} else if (result.type === 'failure') {
-										toast.error(getActionErrorMessage(result));
-									}
-									await update();
-								};
-							}}
+							use:enhance={enhanceForm({
+								busy: (b) => (saving = b),
+								success: 'Öğrenci güncellendi',
+								onSuccess: () => {
+									editMode = false;
+								}
+							})}
 						>
 							<div class="grid gap-2">
 								<Label for="name">Ad soyad</Label>
@@ -461,19 +467,13 @@
 	<form
 		method="POST"
 		action="?/archiveTrainee"
-		use:enhance={() => {
-			archiving = true;
-			return async ({ result, update }) => {
-				archiving = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci arşivlendi');
-					showArchiveModal = false;
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (archiving = b),
+			success: 'Öğrenci arşivlendi',
+			onSuccess: () => {
+				showArchiveModal = false;
+			}
+		})}
 	>
 		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showArchiveModal = false)}>
@@ -481,7 +481,7 @@
 			</Button>
 			<Button type="submit" variant="destructive" disabled={archiving}>
 				{#if archiving}<LoaderCircle class="animate-spin" />{:else}<Archive />{/if}
-				Arşivle
+				Öğrenciyi arşivle
 			</Button>
 		</ModalFooter>
 	</form>
@@ -494,19 +494,13 @@
 	<form
 		method="POST"
 		action="?/restoreTrainee"
-		use:enhance={() => {
-			archiving = true;
-			return async ({ result, update }) => {
-				archiving = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci geri yüklendi');
-					showRestoreModal = false;
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (archiving = b),
+			success: 'Öğrenci geri yüklendi',
+			onSuccess: () => {
+				showRestoreModal = false;
+			}
+		})}
 	>
 		<ModalFooter>
 			<Button type="button" variant="outline" onclick={() => (showRestoreModal = false)}>
@@ -514,7 +508,7 @@
 			</Button>
 			<Button type="submit" disabled={archiving}>
 				{#if archiving}<LoaderCircle class="animate-spin" />{:else}<ArchiveRestore />{/if}
-				Geri yükle
+				Öğrenciyi geri yükle
 			</Button>
 		</ModalFooter>
 	</form>
@@ -550,26 +544,21 @@
 				method="POST"
 				action="?/deleteRemainingLessons"
 				class="space-y-4"
-				use:enhance={() => {
-					deletingLessons = true;
-					return async ({ result, update }) => {
-						deletingLessons = false;
-						if (result.type === 'success') {
-							toast.success('Kalan dersler silindi');
-							showDeleteModal = false;
-						} else if (result.type === 'failure') {
-							toast.error(getActionErrorMessage(result));
-						}
-						await update();
-					};
-				}}
+				use:enhance={enhanceForm({
+					// The action's own message carries the count ("N ders silindi")
+					busy: (b) => (deletingLessons = b),
+					onSuccess: () => {
+						showDeleteModal = false;
+					}
+				})}
 			>
 				<input type="hidden" name="purchaseIds" value={deleteTarget.purchaseIds.join(',')} />
 				{#if isShared}
 					<input type="hidden" name="scope" value={deleteScope} />
 					<div class="grid gap-2">
-						<Label>Bu derslere {teammateNames} de katılıyor</Label>
+						<Label id="delete-scope-label">Bu derslere {teammateNames} de katılıyor</Label>
 						<RadioGroup
+							aria-labelledby="delete-scope-label"
 							value={deleteScope}
 							onValueChange={(v) => (deleteScope = v as RemainingLessonsScope)}
 						>

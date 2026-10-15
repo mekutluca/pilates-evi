@@ -19,6 +19,8 @@ import {
 	applyEnrollmentMoves,
 	applyPlannedMoves,
 	listTraineeShiftCandidates,
+	pastWeeklyTargetError,
+	STARTED_LESSON_ERROR,
 	planTraineeSlotShift,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsByWeeks
@@ -29,9 +31,14 @@ import { cancelDay, previewCloseDay } from '$lib/server/scheduling/day-cancellat
 import { deleteRemainingLessons } from '$lib/server/scheduling/purchase-deletion';
 import { planGroupLessonMove } from '$lib/server/scheduling/group-lessons';
 import { toGroupLessonTimeslots } from '$lib/server/scheduling/extension';
-import { addWeeksToDate } from '$lib/utils/date-utils';
+import { addWeeksToDate, isAppointmentFuture } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
 import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
+import { dbErrorMessage } from '$lib/server/db-errors';
+import { isIntInRange } from '$lib/utils/validation';
+
+// The furthest a series moves by lessons in one Taşı
+const MAX_SLOT_SHIFT = 20;
 
 /**
  * The one entry point for scheduling writes. Each operation validates first and writes
@@ -54,7 +61,12 @@ export class SchedulingService {
 			p_enrollments: payload.enrollments
 		});
 		if (error) {
-			throw new Error(`Atama oluşturulamadı: ${error.message}`);
+			throw new Error(
+				dbErrorMessage(
+					error,
+					'Kayıt oluşturulamadı. Seçilen saatler bu arada dolmuş olabilir; özeti yenileyip tekrar deneyin.'
+				)
+			);
 		}
 		// The RPC returns jsonb; its shape is fixed by the SQL function body.
 		return data as AssignmentResult;
@@ -72,7 +84,9 @@ export class SchedulingService {
 			p_end_date: endDate
 		});
 		if (error) {
-			throw new Error(`Grup dersi sonlandırılamadı: ${error.message}`);
+			throw new Error(
+				dbErrorMessage(error, 'Grup dersi sonlandırılamadı. Sayfayı yenileyip tekrar deneyin.')
+			);
 		}
 		// The RPC returns jsonb; its shape is fixed by the SQL function body.
 		return data as { deleted_count: number };
@@ -91,7 +105,12 @@ export class SchedulingService {
 			p_room_id: params.roomId,
 			p_consume_credit: params.consumeCredit
 		});
-		return error ? error.message : null;
+		return error
+			? dbErrorMessage(
+					error,
+					'Randevu taşınamadı. Saat bu arada dolmuş olabilir; takvimi yenileyip tekrar deneyin.'
+				)
+			: null;
 	}
 
 	/**
@@ -99,6 +118,12 @@ export class SchedulingService {
 	 * the same planning and conflict checks run and the result is the preview.
 	 */
 	async move(request: MoveRequest, dryRun: boolean): Promise<MoveResult> {
+		// Lessons that have started stay where they happened
+		const anchor = await new AppointmentRepository(this.supabase).getById(request.appointmentId);
+		if (!anchor) return moveResultFailure('Randevu bulunamadı');
+		if (!isAppointmentFuture(anchor.date, anchor.hour)) {
+			return moveResultFailure(STARTED_LESSON_ERROR);
+		}
 		switch (request.kind) {
 			case 'transfer':
 				return this.transferResources(request, dryRun);
@@ -121,8 +146,8 @@ export class SchedulingService {
 				return toMoveResult(outcome, true);
 			}
 			case 'slots': {
-				if (!Number.isInteger(request.slots) || request.slots < 1 || request.slots > 20) {
-					return moveResultFailure('Kaydırma sayısı 1 ile 20 arasında olmalı');
+				if (!isIntInRange(request.slots, 1, MAX_SLOT_SHIFT)) {
+					return moveResultFailure(`Kaydırma sayısı 1 ile ${MAX_SLOT_SHIFT} arasında olmalı`);
 				}
 				return toMoveResult(
 					await shiftSeriesBySlot(this.supabase, request.appointmentId, request.slots, dryRun),
@@ -130,6 +155,9 @@ export class SchedulingService {
 				);
 			}
 			case 'trainee_slots': {
+				if (!isIntInRange(request.slots, 1, MAX_SLOT_SHIFT)) {
+					return moveResultFailure(`Kaydırma sayısı 1 ile ${MAX_SLOT_SHIFT} arasında olmalı`);
+				}
 				const plan = await planTraineeSlotShift(
 					this.supabase,
 					request.appointmentId,
@@ -170,6 +198,8 @@ export class SchedulingService {
 					request.traineeId
 				);
 				if (typeof candidates === 'string') return moveResultFailure(candidates);
+				const pastError = pastWeeklyTargetError(candidates, request.weeks);
+				if (pastError) return moveResultFailure(pastError);
 				return this.describeTraineeWeeklyPreview(request.traineeId, candidates, request.weeks);
 			}
 		}
@@ -215,7 +245,13 @@ export class SchedulingService {
 				})
 				.eq('id', groupLessonId);
 			if (error) {
-				return { ...result, error: 'Grup dersi güncellenirken hata oluştu: ' + error.message };
+				return {
+					...result,
+					error: dbErrorMessage(
+						error,
+						'Randevular taşındı ama grup dersi bilgisi güncellenemedi. Grup dersini kontrol edin.'
+					)
+				};
 			}
 		}
 		return result;
@@ -249,7 +285,13 @@ export class SchedulingService {
 			})
 			.eq('id', input.groupLessonId);
 		if (error) {
-			return { ...result, error: 'Grup dersi güncellenirken hata oluştu: ' + error.message };
+			return {
+				...result,
+				error: dbErrorMessage(
+					error,
+					'Randevular taşındı ama grup dersi bilgisi güncellenemedi. Grup dersini kontrol edin.'
+				)
+			};
 		}
 		return result;
 	}

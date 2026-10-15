@@ -19,12 +19,12 @@
 	<legend class="mb-2 text-sm font-medium">{legend}</legend>
 	{#each slots as slot, i (i)}
 		<div class="flex items-center gap-2">
-			<NativeSelect bind:value={slot.day} aria-label="Gün">
+			<NativeSelect bind:value={slot.day} aria-label={`${i + 1}. ders günü`}>
 				{#each DAYS_OF_WEEK as day (day)}
 					<option value={day}>{DAY_NAMES[day]}</option>
 				{/each}
 			</NativeSelect>
-			<NativeSelect bind:value={slot.hour} aria-label="Saat">
+			<NativeSelect bind:value={slot.hour} aria-label={`${i + 1}. ders saati`}>
 				{#each SCHEDULE_HOURS as hour (hour)}
 					<option value={hour}>{getTimeString(hour)}</option>
 				{/each}
@@ -32,7 +32,8 @@
 			<Button
 				variant="ghost"
 				size="icon-sm"
-				aria-label="Saati kaldır"
+				class="max-md:size-11"
+				aria-label={`${i + 1}. ders saatini kaldır`}
 				disabled={slots.length <= min}
 				onclick={() => (slots = slots.filter((_, j) => j !== i))}
 			>

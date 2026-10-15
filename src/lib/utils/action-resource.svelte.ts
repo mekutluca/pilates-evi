@@ -4,18 +4,22 @@ import { actionResultMessage, postAction } from '$lib/utils/api-client';
 /**
  * Keeps the latest result of a form action of the current page: whenever the form
  * `request` builds changes, the action runs again (after `delay` ms of quiet) and older
- * answers are dropped. `request` returning null means there is nothing to ask yet.
+ * answers are dropped. `request` returning null means there is nothing to ask yet; `retry()`
+ * asks again after a failure. postAction never throws, so a lost connection ends as `failed`.
  * Call during component setup (it registers an effect).
  */
 export function actionResource<P extends ActionPayload>(
 	action: string,
 	request: () => FormData | null,
 	delay = 300
-): { readonly current: Loadable<P> } {
+): { readonly current: Loadable<P>; retry: () => void } {
 	let state = $state<Loadable<P>>({ status: 'idle' });
 	let token = 0;
+	// Bumped by retry() to run the same request again
+	let attempt = $state(0);
 
 	$effect(() => {
+		void attempt;
 		const form = request();
 		const current = ++token;
 		state = form ? { status: 'loading' } : { status: 'idle' };
@@ -34,6 +38,9 @@ export function actionResource<P extends ActionPayload>(
 	return {
 		get current() {
 			return state;
+		},
+		retry() {
+			attempt++;
 		}
 	};
 }

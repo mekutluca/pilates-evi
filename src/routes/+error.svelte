@@ -9,8 +9,8 @@
 	<div class="flex justify-center gap-2 md:justify-start">
 		<a href="/" class="font-medium">Pilates Evi</a>
 	</div>
-	<div class="flex flex-1 items-center justify-center">
+	<main class="flex flex-1 items-center justify-center">
 		<ErrorState status={page.status} message={page.error?.message} />
-	</div>
+	</main>
 	<p class="text-center text-xs text-muted-foreground">Build {version}</p>
 </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CauseField from './cause-field.svelte';
 	import type { CancelDialogProps } from '$lib/types/ComponentProps';
 	import type { CancelTraineeAction } from '$lib/types/Schedule';
 	import Modal from '$lib/components/modal.svelte';
@@ -6,7 +7,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group/index.js';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
@@ -68,8 +68,9 @@
 
 			{#if traineeCount > 0}
 				<div class="grid gap-2">
-					<Label>Öğrencilerin dersi ne olsun?</Label>
+					<Label id="cancel-action-label">Öğrencilerin dersi ne olsun?</Label>
 					<RadioGroup
+						aria-labelledby="cancel-action-label"
 						value={traineeAction}
 						onValueChange={(v) => (traineeAction = v as CancelTraineeAction)}
 					>
@@ -99,12 +100,7 @@
 					Öğrencilere WhatsApp ile bildir ({traineeCount} kişi)
 				</label>
 				{#if notify}
-					<Textarea
-						bind:value={cause}
-						rows={2}
-						placeholder="Sebep (mesajda yer alır)"
-						aria-label="Sebep"
-					/>
+					<CauseField bind:value={cause} id="cause-cancel" />
 				{/if}
 			{/if}
 		</div>

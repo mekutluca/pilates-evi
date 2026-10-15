@@ -50,7 +50,7 @@
 			"ink-muted": {
 				"role": "neutral",
 				"displayName": "Ink Muted",
-				"canonical": "oklch(0.553 0.013 58.071)"
+				"canonical": "oklch(0.51 0.013 58.071)"
 			},
 			"paper": { "role": "neutral", "displayName": "Paper", "canonical": "oklch(1 0 0)" },
 			"paper-dark": {
@@ -82,7 +82,7 @@
 			"conflict-red": {
 				"role": "state",
 				"displayName": "Conflict Red",
-				"canonical": "oklch(0.577 0.245 27.325)"
+				"canonical": "oklch(0.5 0.21 27.325)"
 			},
 			"attention-yellow": {
 				"role": "state",
@@ -154,7 +154,7 @@
 			"refersTo": "button-destructive",
 			"description": "Red tint, never solid.",
 			"html": "<button class=\"ds-btn-destructive\">Sil</button>",
-			"css": ".ds-btn-destructive { height:36px; padding:0 12px; border:1px solid transparent; border-radius:26px; background:oklch(0.577 0.245 27.325 / 10%); color:oklch(0.577 0.245 27.325); font:500 14px/1 'Nunito Sans Variable', sans-serif; cursor:pointer; transition:all .15s; } .ds-btn-destructive:hover { background:oklch(0.577 0.245 27.325 / 20%); } .ds-btn-destructive:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.577 0.245 27.325 / 20%); }"
+			"css": ".ds-btn-destructive { height:36px; padding:0 12px; border:1px solid transparent; border-radius:26px; background:oklch(0.5 0.21 27.325 / 10%); color:oklch(0.5 0.21 27.325); font:500 14px/1 'Nunito Sans Variable', sans-serif; cursor:pointer; transition:all .15s; } .ds-btn-destructive:hover { background:oklch(0.5 0.21 27.325 / 20%); } .ds-btn-destructive:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.5 0.21 27.325 / 20%); }"
 		},
 		{
 			"name": "Input",
@@ -162,7 +162,7 @@
 			"refersTo": "input",
 			"description": "Pill field with a 30% hairline fill.",
 			"html": "<input class=\"ds-input\" placeholder=\"Öğrenci ara\" />",
-			"css": ".ds-input { height:36px; width:240px; padding:4px 12px; border:1px solid oklch(0.923 0.003 48.717); border-radius:26px; background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; transition:color .15s, border-color .15s; } .ds-input::placeholder { color:oklch(0.553 0.013 58.071); } .ds-input:focus-visible { outline:none; border-color:oklch(0.709 0.01 56.259); box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); }"
+			"css": ".ds-input { height:36px; width:240px; padding:4px 12px; border:1px solid oklch(0.923 0.003 48.717); border-radius:26px; background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; transition:color .15s, border-color .15s; } .ds-input::placeholder { color:oklch(0.51 0.013 58.071); } .ds-input:focus-visible { outline:none; border-color:oklch(0.709 0.01 56.259); box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); }"
 		},
 		{
 			"name": "Sidebar Navigation",
@@ -170,7 +170,7 @@
 			"refersTo": "nav-item-active",
 			"description": "Grouped sidebar; active item is the solid orange.",
 			"html": "<nav class=\"ds-nav\"><p class=\"ds-nav-group\">Stüdyo</p><a class=\"ds-nav-item ds-active\" href=\"#\">Panel</a><a class=\"ds-nav-item\" href=\"#\">Takvim</a><a class=\"ds-nav-item\" href=\"#\">Öğrenciler</a></nav>",
-			"css": ".ds-nav { width:224px; padding:16px; background:oklch(1 0 0); font-family:'Nunito Sans Variable', sans-serif; display:flex; flex-direction:column; gap:4px; } .ds-nav-group { margin:0 0 4px; padding:0 12px; font-size:12px; font-weight:600; color:oklch(0.553 0.013 58.071); } .ds-nav-item { display:flex; padding:8px 12px; border-radius:10px; font-size:14px; color:oklch(0.147 0.004 49.25); text-decoration:none; transition:background .15s; } .ds-nav-item:hover { background:oklch(0.97 0.001 106.424); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-nav-item.ds-active { background:oklch(0.553 0.195 38.402); color:oklch(0.98 0.016 73.684); font-weight:500; }"
+			"css": ".ds-nav { width:224px; padding:16px; background:oklch(1 0 0); font-family:'Nunito Sans Variable', sans-serif; display:flex; flex-direction:column; gap:4px; } .ds-nav-group { margin:0 0 4px; padding:0 12px; font-size:12px; font-weight:600; color:oklch(0.51 0.013 58.071); } .ds-nav-item { display:flex; padding:8px 12px; border-radius:10px; font-size:14px; color:oklch(0.147 0.004 49.25); text-decoration:none; transition:background .15s; } .ds-nav-item:hover { background:oklch(0.97 0.001 106.424); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-nav-item.ds-active { background:oklch(0.553 0.195 38.402); color:oklch(0.98 0.016 73.684); font-weight:500; }"
 		},
 		{
 			"name": "Badges",
@@ -178,7 +178,7 @@
 			"refersTo": "badge-secondary",
 			"description": "Secondary (Sıradaki), outline (Grup), warning (renewal due), destructive (conflict).",
 			"html": "<span class=\"ds-badge ds-badge-secondary\">Sıradaki</span> <span class=\"ds-badge ds-badge-outline\">Grup</span> <span class=\"ds-badge ds-badge-warning\">Son ders</span> <span class=\"ds-badge ds-badge-destructive\">Çakışma</span>",
-			"css": ".ds-badge { display:inline-flex; align-items:center; height:20px; padding:2px 8px; border:1px solid transparent; border-radius:26px; font:500 12px/1 'Nunito Sans Variable', sans-serif; } .ds-badge-secondary { background:oklch(0.967 0.001 286.375); color:oklch(0.21 0.006 285.885); } .ds-badge-outline { border-color:oklch(0.923 0.003 48.717); background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); } .ds-badge-warning { background:oklch(0.823 0.162 81.1 / 15%); color:oklch(0.48 0.11 72); } .ds-badge-destructive { background:oklch(0.577 0.245 27.325 / 10%); color:oklch(0.577 0.245 27.325); }"
+			"css": ".ds-badge { display:inline-flex; align-items:center; height:20px; padding:2px 8px; border:1px solid transparent; border-radius:26px; font:500 12px/1 'Nunito Sans Variable', sans-serif; } .ds-badge-secondary { background:oklch(0.967 0.001 286.375); color:oklch(0.21 0.006 285.885); } .ds-badge-outline { border-color:oklch(0.923 0.003 48.717); background:oklch(0.923 0.003 48.717 / 30%); color:oklch(0.147 0.004 49.25); } .ds-badge-warning { background:oklch(0.823 0.162 81.1 / 15%); color:oklch(0.48 0.11 72); } .ds-badge-destructive { background:oklch(0.5 0.21 27.325 / 10%); color:oklch(0.5 0.21 27.325); }"
 		},
 		{
 			"name": "Card",
@@ -186,7 +186,7 @@
 			"refersTo": "card",
 			"description": "Paper card, 18px radius, 10% ink ring, no shadow.",
 			"html": "<div class=\"ds-card\"><h3>Bugün</h3><p>3 randevu · bu hafta 17 randevu</p></div>",
-			"css": ".ds-card { width:320px; padding:24px; border-radius:18px; background:oklch(1 0 0); box-shadow:0 0 0 1px oklch(0.147 0.004 49.25 / 10%); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); } .ds-card h3 { margin:0 0 6px; font-size:16px; font-weight:500; } .ds-card p { margin:0; color:oklch(0.553 0.013 58.071); }"
+			"css": ".ds-card { width:320px; padding:24px; border-radius:18px; background:oklch(1 0 0); box-shadow:0 0 0 1px oklch(0.147 0.004 49.25 / 10%); font:400 14px/1.43 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); } .ds-card h3 { margin:0 0 6px; font-size:16px; font-weight:500; } .ds-card p { margin:0; color:oklch(0.51 0.013 58.071); }"
 		},
 		{
 			"name": "Pattern Chip",
@@ -202,7 +202,7 @@
 			"refersTo": "meter-orange",
 			"description": "Done share in Meter Orange; quiet fill and amber count when a renewal is due.",
 			"html": "<div class=\"ds-meter\"><span class=\"ds-meter-track\"><span class=\"ds-meter-fill\" style=\"width:62%\"></span></span><span class=\"ds-meter-count\">3 ders kaldı</span></div><div class=\"ds-meter ds-due\"><span class=\"ds-meter-track\"><span class=\"ds-meter-fill\" style=\"width:92%\"></span></span><span class=\"ds-meter-count\">1 ders kaldı</span></div>",
-			"css": ".ds-meter { display:flex; align-items:center; gap:12px; width:320px; margin:6px 0; font-family:'Nunito Sans Variable', sans-serif; } .ds-meter-track { flex:1; min-width:64px; height:6px; overflow:hidden; border-radius:999px; background:oklch(0.97 0.001 106.424); } .ds-meter-fill { display:block; height:100%; border-radius:999px; background:oklch(0.705 0.213 47.604); transition:width .5s ease-out; } .ds-meter-count { font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; color:oklch(0.553 0.013 58.071); } .ds-due .ds-meter-fill { background:oklch(0.147 0.004 49.25 / 25%); } .ds-due .ds-meter-count { color:oklch(0.48 0.11 72); }"
+			"css": ".ds-meter { display:flex; align-items:center; gap:12px; width:320px; margin:6px 0; font-family:'Nunito Sans Variable', sans-serif; } .ds-meter-track { flex:1; min-width:64px; height:6px; overflow:hidden; border-radius:999px; background:oklch(0.97 0.001 106.424); } .ds-meter-fill { display:block; height:100%; border-radius:999px; background:oklch(0.705 0.213 47.604); transition:width .5s ease-out; } .ds-meter-count { font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; color:oklch(0.51 0.013 58.071); } .ds-due .ds-meter-fill { background:oklch(0.147 0.004 49.25 / 25%); } .ds-due .ds-meter-count { color:oklch(0.48 0.11 72); }"
 		},
 		{
 			"name": "Lesson Block",
@@ -210,7 +210,7 @@
 			"refersTo": "lesson-block",
 			"description": "A booked lesson on the week board: orange tint, renewal flag in amber, conflict in red tint.",
 			"html": "<button class=\"ds-lesson\"><b>Reformer Pilates</b><span>Ayşe Yılmaz</span><span class=\"ds-dim\">Hoca Eğitmen</span><span class=\"ds-flag\">Son ders</span></button> <button class=\"ds-lesson ds-conflict\"><b>Grup Zumba</b><span>13/12 · Cansu, Melis</span><span class=\"ds-red\">Kapasite aşıldı</span></button>",
-			"css": ".ds-lesson { display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; width:150px; height:76px; padding:6px 8px; border:none; border-radius:8px; background:oklch(0.553 0.195 38.402 / 10%); box-shadow:inset 0 0 0 1px oklch(0.553 0.195 38.402 / 25%); font:400 12px/1.33 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); text-align:left; cursor:pointer; transition:background .15s; } .ds-lesson:hover { background:oklch(0.553 0.195 38.402 / 15%); } .ds-lesson:focus-visible { outline:none; box-shadow:inset 0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-lesson b { font-weight:600; } .ds-dim { color:oklch(0.147 0.004 49.25 / 60%); } .ds-flag { font-weight:600; color:oklch(0.48 0.11 72); } .ds-conflict { background:oklch(0.577 0.245 27.325 / 10%); box-shadow:inset 0 0 0 1px oklch(0.577 0.245 27.325 / 30%); } .ds-conflict:hover { background:oklch(0.577 0.245 27.325 / 15%); } .ds-red { font-weight:600; color:oklch(0.577 0.245 27.325); }"
+			"css": ".ds-lesson { display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; width:150px; height:76px; padding:6px 8px; border:none; border-radius:8px; background:oklch(0.553 0.195 38.402 / 10%); box-shadow:inset 0 0 0 1px oklch(0.553 0.195 38.402 / 25%); font:400 12px/1.33 'Nunito Sans Variable', sans-serif; color:oklch(0.147 0.004 49.25); text-align:left; cursor:pointer; transition:background .15s; } .ds-lesson:hover { background:oklch(0.553 0.195 38.402 / 15%); } .ds-lesson:focus-visible { outline:none; box-shadow:inset 0 0 0 3px oklch(0.709 0.01 56.259 / 50%); } .ds-lesson b { font-weight:600; } .ds-dim { color:oklch(0.147 0.004 49.25 / 60%); } .ds-flag { font-weight:600; color:oklch(0.48 0.11 72); } .ds-conflict { background:oklch(0.5 0.21 27.325 / 10%); box-shadow:inset 0 0 0 1px oklch(0.5 0.21 27.325 / 30%); } .ds-conflict:hover { background:oklch(0.5 0.21 27.325 / 15%); } .ds-red { font-weight:600; color:oklch(0.5 0.21 27.325); }"
 		}
 	],
 	"narrative": {

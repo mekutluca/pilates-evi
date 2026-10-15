@@ -22,6 +22,21 @@ export function isValidWeekShift(weeks: number): boolean {
 
 export const WEEK_SHIFT_ERROR = 'Kaydırma süresi -52 ile 52 hafta arasında olmalı';
 
+/** A whole number from `min` to `max` (form numbers arrive as NaN when empty). */
+export function isIntInRange(value: number | null | undefined, min: number, max: number): boolean {
+	return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+}
+
+// A kayıt's length limits, shared by the wizard and the server: periods of a private
+// package, weeks of group lessons, and the longest package
+export const MAX_PERIODS = 12;
+export const MAX_GROUP_WEEKS = 26;
+export const MAX_PACKAGE_WEEKS = 52;
+
+// Supabase Auth's own minimum; checked on the server before any auth call
+export const MIN_PASSWORD_LENGTH = 6;
+export const PASSWORD_LENGTH_ERROR = `Şifre en az ${MIN_PASSWORD_LENGTH} karakter olmalı`;
+
 export const validation = {
 	email: {
 		pattern: '[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}',

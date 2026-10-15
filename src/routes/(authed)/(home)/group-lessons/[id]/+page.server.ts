@@ -73,7 +73,7 @@ export const actions: Actions = {
 
 		const notified = notify
 			? await new NotificationService().notify(result.changes, { kind: 'system', cause })
-			: 0;
+			: null;
 		return {
 			success: true,
 			message: `${result.rows.length} randevu taşındı.${notifiedSuffix(notified)}`

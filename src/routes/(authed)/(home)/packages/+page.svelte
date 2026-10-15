@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { actionResultMessage, postAction } from '$lib/utils/api-client';
+	import { invalidateAll } from '$app/navigation';
+	import { enhanceForm } from '$lib/utils/enhance';
 	import { badgeHtml } from '$lib/utils/html-utils';
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
@@ -14,7 +17,6 @@
 	import PackageCreationForm from '$lib/components/package-creation-form.svelte';
 	import type { ActionItem } from '$lib/types';
 	import type { CreatePackageForm, PackageWithPurchases } from '$lib/types';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -83,7 +85,7 @@
 			});
 		} else {
 			baseActions.push({
-				label: 'Geri Yükle',
+				label: 'Geri yükle',
 				handler: (id) => {
 					const p = packages.find((p) => p.id === String(id));
 					if (p) openRestoreModal(p);
@@ -102,6 +104,7 @@
 		},
 		{
 			key: 'weeks_duration',
+			class: 'hidden md:table-cell',
 			title: 'Süre',
 			render: (pkg: PackageWithPurchases) => {
 				return pkg.weeks_duration ? `${pkg.weeks_duration} hafta` : 'Devamlı';
@@ -116,6 +119,7 @@
 		},
 		{
 			key: 'min_lessons_per_week',
+			class: 'hidden md:table-cell',
 			title: 'Haftalık ders',
 			render: (pkg: PackageWithPurchases) => {
 				const min = pkg.min_lessons_per_week;
@@ -125,6 +129,7 @@
 		},
 		{
 			key: 'max_capacity',
+			class: 'hidden md:table-cell',
 			title: 'En fazla kişi',
 			render: (pkg: PackageWithPurchases) => {
 				return `${pkg.max_capacity} kişi`;
@@ -172,92 +177,50 @@
 		editRescheduleLimit = null;
 	}
 
-	function handleEditPackage() {
+	async function handleEditPackage() {
 		if (!selectedPackage) return;
+		const counts = [editMinLessonsPerWeek, editMaxLessonsPerWeek, editMaxCapacity];
+		if (counts.some((n) => !Number.isInteger(n) || n < 1)) {
+			toast.error('Haftalık ders ve kişi sayısı alanlarını doldurun');
+			return;
+		}
 
-		// Submit the edit form
-		const form = document.createElement('form');
-		form.method = 'POST';
-		form.action = '?/editPackage';
-		form.style.display = 'none';
+		// weeks_duration and package_type are not editable
+		const fd = new FormData();
+		fd.set('packageId', selectedPackage.id);
+		fd.set('name', editName);
+		fd.set('description', editDescription);
+		fd.set('min_lessons_per_week', String(editMinLessonsPerWeek));
+		fd.set('max_lessons_per_week', String(editMaxLessonsPerWeek));
+		fd.set('max_capacity', String(editMaxCapacity));
+		fd.set('reschedulable', String(editReschedulable));
+		fd.set('reschedule_limit', editRescheduleLimit === null ? '' : String(editRescheduleLimit));
 
-		// Create form data (excluding non-editable fields: weeks_duration, package_type)
-		const formFields = [
-			{ name: 'packageId', value: selectedPackage.id.toString() },
-			{ name: 'name', value: editName },
-			{ name: 'description', value: editDescription },
-			{ name: 'min_lessons_per_week', value: editMinLessonsPerWeek.toString() },
-			{ name: 'max_lessons_per_week', value: editMaxLessonsPerWeek.toString() },
-			{ name: 'max_capacity', value: editMaxCapacity.toString() },
-			{ name: 'reschedulable', value: editReschedulable.toString() },
-			{ name: 'reschedule_limit', value: editRescheduleLimit?.toString() || '' }
-		];
-
-		formFields.forEach(({ name, value }) => {
-			const input = document.createElement('input');
-			input.name = name;
-			input.value = value;
-			form.appendChild(input);
-		});
-
-		document.body.appendChild(form);
-
-		// Use form submission with enhance
-		enhance(form, () => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Paket güncellendi');
-					closeEditModal();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-				document.body.removeChild(form);
-			};
-		});
-
-		// Trigger form submission
-		form.dispatchEvent(new Event('submit', { bubbles: true }));
+		formLoading = true;
+		const result = await postAction('editPackage', fd);
+		formLoading = false;
+		if (result.type === 'success') {
+			toast.success('Paket güncellendi');
+			closeEditModal();
+			await invalidateAll();
+		} else {
+			toast.error(actionResultMessage(result));
+		}
 	}
 
-	function handleCreatePackage(packageForm: CreatePackageForm) {
-		// Submit the form data
-		const form = document.createElement('form');
-		form.method = 'POST';
-		form.action = '?/createPackage';
-		form.style.display = 'none';
-
-		const packageDataInput = document.createElement('input');
-		packageDataInput.name = 'packageData';
-		packageDataInput.value = JSON.stringify(packageForm);
-
-		form.appendChild(packageDataInput);
-		document.body.appendChild(form);
-
-		// Use form submission with enhance
-		enhance(form, () => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Paket oluşturuldu');
-					showCreateModal = false;
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-				document.body.removeChild(form);
-			};
-		});
-
-		// Trigger form submission
-		form.dispatchEvent(new Event('submit', { bubbles: true }));
+	async function handleCreatePackage(packageForm: CreatePackageForm) {
+		const fd = new FormData();
+		fd.set('packageData', JSON.stringify(packageForm));
+		formLoading = true;
+		const result = await postAction('createPackage', fd);
+		formLoading = false;
+		if (result.type === 'success') {
+			toast.success('Paket oluşturuldu');
+			showCreateModal = false;
+			await invalidateAll();
+		} else {
+			toast.error(actionResultMessage(result));
+		}
 	}
 
 	function handleCancelCreate() {
@@ -306,153 +269,142 @@
 		defaultSortKey="created_at"
 		defaultSortOrder="desc"
 		actions={getTableActions}
+		rowLabel={(pkg) => pkg.name}
 	/>
 </div>
 
 <!-- Create Package Modal -->
 <Modal bind:open={showCreateModal} title="Yeni paket" size="xl" onClose={handleCancelCreate}>
-	{#if formLoading}
-		<div class="flex items-center justify-center py-8">
-			<LoaderCircle size={32} class="animate-spin text-primary" />
-			<span class="ml-2">Paket oluşturuluyor…</span>
-		</div>
-	{:else}
-		<PackageCreationForm
-			onSubmit={handleCreatePackage}
-			onCancel={handleCancelCreate}
-			isVisible={showCreateModal}
-		/>
-	{/if}
+	<!-- Stays mounted while saving, so a failed save keeps what was typed -->
+	<PackageCreationForm
+		onSubmit={handleCreatePackage}
+		onCancel={handleCancelCreate}
+		isVisible={showCreateModal}
+		submitting={formLoading}
+	/>
 </Modal>
 
 <!-- Edit Package Modal -->
 <Modal bind:open={showEditModal} title="Paketi düzenle" size="xl" onClose={closeEditModal}>
-	{#if formLoading}
-		<div class="flex items-center justify-center py-8">
-			<LoaderCircle size={32} class="animate-spin text-primary" />
-			<span class="ml-2">Paket kaydediliyor…</span>
+	<div class="space-y-4">
+		<!-- Package Name -->
+		<div class="grid gap-2">
+			<Label for="edit-name" class="font-medium">Paket adı *</Label>
+			<Input id="edit-name" type="text" bind:value={editName} placeholder="Paket adı" required />
 		</div>
-	{:else}
-		<div class="space-y-4">
-			<!-- Package Name -->
-			<div class="grid gap-2">
-				<Label for="edit-name" class="font-medium">Paket adı *</Label>
-				<Input id="edit-name" type="text" bind:value={editName} placeholder="Paket adı" required />
-			</div>
 
-			<!-- Description -->
+		<!-- Description -->
+		<div class="grid gap-2">
+			<Label for="edit-description" class="font-medium">Açıklama</Label>
+			<Textarea
+				id="edit-description"
+				bind:value={editDescription}
+				placeholder="Paket açıklaması (isteğe bağlı)"
+				rows={3}
+			/>
+		</div>
+
+		<!-- Duration (Non-editable) and Lessons per week (Editable) -->
+		<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 			<div class="grid gap-2">
-				<Label for="edit-description" class="font-medium">Açıklama</Label>
-				<Textarea
-					id="edit-description"
-					bind:value={editDescription}
-					placeholder="Paket açıklaması (isteğe bağlı)"
-					rows={3}
+				<Label for="edit-weeks-duration" class="flex items-center justify-between font-medium">
+					<span>Süre (hafta)</span>
+					<span class="text-xs text-muted-foreground">Değiştirilemez</span>
+				</Label>
+				<Input
+					id="edit-weeks-duration"
+					type="number"
+					value={editWeeksDuration}
+					disabled
+					readonly
+					title="Bu değer değiştirilemez. Farklı süre için yeni paket oluşturun."
 				/>
 			</div>
 
-			<!-- Duration (Non-editable) and Lessons per week (Editable) -->
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<div class="grid gap-2">
-					<Label for="edit-weeks-duration" class="flex items-center justify-between font-medium">
-						<span>Süre (hafta)</span>
-						<span class="text-xs text-muted-foreground">Değiştirilemez</span>
-					</Label>
-					<Input
-						id="edit-weeks-duration"
-						type="number"
-						value={editWeeksDuration}
-						disabled
-						readonly
-						title="Bu değer değiştirilemez. Farklı süre için yeni paket oluşturun."
-					/>
-				</div>
-
-				<div class="grid gap-2">
-					<Label for="edit-min-lessons-per-week" class="font-medium">Haftada en az ders *</Label>
-					<Input
-						id="edit-min-lessons-per-week"
-						type="number"
-						bind:value={editMinLessonsPerWeek}
-						min="1"
-						max="7"
-						required
-					/>
-				</div>
-
-				<div class="grid gap-2">
-					<Label for="edit-max-lessons-per-week" class="font-medium">Haftada en fazla ders *</Label>
-					<Input
-						id="edit-max-lessons-per-week"
-						type="number"
-						bind:value={editMaxLessonsPerWeek}
-						min="1"
-						max="7"
-						required
-					/>
-				</div>
+			<div class="grid gap-2">
+				<Label for="edit-min-lessons-per-week" class="font-medium">Haftada en az ders *</Label>
+				<Input
+					id="edit-min-lessons-per-week"
+					type="number"
+					bind:value={editMinLessonsPerWeek}
+					min="1"
+					max="7"
+					required
+				/>
 			</div>
 
-			<!-- Capacity and Trainee Type -->
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-				<div class="grid gap-2">
-					<Label for="edit-max-capacity" class="font-medium">En fazla kişi *</Label>
-					<Input
-						id="edit-max-capacity"
-						type="number"
-						bind:value={editMaxCapacity}
-						min="1"
-						max="50"
-						required
-					/>
-				</div>
-
-				<div class="grid gap-2">
-					<Label for="edit-trainee-type" class="flex items-center justify-between font-medium">
-						<span>Paket türü</span>
-						<span class="text-xs text-muted-foreground">Değiştirilemez</span>
-					</Label>
-					<Input
-						id="edit-trainee-type"
-						type="text"
-						value={editPackageType === 'private'
-							? 'Özel - Belirli öğrencilerle'
-							: 'Grup - Esnek öğrenci katılımı'}
-						disabled
-						readonly
-						title="Bu değer değiştirilemez. Farklı tür için yeni paket oluşturun."
-					/>
-				</div>
-			</div>
-
-			<!-- Rescheduling Options -->
-			<div class="space-y-3">
-				<div class="flex items-center gap-3">
-					<Checkbox id="edit-reschedulable" bind:checked={editReschedulable} />
-					<Label for="edit-reschedulable" class="cursor-pointer font-medium">
-						Randevu değişikliğine izin ver
-					</Label>
-				</div>
-
-				{#if editReschedulable}
-					<div class="grid gap-2">
-						<Label for="edit-reschedule-limit" class="flex items-center justify-between">
-							<span>Değişiklik hakkı</span>
-							<span class="text-xs text-muted-foreground">Boş bırakırsanız sınırsız</span>
-						</Label>
-						<Input
-							id="edit-reschedule-limit"
-							type="number"
-							class="md:w-48"
-							bind:value={editRescheduleLimit}
-							min="1"
-							placeholder="Örn: 3"
-						/>
-					</div>
-				{/if}
+			<div class="grid gap-2">
+				<Label for="edit-max-lessons-per-week" class="font-medium">Haftada en fazla ders *</Label>
+				<Input
+					id="edit-max-lessons-per-week"
+					type="number"
+					bind:value={editMaxLessonsPerWeek}
+					min="1"
+					max="7"
+					required
+				/>
 			</div>
 		</div>
-	{/if}
+
+		<!-- Capacity and Trainee Type -->
+		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<div class="grid gap-2">
+				<Label for="edit-max-capacity" class="font-medium">En fazla kişi *</Label>
+				<Input
+					id="edit-max-capacity"
+					type="number"
+					bind:value={editMaxCapacity}
+					min="1"
+					max="50"
+					required
+				/>
+			</div>
+
+			<div class="grid gap-2">
+				<Label for="edit-trainee-type" class="flex items-center justify-between font-medium">
+					<span>Paket türü</span>
+					<span class="text-xs text-muted-foreground">Değiştirilemez</span>
+				</Label>
+				<Input
+					id="edit-trainee-type"
+					type="text"
+					value={editPackageType === 'private'
+						? 'Özel - Belirli öğrencilerle'
+						: 'Grup - Esnek öğrenci katılımı'}
+					disabled
+					readonly
+					title="Bu değer değiştirilemez. Farklı tür için yeni paket oluşturun."
+				/>
+			</div>
+		</div>
+
+		<!-- Rescheduling Options -->
+		<div class="space-y-3">
+			<div class="flex items-center gap-3">
+				<Checkbox id="edit-reschedulable" bind:checked={editReschedulable} />
+				<Label for="edit-reschedulable" class="cursor-pointer font-medium">
+					Randevu değişikliğine izin ver
+				</Label>
+			</div>
+
+			{#if editReschedulable}
+				<div class="grid gap-2">
+					<Label for="edit-reschedule-limit" class="flex items-center justify-between">
+						<span>Değişiklik hakkı</span>
+						<span class="text-xs text-muted-foreground">Boş bırakırsanız sınırsız</span>
+					</Label>
+					<Input
+						id="edit-reschedule-limit"
+						type="number"
+						class="md:w-48"
+						bind:value={editRescheduleLimit}
+						min="1"
+						placeholder="Örn: 3"
+					/>
+				</div>
+			{/if}
+		</div>
+	</div>
 
 	<ModalFooter>
 		<Button variant="ghost" onclick={closeEditModal} disabled={formLoading}>Vazgeç</Button>
@@ -477,20 +429,14 @@
 		method="POST"
 		action="?/archivePackage"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Paket arşivlendi');
-					showArchiveModal = false;
-					selectedPackage = null;
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Paket arşivlendi',
+			onSuccess: () => {
+				showArchiveModal = false;
+				selectedPackage = null;
+			}
+		})}
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
@@ -511,7 +457,7 @@
 				{:else}
 					<Archive size={16} />
 				{/if}
-				Arşivle
+				Paketi arşivle
 			</Button>
 		</ModalFooter>
 	</form>
@@ -526,20 +472,14 @@
 		method="POST"
 		action="?/restorePackage"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Paket geri yüklendi');
-					showRestoreModal = false;
-					selectedPackage = null;
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Paket geri yüklendi',
+			onSuccess: () => {
+				showRestoreModal = false;
+				selectedPackage = null;
+			}
+		})}
 	>
 		<input type="hidden" name="packageId" value={selectedPackage?.id} />
 
@@ -560,7 +500,7 @@
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
-				Geri Yükle
+				Paketi geri yükle
 			</Button>
 		</ModalFooter>
 	</form>

@@ -14,6 +14,7 @@
 	import StatStrip from '$lib/components/stat-strip.svelte';
 	import { cn } from '$lib/utils';
 	import { isRenewalDue } from '$lib/utils/appointment-utils';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
 	import { getTimeString } from '$lib/types/Schedule';
 
@@ -145,6 +146,7 @@
 				{:else}
 					<ul class="divide-y">
 						{#each lesson.members as member (member.traineeId)}
+							{@const renewalDue = isRenewalDue(member.lastDate)}
 							<li class="flex items-center justify-between gap-3 py-2 text-sm">
 								<span>
 									<a href={`/trainees/${member.traineeId}`} class="font-medium hover:underline">
@@ -152,13 +154,13 @@
 									</a>
 									<span
 										class={cn(
-											'block',
-											isRenewalDue(member.lastDate)
-												? 'font-medium text-warning-foreground'
-												: 'text-muted-foreground'
+											'flex items-center gap-1',
+											renewalDue ? 'font-medium text-warning-foreground' : 'text-muted-foreground'
 										)}
 									>
+										{#if renewalDue}<CalendarClock class="size-3.5" aria-hidden="true" />{/if}
 										{member.upcomingCount} ders kaldı · son {formatShortDate(member.lastDate)}
+										{#if renewalDue}<span class="sr-only">, yenileme zamanı</span>{/if}
 									</span>
 								</span>
 								<Button
@@ -166,7 +168,7 @@
 									size="sm"
 									href={`/trainees/${member.traineeId}/renew/${member.purchaseId}`}
 								>
-									Yenile
+									Yenile<span class="sr-only">: {member.name}</span>
 								</Button>
 							</li>
 						{/each}

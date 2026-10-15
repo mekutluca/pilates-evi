@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import { enhanceForm } from '$lib/utils/enhance';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Edit from '@lucide/svelte/icons/edit';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -9,11 +9,9 @@
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
 	import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
 	import type { Trainee } from '$lib/types';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { escapeHtml } from '$lib/utils/html-utils';
 	import { formatPhoneDisplay } from '$lib/utils/phone-utils';
 	import Modal from '$lib/components/modal.svelte';
@@ -24,7 +22,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
-	import { formatShortDisplayDate } from '$lib/utils/date-utils';
+	import { formatDisplayDate } from '$lib/utils/date-utils';
 
 	let { data } = $props();
 	let { trainees: initialTrainees, userRole } = $derived(data);
@@ -78,7 +76,7 @@
 			});
 		} else {
 			baseActions.push({
-				label: 'Geri Yükle',
+				label: 'Geri yükle',
 				handler: (id?: string | number) => {
 					const t = trainees.find((t) => t.id === String(id));
 					if (t) openRestoreModal(t);
@@ -97,6 +95,7 @@
 		},
 		{
 			key: 'email',
+			class: 'hidden md:table-cell',
 			title: 'E-posta',
 			render: (trainee: Trainee) =>
 				trainee.email
@@ -111,9 +110,10 @@
 		},
 		{
 			key: 'created_at',
+			class: 'hidden md:table-cell',
 			title: 'Kayıt tarihi',
 			render: (trainee: Trainee) =>
-				trainee.created_at ? formatShortDisplayDate(trainee.created_at) : '-'
+				trainee.created_at ? formatDisplayDate(trainee.created_at) : '-'
 		}
 	];
 
@@ -189,29 +189,24 @@
 		defaultSortKey="name"
 		defaultSortOrder="asc"
 		actions={getTableActions}
-		onRowClick={(trainee) => goto(`/trainees/${trainee.id}`)}
+		rowHref={(trainee) => `/trainees/${trainee.id}`}
+		rowLabel={(trainee) => trainee.name}
 	/>
 </div>
 
-<Modal bind:open={showAddModal} title="Yeni Öğrenci Ekle" onClose={resetForm}>
+<Modal bind:open={showAddModal} title="Yeni öğrenci" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/createTrainee"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla oluşturuldu');
-					showAddModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Öğrenci başarıyla oluşturuldu',
+			onSuccess: () => {
+				showAddModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<div class="grid gap-2">
 			<Label for="add-trainee-name">Öğrenci Adı</Label>
@@ -280,25 +275,19 @@
 	</form>
 </Modal>
 
-<Modal bind:open={showEditModal} title="Öğrenci Düzenle" onClose={resetForm}>
+<Modal bind:open={showEditModal} title="Öğrenciyi düzenle" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/updateTrainee"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla güncellendi');
-					showEditModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Öğrenci başarıyla güncellendi',
+			onSuccess: () => {
+				showEditModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
@@ -369,7 +358,7 @@
 	</form>
 </Modal>
 
-<Modal bind:open={showArchiveModal} title="Öğrenciyi Arşivle" onClose={resetForm}>
+<Modal bind:open={showArchiveModal} title="Öğrenciyi arşivle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz? Arşivlenen
 		öğrenciler listede görünmez hale gelecektir.
@@ -378,20 +367,14 @@
 		method="POST"
 		action="?/archiveTrainee"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla arşivlendi');
-					showArchiveModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Öğrenci başarıyla arşivlendi',
+			onSuccess: () => {
+				showArchiveModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
@@ -412,13 +395,13 @@
 				{:else}
 					<Archive size={16} />
 				{/if}
-				Arşivle
+				Öğrenciyi arşivle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
-<Modal bind:open={showRestoreModal} title="Öğrenciyi Geri Yükle" onClose={resetForm}>
+<Modal bind:open={showRestoreModal} title="Öğrenciyi geri yükle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi geri yüklemek istediğinizden emin misiniz?
 		Öğrenci aktif öğrenciler listesinde görünür hale gelecektir.
@@ -427,20 +410,14 @@
 		method="POST"
 		action="?/restoreTrainee"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Öğrenci başarıyla geri yüklendi');
-					showRestoreModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Öğrenci başarıyla geri yüklendi',
+			onSuccess: () => {
+				showRestoreModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
@@ -461,7 +438,7 @@
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
-				Geri Yükle
+				Öğrenciyi geri yükle
 			</Button>
 		</ModalFooter>
 	</form>

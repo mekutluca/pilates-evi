@@ -1,3 +1,4 @@
+import type { NotifyResult } from '$lib/types/WhatsApp';
 import type { MoveReason, MoveRequest, TransferScope } from '$lib/types/Transfer';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 
@@ -55,7 +56,13 @@ export function wantsNotification(formData: FormData): boolean {
 	return getFormDataString(formData, 'notify') === 'true';
 }
 
-/** Appended to a success message when clients were messaged. */
-export function notifiedSuffix(count: number): string {
-	return count > 0 ? ` ${count} öğrenciye WhatsApp mesajı gönderildi.` : '';
+/** Appended to a success message when clients were messaged (null: not asked to). */
+export function notifiedSuffix(result: NotifyResult | null): string {
+	if (!result) return '';
+	const sent = result.sent > 0 ? ` ${result.sent} öğrenciye WhatsApp mesajı gönderildi.` : '';
+	const failed =
+		result.failed > 0
+			? ` ${result.failed} öğrenciye mesaj gönderilemedi; onlara ayrıca haber verin.`
+			: '';
+	return sent + failed;
 }

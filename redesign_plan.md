@@ -292,3 +292,16 @@ Structure and behavior only; Phase 3 re-skins. **Strict superset: nothing availa
 - **Week board rebuilt:** orange-tinted lesson blocks (package, trainees, other dimension), quiet free cells, today column, one-click room / trainer pills, week nav in the header, scroll to today on phones.
 - **Panel:** today as a timeline (past dimmed, Sıradaki), renewals with chip + meter + Yenile, new kayıtlar; phones read Bugün → renewals → new kayıtlar.
 - **Verification:** Playwright captures against the Demo org (seeded with synthetic data: 12 trainees noted `demo-veri`, 8 private kayıtlar, one Zumba group lesson); impeccable detector clean; finish review: two fix rounds, all findings resolved (the last two small fixes verified by capture only).
+
+## Phase 4 progress
+
+**2026-10-15 — hardening, phone layout, accessibility (uncommitted):**
+
+- **Copy:** one date vocabulary in `date-utils` ("14 Ekim 2026", "14 Eki", slot labels, week ranges); sentence-case menus and titles; confirm buttons name their object ("Öğrenciyi arşivle").
+- **Errors users see:** no raw Supabase/Auth text anywhere (`dbErrorMessage` / `authErrorMessage`: RPC messages and known Auth codes pass, the rest is a Turkish "what failed, what to do"); login form rewritten (no native submit, unreachable server vs wrong password vs generic, "Giriş yapılıyor…"); missing form fields are a readable 400; `enhanceForm` / `postAction` keep the form on network errors.
+- **Load failures:** week board, trainee page (failed vs not found), kayıtlar and layout lists fail visibly with a retry instead of looking empty; previews and group timeslots retry in place.
+- **Edge cases:** renewal can't start before the kayıt's last lesson; joined group lessons must be the package's and running; new private lessons need an active room and trainer; package numbers range-checked on the server; updates by id report not-found; past moves rejected; partial lesson deletes and failed WhatsApp sends are reported.
+- **Permissions:** admins can't change their own role; reset/update need an active membership; trainers and trainees get no studio lists (notes, emails) from the layout; Panel branches on role (trainees see a plain welcome).
+- **Phone:** modals and sheets fit `dvh` with sticky footers, secondary table columns hide below md, wizard footer and step pills compact, 44px touch targets on the small icon buttons.
+- **Accessibility:** contrast-safe muted text and red (recorded in DESIGN.md); skip link, nav labels, `main` landmarks, h1 on login/error, card titles as h2; sortable headers are buttons with `aria-sort`, rows are links; labelled radio groups, cause field, password hints, numbered weekly-slot fields; wizard packages are native radios (arrow keys) and focus moves to each step's heading; renewal due has an icon and words, not only amber; "→" moves read as "yeni saat / oda / eğitmen"; week picker is a labelled dialog (Escape, focus return, live week range); repeated row buttons and menus carry the row's name; theme menu uses radio items.
+- **Verification:** svelte-check, prettier, build clean; Playwright: login (wrong password toast, skip link first), every nav page, keyboard wizard, action probes for the new server checks, renewal start rule against the Demo org; phone/desktop captures; detector shows only the static `error.html` and stock calendar findings.

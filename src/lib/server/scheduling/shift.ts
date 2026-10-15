@@ -20,7 +20,13 @@ import {
 } from '$lib/server/scheduling/extension';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
 import { ConflictService } from '$lib/server/services/conflict-service';
-import { addWeeksToDate, getDayOfWeekFromDate, parseLocalDate } from '$lib/utils/date-utils';
+import {
+	addWeeksToDate,
+	formatSlotLabel,
+	getDayOfWeekFromDate,
+	isAppointmentFuture,
+	parseLocalDate
+} from '$lib/utils/date-utils';
 import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 import {
 	buildAppointmentSlotsFromStart,
@@ -28,6 +34,22 @@ import {
 	isSlotInPattern,
 	sortTimeSlots
 } from '$lib/utils/slot-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
+
+export const STARTED_LESSON_ERROR = 'Başlamış veya geçmiş randevular taşınamaz';
+
+function pastTargetError(date: string, hour: number): string {
+	return `${formatSlotLabel(date, hour)} geçmişte kalıyor; daha ileri bir tarih seçin`;
+}
+
+/** A trainee's weekly shift may not land any of their lessons in the past. */
+export function pastWeeklyTargetError(
+	candidates: WeeklyShiftCandidate[],
+	weeks: number
+): string | null {
+	const past = candidates.find((c) => !isAppointmentFuture(addWeeksToDate(c.date, weeks), c.hour));
+	return past ? pastTargetError(addWeeksToDate(past.date, weeks), past.hour) : null;
+}
 
 async function loadSlotShiftContext(
 	supabase: SupabaseClientType,
@@ -104,7 +126,12 @@ async function applyAppointmentMoves(
 ): Promise<string | null> {
 	if (moves.length === 0) return null;
 	const { error } = await supabase.rpc('pe_move_appointments', { p_moves: moves });
-	return error ? error.message : null;
+	return error
+		? dbErrorMessage(
+				error,
+				'Takvim bu arada değişmiş olabilir; önizlemeyi yenileyip tekrar deneyin.'
+			)
+		: null;
 }
 
 /**
@@ -119,7 +146,12 @@ export async function applyEnrollmentMoves(
 	const { error } = await supabase.rpc('pe_move_enrollments', {
 		p_moves: moves.map((m) => ({ id: m.recordId, appointment_id: m.newAppointmentId }))
 	});
-	return error ? error.message : null;
+	return error
+		? dbErrorMessage(
+				error,
+				'Takvim bu arada değişmiş olabilir; önizlemeyi yenileyip tekrar deneyin.'
+			)
+		: null;
 }
 
 /**
@@ -136,6 +168,12 @@ export async function applyPlannedMoves(
 	if (moved.length === 0) {
 		return moveFailure('Taşınacak randevu bulunamadı');
 	}
+	// Nothing moves out of or into the past
+	if (moved.some((m) => !isAppointmentFuture(m.appointment.date, m.appointment.hour))) {
+		return moveFailure(STARTED_LESSON_ERROR);
+	}
+	const pastTarget = moved.find((m) => !isAppointmentFuture(m.newDate, m.newHour));
+	if (pastTarget) return moveFailure(pastTargetError(pastTarget.newDate, pastTarget.newHour));
 	const planned = toPlannedMoves(moved).map((m) => ({
 		...m,
 		roomId: resources?.roomId ?? m.roomId,
@@ -378,7 +416,7 @@ async function loadMoveTargets(
 		.select('id, pe_group_lessons(pe_packages(max_capacity))')
 		.in('id', targetIds);
 	if (targetsError) {
-		return 'Hedef randevular kontrol edilirken hata: ' + targetsError.message;
+		return dbErrorMessage(targetsError, 'Hedef randevular kontrol edilemedi. Tekrar deneyin.');
 	}
 
 	const { data: enrollmentRows, error: enrollmentsError } = await supabase
@@ -386,7 +424,7 @@ async function loadMoveTargets(
 		.select('id, appointment_id, trainee_id')
 		.in('appointment_id', targetIds);
 	if (enrollmentsError) {
-		return 'Hedef randevu kayıtları kontrol edilirken hata: ' + enrollmentsError.message;
+		return dbErrorMessage(enrollmentsError, 'Hedef randevular kontrol edilemedi. Tekrar deneyin.');
 	}
 
 	return {
@@ -588,6 +626,8 @@ export async function shiftTraineeRecordsByWeeks(
 
 	const candidates = await listTraineeShiftCandidates(supabase, fromAppointmentId, traineeId);
 	if (typeof candidates === 'string') return { error: candidates, shifted: [], skippedCount: 0 };
+	const pastError = pastWeeklyTargetError(candidates, weeks);
+	if (pastError) return { error: pastError, shifted: [], skippedCount: 0 };
 
 	const { shiftMap, skippedCount } = await resolveWeeklyShiftTargets(supabase, candidates, weeks);
 	if (candidates.length > 0 && shiftMap.length === 0) {

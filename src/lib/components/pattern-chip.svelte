@@ -14,7 +14,7 @@
 
 <span
 	class={cn(
-		'inline-flex items-center gap-2 rounded-md border bg-card px-1.5 py-0.5 text-xs font-medium whitespace-nowrap',
+		'inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-card px-1.5 py-0.5 text-xs font-medium whitespace-nowrap',
 		className
 	)}
 >
@@ -25,5 +25,5 @@
 			></span>
 		{/each}
 	</span>
-	<span class="tabular-nums">{label}</span>
+	<span class="truncate tabular-nums" title={label}>{label}</span>
 </span>

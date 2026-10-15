@@ -1,8 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { getFormDataString } from '$lib/utils/form-utils';
-
-const MIN_PASSWORD_LENGTH = 6;
+import { authErrorMessage } from '$lib/server/db-errors';
+import { MIN_PASSWORD_LENGTH, PASSWORD_LENGTH_ERROR } from '$lib/utils/validation';
 
 export const actions: Actions = {
 	updateEmail: async ({ request, url, locals: { supabase, user } }) => {
@@ -29,7 +29,7 @@ export const actions: Actions = {
 		if (stampError) {
 			return fail(500, {
 				success: false,
-				message: 'E-posta güncellenirken hata: ' + stampError.message
+				message: authErrorMessage(stampError, 'E-posta güncellenemedi. Biraz sonra tekrar deneyin.')
 			});
 		}
 
@@ -44,7 +44,7 @@ export const actions: Actions = {
 		if (error) {
 			return fail(500, {
 				success: false,
-				message: 'E-posta güncellenirken hata: ' + error.message
+				message: authErrorMessage(error, 'E-posta güncellenemedi. Biraz sonra tekrar deneyin.')
 			});
 		}
 
@@ -65,10 +65,7 @@ export const actions: Actions = {
 			return fail(400, { success: false, message: 'Tüm alanlar gereklidir' });
 		}
 		if (newPassword.length < MIN_PASSWORD_LENGTH) {
-			return fail(400, {
-				success: false,
-				message: `Şifre en az ${MIN_PASSWORD_LENGTH} karakter olmalıdır`
-			});
+			return fail(400, { success: false, message: PASSWORD_LENGTH_ERROR });
 		}
 		if (newPassword !== newPasswordConfirm) {
 			return fail(400, { success: false, message: 'Yeni şifreler eşleşmiyor' });
@@ -89,7 +86,10 @@ export const actions: Actions = {
 
 		const { error } = await supabase.auth.updateUser({ password: newPassword });
 		if (error) {
-			return fail(500, { success: false, message: 'Şifre güncellenirken hata: ' + error.message });
+			return fail(500, {
+				success: false,
+				message: authErrorMessage(error, 'Şifre güncellenemedi. Tekrar deneyin.')
+			});
 		}
 
 		return { success: true, message: 'Şifreniz başarıyla güncellendi' };

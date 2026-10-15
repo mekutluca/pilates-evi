@@ -7,6 +7,7 @@
 	import { CardSkeleton } from '$lib/components/skeletons/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import LoadError from '$lib/components/load-error.svelte';
+	import * as Empty from '$lib/components/ui/empty/index.js';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
 	import LessonMeter from '$lib/components/lesson-meter.svelte';
 	import { cn } from '$lib/utils';
@@ -31,9 +32,11 @@
 		() => 'panel'
 	);
 	const isTrainer = $derived(data.userRole === 'trainer');
+	const isStaff = $derived(data.userRole === 'admin' || data.userRole === 'coordinator');
 
+	// Only staff can open the studio calendar
 	function lessonHref(lesson: PanelLesson): string | undefined {
-		return isTrainer
+		return !isStaff
 			? undefined
 			: `/schedule?view=room&room=${lesson.roomId}&week=${lesson.date}&appointment=${lesson.appointmentId}`;
 	}
@@ -85,6 +88,9 @@
 										? 'Henüz öğrenci yok'
 										: ''}
 							</span>
+							<span class="block truncate text-xs text-muted-foreground sm:hidden">
+								{lesson.roomName} · {lesson.trainerName}
+							</span>
 						</span>
 						<span class="hidden shrink-0 text-right text-muted-foreground sm:block">
 							{lesson.roomName}
@@ -105,7 +111,7 @@
 					<Calendar />
 					Takvimim
 				</Button>
-			{:else}
+			{:else if isStaff}
 				<Button href="/new-assignment">
 					<Plus />
 					Yeni kayıt
@@ -132,6 +138,15 @@
 		{@const panel = panelData.current}
 		{#if !panel}
 			<LoadError message="Panel yüklenemedi." />
+		{:else if panel.kind === 'trainee'}
+			<Empty.Root class="border">
+				<Empty.Header>
+					<Empty.Title>Hoş geldiniz</Empty.Title>
+					<Empty.Description>
+						Ders programınız ve paketiniz için stüdyonuzla iletişime geçin.
+					</Empty.Description>
+				</Empty.Header>
+			</Empty.Root>
 		{:else if panel.kind === 'trainer'}
 			<div class="grid gap-6 lg:grid-cols-2">
 				<Card.Root class="h-fit">
@@ -217,7 +232,7 @@
 												size="sm"
 												href={`/trainees/${kayit.traineeId}/renew/${kayit.purchaseId}`}
 											>
-												Yenile
+												Yenile<span class="sr-only">: {kayit.traineeName}</span>
 											</Button>
 										</div>
 										<PatternChip slots={kayit.slots} class="w-fit" />

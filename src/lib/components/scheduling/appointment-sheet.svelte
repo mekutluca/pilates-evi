@@ -33,9 +33,12 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="w-full gap-0 overflow-y-auto sm:max-w-md">
+	<Sheet.Content
+		side="right"
+		class="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+	>
 		{#if appointment}
-			<Sheet.Header class="border-b">
+			<Sheet.Header class="border-b pr-12">
 				<Sheet.Title>{appointment.package_name || 'Randevu'}</Sheet.Title>
 				<Sheet.Description>
 					{formatSlotLabel(appointment.date, appointment.hour)}–{getTimeString(
@@ -97,7 +100,7 @@
 											size="sm"
 											onclick={() => onMove?.({ id: trainee.id, name: trainee.name })}
 										>
-											Taşı
+											Taşı<span class="sr-only">: {trainee.name}</span>
 										</Button>
 									{/if}
 									{#if isStaff && enrollment.pe_trainees && enrollment.purchase_id}
@@ -106,7 +109,7 @@
 											size="sm"
 											href="/trainees/{enrollment.pe_trainees.id}/renew/{enrollment.purchase_id}"
 										>
-											Yenile
+											Yenile<span class="sr-only">: {enrollment.pe_trainees.name}</span>
 										</Button>
 									{/if}
 								</li>
@@ -118,7 +121,7 @@
 
 			{#if isStaff}
 				<Separator />
-				<Sheet.Footer class="flex-row flex-wrap gap-2">
+				<Sheet.Footer class="sticky bottom-0 flex-row flex-wrap gap-2 bg-popover">
 					{#if isUpcoming}
 						<Button onclick={() => onMove?.(null)}>
 							<MoveRight />

@@ -8,9 +8,15 @@ import { listGroupTimeslots } from '$lib/server/scheduling/group-lessons';
 import { planAssignment } from '$lib/server/scheduling/lesson-plan';
 import { parseAssignmentForm } from '$lib/server/scheduling/lesson-plan-form';
 import { SCHEDULE_HOURS } from '$lib/types/Schedule';
-import { getRequiredFormDataString } from '$lib/utils/form-utils';
+import { getFormDataString, getFormDataUuid } from '$lib/utils/form-utils';
 import { addDays, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
-import { isIsoDate, isValidUuid } from '$lib/utils/validation';
+import {
+	isIntInRange,
+	isIsoDate,
+	isValidUuid,
+	MAX_PACKAGE_WEEKS,
+	MAX_PERIODS
+} from '$lib/utils/validation';
 
 export const load: PageServerLoad = async ({ locals: { user, userRole }, url, parent }) => {
 	if (!user || (userRole !== 'admin' && userRole !== 'coordinator')) {
@@ -60,19 +66,20 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const formData = await request.formData();
-		const roomId = getRequiredFormDataString(formData, 'roomId');
-		const trainerId = getRequiredFormDataString(formData, 'trainerId');
-		const startDate = getRequiredFormDataString(formData, 'startDate');
-		const weeks = Number(getRequiredFormDataString(formData, 'weeks'));
+		const roomId = getFormDataUuid(formData, 'roomId');
+		const trainerId = getFormDataUuid(formData, 'trainerId');
+		const startDate = getFormDataString(formData, 'startDate');
+		const weeks = Number(getFormDataString(formData, 'weeks'));
 		if (
-			!isValidUuid(roomId) ||
-			!isValidUuid(trainerId) ||
+			!roomId ||
+			!trainerId ||
 			!isIsoDate(startDate) ||
-			!Number.isInteger(weeks) ||
-			weeks < 1 ||
-			weeks > 156
+			!isIntInRange(weeks, 1, MAX_PERIODS * MAX_PACKAGE_WEEKS)
 		) {
-			return fail(400, { success: false, message: 'Geçersiz parametre' });
+			return fail(400, {
+				success: false,
+				message: 'Doluluk kontrol edilemedi. Oda, eğitmen ve başlangıç tarihini kontrol edin.'
+			});
 		}
 
 		const busy = await new ConflictService(supabase).findBusyWeeklySlots({
@@ -88,8 +95,9 @@ export const actions: Actions = {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;
 
-		const packageId = getRequiredFormDataString(await request.formData(), 'packageId');
-		if (!isValidUuid(packageId)) return fail(400, { success: false, message: 'Geçersiz paket' });
+		const packageId = getFormDataUuid(await request.formData(), 'packageId');
+		if (!packageId)
+			return fail(400, { success: false, message: 'Paket bulunamadı. Sayfayı yenileyin.' });
 		return { success: true, timeslots: await listGroupTimeslots(supabase, packageId) };
 	},
 

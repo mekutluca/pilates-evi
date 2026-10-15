@@ -100,7 +100,7 @@
 				<Card.Content class="space-y-6">
 					<div class="grid gap-2">
 						<Label for="gl-package">Paket</Label>
-						<NativeSelect id="gl-package" bind:value={packageId}>
+						<NativeSelect class="w-full" id="gl-package" bind:value={packageId}>
 							{#each data.packages as p (p.id)}
 								<option value={p.id}>{p.name} (en fazla {p.max_capacity} kişi)</option>
 							{/each}
@@ -110,7 +110,7 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="grid gap-2">
 							<Label for="gl-room">Oda</Label>
-							<NativeSelect id="gl-room" bind:value={roomId}>
+							<NativeSelect class="w-full" id="gl-room" bind:value={roomId}>
 								{#each data.rooms as room (room.id)}
 									<option value={room.id}>{room.name}</option>
 								{/each}
@@ -118,7 +118,7 @@
 						</div>
 						<div class="grid gap-2">
 							<Label for="gl-trainer">Eğitmen</Label>
-							<NativeSelect id="gl-trainer" bind:value={trainerId}>
+							<NativeSelect class="w-full" id="gl-trainer" bind:value={trainerId}>
 								{#each data.trainers as trainer (trainer.id)}
 									<option value={trainer.id}>{trainer.name}</option>
 								{/each}
@@ -153,6 +153,7 @@
 						<p>{formatWeeklyPattern(slots)} · {roomName(roomId)} · {trainerName(trainerId)}</p>
 					{/if}
 					<LessonPlanSummary
+						onRetry={preview.retry}
 						plan={preview.current}
 						idleMessage="Haftalık ders saatlerini ekleyin."
 					/>

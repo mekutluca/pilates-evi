@@ -150,7 +150,7 @@
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="grid gap-2">
 							<Label for="renew-room">Oda</Label>
-							<NativeSelect id="renew-room" bind:value={roomId}>
+							<NativeSelect class="w-full" id="renew-room" bind:value={roomId}>
 								{#each rooms as room (room.id)}
 									<option value={room.id}>{room.name}</option>
 								{/each}
@@ -158,7 +158,7 @@
 						</div>
 						<div class="grid gap-2">
 							<Label for="renew-trainer">Eğitmen</Label>
-							<NativeSelect id="renew-trainer" bind:value={trainerId}>
+							<NativeSelect class="w-full" id="renew-trainer" bind:value={trainerId}>
 								{#each trainers as trainer (trainer.id)}
 									<option value={trainer.id}>{trainer.name}</option>
 								{/each}
@@ -197,7 +197,11 @@
 						{formatWeeklyPattern(timeSlots)} · {roomName(roomId)} · {trainerName(trainerId)}
 					</p>
 				{/if}
-				<LessonPlanSummary plan={preview.current} idleMessage="En az bir ders saati seçin." />
+				<LessonPlanSummary
+					plan={preview.current}
+					idleMessage="En az bir ders saati seçin."
+					onRetry={preview.retry}
+				/>
 			</Card.Content>
 			<Card.Footer class="flex justify-end gap-2">
 				<Button variant="outline" href={`/trainees/${traineeId}`}>Vazgeç</Button>

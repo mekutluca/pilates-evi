@@ -12,11 +12,12 @@
 		headerActions
 	}: ModalProps = $props();
 
+	// sm: prefixes keep the dialog's phone margin (max-w-[calc(100%-2rem)]) in place
 	const sizeClasses = {
-		sm: 'max-w-sm',
-		md: 'max-w-md',
-		lg: 'max-w-lg',
-		xl: 'max-w-5xl w-11/12'
+		sm: 'sm:max-w-sm',
+		md: 'sm:max-w-md',
+		lg: 'sm:max-w-lg',
+		xl: 'sm:max-w-5xl'
 	} as const;
 
 	function handleOpenChange(isOpen: boolean) {
@@ -28,7 +29,7 @@
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Content class={cn(sizeClasses[size])}>
+	<Dialog.Content class={cn('max-h-[calc(100dvh-2rem)] overflow-y-auto', sizeClasses[size])}>
 		{#if title || headerActions}
 			<Dialog.Header>
 				<!-- pr-8 reserves space for the absolutely positioned close button -->

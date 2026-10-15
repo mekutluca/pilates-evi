@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LoadError from '$lib/components/load-error.svelte';
+	import CauseField from './cause-field.svelte';
 	import type { GroupLessonMoveSheetProps } from '$lib/types/ComponentProps';
 	import type { MovePreviewPayload } from '$lib/types/Api';
 	import type { WeeklySlot } from '$lib/types/Schedule';
@@ -7,10 +9,9 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import MoveArrow from './move-arrow.svelte';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { untrack } from 'svelte';
@@ -89,8 +90,11 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="w-full gap-0 overflow-y-auto sm:max-w-lg">
-		<Sheet.Header class="border-b">
+	<Sheet.Content
+		side="right"
+		class="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+	>
+		<Sheet.Header class="border-b pr-12">
 			<Sheet.Title>Grup dersini taşı</Sheet.Title>
 			<Sheet.Description>
 				{lesson.packageName} · {formatWeeklyPattern(lesson.slots)}
@@ -106,9 +110,12 @@
 			<fieldset class="grid gap-2">
 				<legend class="mb-2 text-sm font-medium">Ders saatleri</legend>
 				{#each lesson.slots as from, i (weeklySlotKey(from))}
-					<div class="flex flex-wrap items-center gap-2 text-sm">
-						<span class="w-32 tabular-nums">{DAY_NAMES[from.day]} {getTimeString(from.hour)}</span>
-						<ArrowRight class="size-4 text-muted-foreground" />
+					<div class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm">
+						<span class="tabular-nums">
+							{DAY_NAMES[from.day]}
+							{getTimeString(from.hour)}
+							<MoveArrow label="yeni saat" class="ml-1 inline size-4" />
+						</span>
 						<NativeSelect bind:value={targets[i].day} aria-label="Yeni gün">
 							{#each DAYS_OF_WEEK as day (day)}
 								<option value={day}>{DAY_NAMES[day]}</option>
@@ -129,7 +136,7 @@
 			<div class="grid grid-cols-2 gap-3">
 				<div class="grid gap-2">
 					<Label for="glm-room">Oda</Label>
-					<NativeSelect id="glm-room" bind:value={roomId}>
+					<NativeSelect class="w-full" id="glm-room" bind:value={roomId}>
 						{#each rooms as room (room.id)}
 							<option value={room.id}>{room.name}</option>
 						{/each}
@@ -137,7 +144,7 @@
 				</div>
 				<div class="grid gap-2">
 					<Label for="glm-trainer">Eğitmen</Label>
-					<NativeSelect id="glm-trainer" bind:value={trainerId}>
+					<NativeSelect class="w-full" id="glm-trainer" bind:value={trainerId}>
 						{#each trainers as t (t.id)}
 							<option value={t.id}>{t.name}</option>
 						{/each}
@@ -152,12 +159,7 @@
 						Öğrencilere WhatsApp ile bildir ({recipients} kişi)
 					</label>
 					{#if notify}
-						<Textarea
-							bind:value={cause}
-							rows={2}
-							placeholder="Sebep (mesajda yer alır)"
-							aria-label="Sebep"
-						/>
+						<CauseField bind:value={cause} id="cause-group-move" />
 					{/if}
 				</div>
 			{/if}
@@ -172,7 +174,7 @@
 						Kontrol ediliyor…
 					</p>
 				{:else if preview.current.status === 'failed'}
-					<p class="text-sm text-destructive">{preview.current.message}</p>
+					<LoadError message={preview.current.message} onRetry={preview.retry} />
 				{:else}
 					{#if preview.current.value.conflicts.length > 0}
 						<ConflictList
@@ -188,7 +190,7 @@
 			</section>
 		</div>
 
-		<Sheet.Footer class="flex-row justify-end gap-2 border-t">
+		<Sheet.Footer class="sticky bottom-0 flex-row justify-end gap-2 border-t bg-popover">
 			<Button variant="outline" onclick={() => (open = false)}>Vazgeç</Button>
 			<Button onclick={submit} disabled={!canSubmit}>
 				{#if submitting}

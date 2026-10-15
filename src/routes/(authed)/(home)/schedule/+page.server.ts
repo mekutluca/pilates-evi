@@ -12,6 +12,7 @@ import type { CancelTraineeAction } from '$lib/types/Schedule';
 import type { MoveReason } from '$lib/types/Transfer';
 import type { ScheduleChangeMessage } from '$lib/types/WhatsApp';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
+import { orNull } from '$lib/server/streaming';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { NotificationService } from '$lib/server/services/notification-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
@@ -49,8 +50,8 @@ export const load: PageServerLoad = async ({
 	);
 
 	return {
-		// Streamed: the page shows the board skeleton until the week arrives
-		appointments: new AppointmentRepository(supabase).getWeek(weekStart),
+		// Streamed: the page shows the board skeleton until the week arrives; null if it failed
+		appointments: orNull(new AppointmentRepository(supabase).getWeek(weekStart), 'week'),
 		rooms: activeRooms,
 		trainers: activeTrainers
 	};
@@ -158,7 +159,7 @@ export const actions: Actions = {
 					NotificationService.changesFromMoves([{ appointment, newDate, newHour }]),
 					changeMessage(reason)
 				)
-			: 0;
+			: null;
 
 		return {
 			success: true,
@@ -193,7 +194,7 @@ export const actions: Actions = {
 		const notified =
 			wantsNotification(formData) && cause
 				? await new NotificationService().notify(changes, { kind: 'system', cause })
-				: 0;
+				: null;
 
 		return {
 			success: true,
@@ -243,7 +244,7 @@ export const actions: Actions = {
 
 		const notified = wantsNotification(formData)
 			? await new NotificationService().notify(result.changes, changeMessage(reason))
-			: 0;
+			: null;
 		const skipped =
 			result.skippedCount > 0 ? ` ${result.skippedCount} randevu iptal edildiği için atlandı.` : '';
 
@@ -292,7 +293,7 @@ export const actions: Actions = {
 
 		const notified = wantsNotification(formData)
 			? await new NotificationService().notify(result.notifications, { kind: 'system', cause })
-			: 0;
+			: null;
 
 		const parts: string[] = [];
 		if (result.shiftedCount > 0) parts.push(`${result.shiftedCount} randevu kaydırıldı`);

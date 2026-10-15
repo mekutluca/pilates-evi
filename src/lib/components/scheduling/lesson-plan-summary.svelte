@@ -1,10 +1,11 @@
 <script lang="ts">
+	import LoadError from '$lib/components/load-error.svelte';
 	import type { LessonPlanSummaryProps } from '$lib/types/ComponentProps';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { formatSlotLabel } from '$lib/utils/date-utils';
 	import ConflictList from './conflict-list.svelte';
 
-	let { plan, idleMessage }: LessonPlanSummaryProps = $props();
+	let { plan, idleMessage, onRetry }: LessonPlanSummaryProps = $props();
 </script>
 
 <div class="space-y-3 text-sm" aria-live="polite">
@@ -16,7 +17,7 @@
 			<Skeleton class="h-4 w-1/2" />
 		</div>
 	{:else if plan.status === 'failed'}
-		<p class="text-destructive">{plan.message}</p>
+		<LoadError message={plan.message} {onRetry} />
 	{:else}
 		{@const { sessions, conflicts, fullSessions, duplicateSessions } = plan.value}
 		{@const first = sessions[0]}
@@ -24,7 +25,7 @@
 		<p>
 			<span class="font-medium">{sessions.length} ders</span>
 			{#if first && last}
-				· {formatSlotLabel(first.date, first.hour)} → {formatSlotLabel(last.date, last.hour)}
+				· {formatSlotLabel(first.date, first.hour)} – {formatSlotLabel(last.date, last.hour)}
 			{/if}
 		</p>
 		{#if conflicts.length > 0}

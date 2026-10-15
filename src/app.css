@@ -24,12 +24,14 @@
 	--secondary: oklch(0.967 0.001 286.375);
 	--secondary-foreground: oklch(0.21 0.006 285.885);
 	--muted: oklch(0.97 0.001 106.424);
-	--muted-foreground: oklch(0.553 0.013 58.071);
+	/* Darker than the house's 0.553 so muted text passes 4.5:1 on muted and tinted surfaces */
+	--muted-foreground: oklch(0.51 0.013 58.071);
 	--accent: oklch(0.553 0.195 38.402);
 	--accent-foreground: oklch(0.98 0.016 73.684);
 	/* Studio Orange as type (darker in light, lighter in dark: both pass 4.5:1) */
 	--primary-ink: oklch(0.553 0.195 38.402);
-	--destructive: oklch(0.577 0.245 27.325);
+	/* Darker than the house's 0.577 so red text passes 4.5:1 on its own 10–20% tint */
+	--destructive: oklch(0.5 0.21 27.325);
 	/* Attention yellow fills dots and tints; text on the tint is the amber ink */
 	--warning: oklch(0.823 0.162 81.1);
 	--warning-foreground: oklch(0.48 0.11 72);
@@ -142,7 +144,7 @@
 
 /* A clickable list row inside a card: the hover tint bleeds slightly past the text */
 @utility row-link {
-	@apply -mx-2 rounded-lg px-2 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none;
+	@apply -mx-2 rounded-lg px-2 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset;
 }
 
 /* The navigation bar: a segment sliding across while a page loads */

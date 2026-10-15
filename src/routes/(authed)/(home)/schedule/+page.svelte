@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type { PageData } from './$types';
 	import type { ActionItem } from '$lib/types';
 	import type { MovingTrainee } from '$lib/types/ComponentProps';
 	import type {
@@ -32,6 +31,7 @@
 	import { isIsoDate } from '$lib/utils/validation';
 	import { streamed } from '$lib/utils/streamed.svelte';
 	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
+	import LoadError from '$lib/components/load-error.svelte';
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
@@ -39,7 +39,7 @@
 		lessonBlockLines
 	} from '$lib/utils/appointment-utils';
 
-	let { data }: { data: PageData } = $props();
+	let { data } = $props();
 
 	const rooms = $derived(data.rooms);
 	const trainers = $derived(data.trainers);
@@ -265,16 +265,18 @@
 
 	{#if pickMode && selected}
 		<div
-			class="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-2xl bg-card p-3 text-sm shadow-md ring-1 ring-primary/40"
+			class="sticky top-0 z-20 flex items-start gap-3 rounded-2xl bg-card p-3 text-sm shadow-md ring-1 ring-primary/40"
 			role="status"
 		>
-			<MoveRight class="size-4" />
-			<span>
+			<MoveRight class="mt-0.5 size-4 shrink-0" />
+			<span class="min-w-0 flex-1">
 				<span class="font-medium">Taşınıyor:</span>
-				{selected.package_name} · {formatSlotLabel(selected.date, selected.hour)}. Yeni saati seçin;
-				başka haftaya, odaya veya eğitmene geçebilirsiniz.
+				{selected.package_name} · {formatSlotLabel(selected.date, selected.hour)}.
+				<span class="hidden sm:inline">
+					Yeni saati seçin; başka haftaya, odaya veya eğitmene geçebilirsiniz.
+				</span>
 			</span>
-			<Button variant="outline" size="sm" class="ml-auto" onclick={stopPicking}>Vazgeç</Button>
+			<Button variant="outline" size="sm" class="shrink-0" onclick={stopPicking}>Vazgeç</Button>
 		</div>
 	{/if}
 
@@ -307,6 +309,8 @@
 				: trainers.find((t) => t.id === selectedTrainerId)}
 		{#if week.current === undefined}
 			<ScheduleSkeleton />
+		{:else if week.current === null}
+			<LoadError message="Haftanın dersleri yüklenemedi." />
 		{:else}
 			<Schedule
 				{weekStart}

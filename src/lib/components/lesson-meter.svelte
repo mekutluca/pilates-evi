@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { LessonMeterProps } from '$lib/types/ComponentProps';
 	import { cn } from '$lib/utils';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
 
 	// How far a kayıt has come: the done share fills the track in the orange ramp; once a
 	// renewal is due the fill goes quiet and the amber count carries the meaning
@@ -27,12 +28,15 @@
 			style:width="{share * 100}%"
 		></span>
 	</span>
+	<!-- The icon and the hidden words carry "renewal due" without relying on the amber -->
 	<span
 		class={cn(
-			'shrink-0 text-xs font-semibold tabular-nums',
+			'inline-flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums',
 			renewalDue ? 'text-warning-foreground' : 'text-muted-foreground'
 		)}
 	>
+		{#if renewalDue}<CalendarClock class="size-3.5" aria-hidden="true" />{/if}
 		{left === 0 ? 'Bitti' : `${left} ders kaldı`}
+		{#if renewalDue}<span class="sr-only">, yenileme zamanı</span>{/if}
 	</span>
 </span>

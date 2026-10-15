@@ -7,14 +7,15 @@
 		class: className,
 		children,
 		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLDivElement>> = $props();
+	}: WithElementRef<HTMLAttributes<HTMLHeadingElement>> = $props();
 </script>
 
-<div
+<!-- Customized: a heading, so card titles show up in the page outline -->
+<h2
 	bind:this={ref}
 	data-slot="card-title"
 	class={cn('font-heading text-base font-medium', className)}
 	{...restProps}
 >
 	{@render children?.()}
-</div>
+</h2>

@@ -40,7 +40,7 @@
 			handler: () => goto('/settings')
 		},
 		{
-			label: 'Çıkış Yap',
+			label: 'Çıkış yap',
 			icon: Logout,
 			handler: async () => await logout()
 		}
@@ -148,7 +148,15 @@
 	{/each}
 {/snippet}
 
-<div class="flex h-screen flex-col">
+<div class="flex h-dvh flex-col">
+	<!-- First tab stop: keyboard users skip the header and menu -->
+	<a
+		href="#main"
+		class="sr-only rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
+	>
+		İçeriğe geç
+	</a>
+
 	<!-- Slow navigation indicator: a thin bar, the page stays usable -->
 	{#if navigating.to}
 		<div
@@ -195,7 +203,7 @@
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Desktop sidebar -->
 		<aside class="hidden w-64 flex-none flex-col justify-between border-e bg-card p-4 lg:flex">
-			<nav>
+			<nav aria-label="Ana menü">
 				{@render sidebarContent()}
 			</nav>
 			<p class="text-xs text-muted-foreground">Build {version}</p>
@@ -207,7 +215,7 @@
 				<Sheet.Header class="sr-only">
 					<Sheet.Title>Menü</Sheet.Title>
 				</Sheet.Header>
-				<nav class="mt-4">
+				<nav class="mt-4" aria-label="Ana menü">
 					{@render sidebarContent()}
 				</nav>
 				<p class="mt-auto text-xs text-muted-foreground">Build {version}</p>
@@ -215,7 +223,12 @@
 		</Sheet.Root>
 
 		<!-- Scrollable content area -->
-		<main bind:this={mainEl} class="flex-1 overflow-auto bg-muted/30">
+		<main
+			bind:this={mainEl}
+			id="main"
+			tabindex="-1"
+			class="flex-1 overflow-auto bg-muted/30 outline-none"
+		>
 			{@render children()}
 		</main>
 	</div>

@@ -1,5 +1,5 @@
 import type { MovedAppointment } from '$lib/types/Transfer';
-import type { ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp';
+import type { NotifyResult, ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp';
 import type { WhatsAppRepository } from '$lib/whatsapp/WhatsAppRepository';
 import { getWhatsAppRepository } from '$lib/whatsapp';
 import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
@@ -46,9 +46,9 @@ export class NotificationService {
 	/**
 	 * Sends one message per trainee (by phone) and package, about the earliest change: a
 	 * shifted series is one message, two different lessons moved on a closed day are two.
-	 * Returns how many were sent.
+	 * Failed sends are counted, not thrown: the schedule change itself has been saved.
 	 */
-	async notify(changes: ScheduleChange[], message: ScheduleChangeMessage): Promise<number> {
+	async notify(changes: ScheduleChange[], message: ScheduleChangeMessage): Promise<NotifyResult> {
 		const firstChange = new Map<string, ScheduleChange>();
 		for (const change of [...changes].sort(compareOld)) {
 			const key = `${change.phone}|${change.packageName}`;
@@ -63,7 +63,7 @@ export class NotificationService {
 			);
 			sent += results.filter(Boolean).length;
 		}
-		return sent;
+		return { sent, failed: toSend.length - sent };
 	}
 
 	private async send(change: ScheduleChange, message: ScheduleChangeMessage): Promise<boolean> {

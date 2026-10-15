@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Sun from '@lucide/svelte/icons/sun';
 	import Moon from '@lucide/svelte/icons/moon';
-	import Check from '@lucide/svelte/icons/check';
 	import { userPrefersMode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -22,14 +21,21 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end">
-		{#each themeOptions as option (option.value)}
-			<DropdownMenu.Item onclick={() => applyTheme(option.value)}>
-				<option.icon class="size-4" />
-				{option.label}
-				{#if userPrefersMode.current === option.value}
-					<Check class="ml-auto size-4" />
-				{/if}
-			</DropdownMenu.Item>
-		{/each}
+		<!-- Radio items: screen readers hear which theme is on -->
+		<DropdownMenu.RadioGroup
+			aria-label="Tema"
+			value={userPrefersMode.current}
+			onValueChange={(value) => {
+				const option = themeOptions.find((o) => o.value === value);
+				if (option) applyTheme(option.value);
+			}}
+		>
+			{#each themeOptions as option (option.value)}
+				<DropdownMenu.RadioItem value={option.value}>
+					<option.icon class="size-4" />
+					{option.label}
+				</DropdownMenu.RadioItem>
+			{/each}
+		</DropdownMenu.RadioGroup>
 	</DropdownMenu.Content>
 </DropdownMenu.Root>

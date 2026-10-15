@@ -21,6 +21,7 @@ import type { MovePreviewRow } from '$lib/types/Transfer';
 import type { GroupLessonDetail, GroupLessonSummary } from '$lib/types/GroupLesson';
 import type { RenewalFormData } from '$lib/types/Extension';
 import type { LessonPlanPreviewPayload, Loadable } from '$lib/types/Api';
+import type { SupabaseClientType } from '$lib/types/Supabase';
 
 interface BackLink {
 	href: string;
@@ -44,6 +45,8 @@ export interface ActionMenuProps {
 	trigger?: ActionItem['icon'];
 	// Shown next to the icon on wide screens and used as the button's accessible name
 	label?: string;
+	// Accessible name of an icon-only trigger (default "İşlemler"), e.g. "Ayşe Yılmaz işlemleri"
+	ariaLabel?: string;
 	triggerClass?: string;
 	onOpenDrawer?: (detail: { actions: ActionItem[] }) => void;
 }
@@ -78,6 +81,8 @@ export interface PackageCreationFormProps {
 	onSubmit: (form: CreatePackageForm) => void;
 	onCancel: () => void;
 	isVisible?: boolean;
+	// The create request is in flight
+	submitting?: boolean;
 }
 
 export interface ScheduleProps {
@@ -95,6 +100,8 @@ export interface ScheduleProps {
 export interface SearchInputProps {
 	value: string;
 	placeholder?: string;
+	// Accessible name; defaults to the placeholder
+	label?: string;
 	clearTitle?: string;
 	classes?: string;
 }
@@ -108,7 +115,10 @@ export interface SortableTableProps<T> {
 	defaultSortOrder?: 'asc' | 'desc';
 	actions?: ActionItem[] | ((item: T) => ActionItem[]);
 	actionsTitle?: string;
-	onRowClick?: (item: T) => void;
+	// Makes the first column a link covering the whole row
+	rowHref?: (item: T) => string;
+	// Names the row in its action menu ("<label> işlemleri")
+	rowLabel?: (item: T) => string;
 	itemsPerPage?: number;
 }
 
@@ -221,6 +231,8 @@ export interface WeekNavProps {
 
 export interface LessonPlanSummaryProps {
 	plan: Loadable<LessonPlanPreviewPayload>;
+	// Asks for the plan again after a failure
+	onRetry: () => void;
 	// Shown before there is anything to plan
 	idleMessage: string;
 }
@@ -258,6 +270,8 @@ export interface StatStripProps {
 export interface LoadErrorProps {
 	// What failed, e.g. "Grup dersleri yüklenemedi."
 	message: string;
+	// Retry something narrower than reloading the page (e.g. a preview)
+	onRetry?: () => void;
 }
 
 export interface GroupLessonDetailViewProps {
@@ -270,4 +284,31 @@ export interface RenewFormProps {
 	renewal: RenewalFormData;
 	rooms: Room[];
 	trainers: Trainer[];
+}
+
+export interface CauseFieldProps {
+	value: string;
+	id: string;
+	placeholder?: string;
+}
+
+export interface LoginFormProps {
+	supabase: SupabaseClientType;
+	class?: string;
+}
+
+export interface MoveArrowProps {
+	// Read out instead of the arrow, e.g. "yeni saat"
+	label?: string;
+	class?: string;
+}
+
+export interface ReorderCellProps<T> {
+	item: T;
+	index: number;
+}
+
+export interface ErrorStateProps {
+	status: number;
+	message?: string;
 }

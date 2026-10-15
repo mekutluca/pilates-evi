@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import { enhanceForm } from '$lib/utils/enhance';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Edit from '@lucide/svelte/icons/edit';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -12,7 +12,6 @@
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import ReorderCell from '$lib/components/reorder-cell.svelte';
 	import type { ActionItem, ReorderContext } from '$lib/types';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -79,7 +78,7 @@
 			});
 		} else {
 			baseActions.push({
-				label: 'Geri Yükle',
+				label: 'Geri yükle',
 				handler: (id?: string | number) => {
 					const r = rooms.find((r) => r.id === String(id));
 					if (r) openRestoreModal(r);
@@ -169,28 +168,23 @@
 		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
+		rowLabel={(room) => room.name ?? ''}
 	/>
 </div>
 
-<Modal bind:open={showAddModal} title="Yeni Oda Ekle" onClose={resetForm}>
+<Modal bind:open={showAddModal} title="Yeni oda" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/createRoom"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Oda başarıyla oluşturuldu');
-					showAddModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Oda başarıyla oluşturuldu',
+			onSuccess: () => {
+				showAddModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<div class="grid gap-2">
 			<Label for="add-room-name">Oda Adı</Label>
@@ -220,25 +214,19 @@
 	</form>
 </Modal>
 
-<Modal bind:open={showEditModal} title="Oda Düzenle" onClose={resetForm}>
+<Modal bind:open={showEditModal} title="Odayı düzenle" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/updateRoom"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Oda başarıyla güncellendi');
-					showEditModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Oda başarıyla güncellendi',
+			onSuccess: () => {
+				showEditModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
@@ -270,7 +258,7 @@
 	</form>
 </Modal>
 
-<Modal bind:open={showArchiveModal} title="Odayı Arşivle" onClose={resetForm}>
+<Modal bind:open={showArchiveModal} title="Odayı arşivle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedRoom?.name}</strong> adlı odayı arşivlemek istediğinizden emin misiniz? Arşivlenen
 		odalar listede görünmez hale gelecektir.
@@ -279,20 +267,14 @@
 		method="POST"
 		action="?/archiveRoom"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Oda başarıyla arşivlendi');
-					showArchiveModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Oda başarıyla arşivlendi',
+			onSuccess: () => {
+				showArchiveModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
@@ -313,13 +295,13 @@
 				{:else}
 					<Archive size={16} />
 				{/if}
-				Arşivle
+				Odayı arşivle
 			</Button>
 		</ModalFooter>
 	</form>
 </Modal>
 
-<Modal bind:open={showRestoreModal} title="Odayı Geri Yükle" onClose={resetForm}>
+<Modal bind:open={showRestoreModal} title="Odayı geri yükle" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedRoom?.name}</strong> adlı odayı geri yüklemek istediğinizden emin misiniz? Oda aktif
 		odalar listesinde görünür hale gelecektir.
@@ -328,20 +310,14 @@
 		method="POST"
 		action="?/restoreRoom"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-				if (result.type === 'success') {
-					toast.success('Oda başarıyla geri yüklendi');
-					showRestoreModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Oda başarıyla geri yüklendi',
+			onSuccess: () => {
+				showRestoreModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
@@ -362,7 +338,7 @@
 				{:else}
 					<ArchiveRestore size={16} />
 				{/if}
-				Geri Yükle
+				Odayı geri yükle
 			</Button>
 		</ModalFooter>
 	</form>

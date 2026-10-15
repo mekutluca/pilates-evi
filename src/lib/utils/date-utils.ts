@@ -51,9 +51,12 @@ export function getWeekStart(date: Date): Date {
  * @returns Formatted week range string
  */
 export function formatWeekRange(weekStart: Date): string {
-	const weekEnd = new Date(weekStart);
-	weekEnd.setDate(weekStart.getDate() + 6);
-	return `${weekStart.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} - ${weekEnd.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+	const weekEnd = addDays(weekStart, 6);
+	const end = `${weekEnd.getDate()} ${TURKISH_MONTHS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+	// "12–18 Ekim 2026", or "29 Eylül – 5 Ekim 2026" across months
+	return weekStart.getMonth() === weekEnd.getMonth()
+		? `${weekStart.getDate()}–${end}`
+		: `${weekStart.getDate()} ${TURKISH_MONTHS[weekStart.getMonth()]} – ${end}`;
 }
 
 /**
@@ -121,15 +124,6 @@ export function getDateForDayOfWeek(weekStart: Date, dayOfWeek: DayOfWeek): Date
 }
 
 /**
- * Formats a date to show day and month (e.g., "15/08")
- * @param date - The date to format
- * @returns Formatted date string as DD/MM
- */
-export function formatDayMonth(date: Date): string {
-	return `${date.getDate()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-}
-
-/**
  * Gets the day of week from an appointment_date string
  * @param appointmentDate - The appointment date string (YYYY-MM-DD)
  * @returns Day of week as string (monday, tuesday, etc.)
@@ -140,11 +134,9 @@ export function getDayOfWeekFromDate(appointmentDate: string): DayOfWeek {
 	return JS_DAY_TO_NAME[date.getUTCDay()];
 }
 
-/**
- * Formats a date string in full Turkish format with day name
- * @param dateStr - The date string in YYYY-MM-DD format
- * @returns Formatted date string, e.g. "31 Mart 2026 Salı"
- */
+// The app's date formats: formatDisplayDate "14 Ekim 2026" (long), formatShortDate
+// "14 Eki" (dense rows), formatSlotLabel "Salı 14 Eki · 10:00" (a lesson), formatTurkishDate
+// "14 Ekim 2026 Çarşamba" (a day heading). WhatsApp messages use formatShortTurkishDateTime.
 const TURKISH_MONTHS = [
 	'Ocak',
 	'Şubat',
@@ -160,6 +152,7 @@ const TURKISH_MONTHS = [
 	'Aralık'
 ];
 
+/** A day as a heading, e.g. "31 Mart 2026 Salı". */
 export function formatTurkishDate(dateStr: string): string {
 	const date = new Date(dateStr + 'T00:00:00');
 	return `${date.getDate()} ${TURKISH_MONTHS[date.getMonth()]} ${date.getFullYear()} ${TURKISH_DAYS[date.getDay()]}`;
@@ -206,28 +199,15 @@ export function formatShortTurkishDateTime(dateStr: string, hour: number): strin
 }
 
 /**
- * Formats a date string for display in Turkish locale
- * @param dateString - The date string to format
- * @returns Formatted date string
+ * The long date, e.g. "14 Ekim 2026", from a YYYY-MM-DD date (read as a local day) or a
+ * timestamp.
  */
 export function formatDisplayDate(dateString: string | null): string {
 	if (!dateString) return '-';
-	return new Date(dateString).toLocaleDateString('tr-TR', {
-		year: 'numeric',
-		month: 'long',
-		day: 'numeric'
-	});
-}
-
-/**
- * Short Turkish date for tables and summaries, e.g. "5 Eyl 2026".
- */
-export function formatShortDisplayDate(dateString: string): string {
-	return new Date(dateString).toLocaleDateString('tr-TR', {
-		day: 'numeric',
-		month: 'short',
-		year: 'numeric'
-	});
+	const date = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
+		? parseLocalDate(dateString)
+		: new Date(dateString);
+	return `${date.getDate()} ${TURKISH_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /**

@@ -7,7 +7,7 @@
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { cn } from '$lib/utils';
-	import { formatDateForDB, formatDayMonth, getDateForDayOfWeek } from '$lib/utils/date-utils';
+	import { formatDateForDB, formatShortDate, getDateForDayOfWeek } from '$lib/utils/date-utils';
 
 	// The week board: one row per hour, one column per day. Booked lessons are orange-tinted
 	// blocks (package, trainees, the other dimension); free future hours are quiet cells that
@@ -18,7 +18,7 @@
 	const days = $derived(
 		DAYS_OF_WEEK.map((day) => {
 			const date = formatDateForDB(getDateForDayOfWeek(weekStart, day));
-			return { day, date, label: formatDayMonth(getDateForDayOfWeek(weekStart, day)) };
+			return { day, date, label: formatShortDate(date) };
 		})
 	);
 
@@ -75,7 +75,12 @@
 									</div>
 								</div>
 								{#if actions.length > 0}
-									<ActionMenu {actions} trigger={Ellipsis} label={undefined} />
+									<ActionMenu
+										{actions}
+										trigger={Ellipsis}
+										label={undefined}
+										ariaLabel={`${DAY_NAMES[day]} işlemleri`}
+									/>
 								{/if}
 							</div>
 						</th>
@@ -101,7 +106,7 @@
 									<button
 										type="button"
 										class={cn(
-											'flex h-full w-full flex-col items-start gap-px overflow-hidden rounded-md px-2 py-1.5 text-left ring-1 transition-colors outline-none ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/50',
+											'flex h-full w-full flex-col items-start gap-px overflow-hidden rounded-md px-2 py-1.5 text-left ring-1 transition-colors outline-none ring-inset focus-visible:ring-[3px] focus-visible:ring-ring',
 											TONES[slot.dimmed ? 'muted' : (slot.color ?? 'primary')],
 											slot.clickable === false && 'cursor-default'
 										)}
@@ -123,7 +128,7 @@
 											<span class="w-full truncate">{slot.subtitle}</span>
 										{/if}
 										{#if slot.meta}
-											<span class="w-full truncate text-foreground/60">{slot.meta}</span>
+											<span class="w-full truncate text-foreground/70">{slot.meta}</span>
 										{/if}
 										{#if slot.warning}
 											<span class="flex items-center gap-1 font-semibold text-destructive">
@@ -141,7 +146,7 @@
 									<button
 										type="button"
 										class={cn(
-											'group flex h-full w-full items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+											'group flex h-full w-full items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
 											slot.selected
 												? cn(
 														'font-semibold ring-2 ring-inset',
@@ -160,7 +165,7 @@
 											<span class="font-medium">{slot.label}</span>
 										{:else if slot.hoverLabel}
 											<span
-												class="font-medium text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+												class="font-medium text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-40"
 											>
 												{slot.hoverLabel}
 											</span>

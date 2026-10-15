@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LoadError from '$lib/components/load-error.svelte';
+	import CauseField from './cause-field.svelte';
 	import type { CloseDayDialogProps } from '$lib/types/ComponentProps';
 	import type { CloseDayPayload, CloseDayPreviewPayload } from '$lib/types/Api';
 	import type { CloseDayOutcome, DayCancellationConflict } from '$lib/types/Operation';
@@ -7,8 +9,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import MoveArrow from './move-arrow.svelte';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { getTimeString } from '$lib/types/Schedule';
@@ -82,67 +83,69 @@
 				sonraki ders saatine kayar, boş saatler silinir. Öğrencilerin ders sayısı değişmez.
 			</p>
 
-			{#if leftovers.length > 0}
-				<div class="rounded-xl bg-destructive/10 p-3 text-sm">
-					<p class="font-medium">{leftovers.length} ders çakışma nedeniyle kaydırılamadı</p>
-					<ul class="mt-2 space-y-1 text-muted-foreground">
-						{#each leftovers as conflict (conflict.appointmentId)}
-							<li>
-								{getTimeString(conflict.hour)} · {conflict.roomName} · {conflict.packageName}: {conflict.reason}
+			<!-- The preview replaces the "calculating" line; screen readers hear when it arrives -->
+			<div
+				aria-live="polite"
+				aria-busy={previewState.current.status === 'loading' ||
+					previewState.current.status === 'idle'}
+			>
+				{#if leftovers.length > 0}
+					<div class="rounded-xl bg-destructive/10 p-3 text-sm">
+						<p class="font-medium">{leftovers.length} ders çakışma nedeniyle kaydırılamadı</p>
+						<ul class="mt-2 space-y-1 text-muted-foreground">
+							{#each leftovers as conflict (conflict.appointmentId)}
+								<li>
+									{getTimeString(conflict.hour)} · {conflict.roomName} · {conflict.packageName}: {conflict.reason}
+								</li>
+							{/each}
+						</ul>
+						<p class="mt-2">Bunları serinin en yakın boş saatine kaydırabilirsiniz.</p>
+					</div>
+				{:else if previewState.current.status === 'idle' || previewState.current.status === 'loading'}
+					<p class="flex items-center gap-2 text-sm text-muted-foreground">
+						<LoaderCircle class="size-4 animate-spin" />
+						Günün dersleri hesaplanıyor…
+					</p>
+				{:else if previewState.current.status === 'failed'}
+					<LoadError message={previewState.current.message} onRetry={previewState.retry} />
+				{:else if previewState.current.value.preview.rows.length === 0}
+					<p class="rounded-md bg-muted p-3 text-sm">Bu günde yaklaşan ders yok.</p>
+				{:else}
+					<ul class="max-h-72 divide-y overflow-y-auto rounded-xl border text-sm">
+						{#each previewState.current.value.preview.rows as row (row.appointmentId)}
+							<li class="grid gap-1 px-3 py-2">
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="font-medium tabular-nums">{getTimeString(row.hour)}</span>
+									<span>{row.packageName}</span>
+									<span class="text-muted-foreground">· {row.roomName} · {row.trainerName}</span>
+									<Badge
+										variant={row.outcome === 'conflict' || row.outcome === 'error'
+											? 'destructive'
+											: 'outline'}
+										class="ml-auto"
+									>
+										{OUTCOME_LABELS[row.outcome]}
+									</Badge>
+								</div>
+								{#if row.traineeNames.length > 0}
+									<div class="text-xs text-muted-foreground">{row.traineeNames.join(', ')}</div>
+								{/if}
+								{#if row.outcome === 'shift' && row.newDate && row.newHour !== undefined}
+									<div class="flex items-center gap-1 text-xs">
+										<MoveArrow label="yeni saat" class="size-3" />
+										{formatSlotLabel(row.newDate, row.newHour)}
+									</div>
+								{:else if row.note}
+									<div class="text-xs text-destructive">{row.note}</div>
+								{/if}
 							</li>
 						{/each}
 					</ul>
-					<p class="mt-2">Bunları serinin en yakın boş saatine kaydırabilirsiniz.</p>
-				</div>
-			{:else if previewState.current.status === 'idle' || previewState.current.status === 'loading'}
-				<p class="flex items-center gap-2 text-sm text-muted-foreground">
-					<LoaderCircle class="size-4 animate-spin" />
-					Günün dersleri hesaplanıyor…
-				</p>
-			{:else if previewState.current.status === 'failed'}
-				<p class="text-sm text-destructive">{previewState.current.message}</p>
-			{:else if previewState.current.value.preview.rows.length === 0}
-				<p class="rounded-md bg-muted p-3 text-sm">Bu günde yaklaşan ders yok.</p>
-			{:else}
-				<ul class="max-h-72 divide-y overflow-y-auto rounded-xl border text-sm">
-					{#each previewState.current.value.preview.rows as row (row.appointmentId)}
-						<li class="grid gap-1 px-3 py-2">
-							<div class="flex flex-wrap items-center gap-2">
-								<span class="font-medium tabular-nums">{getTimeString(row.hour)}</span>
-								<span>{row.packageName}</span>
-								<span class="text-muted-foreground">· {row.roomName} · {row.trainerName}</span>
-								<Badge
-									variant={row.outcome === 'conflict' || row.outcome === 'error'
-										? 'destructive'
-										: 'outline'}
-									class="ml-auto"
-								>
-									{OUTCOME_LABELS[row.outcome]}
-								</Badge>
-							</div>
-							{#if row.traineeNames.length > 0}
-								<div class="text-xs text-muted-foreground">{row.traineeNames.join(', ')}</div>
-							{/if}
-							{#if row.outcome === 'shift' && row.newDate && row.newHour !== undefined}
-								<div class="flex items-center gap-1 text-xs">
-									<ArrowRight class="size-3 text-muted-foreground" />
-									{formatSlotLabel(row.newDate, row.newHour)}
-								</div>
-							{:else if row.note}
-								<div class="text-xs text-destructive">{row.note}</div>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{/if}
+				{/if}
+			</div>
 
 			{#if previewState.current.status === 'ready' && previewState.current.value.preview.rows.length > 0}
-				<Textarea
-					bind:value={cause}
-					rows={2}
-					placeholder="Sebep, ör. 29 Ekim tatili (mesajda yer alır)"
-					aria-label="Sebep"
-				/>
+				<CauseField bind:value={cause} id="cause-close-day" placeholder="ör. 29 Ekim tatili" />
 				<label class="flex cursor-pointer items-center gap-3 text-sm">
 					<Checkbox bind:checked={notify} />
 					Öğrencilere WhatsApp ile bildir ({previewState.current.value.preview.recipientCount} kişi)

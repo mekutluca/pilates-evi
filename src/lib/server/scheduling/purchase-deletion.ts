@@ -7,6 +7,7 @@ import type {
 import { deleteAppointments } from '$lib/server/scheduling/cancellation';
 import { isAppointmentFuture } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 export const NO_REMAINING_LESSONS = 'Silinecek gelecek ders bulunamadı';
 
@@ -58,7 +59,10 @@ export async function deleteRemainingLessons(
 		.eq('purchase_id', purchaseId);
 
 	if (rowsError) {
-		return { deletedCount: 0, error: rowsError.message };
+		return {
+			deletedCount: 0,
+			error: dbErrorMessage(rowsError, 'Dersler silinemedi. Sayfayı yenileyip tekrar deneyin.')
+		};
 	}
 
 	const remaining: RemainingLessonRecord[] = (rows ?? [])
@@ -106,7 +110,7 @@ async function removeRecords(
 			records.map((r) => r.recordId)
 		)
 		.select('id');
-	if (error) return error.message;
+	if (error) return dbErrorMessage(error, 'Dersler silinemedi. Sayfayı yenileyip tekrar deneyin.');
 	if ((data ?? []).length !== records.length) {
 		return 'Dersler silinemedi; bu işlem için yetkiniz olmayabilir';
 	}
@@ -126,7 +130,8 @@ async function removeTraineeFromPrivateAppointments(
 		.from('pe_appointment_trainees')
 		.select('appointment_id')
 		.in('appointment_id', appointmentIds);
-	if (attendedError) return attendedError.message;
+	if (attendedError)
+		return dbErrorMessage(attendedError, 'Kayıt güncellenemedi. Sayfayı yenileyip tekrar deneyin.');
 
 	const attendedIds = new Set((stillAttended ?? []).map((r) => r.appointment_id).filter(isNonNull));
 	const { error } = await deleteAppointments(

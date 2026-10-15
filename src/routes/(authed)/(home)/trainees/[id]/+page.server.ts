@@ -9,35 +9,31 @@ import { TraineeRepository } from '$lib/server/repositories/trainee-repository';
 import { compareSlots, sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 import { getDayOfWeekFromDate } from '$lib/utils/date-utils';
 import { isNonNull } from '$lib/utils/type-guards';
+import { isValidUuid } from '$lib/utils/validation';
+import { orNull } from '$lib/server/streaming';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
+	if (!isValidUuid(traineeId)) throw error(404, 'Öğrenci bulunamadı');
 
-	if (!traineeId) {
-		throw error(400, 'Geçersiz öğrenci ID');
-	}
-
-	// Trainee details — streamed so the page shell renders immediately
+	// Trainee details, streamed so the page shell renders at once; `trainee` null = not found
 	const loadTrainee = async () => {
-		const { data: trainee } = await supabase
+		const { data: trainee, error: traineeError } = await supabase
 			.from('pe_trainees')
 			.select('*')
 			.eq('id', traineeId)
 			.maybeSingle();
-
-		return trainee;
+		if (traineeError) throw traineeError;
+		return { trainee };
 	};
 
-	// Kayıtlar (purchase chains) with their lessons — streamed; resolves to null on error
-	const loadKayitlar = async (): Promise<TraineeKayit[] | null> => {
+	// Kayıtlar (purchase chains) with their lessons, streamed
+	const loadKayitlar = async (): Promise<TraineeKayit[]> => {
 		const { data: teams, error: teamError } = await supabase
 			.from('pe_teams')
 			.select('id')
 			.eq('trainee_id', traineeId);
-		if (teamError) {
-			console.error('Error fetching team memberships:', teamError);
-			return null;
-		}
+		if (teamError) throw teamError;
 
 		const [purchasesRes, lessonsRes] = await Promise.all([
 			supabase
@@ -56,10 +52,8 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				)
 				.eq('trainee_id', traineeId)
 		]);
-		if (purchasesRes.error || lessonsRes.error) {
-			console.error('Error fetching kayıtlar:', purchasesRes.error ?? lessonsRes.error);
-			return null;
-		}
+		if (purchasesRes.error) throw purchasesRes.error;
+		if (lessonsRes.error) throw lessonsRes.error;
 		const purchases = purchasesRes.data ?? [];
 
 		const lessonsByPurchase = new Map<string, KayitLesson[]>();
@@ -81,7 +75,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 		// match here because each attendee is linked under their own purchase.
 		const sharedByPurchase = new Map<string, Map<string, SharedTrainee>>();
 		if (purchases.length > 0) {
-			const { data: teammateRows } = await supabase
+			const { data: teammateRows, error: teammateError } = await supabase
 				.from('pe_appointment_trainees')
 				.select('purchase_id, pe_trainees(id, name), pe_appointments!inner(date, hour)')
 				.in(
@@ -89,6 +83,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 					purchases.map((p) => p.id)
 				)
 				.neq('trainee_id', traineeId);
+			if (teammateError) throw teammateError;
 			for (const row of teammateRows ?? []) {
 				if (!isAppointmentFuture(row.pe_appointments.date, row.pe_appointments.hour)) continue;
 				const bucket = sharedByPurchase.get(row.purchase_id) ?? new Map<string, SharedTrainee>();
@@ -150,9 +145,10 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 		);
 	};
 
+	// null when a query failed: the page shows a load error with a retry
 	return {
-		trainee: loadTrainee(),
-		kayitlar: loadKayitlar()
+		trainee: orNull(loadTrainee(), 'trainee'),
+		kayitlar: orNull(loadKayitlar(), 'kayıtlar')
 	};
 };
 
@@ -199,6 +195,9 @@ export const actions: Actions = {
 			formData.get('scope')?.toString() === 'all' ? 'all' : 'trainee';
 		// A kayıt is a chain of purchases; each one with upcoming lessons is cleared
 		const purchaseIds = getRequiredFormDataString(formData, 'purchaseIds').split(',');
+		if (!purchaseIds.every(isValidUuid)) {
+			return fail(400, { success: false, message: 'Kayıt bulunamadı. Sayfayı yenileyin.' });
+		}
 
 		const service = new SchedulingService(supabase);
 		let deleted = 0;
@@ -206,7 +205,12 @@ export const actions: Actions = {
 			const result = await service.deleteRemainingLessons(purchaseId, params.id, scope);
 			// Earlier purchases of the chain usually have nothing left; that's not a failure
 			if (result.error && result.error !== NO_REMAINING_LESSONS) {
-				return fail(400, { success: false, message: result.error });
+				// Purchases already cleared stay cleared: say so, or the count on screen misleads
+				const message =
+					deleted > 0
+						? `${deleted} ders silindi, kalanlar silinemedi. ${result.error}`
+						: result.error;
+				return fail(400, { success: false, message });
 			}
 			deleted += result.deletedCount;
 		}

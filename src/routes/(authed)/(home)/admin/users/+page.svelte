@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toast } from 'svelte-sonner';
+	import { enhanceForm } from '$lib/utils/enhance';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Edit from '@lucide/svelte/icons/edit';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
@@ -13,16 +13,15 @@
 	import { roleLabels, type Role } from '$lib/types/Role';
 	import SortableTable from '$lib/components/sortable-table.svelte';
 	import type { ActionItem } from '$lib/types';
-	import { getActionErrorMessage } from '$lib/utils/form-utils';
 	import { badgeHtml, escapeHtml } from '$lib/utils/html-utils';
 	import Modal from '$lib/components/modal.svelte';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
-	import { validation } from '$lib/utils/validation';
+	import { MIN_PASSWORD_LENGTH, validation } from '$lib/utils/validation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
-	import { formatShortDisplayDateTime } from '$lib/utils/date-utils';
+	import { formatDisplayDate, formatShortDisplayDateTime } from '$lib/utils/date-utils';
 
 	let { data } = $props();
 	let { users: initialUsers } = $derived(data);
@@ -37,6 +36,8 @@
 	let showResetPasswordModal = $state(false);
 	let showRemoveModal = $state(false);
 	let selectedUser = $state<User | null>(null);
+	// Admins can't change their own role: the studio must keep an admin
+	let editingSelf = $derived(selectedUser?.id === currentUser?.id);
 	let formLoading = $state(false);
 
 	// Form data for add/edit user
@@ -57,7 +58,7 @@
 				icon: Edit
 			},
 			{
-				label: 'Şifre Sıfırla',
+				label: 'Şifreyi sıfırla',
 				handler: (id) => {
 					const u = users.find((u) => u.id === String(id));
 					if (u) openResetPasswordModal(u);
@@ -69,7 +70,7 @@
 		// Users can't remove themselves from the organization
 		if (user.id !== currentUser?.id) {
 			baseActions.push({
-				label: 'Kaldır',
+				label: 'Stüdyodan çıkar',
 				handler: (id) => {
 					const u = users.find((u) => u.id === String(id));
 					if (u) openRemoveModal(u);
@@ -100,6 +101,7 @@
 		},
 		{
 			key: 'role',
+			class: 'hidden md:table-cell',
 			title: 'Rol',
 			render: (user: User) => {
 				return badgeHtml(getRoleDisplayName(user.role), 'outline');
@@ -107,11 +109,13 @@
 		},
 		{
 			key: 'created_at',
+			class: 'hidden md:table-cell',
 			title: 'Kayıt tarihi',
-			render: (user: User) => formatShortDisplayDateTime(user.created_at)
+			render: (user: User) => formatDisplayDate(user.created_at)
 		},
 		{
 			key: 'last_sign_in_at',
+			class: 'hidden md:table-cell',
 			title: 'Son giriş',
 			render: (user: User) =>
 				user.last_sign_in_at
@@ -195,31 +199,24 @@
 		defaultSortKey="id"
 		defaultSortOrder="asc"
 		actions={getTableActions}
+		rowLabel={(user) => user.fullName || user.email}
 	/>
 </div>
 
 <!-- Add User Modal -->
-<Modal bind:open={showAddModal} title="Yeni Kullanıcı Ekle" onClose={resetForm}>
+<Modal bind:open={showAddModal} title="Yeni personel" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/createUser"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Kullanıcı başarıyla oluşturuldu');
-					showAddModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Kullanıcı başarıyla oluşturuldu',
+			onSuccess: () => {
+				showAddModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<div class="grid gap-2">
 			<Label for="add-user-fullname">Ad Soyad</Label>
@@ -245,9 +242,15 @@
 				id="add-user-password"
 				type="password"
 				name="password"
+				autocomplete="new-password"
 				bind:value={password}
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-describedby="add-user-password-hint"
 				required
 			/>
+			<p id="add-user-password-hint" class="text-xs text-muted-foreground">
+				En az {MIN_PASSWORD_LENGTH} karakter
+			</p>
 		</div>
 
 		<div class="grid gap-2">
@@ -283,27 +286,19 @@
 </Modal>
 
 <!-- Edit User Modal -->
-<Modal bind:open={showEditModal} title="Kullanıcı Düzenle" onClose={resetForm}>
+<Modal bind:open={showEditModal} title="Personeli düzenle" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/updateUser"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Kullanıcı başarıyla güncellendi');
-					showEditModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Kullanıcı başarıyla güncellendi',
+			onSuccess: () => {
+				showEditModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
@@ -326,11 +321,24 @@
 
 		<div class="grid gap-2">
 			<Label for="edit-user-role">Rol</Label>
-			<NativeSelect id="edit-user-role" name="role" bind:value={role}>
+			<NativeSelect
+				id="edit-user-role"
+				name="role"
+				bind:value={role}
+				disabled={editingSelf}
+				aria-describedby={editingSelf ? 'edit-user-role-hint' : undefined}
+			>
 				{#each roleOptions as option (option.value)}
 					<option value={option.value}>{option.label}</option>
 				{/each}
 			</NativeSelect>
+			{#if editingSelf}
+				<!-- A disabled select is not posted -->
+				<input type="hidden" name="role" value={role} />
+				<p id="edit-user-role-hint" class="text-xs text-muted-foreground">
+					Kendi rolünüzü değiştiremezsiniz.
+				</p>
+			{/if}
 		</div>
 
 		<ModalFooter>
@@ -357,27 +365,19 @@
 </Modal>
 
 <!-- Reset Password Modal -->
-<Modal bind:open={showResetPasswordModal} title="Şifre Sıfırla" onClose={resetForm}>
+<Modal bind:open={showResetPasswordModal} title="Şifreyi sıfırla" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/resetPassword"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Şifre başarıyla sıfırlandı');
-					showResetPasswordModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Şifre başarıyla sıfırlandı',
+			onSuccess: () => {
+				showResetPasswordModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
@@ -391,15 +391,20 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="reset-new-password">Yeni Şifre</Label>
+			<Label for="reset-new-password">Yeni şifre</Label>
 			<Input
 				id="reset-new-password"
 				type="password"
 				name="newPassword"
+				autocomplete="new-password"
 				bind:value={newPassword}
-				placeholder="Yeni şifre girin"
+				minlength={MIN_PASSWORD_LENGTH}
+				aria-describedby="reset-new-password-hint"
 				required
 			/>
+			<p id="reset-new-password-hint" class="text-xs text-muted-foreground">
+				En az {MIN_PASSWORD_LENGTH} karakter
+			</p>
 		</div>
 
 		<ModalFooter>
@@ -426,7 +431,7 @@
 </Modal>
 
 <!-- Remove User Modal -->
-<Modal bind:open={showRemoveModal} title="Kullanıcıyı Kaldır" onClose={resetForm}>
+<Modal bind:open={showRemoveModal} title="Stüdyodan çıkar" onClose={resetForm}>
 	<p class="mb-4">
 		<strong>{selectedUser?.fullName}</strong> adlı kullanıcıyı organizasyondan kaldırmak istediğinizden
 		emin misiniz? Kullanıcı artık bu organizasyona giriş yapamayacak.
@@ -435,22 +440,14 @@
 		method="POST"
 		action="?/removeUser"
 		class="space-y-4"
-		use:enhance={() => {
-			formLoading = true;
-			return async ({ result, update }) => {
-				formLoading = false;
-
-				if (result.type === 'success') {
-					toast.success('Kullanıcı organizasyondan kaldırıldı');
-					showRemoveModal = false;
-					resetForm();
-				} else if (result.type === 'failure') {
-					toast.error(getActionErrorMessage(result));
-				}
-
-				await update();
-			};
-		}}
+		use:enhance={enhanceForm({
+			busy: (b) => (formLoading = b),
+			success: 'Kullanıcı organizasyondan kaldırıldı',
+			onSuccess: () => {
+				showRemoveModal = false;
+				resetForm();
+			}
+		})}
 	>
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
@@ -471,7 +468,7 @@
 				{:else}
 					<UserMinus size={16} />
 				{/if}
-				Kaldır
+				Stüdyodan çıkar
 			</Button>
 		</ModalFooter>
 	</form>

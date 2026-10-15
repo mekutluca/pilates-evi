@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { ReorderableTable } from '$lib/types';
+import { dbErrorMessage } from '$lib/server/db-errors';
 
 /**
  * New rows go to the end of the list: current max sort_order + 1.
@@ -44,7 +45,10 @@ export async function moveRow(
 		.order('id', { ascending: true });
 
 	if (error || !data) {
-		return fail(500, { success: false, message: 'Liste alınırken hata: ' + error?.message });
+		return fail(500, {
+			success: false,
+			message: dbErrorMessage(error, 'Liste alınamadı. Sayfayı yenileyip tekrar deneyin.')
+		});
 	}
 
 	const ids = data.map((row) => row.id);
@@ -66,7 +70,10 @@ export async function moveRow(
 		if (updateError) {
 			return fail(500, {
 				success: false,
-				message: 'Sıralama güncellenirken hata: ' + updateError.message
+				message: dbErrorMessage(
+					updateError,
+					'Sıralama kaydedilemedi. Sayfayı yenileyip tekrar deneyin.'
+				)
 			});
 		}
 	}

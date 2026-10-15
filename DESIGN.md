@@ -8,7 +8,7 @@ colors:
   orange-ink-dark: 'oklch(0.75 0.183 55.934)'
   meter-orange: 'oklch(0.705 0.213 47.604)'
   ink: 'oklch(0.147 0.004 49.25)'
-  ink-muted: 'oklch(0.553 0.013 58.071)'
+  ink-muted: 'oklch(0.51 0.013 58.071)'
   paper: 'oklch(1 0 0)'
   paper-dark: 'oklch(0.216 0.006 56.043)'
   bench: 'oklch(0.97 0.001 106.424)'
@@ -16,7 +16,7 @@ colors:
   ring: 'oklch(0.709 0.01 56.259)'
   quiet-grey: 'oklch(0.967 0.001 286.375)'
   quiet-grey-ink: 'oklch(0.21 0.006 285.885)'
-  conflict-red: 'oklch(0.577 0.245 27.325)'
+  conflict-red: 'oklch(0.5 0.21 27.325)'
   attention-yellow: 'oklch(0.823 0.162 81.1)'
   amber-ink: 'oklch(0.48 0.11 72)'
 typography:
@@ -96,7 +96,7 @@ components:
     backgroundColor: '{colors.bench}'
     textColor: '{colors.ink}'
   button-destructive:
-    backgroundColor: 'oklch(0.577 0.245 27.325 / 10%)'
+    backgroundColor: 'oklch(0.5 0.21 27.325 / 10%)'
     textColor: '{colors.conflict-red}'
     rounded: '{rounded.pill}'
     padding: '0 12px'
@@ -136,7 +136,7 @@ components:
     padding: '2px 8px'
     height: '20px'
   badge-destructive:
-    backgroundColor: 'oklch(0.577 0.245 27.325 / 10%)'
+    backgroundColor: 'oklch(0.5 0.21 27.325 / 10%)'
     textColor: '{colors.conflict-red}'
     typography: '{typography.label}'
     rounded: '{rounded.pill}'
@@ -201,7 +201,7 @@ Warm stone neutrals carrying one burnt orange, one signage yellow with a single 
 ### Neutral
 
 - **Ink** (`oklch(0.147 0.004 49.25)`): body text and headings; the page background in dark mode.
-- **Ink Muted** (`oklch(0.553 0.013 58.071)`): every secondary line — subtitles, row second lines, sidebar group names, "N ders kaldı" when nothing is due.
+- **Ink Muted** (`oklch(0.51 0.013 58.071)`): every secondary line — subtitles, row second lines, sidebar group names, "N ders kaldı" when nothing is due. Darker than the siblings' stone-500 (`oklch(0.553 …)`) so 12–14px secondary text clears 4.5:1 on Paper and on the Bench-tinted page.
 - **Paper** (`oklch(1 0 0)`): cards, the top bar, the sidebar, sheets. **Paper Dark** (`oklch(0.216 0.006 56.043)`) in dark mode.
 - **Bench** (`oklch(0.97 0.001 106.424)`): the muted layer — the page behind cards at 30%, row hover at 60%, meter tracks, "Dolu" taken slots on the wizard board, empty-group blocks.
 - **Hairline** (`oklch(0.923 0.003 48.717)`): borders, the input and outline-button fill at 30%, the scrollbar thumb. Cards use a ring of Ink at 10% instead of a border.
@@ -211,7 +211,7 @@ Warm stone neutrals carrying one burnt orange, one signage yellow with a single 
 ### State
 
 - **Attention Yellow** (`oklch(0.823 0.162 81.1)`, `--warning`): needs a renewal. A 15% tint behind text, the clock-alert icon at full strength. **Amber Ink** (`oklch(0.48 0.11 72)`; dark `oklch(0.87 0.14 88)`, `--warning-foreground`) is the text: "Son ders" on a lesson block, "N ders kaldı" on a renewal-due meter. The yellow itself never carries type.
-- **Conflict Red** (`oklch(0.577 0.245 27.325)`; dark `oklch(0.704 0.191 22.216)`): conflicts and destructive actions, always tinted — 10% fill with red text on buttons and badges, a 10% fill with a 30% ring on a conflicting lesson block ("Kapasite aşıldı" with a triangle-alert icon).
+- **Conflict Red** (`oklch(0.5 0.21 27.325)`; dark `oklch(0.704 0.191 22.216)`): conflicts and destructive actions, always tinted — 10% fill with red text on buttons and badges (darker and less saturated than the siblings' red-600 so that text clears 4.5:1 on its own tint), a 10% fill with a 30% ring on a conflicting lesson block ("Kapasite aşıldı" with a triangle-alert icon).
 
 ### Named Rules
 
