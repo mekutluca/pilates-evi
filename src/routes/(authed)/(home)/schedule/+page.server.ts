@@ -83,7 +83,10 @@ export const actions: Actions = {
 			newHour > 23 ||
 			!isIsoDate(newDate)
 		) {
-			return fail(400, { success: false, message: 'Geçersiz form verisi' });
+			return fail(400, {
+				success: false,
+				message: 'Formda eksik bilgi var. Sayfayı yenileyip tekrar deneyin.'
+			});
 		}
 
 		const reason = parseMoveReason(formData);
@@ -102,7 +105,7 @@ export const actions: Actions = {
 		if (hoursUntil < 0) {
 			return fail(400, {
 				success: false,
-				message: 'Başlamış olan randevuların vakti değiştirilemez'
+				message: 'Başlamış randevu taşınamaz'
 			});
 		}
 		if (!isAppointmentFuture(newDate, newHour)) {
@@ -122,7 +125,7 @@ export const actions: Actions = {
 			if (hoursUntil < 23) {
 				return fail(400, {
 					success: false,
-					message: 'Öğrenci talebiyle değişiklik en az 23 saat önceden yapılmalıdır'
+					message: 'Öğrenci talebiyle değişiklik en az 23 saat önceden yapılabilir'
 				});
 			}
 		}
@@ -180,7 +183,10 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const appointmentId = Number(getRequiredFormDataString(formData, 'appointmentId'));
 		if (isNaN(appointmentId)) {
-			return fail(400, { success: false, message: 'Geçersiz form verisi' });
+			return fail(400, {
+				success: false,
+				message: 'Formda eksik bilgi var. Sayfayı yenileyip tekrar deneyin.'
+			});
 		}
 
 		const rawTraineeAction = getFormDataString(formData, 'traineeAction');
@@ -245,7 +251,7 @@ export const actions: Actions = {
 		if (result.conflicts.length > 0) {
 			return fail(400, {
 				success: false,
-				message: `${result.conflicts.length} çakışma var; taşıma yapılmadı.`
+				message: `${result.conflicts.length} çakışma var, taşıma yapılmadı.`
 			});
 		}
 

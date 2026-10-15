@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import type { Role } from '$lib/types/Role';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 
-const FORBIDDEN_MESSAGE = 'Bu işlemi gerçekleştirmek için yetkiniz yok';
+const FORBIDDEN_MESSAGE = 'Bu işlem için yetkiniz yok';
 
 /**
  * Form-action guard: returns a 403 `fail()` when the caller is signed out or

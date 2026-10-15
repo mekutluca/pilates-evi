@@ -26,8 +26,8 @@
 		traineeCount === 0
 			? 'Boş randevu silinir.'
 			: traineeAction === 'shift'
-				? 'Randevu silinir; öğrencilerin bu dersi ve sonraki dersleri bir sonraki ders saatine kayar. Ders sayıları değişmez.'
-				: 'Randevu silinir; öğrenciler bu dersi kaybeder. Diğer dersleri değişmez.'
+				? 'Randevu silinir, öğrencilerin bu ve sonraki dersleri birer ders ileri kayar.'
+				: 'Randevu silinir, öğrencilerin diğer dersleri değişmez.'
 	);
 	const canNotify = $derived(traineeCount > 0 && traineeAction === 'shift');
 	const canSubmit = $derived(!submitting && (!canNotify || !notify || cause.trim().length > 0));
@@ -85,7 +85,7 @@
 							<RadioGroupItem value="remove" class="mt-0.5" />
 							<span>
 								Ders hakkı düşsün
-								<span class="block text-xs text-muted-foreground">Bu ders yapılmamış sayılır.</span>
+								<span class="block text-xs text-muted-foreground">Öğrenci bu dersi kaybeder.</span>
 							</span>
 						</label>
 					</RadioGroup>

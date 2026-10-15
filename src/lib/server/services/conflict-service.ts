@@ -52,10 +52,12 @@ export class ConflictService {
 		]);
 
 		if (roomRes.error)
-			throw new Error(dbErrorMessage(roomRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
+			throw new Error(
+				dbErrorMessage(roomRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
+			);
 		if (trainerRes.error)
 			throw new Error(
-				dbErrorMessage(trainerRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.')
+				dbErrorMessage(trainerRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
 			);
 
 		const excluded = new Set(excludeAppointmentIds);
@@ -98,7 +100,7 @@ export class ConflictService {
 					.lt('date', params.toDate)
 					.order('id')
 					.range(from, to),
-			'Çakışma kontrolü başarısız. Tekrar deneyin.'
+			'Çakışmalar kontrol edilemedi. Tekrar deneyin.'
 		);
 
 		// Each taken date counts once even when both room and trainer are taken
@@ -147,10 +149,12 @@ export class ConflictService {
 				.in('hour', hours)
 		]);
 		if (roomRes.error)
-			throw new Error(dbErrorMessage(roomRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
+			throw new Error(
+				dbErrorMessage(roomRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
+			);
 		if (trainerRes.error)
 			throw new Error(
-				dbErrorMessage(trainerRes.error, 'Çakışma kontrolü başarısız. Tekrar deneyin.')
+				dbErrorMessage(trainerRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
 			);
 
 		const roomTaken = new Set(
@@ -198,7 +202,7 @@ export class ConflictService {
 			if (exclude.length > 0) query = query.neq('id', exclude[0]);
 			const { data, error } = await query;
 			if (error)
-				throw new Error(dbErrorMessage(error, 'Çakışma kontrolü başarısız. Tekrar deneyin.'));
+				throw new Error(dbErrorMessage(error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.'));
 			return (data ?? []).length > 0;
 		};
 

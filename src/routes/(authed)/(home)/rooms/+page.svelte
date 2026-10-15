@@ -164,7 +164,7 @@
 		data={rooms}
 		columns={tableColumns}
 		{searchTerm}
-		emptyMessage="Henüz oda bulunmuyor"
+		emptyMessage="Henüz oda yok"
 		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
@@ -179,7 +179,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Oda başarıyla oluşturuldu',
+			success: 'Oda eklendi',
 			onSuccess: () => {
 				showAddModal = false;
 				resetForm();
@@ -187,7 +187,7 @@
 		})}
 	>
 		<div class="grid gap-2">
-			<Label for="add-room-name">Oda Adı</Label>
+			<Label for="add-room-name">Oda adı</Label>
 			<Input id="add-room-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -221,7 +221,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Oda başarıyla güncellendi',
+			success: 'Oda kaydedildi',
 			onSuccess: () => {
 				showEditModal = false;
 				resetForm();
@@ -231,7 +231,7 @@
 		<input type="hidden" name="roomId" value={selectedRoom?.id} />
 
 		<div class="grid gap-2">
-			<Label for="edit-room-name">Oda Adı</Label>
+			<Label for="edit-room-name">Oda adı</Label>
 			<Input id="edit-room-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -260,8 +260,7 @@
 
 <Modal bind:open={showArchiveModal} title="Odayı arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedRoom?.name}</strong> adlı odayı arşivlemek istediğinizden emin misiniz? Arşivlenen
-		odalar listede görünmez hale gelecektir.
+		<strong>{selectedRoom?.name}</strong> arşivlenir ve listede gizlenir.
 	</p>
 	<form
 		method="POST"
@@ -269,7 +268,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Oda başarıyla arşivlendi',
+			success: 'Oda arşivlendi',
 			onSuccess: () => {
 				showArchiveModal = false;
 				resetForm();
@@ -303,8 +302,7 @@
 
 <Modal bind:open={showRestoreModal} title="Odayı geri yükle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedRoom?.name}</strong> adlı odayı geri yüklemek istediğinizden emin misiniz? Oda aktif
-		odalar listesinde görünür hale gelecektir.
+		<strong>{selectedRoom?.name}</strong> yeniden listede görünür.
 	</p>
 	<form
 		method="POST"
@@ -312,7 +310,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Oda başarıyla geri yüklendi',
+			success: 'Oda geri yüklendi',
 			onSuccess: () => {
 				showRestoreModal = false;
 				resetForm();

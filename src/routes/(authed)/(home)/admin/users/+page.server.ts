@@ -89,7 +89,7 @@ export const actions: Actions = {
 		});
 		if (updateError) return fail(400, { success: false, message: updateError });
 
-		return { success: true, message: 'Kullanıcı başarıyla güncellendi' };
+		return { success: true, message: 'Bilgiler kaydedildi' };
 	},
 
 	removeUser: async ({ request, locals }) => {
@@ -105,7 +105,7 @@ export const actions: Actions = {
 		const removeError = await OrgUserService.fromLocals(locals).deactivateMember(userId);
 		if (removeError) return fail(400, { success: false, message: removeError });
 
-		return { success: true, message: 'Kullanıcı stüdyodan kaldırıldı' };
+		return { success: true, message: 'Kişi stüdyodan çıkarıldı' };
 	},
 
 	resetPassword: async ({ request, locals }) => {
@@ -119,6 +119,6 @@ export const actions: Actions = {
 		);
 		if (resetError) return fail(400, { success: false, message: resetError });
 
-		return { success: true, message: 'Şifre başarıyla sıfırlandı' };
+		return { success: true, message: 'Şifre sıfırlandı' };
 	}
 };

@@ -171,7 +171,7 @@
 <div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Personel"
-		subtitle={`${users.length} kişi · yöneticiler ve koordinatörler; eğitmen hesapları Eğitmenler sayfasında`}
+		subtitle={`${users.length} kişi · eğitmen hesapları Eğitmenler sayfasında`}
 	>
 		{#snippet actions()}
 			<Button
@@ -195,7 +195,7 @@
 		data={users}
 		columns={tableColumns}
 		{searchTerm}
-		emptyMessage="Henüz kullanıcı bulunmuyor"
+		emptyMessage="Henüz personel yok"
 		defaultSortKey="id"
 		defaultSortOrder="asc"
 		actions={getTableActions}
@@ -218,7 +218,7 @@
 		})}
 	>
 		<div class="grid gap-2">
-			<Label for="add-user-fullname">Ad Soyad</Label>
+			<Label for="add-user-fullname">Ad soyad</Label>
 			<Input id="add-user-fullname" type="text" name="fullName" bind:value={fullName} required />
 		</div>
 
@@ -292,7 +292,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Kullanıcı başarıyla güncellendi',
+			success: 'Bilgiler kaydedildi',
 			onSuccess: () => {
 				showEditModal = false;
 				resetForm();
@@ -302,13 +302,13 @@
 		<input type="hidden" name="userId" value={selectedUser?.id} />
 
 		<div class="grid gap-2">
-			<Label for="edit-user-fullname">Ad Soyad</Label>
+			<Label for="edit-user-fullname">Ad soyad</Label>
 			<Input
 				id="edit-user-fullname"
 				type="text"
 				name="fullName"
 				bind:value={fullName}
-				placeholder="Ad Soyad"
+				placeholder="Ad soyad"
 			/>
 		</div>
 
@@ -371,7 +371,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Şifre başarıyla sıfırlandı',
+			success: 'Şifre sıfırlandı',
 			onSuccess: () => {
 				showResetPasswordModal = false;
 				resetForm();
@@ -423,7 +423,7 @@
 				{:else}
 					<Key size={16} />
 				{/if}
-				Şifreyi Sıfırla
+				Şifreyi sıfırla
 			</Button>
 		</ModalFooter>
 	</form>
@@ -432,8 +432,8 @@
 <!-- Remove User Modal -->
 <Modal bind:open={showRemoveModal} title="Stüdyodan çıkar" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedUser?.fullName}</strong> adlı kullanıcıyı organizasyondan kaldırmak istediğinizden
-		emin misiniz? Kullanıcı artık bu organizasyona giriş yapamayacak.
+		<strong>{selectedUser?.fullName}</strong> stüdyodan çıkarılır ve artık giriş yapamaz. Aynı e-postayla
+		tekrar ekleyebilirsiniz.
 	</p>
 	<form
 		method="POST"
@@ -441,7 +441,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Kullanıcı organizasyondan kaldırıldı',
+			success: 'Kişi stüdyodan çıkarıldı',
 			onSuccess: () => {
 				showRemoveModal = false;
 				resetForm();

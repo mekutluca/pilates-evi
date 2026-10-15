@@ -7,7 +7,7 @@ import { MIN_PASSWORD_LENGTH, PASSWORD_LENGTH_ERROR } from '$lib/utils/validatio
 export const actions: Actions = {
 	updateEmail: async ({ request, url, locals: { supabase, user } }) => {
 		if (!user) {
-			return fail(401, { success: false, message: 'Oturum bulunamadı, lütfen tekrar giriş yapın' });
+			return fail(401, { success: false, message: 'Oturumunuz kapanmış. Tekrar giriş yapın.' });
 		}
 
 		const formData = await request.formData();
@@ -53,7 +53,7 @@ export const actions: Actions = {
 
 	updatePassword: async ({ request, locals: { supabase, user } }) => {
 		if (!user?.email) {
-			return fail(401, { success: false, message: 'Oturum bulunamadı, lütfen tekrar giriş yapın' });
+			return fail(401, { success: false, message: 'Oturumunuz kapanmış. Tekrar giriş yapın.' });
 		}
 
 		const formData = await request.formData();
@@ -62,7 +62,7 @@ export const actions: Actions = {
 		const newPasswordConfirm = getFormDataString(formData, 'newPasswordConfirm');
 
 		if (!currentPassword || !newPassword || !newPasswordConfirm) {
-			return fail(400, { success: false, message: 'Tüm alanlar gereklidir' });
+			return fail(400, { success: false, message: 'Tüm alanları doldurun' });
 		}
 		if (newPassword.length < MIN_PASSWORD_LENGTH) {
 			return fail(400, { success: false, message: PASSWORD_LENGTH_ERROR });
@@ -92,6 +92,6 @@ export const actions: Actions = {
 			});
 		}
 
-		return { success: true, message: 'Şifreniz başarıyla güncellendi' };
+		return { success: true, message: 'Şifreniz değiştirildi' };
 	}
 };

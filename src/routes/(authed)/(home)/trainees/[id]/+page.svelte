@@ -217,7 +217,7 @@
 		<Empty.Root class="border">
 			<Empty.Header>
 				<Empty.Title>Öğrenci bulunamadı</Empty.Title>
-				<Empty.Description>Bu öğrenci mevcut değil veya kaldırılmış olabilir.</Empty.Description>
+				<Empty.Description>Bu öğrenci silinmiş olabilir.</Empty.Description>
 			</Empty.Header>
 			<Empty.Content>
 				<Button variant="outline" href="/trainees">Öğrencilere dön</Button>
@@ -435,7 +435,7 @@
 							class="space-y-4"
 							use:enhance={enhanceForm({
 								busy: (b) => (saving = b),
-								success: 'Öğrenci güncellendi',
+								success: 'Öğrenci kaydedildi',
 								onSuccess: () => {
 									editMode = false;
 								}
@@ -497,7 +497,7 @@
 <Modal bind:open={showArchiveModal} title="Öğrenciyi arşivle">
 	<p class="mb-4 text-sm">
 		<strong>{trainee?.name}</strong> arşivlenir ve öğrenci listesinde gizlenir. Yaklaşan dersleri takvimde
-		kalır; gerekiyorsa önce "Kalan dersleri sil" ile kaldırın.
+		kalır. Gerekirse önce "Kalan dersleri sil" ile kaldırın.
 	</p>
 	<form
 		method="POST"
@@ -611,7 +611,7 @@
 								<span>
 									Dersler tamamen silinsin
 									<span class="block text-xs text-muted-foreground">
-										{teammateNames} de bu dersleri kaybeder; oda ve eğitmen saatleri boşalır
+										{teammateNames} de bu dersleri kaybeder, oda ve eğitmen saatleri boşalır
 									</span>
 								</span>
 							</label>
@@ -619,11 +619,11 @@
 					</div>
 				{:else if deleteTarget.isGroup}
 					<p class="text-muted-foreground">
-						{trainee?.name} kalan grup derslerinden çıkarılır; grup dersi diğerleri için devam eder.
+						{trainee?.name} kalan grup derslerinden çıkarılır. Grup dersi diğerleri için devam eder.
 					</p>
 				{:else}
 					<p class="text-muted-foreground">
-						Dersler takvimden silinir; oda ve eğitmen saatleri boşalır.
+						Dersler takvimden silinir, oda ve eğitmen saatleri boşalır.
 					</p>
 				{/if}
 				<ModalFooter>

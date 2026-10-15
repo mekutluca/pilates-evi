@@ -34,7 +34,7 @@ export const actions: Actions = {
 			});
 		}
 
-		return { success: true, message: 'Oda başarıyla oluşturuldu' };
+		return { success: true, message: 'Oda eklendi' };
 	},
 
 	updateRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -61,7 +61,7 @@ export const actions: Actions = {
 		}
 		if ((updated ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
-		return { success: true, message: 'Oda başarıyla güncellendi' };
+		return { success: true, message: 'Oda kaydedildi' };
 	},
 
 	archiveRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -93,7 +93,7 @@ export const actions: Actions = {
 		}
 		if ((archived ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
-		return { success: true, message: 'Oda başarıyla arşivlendi' };
+		return { success: true, message: 'Oda arşivlendi' };
 	},
 
 	restoreRoom: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -117,7 +117,7 @@ export const actions: Actions = {
 		}
 		if ((restored ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
 
-		return { success: true, message: 'Oda başarıyla geri yüklendi' };
+		return { success: true, message: 'Oda geri yüklendi' };
 	},
 
 	moveRoom: async ({ request, locals: { supabase, user, userRole } }) => {

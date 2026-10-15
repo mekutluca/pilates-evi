@@ -185,7 +185,7 @@
 		data={trainees}
 		columns={tableColumns}
 		{searchTerm}
-		emptyMessage="Henüz öğrenci bulunmuyor"
+		emptyMessage="Henüz öğrenci yok"
 		defaultSortKey="name"
 		defaultSortOrder="asc"
 		actions={getTableActions}
@@ -201,7 +201,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Öğrenci başarıyla oluşturuldu',
+			success: 'Öğrenci eklendi',
 			onSuccess: () => {
 				showAddModal = false;
 				resetForm();
@@ -209,7 +209,7 @@
 		})}
 	>
 		<div class="grid gap-2">
-			<Label for="add-trainee-name">Öğrenci Adı</Label>
+			<Label for="add-trainee-name">Ad soyad</Label>
 			<Input id="add-trainee-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -242,12 +242,12 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="add-trainee-notes">Notlar (İsteğe bağlı)</Label>
+			<Label for="add-trainee-notes">Notlar (isteğe bağlı)</Label>
 			<Textarea
 				id="add-trainee-notes"
 				name="notes"
 				bind:value={notes}
-				placeholder="Öğrenci hakkında notlar..."
+				placeholder="ör. Bel fıtığı var"
 				rows={3}
 			/>
 		</div>
@@ -282,7 +282,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Öğrenci başarıyla güncellendi',
+			success: 'Öğrenci kaydedildi',
 			onSuccess: () => {
 				showEditModal = false;
 				resetForm();
@@ -292,7 +292,7 @@
 		<input type="hidden" name="traineeId" value={selectedTrainee?.id} />
 
 		<div class="grid gap-2">
-			<Label for="edit-trainee-name">Öğrenci Adı</Label>
+			<Label for="edit-trainee-name">Ad soyad</Label>
 			<Input id="edit-trainee-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -325,7 +325,7 @@
 		</div>
 
 		<div class="grid gap-2">
-			<Label for="edit-trainee-notes">Notlar (İsteğe bağlı)</Label>
+			<Label for="edit-trainee-notes">Notlar (isteğe bağlı)</Label>
 			<Textarea
 				id="edit-trainee-notes"
 				name="notes"
@@ -360,8 +360,7 @@
 
 <Modal bind:open={showArchiveModal} title="Öğrenciyi arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi arşivlemek istediğinizden emin misiniz? Arşivlenen
-		öğrenciler listede görünmez hale gelecektir.
+		<strong>{selectedTrainee?.name}</strong> arşivlenir ve öğrenci listesinde gizlenir.
 	</p>
 	<form
 		method="POST"
@@ -369,7 +368,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Öğrenci başarıyla arşivlendi',
+			success: 'Öğrenci arşivlendi',
 			onSuccess: () => {
 				showArchiveModal = false;
 				resetForm();
@@ -403,8 +402,7 @@
 
 <Modal bind:open={showRestoreModal} title="Öğrenciyi geri yükle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainee?.name}</strong> adlı öğrenciyi geri yüklemek istediğinizden emin misiniz?
-		Öğrenci aktif öğrenciler listesinde görünür hale gelecektir.
+		<strong>{selectedTrainee?.name}</strong> yeniden öğrenci listesinde görünür.
 	</p>
 	<form
 		method="POST"
@@ -412,7 +410,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Öğrenci başarıyla geri yüklendi',
+			success: 'Öğrenci geri yüklendi',
 			onSuccess: () => {
 				showRestoreModal = false;
 				resetForm();

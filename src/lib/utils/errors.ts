@@ -7,7 +7,7 @@
 export function defaultErrorMessage(status: number): string {
 	if (status === 404) return 'Aradığınız adres taşınmış ya da hiç var olmamış olabilir.';
 	if (status === 401 || status === 403) {
-		return 'Bu sayfayı görüntülemek için gerekli yetkiye sahip değilsiniz.';
+		return 'Bu sayfa için yetkiniz yok.';
 	}
 	return 'Tekrar deneyin. Sorun sürerse yöneticinize bildirin.';
 }

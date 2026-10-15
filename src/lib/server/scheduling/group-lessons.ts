@@ -181,7 +181,7 @@ export async function planGroupLesson(
 
 	const [first] = getStartingAppointmentCandidates(input.slots, parseLocalDate(input.startDate), 1);
 	if (!first || !isAppointmentFuture(first.date, first.hour)) {
-		return 'İlk ders geçmişte kalıyor; başlangıç tarihini ileri alın';
+		return 'İlk ders geçmişte kalıyor, başlangıç tarihini ileri alın';
 	}
 
 	const sessions = buildAppointmentSlotsFromStart(
@@ -272,7 +272,7 @@ export async function planGroupLessonMove(
 			: appointment.date;
 		const newHour = to ? to.hour : appointment.hour;
 		if (!isAppointmentFuture(newDate, newHour)) {
-			return `${formatSlotLabel(newDate, newHour)} geçmişte kalıyor; başlangıç tarihini ileri alın`;
+			return `${formatSlotLabel(newDate, newHour)} geçmişte kalıyor, başlangıç tarihini ileri alın`;
 		}
 		moved.push({ appointment, newDate, newHour });
 	}

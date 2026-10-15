@@ -50,7 +50,7 @@
 
 <div class="rounded-lg border border-border bg-card p-4 shadow-lg">
 	<div class="mb-3 flex items-center justify-between">
-		<span class="text-sm font-medium text-muted-foreground">Tarih seçin:</span>
+		<span class="text-sm font-medium text-muted-foreground">Tarih seçin</span>
 		<div class="flex gap-2">
 			<Button variant="ghost" size="xs" onclick={handleTodayClick} disabled={todayDisabled}>
 				Bugün

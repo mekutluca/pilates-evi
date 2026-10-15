@@ -216,7 +216,7 @@
 		data={trainers}
 		columns={tableColumns}
 		{searchTerm}
-		emptyMessage="Henüz eğitmen bulunmuyor"
+		emptyMessage="Henüz eğitmen yok"
 		defaultSortKey="sort_order"
 		defaultSortOrder="asc"
 		actions={getTableActions}
@@ -225,7 +225,7 @@
 </div>
 
 <!-- Add Trainer Modal -->
-<Modal bind:open={showAddModal} title="Yeni eğitmen Ekle" onClose={resetForm}>
+<Modal bind:open={showAddModal} title="Yeni eğitmen" onClose={resetForm}>
 	<form
 		method="POST"
 		action="?/createTrainer"
@@ -239,7 +239,7 @@
 		})}
 	>
 		<div class="grid gap-2">
-			<Label for="add-trainer-name">Eğitmen Adı</Label>
+			<Label for="add-trainer-name">Ad soyad</Label>
 			<Input id="add-trainer-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -320,7 +320,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Eğitmen başarıyla güncellendi',
+			success: 'Eğitmen kaydedildi',
 			onSuccess: () => {
 				showEditModal = false;
 				resetForm();
@@ -330,7 +330,7 @@
 		<input type="hidden" name="trainerId" value={selectedTrainer?.id} />
 
 		<div class="grid gap-2">
-			<Label for="edit-trainer-name">Eğitmen Adı</Label>
+			<Label for="edit-trainer-name">Ad soyad</Label>
 			<Input id="edit-trainer-name" type="text" name="name" bind:value={name} required />
 		</div>
 
@@ -380,8 +380,7 @@
 <!-- Archive Trainer Modal -->
 <Modal bind:open={showArchiveModal} title="Eğitmeni arşivle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni arşivlemek istediğinizden emin misiniz? Arşivlenen
-		eğitmenler listede görünmez hale gelecektir.
+		<strong>{selectedTrainer?.name}</strong> arşivlenir, listede gizlenir ve giriş yapamaz.
 	</p>
 	<form
 		method="POST"
@@ -389,7 +388,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Eğitmen başarıyla arşivlendi',
+			success: 'Eğitmen arşivlendi',
 			onSuccess: () => {
 				showArchiveModal = false;
 				resetForm();
@@ -424,8 +423,7 @@
 <!-- Restore Trainer Modal -->
 <Modal bind:open={showRestoreModal} title="Eğitmeni geri yükle" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainer?.name}</strong> adlı eğitmeni geri yüklemek istediğinizden emin misiniz?
-		Eğitmen aktif eğitmenler listesinde görünür hale gelecektir.
+		<strong>{selectedTrainer?.name}</strong> yeniden listede görünür ve giriş yapabilir.
 	</p>
 	<form
 		method="POST"
@@ -433,7 +431,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Eğitmen başarıyla geri yüklendi',
+			success: 'Eğitmen geri yüklendi',
 			onSuccess: () => {
 				showRestoreModal = false;
 				resetForm();
@@ -468,7 +466,7 @@
 <!-- Reset Password Modal -->
 <Modal bind:open={showResetPasswordModal} title="Şifreyi sıfırla" onClose={resetForm}>
 	<p class="mb-4">
-		<strong>{selectedTrainer?.name}</strong> adlı eğitmenin şifresini sıfırlamak istediğinizden emin misiniz?
+		<strong>{selectedTrainer?.name}</strong> için yeni bir şifre belirleyin.
 	</p>
 	<form
 		method="POST"
@@ -476,7 +474,7 @@
 		class="space-y-4"
 		use:enhance={enhanceForm({
 			busy: (b) => (formLoading = b),
-			success: 'Şifre başarıyla sıfırlandı',
+			success: 'Şifre sıfırlandı',
 			onSuccess: () => {
 				showResetPasswordModal = false;
 				resetForm();

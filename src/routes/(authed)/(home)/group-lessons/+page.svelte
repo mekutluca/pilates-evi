@@ -101,7 +101,7 @@
 					<Empty.Media variant="icon"><UsersRound /></Empty.Media>
 					<Empty.Title>Henüz devam eden grup dersi yok</Empty.Title>
 					<Empty.Description>
-						Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın; öğrenciler sonra
+						Bir grup paketi, oda, eğitmen ve haftalık saatlerle grup dersi açın. Öğrenciler sonra
 						eklenir.
 					</Empty.Description>
 				</Empty.Header>

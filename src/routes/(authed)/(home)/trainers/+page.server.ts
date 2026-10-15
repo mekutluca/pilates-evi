@@ -107,7 +107,7 @@ export const actions: Actions = {
 			});
 		}
 		if ((updated ?? []).length === 0) return fail(404, { success: false, message: NOT_FOUND });
-		return { success: true, message: 'Eğitmen başarıyla güncellendi' };
+		return { success: true, message: 'Eğitmen kaydedildi' };
 	},
 
 	archiveTrainer: async ({ request, locals }) => {
@@ -148,7 +148,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: 'Eğitmen başarıyla arşivlendi ve kullanıcı hesabı devre dışı bırakıldı'
+			message: 'Eğitmen arşivlendi, girişi kapatıldı'
 		};
 	},
 
@@ -182,7 +182,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: 'Eğitmen başarıyla geri yüklendi ve kullanıcı hesabı etkinleştirildi'
+			message: 'Eğitmen geri yüklendi, girişi açıldı'
 		};
 	},
 
@@ -197,7 +197,7 @@ export const actions: Actions = {
 		);
 		if (resetError) return fail(400, { success: false, message: resetError });
 
-		return { success: true, message: 'Şifre başarıyla sıfırlandı' };
+		return { success: true, message: 'Şifre sıfırlandı' };
 	},
 
 	moveTrainer: async ({ request, locals: { supabase, user, userRole } }) => {

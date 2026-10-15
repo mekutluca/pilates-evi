@@ -46,7 +46,7 @@
 			<Input id="end-date" type="date" min={lesson.minEndDate} bind:value={endDate} />
 		</div>
 		<p class="rounded-md bg-muted p-3">
-			Bu tarihten itibaren ders yapılmaz; o günden sonraki boş randevular silinir. En erken {formatDisplayDate(
+			Bu tarihten sonra ders yapılmaz, sonraki boş randevular silinir. En erken {formatDisplayDate(
 				lesson.minEndDate
 			)}: {lesson.lastEnrolledDate
 				? `son öğrencili randevu ${formatDisplayDate(lesson.lastEnrolledDate)}.`

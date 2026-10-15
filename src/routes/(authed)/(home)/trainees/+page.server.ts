@@ -15,7 +15,7 @@ export const actions: Actions = {
 		const createError = await new TraineeRepository(supabase).create(input);
 		if (createError) return fail(400, { success: false, message: createError });
 
-		return { success: true, message: 'Öğrenci başarıyla oluşturuldu' };
+		return { success: true, message: 'Öğrenci eklendi' };
 	},
 
 	updateTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -32,7 +32,7 @@ export const actions: Actions = {
 		);
 		if (updateError) return fail(400, { success: false, message: updateError });
 
-		return { success: true, message: 'Öğrenci başarıyla güncellendi' };
+		return { success: true, message: 'Öğrenci kaydedildi' };
 	},
 
 	archiveTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -46,7 +46,7 @@ export const actions: Actions = {
 		);
 		if (archiveError) return fail(400, { success: false, message: archiveError });
 
-		return { success: true, message: 'Öğrenci başarıyla arşivlendi' };
+		return { success: true, message: 'Öğrenci arşivlendi' };
 	},
 
 	restoreTrainee: async ({ request, locals: { supabase, user, userRole } }) => {
@@ -60,6 +60,6 @@ export const actions: Actions = {
 		);
 		if (restoreError) return fail(400, { success: false, message: restoreError });
 
-		return { success: true, message: 'Öğrenci başarıyla geri yüklendi' };
+		return { success: true, message: 'Öğrenci geri yüklendi' };
 	}
 };

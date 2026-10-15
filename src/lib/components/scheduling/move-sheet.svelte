@@ -212,7 +212,7 @@
 							{pickedSlot ? 'Başka saat seç' : 'Takvimde yeni saati seç'}
 						</Button>
 						<p class="text-xs text-muted-foreground">
-							Sadece bu randevu taşınır; istediğiniz haftaya geçip boş bir saate tıklayın.
+							Sadece bu randevu taşınır. İstediğiniz haftaya geçip boş bir saate tıklayın.
 						</p>
 					</div>
 				{:else if mode === 'transfer'}
@@ -288,7 +288,7 @@
 									Öğrenci talebi
 									{#if mode === 'time' && userRole !== 'admin'}
 										<span class="block text-xs text-muted-foreground">
-											Kaydın değişiklik hakkından 1 düşer; en az 23 saat önceden yapılır.
+											Değişiklik hakkından 1 düşer. En az 23 saat önceden yapılabilir.
 										</span>
 									{/if}
 								</span>
@@ -335,7 +335,7 @@
 							{#if preview.current.value.conflicts.length > 0}
 								<ConflictList
 									conflicts={preview.current.value.conflicts}
-									title={`${preview.current.value.conflicts.length} çakışma var; taşınamaz.`}
+									title={`${preview.current.value.conflicts.length} çakışma var, taşınamaz.`}
 								/>
 							{/if}
 							<p class="text-sm text-muted-foreground">

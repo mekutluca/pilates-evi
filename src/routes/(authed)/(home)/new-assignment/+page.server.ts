@@ -148,7 +148,7 @@ export const actions: Actions = {
 		if (plan.conflicts.length > 0 || plan.fullSessions > 0 || plan.duplicateSessions > 0) {
 			return fail(400, {
 				success: false,
-				message: 'Seçilen saatlerde çakışma var; kayıt oluşturulmadı'
+				message: 'Seçilen saatlerde çakışma var, kayıt oluşturulmadı'
 			});
 		}
 

@@ -141,7 +141,7 @@
 			<Card.Content>
 				{#if lesson.members.length === 0}
 					<p class="text-sm text-muted-foreground">
-						Henüz öğrenci yok{running ? '; Öğrenci ekle ile kayıt açın.' : '.'}
+						Henüz öğrenci yok.{running ? ' "Öğrenci ekle" ile kayıt açın.' : ''}
 					</p>
 				{:else}
 					<ul class="divide-y">

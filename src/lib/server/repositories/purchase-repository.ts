@@ -21,7 +21,7 @@ export class PurchaseRepository {
 			p_purchase_id: purchaseId
 		});
 		if (error) {
-			throw new Error(dbErrorMessage(error, 'Satın alma zinciri alınamadı. Tekrar deneyin.'));
+			throw new Error(dbErrorMessage(error, 'Kayıt bilgileri alınamadı. Tekrar deneyin.'));
 		}
 		return data && data.length > 0 ? data : [purchaseId];
 	}
@@ -64,7 +64,7 @@ export class PurchaseRepository {
 			throw new Error(
 				dbErrorMessage(
 					error,
-					'Kayıt yenilenemedi. Saatler bu arada dolmuş olabilir; özeti kontrol edip tekrar deneyin.'
+					'Kayıt yenilenemedi. Saatler bu arada dolmuş olabilir. Özeti kontrol edip tekrar deneyin.'
 				)
 			);
 		}

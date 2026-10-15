@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Giriş Yap · Pilates Evi</title>
+	<title>Giriş yap · Pilates Evi</title>
 </svelte:head>
 
 <div class="grid min-h-svh lg:grid-cols-1">

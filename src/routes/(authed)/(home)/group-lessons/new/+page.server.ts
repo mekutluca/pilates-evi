@@ -65,7 +65,7 @@ export const actions: Actions = {
 		if (plan.conflicts.length > 0) {
 			return fail(400, {
 				success: false,
-				message: `${plan.conflicts.length} saatte oda veya eğitmen dolu; grup dersi açılmadı`
+				message: `${plan.conflicts.length} saatte oda veya eğitmen dolu, grup dersi açılmadı`
 			});
 		}
 

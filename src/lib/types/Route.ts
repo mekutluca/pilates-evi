@@ -88,7 +88,7 @@ export const allRoutes: Route[] = [
 export const actionRoutes: Route[] = [
 	{
 		href: '/new-assignment',
-		label: 'Yeni Kayıt',
+		label: 'Yeni kayıt',
 		icon: Plus,
 		availableToRoles: ['admin', 'coordinator'],
 		group: 'Stüdyo'

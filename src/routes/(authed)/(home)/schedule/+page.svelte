@@ -273,7 +273,7 @@
 				<span class="font-medium">Taşınıyor:</span>
 				{selected.package_name} · {formatSlotLabel(selected.date, selected.hour)}.
 				<span class="hidden sm:inline">
-					Yeni saati seçin; başka haftaya, odaya veya eğitmene geçebilirsiniz.
+					Yeni saati seçin. Başka haftaya, odaya veya eğitmene geçebilirsiniz.
 				</span>
 			</span>
 			<Button variant="outline" size="sm" class="shrink-0" onclick={stopPicking}>Vazgeç</Button>

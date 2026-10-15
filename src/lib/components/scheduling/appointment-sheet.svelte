@@ -132,7 +132,7 @@
 							İptal et
 						</Button>
 					{:else}
-						<p class="text-sm text-muted-foreground">Geçmiş randevu; değiştirilemez.</p>
+						<p class="text-sm text-muted-foreground">Geçmiş randevu, değiştirilemez.</p>
 					{/if}
 					{#if !isGroup && appointment.purchase_id && trainees[0]?.pe_trainees}
 						<Button

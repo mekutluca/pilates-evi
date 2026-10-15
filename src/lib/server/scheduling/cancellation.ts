@@ -37,7 +37,7 @@ export async function deleteAppointments(
 		};
 	}
 	if ((data ?? []).length !== appointmentIds.length) {
-		return { error: 'Randevular silinemedi; bu işlem için yetkiniz olmayabilir' };
+		return { error: 'Randevular silinemedi. Bu işlem için yetkiniz olmayabilir.' };
 	}
 	return { error: null };
 }
@@ -50,7 +50,7 @@ export function deleteAppointment(
 }
 
 function formatConflictMessage(count: number): string {
-	return `${count} çakışma tespit edildi. Lütfen önce çakışmaları kontrol edin.`;
+	return `Kaydırılacak saatlerin ${count} tanesi dolu, randevu iptal edilmedi.`;
 }
 
 async function shiftPrivateSeriesByOne(
@@ -153,7 +153,7 @@ export async function cancelAppointment(
 	}
 
 	if (appointment.pe_appointment_trainees.length > 0 && !traineeAction) {
-		return { error: 'Öğrenciler için işlem seçimi gerekli', changes: [] };
+		return { error: 'Öğrencilerin dersi ne olsun, seçin', changes: [] };
 	}
 
 	if (appointment.pe_appointment_trainees.length === 0 || traineeAction === 'remove') {

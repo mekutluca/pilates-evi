@@ -36,10 +36,14 @@
 	);
 
 	const initials = $derived.by(() => {
+		// Words that start with a letter: "Emre (Demo Admini)" gives "ED", not "E("
 		const source = fullName.trim() || currentEmail;
-		const parts = source.split(/\s+/).filter(Boolean);
-		if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-		return source.slice(0, 2).toUpperCase();
+		const words = source.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+		if (words.length >= 2) return (words[0][0] + words[1][0]).toLocaleUpperCase('tr');
+		return source
+			.replace(/[^\p{L}]/gu, '')
+			.slice(0, 2)
+			.toLocaleUpperCase('tr');
 	});
 </script>
 
@@ -49,10 +53,10 @@
 
 <div class="mx-auto w-full max-w-3xl space-y-6 p-4 lg:p-6">
 	<div class="mx-auto max-w-3xl">
-		<PageHeader title="Ayarlar" subtitle="Hesap bilgilerinizi ve güvenlik ayarlarınızı yönetin" />
+		<PageHeader title="Ayarlar" />
 
 		<!-- Account identity -->
-		<div class="mb-8 flex items-center gap-4 surface p-4">
+		<div class="mt-6 mb-8 flex items-center gap-4 surface p-4">
 			<div
 				class="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary"
 			>
@@ -74,11 +78,10 @@
 			<div>
 				<h2 class="flex items-center gap-2 font-semibold">
 					<Mail size={16} class="text-muted-foreground" />
-					E-posta Adresi
+					E-posta adresi
 				</h2>
 				<p class="mt-1 text-sm text-muted-foreground">
-					Giriş için kullandığınız e-posta adresini değiştirin. Değişiklik, yeni adresinize
-					gönderilen bağlantıyı onayladığınızda geçerli olur.
+					Değişiklik, yeni adresinize gönderilen bağlantıyı onayladığınızda geçerli olur.
 				</p>
 			</div>
 			<Card.Root>
@@ -138,9 +141,6 @@
 					<KeyRound size={16} class="text-muted-foreground" />
 					Şifre
 				</h2>
-				<p class="mt-1 text-sm text-muted-foreground">
-					Hesabınızın güvenliği için mevcut şifrenizi doğrulayarak yeni bir şifre belirleyin.
-				</p>
 			</div>
 			<Card.Root>
 				<form
@@ -148,7 +148,7 @@
 					action="?/updatePassword"
 					use:enhance={enhanceForm({
 						busy: (b) => (updatingPassword = b),
-						success: 'Şifreniz başarıyla güncellendi',
+						success: 'Şifreniz değiştirildi',
 						onSuccess: () => {
 							currentPassword = '';
 							newPassword = '';

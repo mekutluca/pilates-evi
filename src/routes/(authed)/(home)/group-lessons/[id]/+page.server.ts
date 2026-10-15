@@ -67,7 +67,7 @@ export const actions: Actions = {
 		if (result.conflicts.length > 0) {
 			return fail(400, {
 				success: false,
-				message: `${result.conflicts.length} çakışma var; taşıma yapılmadı.`
+				message: `${result.conflicts.length} çakışma var, taşıma yapılmadı.`
 			});
 		}
 

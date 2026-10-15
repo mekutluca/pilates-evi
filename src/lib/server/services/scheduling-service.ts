@@ -62,7 +62,7 @@ export class SchedulingService {
 			throw new Error(
 				dbErrorMessage(
 					error,
-					'Kayıt oluşturulamadı. Seçilen saatler bu arada dolmuş olabilir; özeti yenileyip tekrar deneyin.'
+					'Kayıt oluşturulamadı. Seçilen saatler bu arada dolmuş olabilir. Özeti yenileyip tekrar deneyin.'
 				)
 			);
 		}
@@ -106,7 +106,7 @@ export class SchedulingService {
 		return error
 			? dbErrorMessage(
 					error,
-					'Randevu taşınamadı. Saat bu arada dolmuş olabilir; takvimi yenileyip tekrar deneyin.'
+					'Randevu taşınamadı. Saat bu arada dolmuş olabilir. Takvimi yenileyip tekrar deneyin.'
 				)
 			: null;
 	}
@@ -165,8 +165,7 @@ export class SchedulingService {
 				if (plan.error) return moveResultFailure(plan.error);
 				if (!dryRun) {
 					const moveError = await applyEnrollmentMoves(this.supabase, plan.shifted);
-					if (moveError)
-						return moveResultFailure('Öğrenci kaydırma sırasında hata oluştu: ' + moveError);
+					if (moveError) return moveResultFailure(moveError);
 				}
 				return this.describeTraineeMoves(
 					request.traineeId,
@@ -206,7 +205,7 @@ export class SchedulingService {
 	): Promise<MoveResult> {
 		const { appointmentId, scope, roomId, trainerId } = request;
 		if (!roomId && !trainerId) {
-			return moveResultFailure('En az oda veya eğitmen seçilmeli');
+			return moveResultFailure('Yeni bir oda veya eğitmen seçin');
 		}
 
 		const series = await new AppointmentRepository(this.supabase).getSeries(appointmentId, scope);

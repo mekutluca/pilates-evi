@@ -42,7 +42,7 @@ import { dbErrorMessage } from '$lib/server/db-errors';
 export const STARTED_LESSON_ERROR = 'Başlamış veya geçmiş randevular taşınamaz';
 
 function pastTargetError(date: string, hour: number): string {
-	return `${formatSlotLabel(date, hour)} geçmişte kalıyor; daha ileri bir tarih seçin`;
+	return `${formatSlotLabel(date, hour)} geçmişte kalıyor, daha ileri bir tarih seçin`;
 }
 
 /** A trainee's weekly shift may not land any of their lessons in the past. */
@@ -132,7 +132,7 @@ async function applyAppointmentMoves(
 	return error
 		? dbErrorMessage(
 				error,
-				'Takvim bu arada değişmiş olabilir; önizlemeyi yenileyip tekrar deneyin.'
+				'Takvim bu arada değişmiş olabilir. Önizlemeyi yenileyip tekrar deneyin.'
 			)
 		: null;
 }
@@ -155,7 +155,7 @@ export async function applyEnrollmentMoves(
 	return error
 		? dbErrorMessage(
 				error,
-				'Takvim bu arada değişmiş olabilir; önizlemeyi yenileyip tekrar deneyin.'
+				'Takvim bu arada değişmiş olabilir. Önizlemeyi yenileyip tekrar deneyin.'
 			)
 		: null;
 }
@@ -201,7 +201,7 @@ export async function applyPlannedMoves(
 		}))
 	);
 	if (moveError) {
-		return moveFailure('Taşıma sırasında hata oluştu: ' + moveError);
+		return moveFailure(moveError);
 	}
 	return { error: null, conflicts: [], moved };
 }
@@ -470,7 +470,7 @@ function findCapacityError(
 		const occupied = occupancy.get(target.id) ?? 0;
 		const arriving = incoming.get(target.id) ?? 0;
 		if (occupied + arriving > maxCapacity) {
-			return 'Hedef randevu kapasitesi dolu, kaydırma yapılamaz';
+			return 'Hedef derste yer yok';
 		}
 	}
 	return null;
@@ -575,7 +575,7 @@ export async function planTraineeSlotShift(
 		const targetIdx = currentIdx + slots;
 		if (targetIdx >= eligible.length) {
 			return {
-				error: 'Kaydırma için yeterli ileri tarihli grup dersi randevusu yok',
+				error: 'Kaydırmak için yeterli ileri tarihli grup dersi yok',
 				shifted: []
 			};
 		}
@@ -671,7 +671,7 @@ export async function shiftTraineeRecordsByWeeks(
 		return failure(error, skippedCount);
 	};
 	if (candidates.length > 0 && shiftMap.length + toCreateFromIds.length === 0) {
-		return fail('Kaydırılacak randevu bulunamadı; hedef tarihlerin tümü iptal edilmiş görünüyor');
+		return fail('Kaydırılacak randevu yok, hedef tarihlerdeki derslerin hepsi iptal edilmiş');
 	}
 
 	const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);

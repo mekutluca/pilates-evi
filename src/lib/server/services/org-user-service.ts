@@ -34,7 +34,7 @@ export class OrgUserService {
 	/** For the signed-in user's studio; 500s without the secret key, 400s without a studio. */
 	static fromLocals(locals: App.Locals): OrgUserService {
 		const admin = requireAdminClient(locals.admin);
-		if (!locals.organizationId) error(400, 'Organizasyon bilgisi bulunamadı');
+		if (!locals.organizationId) error(400, 'Stüdyo bilgisi bulunamadı');
 		return new OrgUserService(locals.supabase, admin, locals.organizationId);
 	}
 

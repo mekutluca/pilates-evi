@@ -307,7 +307,7 @@
 				if (!pkg) return 'Bir paket seçin.';
 				if (!startDate || startDate < today) return 'Başlangıç bugün veya sonrası olmalı.';
 				if (!isGroup && (data.rooms.length === 0 || data.trainers.length === 0)) {
-					return 'Aktif oda veya eğitmen yok; önce Odalar ve Eğitmenler sayfasından ekleyin.';
+					return 'Aktif oda veya eğitmen yok. Önce Odalar ve Eğitmenler sayfasından ekleyin.';
 				}
 				const count = isGroup ? groupSlots.length : timeSlots.length;
 				if (count < pkg.min_lessons_per_week || count > pkg.max_lessons_per_week) {
@@ -389,7 +389,7 @@
 				<div>
 					<h2 class="text-lg font-semibold outline-none" tabindex="-1">Kimin için?</h2>
 					<p class="text-sm text-muted-foreground">
-						Birden fazla öğrenci seçerseniz özel derste aynı derslere katılırlar; grup dersinde her
+						Birden fazla öğrenci seçerseniz özel derste aynı derslere katılırlar. Grup dersinde her
 						biri kendi kaydını alır.
 					</p>
 				</div>
@@ -488,7 +488,7 @@
 								bind:value={periods}
 							/>
 							<p class="text-xs text-muted-foreground">
-								1 dönem = {pkg.weeks_duration} hafta; toplam {totalWeeks} hafta.
+								1 dönem = {pkg.weeks_duration} hafta, toplam {totalWeeks} hafta.
 							</p>
 						</div>
 					{/if}

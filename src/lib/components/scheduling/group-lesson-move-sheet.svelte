@@ -179,7 +179,7 @@
 					{#if preview.current.value.conflicts.length > 0}
 						<ConflictList
 							conflicts={preview.current.value.conflicts}
-							title={`${preview.current.value.conflicts.length} çakışma var; taşınamaz.`}
+							title={`${preview.current.value.conflicts.length} çakışma var, taşınamaz.`}
 						/>
 					{/if}
 					<p class="text-sm text-muted-foreground">

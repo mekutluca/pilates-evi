@@ -199,7 +199,7 @@
 			</ul>
 			{#if !search}
 				<p class="text-xs text-muted-foreground">
-					İlk {MAX_RESULTS} öğrenci gösteriliyor; aramak için yazın.
+					İlk {MAX_RESULTS} öğrenci gösteriliyor. Diğerleri için arayın.
 				</p>
 			{/if}
 		{/if}

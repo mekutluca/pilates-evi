@@ -34,11 +34,11 @@ export async function deleteRemainingLessons(
 		.maybeSingle();
 
 	if (purchaseError || !purchase) {
-		return { deletedCount: 0, error: 'Satın alım bulunamadı' };
+		return { deletedCount: 0, error: 'Kayıt bulunamadı' };
 	}
 
 	if (!purchase.team_id) {
-		return { deletedCount: 0, error: 'Satın alımın öğrenci kaydı bulunamadı' };
+		return { deletedCount: 0, error: 'Kaydın öğrencileri bulunamadı' };
 	}
 
 	const { data: membership } = await supabase
@@ -49,7 +49,7 @@ export async function deleteRemainingLessons(
 		.maybeSingle();
 
 	if (!membership) {
-		return { deletedCount: 0, error: 'Öğrenci bu satın alıma kayıtlı değil' };
+		return { deletedCount: 0, error: 'Öğrenci bu kayda bağlı değil' };
 	}
 
 	const { data: rows, error: rowsError } = await supabase
@@ -112,7 +112,7 @@ async function removeRecords(
 		.select('id');
 	if (error) return dbErrorMessage(error, 'Dersler silinemedi. Sayfayı yenileyip tekrar deneyin.');
 	if ((data ?? []).length !== records.length) {
-		return 'Dersler silinemedi; bu işlem için yetkiniz olmayabilir';
+		return 'Dersler silinemedi. Bu işlem için yetkiniz olmayabilir.';
 	}
 	return null;
 }

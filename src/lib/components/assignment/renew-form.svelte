@@ -97,7 +97,7 @@
 			<Card.Header>
 				<Card.Title>Yeni dönem</Card.Title>
 				<Card.Description>
-					Mevcut programla başlar; gün, saat, oda veya eğitmeni değiştirebilirsiniz.
+					Mevcut programla başlar. Gün, saat, oda veya eğitmeni değiştirebilirsiniz.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="space-y-6">

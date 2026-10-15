@@ -200,7 +200,7 @@
 		const result = await postAction('editPackage', fd);
 		formLoading = false;
 		if (result.type === 'success') {
-			toast.success('Paket güncellendi');
+			toast.success('Paket kaydedildi');
 			closeEditModal();
 			await invalidateAll();
 		} else {
@@ -368,9 +368,7 @@
 				<Input
 					id="edit-trainee-type"
 					type="text"
-					value={editPackageType === 'private'
-						? 'Özel - Belirli öğrencilerle'
-						: 'Grup - Esnek öğrenci katılımı'}
+					value={editPackageType === 'private' ? 'Özel ders' : 'Grup dersi'}
 					disabled
 					readonly
 					title="Bu değer değiştirilemez. Farklı tür için yeni paket oluşturun."
@@ -422,7 +420,7 @@
 <!-- Archive Package Modal -->
 <Modal bind:open={showArchiveModal} title="Paketi arşivle">
 	<p class="mb-4">
-		<strong>{selectedPackage?.name}</strong> paketi arşivlensin mi? Arşivdeki paketlerle yeni kayıt açılamaz;
+		<strong>{selectedPackage?.name}</strong> paketi arşivlensin mi? Arşivdeki paketlerle yeni kayıt açılamaz,
 		mevcut kayıtlar devam eder.
 	</p>
 	<form

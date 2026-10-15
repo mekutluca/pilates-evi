@@ -72,7 +72,7 @@
 <div class="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
 	<PageHeader
 		title="Yeni grup dersi"
-		subtitle="Her hafta aynı gün ve saatlerde yapılan ders; öğrenciler açıldıktan sonra eklenir."
+		subtitle="Öğrenciler, ders açıldıktan sonra eklenir."
 		back={{ href: '/group-lessons', label: 'Grup Dersleri' }}
 	/>
 
@@ -158,7 +158,7 @@
 						idleMessage="Haftalık ders saatlerini ekleyin."
 					/>
 					<p class="text-muted-foreground">
-						İlk 26 haftanın dersleri şimdi oluşturulur; sonraki haftalar her pazartesi otomatik
+						İlk 26 haftanın dersleri şimdi oluşturulur. Sonraki haftalar her pazartesi otomatik
 						eklenir.
 					</p>
 				</Card.Content>

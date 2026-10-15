@@ -15,7 +15,7 @@
 
 	const UNREACHABLE = 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.';
 	const SIGN_IN_FAILED =
-		'Giriş tamamlanamadı. Tekrar deneyin; sorun sürerse yöneticinize bildirin.';
+		'Giriş tamamlanamadı. Tekrar deneyin, sorun sürerse yöneticinize bildirin.';
 
 	let inProgress = $state(false);
 	let email = $state('');

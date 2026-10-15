@@ -24,7 +24,7 @@
 	const COPY: Record<ErrorKind, { icon: Component; tab: string; title: string }> = {
 		notFound: { icon: CircleAlert, tab: 'Sayfa bulunamadı', title: 'Bu adreste bir sayfa yok' },
 		forbidden: { icon: Lock, tab: 'Erişim yok', title: 'Bu alana erişim yetkiniz yok' },
-		server: { icon: TriangleAlert, tab: 'Bir hata oluştu', title: 'Bir şeyler ters gitti' }
+		server: { icon: TriangleAlert, tab: 'Bir hata oluştu', title: 'Sayfa yüklenemedi' }
 	};
 
 	let copy = $derived(COPY[kind]);

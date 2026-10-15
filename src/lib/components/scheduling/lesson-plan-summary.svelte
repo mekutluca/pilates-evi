@@ -31,11 +31,11 @@
 		{#if conflicts.length > 0}
 			<ConflictList
 				{conflicts}
-				title={`${conflicts.length} saatte çakışma var; saatleri değiştirin`}
+				title={`${conflicts.length} saatte çakışma var, saatleri değiştirin`}
 			/>
 		{/if}
 		{#if fullSessions > 0}
-			<p class="text-destructive">{fullSessions} derste yer yok; başka saat seçin.</p>
+			<p class="text-destructive">{fullSessions} derste yer yok. Başka saat seçin.</p>
 		{/if}
 		{#if duplicateSessions > 0}
 			<p class="text-destructive">Öğrenci {duplicateSessions} derse zaten kayıtlı.</p>

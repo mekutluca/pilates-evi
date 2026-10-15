@@ -16,7 +16,7 @@
 		data,
 		columns,
 		searchTerm = '',
-		emptyMessage = 'Veri bulunamadı',
+		emptyMessage = 'Kayıt yok',
 		defaultSortKey = 'id',
 		defaultSortOrder = 'asc',
 		actions = [],
@@ -205,7 +205,7 @@
 		{#if filteredAndSortedData().length === 0}
 			<div class="py-8 text-center">
 				<p class="text-muted-foreground">
-					{searchTerm ? 'Arama kriterlerine uygun veri bulunamadı' : emptyMessage}
+					{searchTerm ? 'Aramayla eşleşen sonuç yok' : emptyMessage}
 				</p>
 			</div>
 		{:else}
@@ -299,7 +299,7 @@
 				class="flex flex-col items-center gap-3 border-t px-4 py-3 sm:flex-row sm:justify-between"
 			>
 				<div class="text-sm text-muted-foreground">
-					Toplam {filteredAndSortedData().length} kayıt
+					Toplam {filteredAndSortedData().length}
 				</div>
 
 				{#if totalPages > 1}
