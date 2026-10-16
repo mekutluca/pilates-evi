@@ -3,7 +3,6 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Separator } from '$lib/components/ui/separator/index.js';
 	import MoveRight from '@lucide/svelte/icons/move-right';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -103,7 +102,8 @@
 											Taşı<span class="sr-only">: {trainee.name}</span>
 										</Button>
 									{/if}
-									{#if isStaff && enrollment.pe_trainees && enrollment.purchase_id}
+									<!-- Group members each have their own kayıt; a private lesson's kayıt is renewed from the footer -->
+									{#if isStaff && isGroup && enrollment.pe_trainees && enrollment.purchase_id}
 										<Button
 											variant="ghost"
 											size="sm"
@@ -120,8 +120,9 @@
 			</div>
 
 			{#if isStaff}
-				<Separator />
-				<Sheet.Footer class="sticky bottom-0 flex-row flex-wrap gap-2 bg-popover">
+				<Sheet.Footer
+					class="sticky bottom-0 flex-row flex-wrap items-center gap-2 border-t bg-popover"
+				>
 					{#if isUpcoming}
 						<Button onclick={() => onMove?.(null)}>
 							<MoveRight />
