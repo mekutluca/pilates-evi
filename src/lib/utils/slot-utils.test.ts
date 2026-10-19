@@ -5,10 +5,13 @@ import {
 	buildAppointmentSlotsFromStart,
 	calculateExtensionStartDate,
 	compareSlots,
+	formatSlotChanges,
 	formatWeeklyPattern,
 	getStartingAppointmentCandidates,
 	isSlotInPattern,
 	recurringPattern,
+	resolveSlotChanges,
+	slotChangeTarget,
 	sortTimeSlots
 } from '$lib/utils/slot-utils';
 
@@ -101,6 +104,111 @@ describe('recurringPattern', () => {
 			{ day: 'tuesday', hour: 9 },
 			{ day: 'friday', hour: 10 }
 		]);
+	});
+});
+
+describe('recurringPattern after a program change', () => {
+	// Tue/Thu 12:00 from Thursday 22 October, Thursday changed to Friday from 5 November
+	const lessons = [
+		{ date: '2026-10-22', hour: 12 },
+		{ date: '2026-10-27', hour: 12 },
+		{ date: '2026-10-29', hour: 12 },
+		{ date: '2026-11-03', hour: 12 },
+		{ date: '2026-11-06', hour: 12 },
+		{ date: '2026-11-10', hour: 12 },
+		{ date: '2026-11-13', hour: 12 },
+		{ date: '2026-11-17', hour: 12 }
+	];
+
+	test('follows the new program once it recurs', () => {
+		expect(recurringPattern(lessons)).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'friday', hour: 12 }
+		]);
+	});
+
+	test('keeps the old program while the new one has a single week', () => {
+		expect(recurringPattern(lessons.slice(0, 6))).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'thursday', hour: 12 }
+		]);
+	});
+
+	test('counts a partial first and last week as part of the run', () => {
+		// Starts on a Thursday and ends on a Tuesday: weeks of 1, 2, 2 and 1 lessons
+		expect(
+			recurringPattern([
+				{ date: '2026-10-22', hour: 12 },
+				{ date: '2026-10-27', hour: 12 },
+				{ date: '2026-10-29', hour: 12 },
+				{ date: '2026-11-03', hour: 12 },
+				{ date: '2026-11-05', hour: 12 },
+				{ date: '2026-11-10', hour: 12 }
+			])
+		).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'thursday', hour: 12 }
+		]);
+	});
+});
+
+describe('slot changes', () => {
+	const TUE_THU = [
+		{ day: 'tuesday', hour: 12 },
+		{ day: 'thursday', hour: 12 }
+	] satisfies WeeklySlot[];
+
+	test('slotChangeTarget moves a changed slot within its Monday-first week', () => {
+		const changes = new Map([
+			['thursday-12', { day: 'friday', hour: 18 }],
+			['sunday-12', { day: 'monday', hour: 9 }]
+		] satisfies [string, WeeklySlot][]);
+		expect(slotChangeTarget({ date: '2026-10-22', hour: 12 }, changes)).toEqual({
+			date: '2026-10-23',
+			hour: 18
+		});
+		expect(slotChangeTarget({ date: '2026-10-25', hour: 12 }, changes)).toEqual({
+			date: '2026-10-19',
+			hour: 9
+		});
+		expect(slotChangeTarget({ date: '2026-10-20', hour: 12 }, changes)).toBeNull();
+	});
+
+	test('resolveSlotChanges gives the changes and the new program', () => {
+		const resolved = resolveSlotChanges(TUE_THU, [
+			{ from: { day: 'thursday', hour: 12 }, to: { day: 'friday', hour: 18 } },
+			{ from: { day: 'tuesday', hour: 12 }, to: { day: 'tuesday', hour: 12 } }
+		]);
+		expect(resolved).toEqual({
+			changes: new Map([['thursday-12', { day: 'friday', hour: 18 }]]),
+			slots: [
+				{ day: 'tuesday', hour: 12 },
+				{ day: 'friday', hour: 18 }
+			]
+		});
+	});
+
+	test('resolveSlotChanges rejects slots off the program and collisions', () => {
+		expect(
+			resolveSlotChanges(TUE_THU, [
+				{ from: { day: 'monday', hour: 12 }, to: { day: 'friday', hour: 12 } }
+			])
+		).toBe('Seçilen saat dersin haftalık programında yok');
+		expect(
+			resolveSlotChanges(TUE_THU, [
+				{ from: { day: 'thursday', hour: 12 }, to: { day: 'tuesday', hour: 12 } }
+			])
+		).toBe('İki ders saati aynı gün ve saate taşınamaz');
+	});
+
+	test('formatSlotChanges lists only the changed slots', () => {
+		expect(
+			formatSlotChanges(TUE_THU, [
+				{ day: 'tuesday', hour: 12 },
+				{ day: 'friday', hour: 12 }
+			])
+		).toBe('thursday-12>friday-12');
+		expect(formatSlotChanges(TUE_THU, TUE_THU)).toBe('');
 	});
 });
 

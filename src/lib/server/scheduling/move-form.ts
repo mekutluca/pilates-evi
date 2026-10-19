@@ -1,6 +1,7 @@
 import type { NotifyResult } from '$lib/types/WhatsApp';
 import type { MoveReason, MoveRequest, TransferScope } from '$lib/types/Transfer';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
+import { parseSlotChanges } from '$lib/server/scheduling/slot-form';
 
 const SCOPES: TransferScope[] = ['single', 'from_selected', 'all_from_now'];
 
@@ -27,6 +28,13 @@ export function parseMoveRequest(formData: FormData): MoveRequest | string {
 				roomId: getFormDataString(formData, 'roomId') || undefined,
 				trainerId: getFormDataString(formData, 'trainerId') || undefined
 			};
+		}
+		case 'pattern': {
+			// A group lesson's program changes for everyone, never for one trainee
+			if (traineeId) return 'Geçersiz taşıma türü';
+			const slotChanges = parseSlotChanges(getFormDataString(formData, 'slotChanges'));
+			if (!slotChanges || slotChanges.length === 0) return 'Yeni gün veya saat seçin';
+			return { kind: 'pattern', appointmentId, slotChanges };
 		}
 		case 'weeks': {
 			const scope = parseScope(formData);

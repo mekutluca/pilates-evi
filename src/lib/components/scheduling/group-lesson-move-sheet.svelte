@@ -4,19 +4,18 @@
 	import type { GroupLessonMoveSheetProps } from '$lib/types/ComponentProps';
 	import type { MovePreviewPayload } from '$lib/types/Api';
 	import type { WeeklySlot } from '$lib/types/Schedule';
-	import { DAYS_OF_WEEK, DAY_NAMES, SCHEDULE_HOURS, getTimeString } from '$lib/types/Schedule';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
-	import MoveArrow from './move-arrow.svelte';
+	import SlotChangesField from './slot-changes-field.svelte';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { untrack } from 'svelte';
 	import { formatDateForDB } from '$lib/utils/date-utils';
-	import { formatWeeklyPattern, weeklySlotKey } from '$lib/utils/slot-utils';
+	import { formatSlotChanges, formatWeeklyPattern } from '$lib/utils/slot-utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
 	import ConflictList from './conflict-list.svelte';
@@ -34,21 +33,15 @@
 	let notify = $state(true);
 	let submitting = $state(false);
 
-	const slotChanges = $derived(
-		lesson.slots.flatMap((from, i) =>
-			weeklySlotKey(from) === weeklySlotKey(targets[i])
-				? []
-				: [`${weeklySlotKey(from)}>${weeklySlotKey(targets[i])}`]
-		)
-	);
+	const slotChanges = $derived(formatSlotChanges(lesson.slots, targets));
 	const changed = $derived(
-		slotChanges.length > 0 || roomId !== lesson.roomId || trainerId !== lesson.trainerId
+		slotChanges !== '' || roomId !== lesson.roomId || trainerId !== lesson.trainerId
 	);
 	// What moves where (the preview's input; the move adds the message)
 	function planForm(): FormData {
 		const fd = new FormData();
 		fd.set('fromDate', fromDate);
-		fd.set('slotChanges', slotChanges.join(','));
+		fd.set('slotChanges', slotChanges);
 		if (roomId !== lesson.roomId) fd.set('roomId', roomId);
 		if (trainerId !== lesson.trainerId) fd.set('trainerId', trainerId);
 		return fd;
@@ -107,31 +100,12 @@
 				<Input id="glm-from" type="date" min={today} bind:value={fromDate} />
 			</div>
 
-			<fieldset class="grid gap-2">
-				<legend class="mb-2 text-sm font-medium">Ders saatleri</legend>
-				{#each lesson.slots as from, i (weeklySlotKey(from))}
-					<div class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm">
-						<span class="tabular-nums">
-							{DAY_NAMES[from.day]}
-							{getTimeString(from.hour)}
-							<MoveArrow label="yeni saat" class="ml-1 inline size-4" />
-						</span>
-						<NativeSelect bind:value={targets[i].day} aria-label="Yeni gün">
-							{#each DAYS_OF_WEEK as day (day)}
-								<option value={day}>{DAY_NAMES[day]}</option>
-							{/each}
-						</NativeSelect>
-						<NativeSelect bind:value={targets[i].hour} aria-label="Yeni saat">
-							{#each SCHEDULE_HOURS as hour (hour)}
-								<option value={hour}>{getTimeString(hour)}</option>
-							{/each}
-						</NativeSelect>
-					</div>
-				{/each}
-				<p class="text-xs text-muted-foreground">
-					Her randevu aynı haftanın yeni gün ve saatine taşınır.
-				</p>
-			</fieldset>
+			<SlotChangesField
+				from={lesson.slots}
+				bind:targets
+				legend="Ders saatleri"
+				hint="Her randevu aynı haftanın yeni gün ve saatine taşınır."
+			/>
 
 			<div class="grid grid-cols-2 gap-3">
 				<div class="grid gap-2">

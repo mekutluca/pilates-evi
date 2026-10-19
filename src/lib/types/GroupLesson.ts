@@ -1,5 +1,5 @@
 import type { SlotConflict } from './Conflict';
-import type { SlotRef, WeeklySlot } from './Schedule';
+import type { SlotChange, SlotRef, WeeklySlot } from './Schedule';
 import type { AssignmentPayload } from './Assignment';
 
 // A group lesson (pe_group_lessons) as the Grup Dersleri pages show it
@@ -67,17 +67,11 @@ export interface GroupLessonPlan {
 	payload: AssignmentPayload;
 }
 
-// One weekly slot of a group lesson and where it moves to (same week)
-export interface GroupSlotChange {
-	from: WeeklySlot;
-	to: WeeklySlot;
-}
-
 // Taşı for a whole group lesson from a date on: new weekly times and/or room/trainer
 export interface GroupLessonMoveInput {
 	groupLessonId: string;
 	fromDate: string;
-	slotChanges: GroupSlotChange[];
+	slotChanges: SlotChange[];
 	roomId?: string;
 	trainerId?: string;
 }

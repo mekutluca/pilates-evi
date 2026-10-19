@@ -6,7 +6,7 @@ import type { SlotRef } from '$lib/types/Schedule';
 type RoomKey = 'r1' | 'r2' | 'r3';
 type TrainerKey = 't1' | 't2';
 type PackageKey = 'reformer' | 'duet' | 'group' | 'boutique';
-type GroupLessonKey = 'main' | 'cancel' | 'boutique' | 'close_day' | 'move' | 'end';
+type GroupLessonKey = 'main' | 'cancel' | 'boutique' | 'close_day' | 'move' | 'end' | 'pattern';
 
 // What pe_reset_demo_data() returns: the seeded ids by fixture key, and the dates every
 // fixture date is relative to. A type, not an interface, so the RPC's Json converts to it

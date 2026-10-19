@@ -20,6 +20,19 @@ export interface WeeklySlot {
 	hour: number;
 }
 
+// One slot of a weekly program and where it moves to (the same week's new day and hour)
+export interface SlotChange {
+	from: WeeklySlot;
+	to: WeeklySlot;
+}
+
+// Slot changes checked against the program: each changed slot's new one by old slot key
+// (weeklySlotKey), and the new program
+export interface ResolvedSlotChanges {
+	changes: Map<string, WeeklySlot>;
+	slots: WeeklySlot[];
+}
+
 // Outcome of a write that either succeeds or fails with a message.
 export type OperationResult = { error: string | null };
 

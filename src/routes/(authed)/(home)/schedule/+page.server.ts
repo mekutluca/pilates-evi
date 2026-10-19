@@ -218,6 +218,23 @@ export const actions: Actions = {
 		};
 	},
 
+	seriesPattern: async ({ request, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const appointmentId = Number(
+			getRequiredFormDataString(await request.formData(), 'appointmentId')
+		);
+		if (!Number.isInteger(appointmentId)) {
+			return fail(400, { success: false, message: 'Geçersiz randevu' });
+		}
+		const slots = await new AppointmentRepository(supabase).getSeriesPattern(appointmentId);
+		if (slots.length === 0) {
+			return fail(404, { success: false, message: 'Dersin haftalık programı bulunamadı.' });
+		}
+		return { success: true, slots };
+	},
+
 	previewMove: async ({ request, locals: { supabase, user, userRole } }) => {
 		const denied = requireStaff(user, userRole);
 		if (denied) return denied;

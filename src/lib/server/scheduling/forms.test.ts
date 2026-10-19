@@ -67,6 +67,37 @@ describe('parseMoveRequest (Taşı)', () => {
 		});
 	});
 
+	test('reads a new weekly program (Haftalık program)', () => {
+		expect(
+			parseMoveRequest(
+				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'thursday-12>friday-12' })
+			)
+		).toEqual({
+			kind: 'pattern',
+			appointmentId: 7,
+			slotChanges: [{ from: { day: 'thursday', hour: 12 }, to: { day: 'friday', hour: 12 } }]
+		});
+		expect(parseMoveRequest(form({ appointmentId: '7', kind: 'pattern', slotChanges: '' }))).toBe(
+			'Yeni gün veya saat seçin'
+		);
+		expect(
+			parseMoveRequest(
+				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'thursday-12>someday-12' })
+			)
+		).toBe('Yeni gün veya saat seçin');
+		// A group lesson's program changes for all its trainees, never for one
+		expect(
+			parseMoveRequest(
+				form({
+					appointmentId: '7',
+					kind: 'pattern',
+					slotChanges: 'thursday-12>friday-12',
+					traineeId: TRAINEE
+				})
+			)
+		).toBe('Geçersiz taşıma türü');
+	});
+
 	test('a trainee makes it a move of that trainee only', () => {
 		expect(
 			parseMoveRequest(

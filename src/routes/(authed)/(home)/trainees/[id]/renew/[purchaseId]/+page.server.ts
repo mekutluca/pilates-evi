@@ -34,12 +34,7 @@ async function loadRenewal(
 	const isGroup = pkg.package_type === 'group';
 
 	const [{ slots, timeslotGroupLessons }, { data: latest }, groupTimeslots] = await Promise.all([
-		getCanonicalPurchaseTimeSlots(
-			supabase,
-			last.id,
-			isGroup ? 'group' : 'private',
-			pkg.weeks_duration ?? 0
-		),
+		getCanonicalPurchaseTimeSlots(supabase, last.id, isGroup ? 'group' : 'private'),
 		// Current room and trainer: the kayıt's latest lesson
 		supabase
 			.from('pe_appointments')

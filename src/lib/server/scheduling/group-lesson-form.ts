@@ -1,11 +1,7 @@
-import type {
-	GroupLessonMoveInput,
-	GroupSlotChange,
-	NewGroupLessonInput
-} from '$lib/types/GroupLesson';
+import type { GroupLessonMoveInput, NewGroupLessonInput } from '$lib/types/GroupLesson';
 import { getFormDataString, getRequiredFormDataString } from '$lib/utils/form-utils';
 import { isIsoDate, isValidUuid } from '$lib/utils/validation';
-import { parseWeeklySlot, parseWeeklySlots } from '$lib/server/scheduling/slot-form';
+import { parseSlotChanges, parseWeeklySlots } from '$lib/server/scheduling/slot-form';
 
 /** Reads the Yeni grup dersi form; returns an error message for malformed input. */
 export function parseNewGroupLessonForm(formData: FormData): NewGroupLessonInput | string {
@@ -28,14 +24,8 @@ export function parseGroupLessonMoveForm(
 	const fromDate = getRequiredFormDataString(formData, 'fromDate');
 	if (!isIsoDate(fromDate)) return 'Geçersiz başlangıç tarihi';
 
-	const slotChanges: GroupSlotChange[] = [];
-	for (const part of getFormDataString(formData, 'slotChanges').split(',').filter(Boolean)) {
-		const [fromText = '', toText = ''] = part.split('>');
-		const from = parseWeeklySlot(fromText);
-		const to = parseWeeklySlot(toText);
-		if (!from || !to) return 'Geçersiz ders saatleri';
-		slotChanges.push({ from, to });
-	}
+	const slotChanges = parseSlotChanges(getFormDataString(formData, 'slotChanges'));
+	if (!slotChanges) return 'Geçersiz ders saatleri';
 
 	const roomId = getFormDataString(formData, 'roomId') || undefined;
 	const trainerId = getFormDataString(formData, 'trainerId') || undefined;

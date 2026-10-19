@@ -2,10 +2,12 @@
 	import LoadError from '$lib/components/load-error.svelte';
 	import CauseField from './cause-field.svelte';
 	import type { MoveSheetProps } from '$lib/types/ComponentProps';
-	import type { MovePreviewPayload } from '$lib/types/Api';
+	import type { Loadable, MovePreviewPayload, SeriesPatternPayload } from '$lib/types/Api';
+	import type { WeeklySlot } from '$lib/types/Schedule';
 	import type { MoveMode, TransferScope } from '$lib/types/Transfer';
 	import ConflictList from './conflict-list.svelte';
 	import MovePreviewList from './move-preview-list.svelte';
+	import SlotChangesField from './slot-changes-field.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -22,6 +24,7 @@
 	import { formatSlotLabel, getAppointmentDateTime } from '$lib/utils/date-utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
+	import { formatSlotChanges } from '$lib/utils/slot-utils';
 
 	let {
 		open = $bindable(),
@@ -37,6 +40,7 @@
 
 	const MODE_LABELS: Record<MoveMode, string> = {
 		time: 'Saat',
+		pattern: 'Haftalık program',
 		transfer: 'Oda / eğitmen',
 		weeks: 'Hafta kaydır',
 		slots: 'Ders kaydır'
@@ -64,13 +68,38 @@
 	let submitting = $state(false);
 
 	const modes = $derived<MoveMode[]>(
-		trainee ? ['weeks', 'slots'] : ['time', 'transfer', 'weeks', 'slots']
+		trainee ? ['weeks', 'slots'] : ['time', 'transfer', 'weeks', 'slots', 'pattern']
 	);
 	const changesTime = $derived(mode !== 'transfer');
+	const isGroupLesson = $derived(!!appointment?.group_lesson_id);
 	const roomNames = $derived(new Map(rooms.map((r) => [r.id, r.name ?? '-'])));
 
-	// "Ders kaydır" always walks the series from this lesson on
-	const scope = $derived<TransferScope>(mode === 'slots' ? 'from_selected' : pickedScope);
+	// "Ders kaydır" and "Haftalık program" always cover the series from this lesson on
+	const scope = $derived<TransferScope>(
+		mode === 'slots' || mode === 'pattern' ? 'from_selected' : pickedScope
+	);
+
+	// Haftalık program: the series' current program, loaded when the mode is first chosen;
+	// `targets` holds the new day and hour of each of its slots
+	let program = $state<Loadable<WeeklySlot[]>>({ status: 'idle' });
+	let targets = $state<WeeklySlot[]>([]);
+	async function loadProgram() {
+		if (!appointment || program.status === 'ready' || program.status === 'loading') return;
+		program = { status: 'loading' };
+		const fd = new FormData();
+		fd.set('appointmentId', String(appointment.id));
+		const result = await postAction<SeriesPatternPayload>('seriesPattern', fd);
+		if (result.type === 'success' && result.data) {
+			targets = result.data.slots.map((s) => ({ ...s }));
+			program = { status: 'ready', value: result.data.slots };
+		} else {
+			program = { status: 'failed', message: actionResultMessage(result) };
+		}
+	}
+
+	const slotChanges = $derived(
+		program.status === 'ready' ? formatSlotChanges(program.value, targets) : ''
+	);
 
 	// A client's own request costs a coordinator a credit and needs 23 h notice
 	const creditBlock = $derived.by(() => {
@@ -95,6 +124,7 @@
 		fd.set('scope', scope);
 		fd.set('amount', String(amount));
 		if (trainee) fd.set('traineeId', trainee.id);
+		if (mode === 'pattern') fd.set('slotChanges', slotChanges);
 		if (mode === 'transfer') {
 			if (roomId !== appointment.room_id) fd.set('roomId', roomId);
 			if (trainerId !== appointment.trainer_id) fd.set('trainerId', trainerId);
@@ -110,7 +140,8 @@
 		const invalidAmount =
 			(mode === 'weeks' && (!Number.isInteger(amount) || amount === 0)) ||
 			(mode === 'slots' && (!Number.isInteger(amount) || amount < 1));
-		return unchangedTransfer || invalidAmount ? null : moveForm();
+		const unchangedPattern = mode === 'pattern' && slotChanges === '';
+		return unchangedTransfer || unchangedPattern || invalidAmount ? null : moveForm();
 	});
 
 	const timeReady = $derived(mode === 'time' && pickedSlot !== null);
@@ -182,11 +213,17 @@
 						variant="outline"
 						spacing={1}
 						value={mode}
-						onValueChange={(v) => v && (mode = v as MoveMode)}
+						onValueChange={(v) => {
+							if (!v) return;
+							mode = v as MoveMode;
+							if (mode === 'pattern') loadProgram();
+						}}
 						class="grid w-full grid-cols-2"
 					>
 						{#each modes as m (m)}
-							<ToggleGroup.Item value={m} class="w-full">{MODE_LABELS[m]}</ToggleGroup.Item>
+							<ToggleGroup.Item value={m} class="w-full last:odd:col-span-2">
+								{MODE_LABELS[m]}
+							</ToggleGroup.Item>
 						{/each}
 					</ToggleGroup.Root>
 				</div>
@@ -234,6 +271,24 @@
 							</NativeSelect>
 						</div>
 					</div>
+				{:else if mode === 'pattern'}
+					{#if program.status === 'ready'}
+						<SlotChangesField
+							from={program.value}
+							bind:targets
+							legend="Ders saatleri"
+							hint={isGroupLesson
+								? 'Grup dersinin programı bu randevunun gününden itibaren değişir. Tüm öğrenciler taşınır, yeni haftalar da bu programla açılır.'
+								: 'Bu randevudan itibaren her ders aynı haftanın yeni gün ve saatine taşınır. Kayıt yenilenirken de yeni program kullanılır.'}
+						/>
+					{:else if program.status === 'failed'}
+						<LoadError message={program.message} onRetry={loadProgram} />
+					{:else}
+						<p class="flex items-center gap-2 text-sm text-muted-foreground">
+							<LoaderCircle class="size-4 animate-spin" />
+							Program yükleniyor…
+						</p>
+					{/if}
 				{:else if mode === 'weeks'}
 					<div class="grid gap-2">
 						<Label for="move-weeks">Kaç hafta?</Label>
@@ -268,7 +323,7 @@
 							{/each}
 						</RadioGroup>
 					</div>
-				{:else if mode !== 'time'}
+				{:else if mode === 'weeks' || mode === 'slots'}
 					<p class="text-sm text-muted-foreground">
 						Bu randevu ve {trainee ? 'öğrencinin ' : ''}sonraki randevuları taşınır.
 					</p>
@@ -322,7 +377,11 @@
 						<h3 class="text-sm font-semibold">Önizleme</h3>
 						{#if preview.current.status === 'idle'}
 							<p class="text-sm text-muted-foreground">
-								{mode === 'transfer' ? 'Yeni oda veya eğitmen seçin.' : 'Geçerli bir sayı girin.'}
+								{mode === 'transfer'
+									? 'Yeni oda veya eğitmen seçin.'
+									: mode === 'pattern'
+										? 'Yeni gün veya saat seçin.'
+										: 'Geçerli bir sayı girin.'}
 							</p>
 						{:else if preview.current.status === 'loading'}
 							<p class="flex items-center gap-2 text-sm text-muted-foreground">

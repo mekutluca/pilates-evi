@@ -1,7 +1,7 @@
 import type { SlotConflict } from '$lib/types/Conflict';
 import type { CloseDayPreview, DayCancellationConflict } from '$lib/types/Operation';
 import type { MovePreviewRow } from '$lib/types/Transfer';
-import type { SlotRef } from '$lib/types/Schedule';
+import type { SlotRef, WeeklySlot } from '$lib/types/Schedule';
 import type { AvailableGroupTimeslot, TraineeOption } from '$lib/types';
 import type { BusyWeeklySlot } from '$lib/types/Conflict';
 
@@ -28,6 +28,9 @@ export type MovePreviewPayload = ActionPayload & {
 	conflicts: SlotConflict[];
 	recipientCount: number;
 };
+
+// seriesPattern: the weekly program a lesson's series follows (Taşı → Haftalık program)
+export type SeriesPatternPayload = ActionPayload & { slots: WeeklySlot[] };
 
 // previewCloseDay
 export type CloseDayPreviewPayload = ActionPayload & { preview: CloseDayPreview };

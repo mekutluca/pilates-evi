@@ -4,6 +4,7 @@ import { actions as groupLesson } from '../../src/routes/(authed)/(home)/group-l
 import type { MovePreviewRow } from '$lib/types/Transfer';
 import type { SlotConflict } from '$lib/types/Conflict';
 import { STARTED_LESSON_ERROR } from '$lib/server/scheduling/shift';
+import { getCanonicalPurchaseTimeSlots } from '$lib/server/scheduling/extension';
 import type { WeekdayHour } from '$lib/types/Regression';
 import {
 	at,
@@ -252,5 +253,109 @@ describe('Taşı: a whole group lesson', () => {
 			.eq('id', fx.groupLessons.move)
 			.single();
 		expect(lesson?.timeslots).toEqual([{ day: 'tuesday', hours: [19] }]);
+	});
+});
+
+describe('Taşı: Haftalık program', () => {
+	const tueThu: WeekdayHour[] = [
+		[2, 12],
+		[4, 12]
+	];
+	const tueFri: WeekdayHour[] = [
+		[2, 12],
+		[5, 12]
+	];
+
+	test('is blocked when a new slot conflicts', async () => {
+		await expectNoChange(async () => {
+			// Wednesday 12:00 is another kayıt's lesson time in the same room and trainer
+			const lessons = await kayitLessons('pattern_private');
+			const outcome = await runAction(
+				schedule.move,
+				{
+					appointmentId: lessons[2].appointmentId,
+					kind: 'pattern',
+					slotChanges: 'thursday-12>wednesday-12',
+					...studioReason
+				},
+				noParams
+			);
+			expect(outcome.ok).toBe(false);
+			expect(outcome.message).toMatch(/çakışma var, taşıma yapılmadı/);
+		});
+	});
+
+	test("changes a private kayıt's days from the selected lesson on; Yenile follows it", async () => {
+		const lessons = await kayitLessons('pattern_private');
+		const program = expectOk(
+			await runAction(schedule.seriesPattern, { appointmentId: lessons[2].appointmentId }, noParams)
+		);
+		expect(program.slots).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'thursday', hour: 12 }
+		]);
+
+		const form = {
+			appointmentId: lessons[2].appointmentId,
+			kind: 'pattern',
+			slotChanges: 'thursday-12>friday-12',
+			...studioReason
+		};
+		const preview = expectOk(await runAction(schedule.previewMove, form, noParams));
+		expect(preview.conflicts).toEqual([]);
+		expectOk(await runAction(schedule.move, form, noParams));
+
+		const expected = [...weekly(1, tueThu, 2), ...weekly(2, tueFri, 6)];
+		const after = await kayitLessons('pattern_private');
+		expect(after.map(at)).toEqual(expected);
+		expect((preview.rows as MovePreviewRow[]).map((r) => at(r.to))).toEqual(
+			weekly(2, [[5, 12]], 3)
+		);
+		const { slots } = await getCanonicalPurchaseTimeSlots(
+			supabase,
+			fx.purchases.pattern_private,
+			'private'
+		);
+		expect(slots).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'friday', hour: 12 }
+		]);
+	});
+
+	test("changes a group lesson's days for all from a session on", async () => {
+		const lessons = await kayitLessons('pattern_group');
+		expectOk(
+			await runAction(
+				schedule.move,
+				{
+					appointmentId: lessons[2].appointmentId,
+					kind: 'pattern',
+					slotChanges: 'thursday-12>friday-12',
+					...studioReason
+				},
+				noParams
+			)
+		);
+
+		const after = await kayitLessons('pattern_group');
+		expect(after.map(at)).toEqual([...weekly(1, tueThu, 2), ...weekly(2, tueFri, 6)]);
+		const { data: lesson } = await supabase
+			.from('pe_group_lessons')
+			.select('timeslots')
+			.eq('id', fx.groupLessons.pattern)
+			.single();
+		expect(lesson?.timeslots).toEqual([
+			{ day: 'tuesday', hours: [12] },
+			{ day: 'friday', hours: [12] }
+		]);
+		const { slots } = await getCanonicalPurchaseTimeSlots(
+			supabase,
+			fx.purchases.pattern_group,
+			'group'
+		);
+		expect(slots).toEqual([
+			{ day: 'tuesday', hour: 12 },
+			{ day: 'friday', hour: 12 }
+		]);
 	});
 });

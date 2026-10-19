@@ -28,6 +28,7 @@ import { cancelAppointment } from '$lib/server/scheduling/cancellation';
 import { cancelDay, previewCloseDay } from '$lib/server/scheduling/day-cancellation';
 import { deleteRemainingLessons } from '$lib/server/scheduling/purchase-deletion';
 import { planGroupLessonMove } from '$lib/server/scheduling/group-lessons';
+import { planPatternChange } from '$lib/server/scheduling/pattern-change';
 import { toGroupLessonTimeslots } from '$lib/server/scheduling/extension';
 import { addWeeksToDate, isAppointmentFuture } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
@@ -142,6 +143,26 @@ export class SchedulingService {
 					dryRun
 				);
 				return toMoveResult(outcome, true);
+			}
+			case 'pattern': {
+				// A group session changes the lesson's program for everyone from its date on
+				if (anchor.group_lesson_id) {
+					return this.moveGroupLesson(
+						{
+							groupLessonId: anchor.group_lesson_id,
+							fromDate: anchor.date,
+							slotChanges: request.slotChanges
+						},
+						dryRun
+					);
+				}
+				const plan = await planPatternChange(
+					this.supabase,
+					request.appointmentId,
+					request.slotChanges
+				);
+				if (typeof plan === 'string') return moveResultFailure(plan);
+				return toMoveResult(await applyPlannedMoves(this.supabase, plan, undefined, dryRun), true);
 			}
 			case 'slots': {
 				if (!isIntInRange(request.slots, 1, MAX_SLOT_SHIFT)) {

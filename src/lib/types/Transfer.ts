@@ -1,6 +1,7 @@
 import type { Database } from '$lib/types/database.types';
 import type { SlotConflict } from '$lib/types/Conflict';
 import type { ScheduleChange } from '$lib/types/WhatsApp';
+import type { SlotChange } from '$lib/types/Schedule';
 
 type PackageType = Database['public']['Enums']['package_type_enum'];
 
@@ -71,8 +72,9 @@ export interface RescheduleParams {
 // appointments, coordinators); the studio's reason travels in the WhatsApp message.
 export type MoveReason = { source: 'trainee' } | { source: 'studio'; cause: string };
 
-// What the Taşı panel changes: the time on the grid, room/trainer, N weeks, N lessons
-export type MoveMode = 'time' | 'transfer' | 'weeks' | 'slots';
+// What the Taşı panel changes: the time on the grid, the weekly program, room/trainer,
+// N weeks, N lessons
+export type MoveMode = 'time' | 'pattern' | 'transfer' | 'weeks' | 'slots';
 
 // Every way lessons can be moved (the Taşı panel)
 export type MoveRequest =
@@ -84,6 +86,8 @@ export type MoveRequest =
 			trainerId?: string;
 	  }
 	| { kind: 'weeks'; appointmentId: number; scope: TransferScope; weeks: number }
+	// New days/hours for the weekly program from this lesson on (a group lesson's for all)
+	| { kind: 'pattern'; appointmentId: number; slotChanges: SlotChange[] }
 	| { kind: 'slots'; appointmentId: number; slots: number }
 	| { kind: 'trainee_weeks'; appointmentId: number; traineeId: string; weeks: number }
 	| { kind: 'trainee_slots'; appointmentId: number; traineeId: string; slots: number };

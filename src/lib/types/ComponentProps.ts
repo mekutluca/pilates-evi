@@ -201,6 +201,14 @@ export interface WeeklySlotsFieldProps {
 	max?: number;
 }
 
+export interface SlotChangesFieldProps {
+	// The current weekly program, and the new day/hour of each of its slots (same order)
+	from: WeeklySlot[];
+	targets: WeeklySlot[];
+	legend: string;
+	hint: string;
+}
+
 export interface GroupLessonMoveSheetProps {
 	open: boolean;
 	lesson: GroupLessonSummary;

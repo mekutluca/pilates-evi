@@ -1,7 +1,14 @@
-import { JS_DAY_TO_NAME, type DayOfWeek, type SlotRef, type WeeklySlot } from '$lib/types/Schedule';
+import {
+	JS_DAY_TO_NAME,
+	type DayOfWeek,
+	type ResolvedSlotChanges,
+	type SlotChange,
+	type SlotRef,
+	type WeeklySlot
+} from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
 import type { SelectedGroupTimeslot } from '$lib/types';
-import { formatDateForDB, getDayOfWeekFromDate } from './date-utils';
+import { addDays, formatDateForDB, getDayOfWeekFromDate, parseLocalDate } from './date-utils';
 
 // Monday-first ordering used for recurring weekly time-slot patterns.
 export const DAY_ORDER: Record<DayOfWeek, number> = {
@@ -60,28 +67,102 @@ export function sortTimeSlots<T extends WeeklySlot>(slots: T[]): T[] {
 	});
 }
 
+// Lessons in a usual week of a run: the most common weekly count (the larger on a tie),
+// leaving out the first and last weeks, which are often partial
+function usualWeeklyCount(perWeek: Map<string, number>): number {
+	const counts = [...perWeek.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, n]) => n);
+	const inner = counts.slice(1, -1);
+	if (inner.length === 0) return Math.max(...counts);
+	const frequency = new Map<number, number>();
+	for (const n of inner) frequency.set(n, (frequency.get(n) ?? 0) + 1);
+	return [...frequency.entries()].sort(([a, fa], [b, fb]) => fb - fa || b - a)[0][0];
+}
+
+/**
+ * The weekly pattern a run of lessons follows now: the (day, hour) slots that recur. A
+ * lesson moved once shows up a single time and is left out, so it doesn't add a weekday
+ * to the pattern; when nothing recurs (a last week) every slot counts. After a change of
+ * the weekly program the old slots stop recurring early: the recurring slots that go on
+ * latest are kept, as many as the run has lessons in a usual week.
+ */
+export function recurringPattern(lessons: SlotRef[]): WeeklySlot[] {
+	const entries = new Map<string, { slot: WeeklySlot; count: number; last: string }>();
+	const perWeek = new Map<string, number>();
+	for (const { date, hour } of lessons) {
+		const slot = { day: getDayOfWeekFromDate(date), hour };
+		const entry = entries.get(weeklySlotKey(slot)) ?? { slot, count: 0, last: date };
+		entry.count++;
+		if (date > entry.last) entry.last = date;
+		entries.set(weeklySlotKey(slot), entry);
+		const week = formatDateForDB(getMondayOf(parseLocalDate(date)));
+		perWeek.set(week, (perWeek.get(week) ?? 0) + 1);
+	}
+	const all = [...entries.values()];
+	const recurring = all.filter((e) => e.count > 1);
+	if (recurring.length === 0) return sortTimeSlots(all.map((e) => e.slot));
+	const latestFirst = recurring.sort((a, b) => b.last.localeCompare(a.last) || b.count - a.count);
+	return sortTimeSlots(latestFirst.slice(0, usualWeeklyCount(perWeek)).map((e) => e.slot));
+}
+
+/** The date of `day` in the (Monday-first) week of `date`. */
+function sameWeekDate(date: string, day: DayOfWeek): string {
+	const shift = DAY_ORDER[day] - DAY_ORDER[getDayOfWeekFromDate(date)];
+	return formatDateForDB(addDays(parseLocalDate(date), shift));
+}
+
+/**
+ * Where a lesson goes when its weekly slot changed: the new day and hour of its own
+ * (Monday-first) week; null when its slot didn't change.
+ */
+export function slotChangeTarget(
+	lesson: SlotRef,
+	changes: ResolvedSlotChanges['changes']
+): SlotRef | null {
+	const to = changes.get(
+		weeklySlotKey({ day: getDayOfWeekFromDate(lesson.date), hour: lesson.hour })
+	);
+	return to ? { date: sameWeekDate(lesson.date, to.day), hour: to.hour } : null;
+}
+
+/**
+ * A weekly pattern with some of its slots given a new day or hour (Haftalık program, Grup
+ * dersini taşı): the changes by old slot key and the new pattern, or an error message.
+ */
+export function resolveSlotChanges(
+	pattern: WeeklySlot[],
+	slotChanges: SlotChange[]
+): ResolvedSlotChanges | string {
+	const changes = new Map(
+		slotChanges
+			.filter((c) => weeklySlotKey(c.from) !== weeklySlotKey(c.to))
+			.map((c) => [weeklySlotKey(c.from), c.to] as const)
+	);
+	const patternKeys = new Set(pattern.map(weeklySlotKey));
+	if ([...changes.keys()].some((key) => !patternKeys.has(key))) {
+		return 'Seçilen saat dersin haftalık programında yok';
+	}
+	const slots = pattern.map((s) => changes.get(weeklySlotKey(s)) ?? s);
+	if (new Set(slots.map(weeklySlotKey)).size !== slots.length) {
+		return 'İki ders saati aynı gün ve saate taşınamaz';
+	}
+	return { changes, slots: sortTimeSlots(slots) };
+}
+
+/** Changed slots as the Taşı forms send them: "monday-10>tuesday-11,…". */
+export function formatSlotChanges(from: WeeklySlot[], to: WeeklySlot[]): string {
+	return from
+		.flatMap((slot, i) =>
+			to[i] && weeklySlotKey(slot) !== weeklySlotKey(to[i])
+				? [`${weeklySlotKey(slot)}>${weeklySlotKey(to[i])}`]
+				: []
+		)
+		.join(',');
+}
+
 /**
  * Whether (date, hour) is one of the pattern's recurring slots — the precondition of
  * buildAppointmentSlotsFromStart, for callers that would rather skip than throw.
  */
-/**
- * The weekly pattern a run of lessons follows: the (day, hour) slots that recur. A lesson
- * moved once shows up a single time and is left out, so it doesn't add a weekday to the
- * pattern; when nothing recurs (a last week) every slot counts.
- */
-export function recurringPattern(lessons: SlotRef[]): WeeklySlot[] {
-	const counts = new Map<string, { slot: WeeklySlot; count: number }>();
-	for (const { date, hour } of lessons) {
-		const slot = { day: getDayOfWeekFromDate(date), hour };
-		const entry = counts.get(weeklySlotKey(slot)) ?? { slot, count: 0 };
-		entry.count++;
-		counts.set(weeklySlotKey(slot), entry);
-	}
-	const all = [...counts.values()];
-	const recurring = all.filter((e) => e.count > 1);
-	return sortTimeSlots((recurring.length > 0 ? recurring : all).map((e) => e.slot));
-}
-
 export function isSlotInPattern(timeSlots: WeeklySlot[], date: Date, hour: number): boolean {
 	const dayName = JS_DAY_TO_NAME[date.getDay()];
 	return timeSlots.some((s) => s.day === dayName && s.hour === hour);

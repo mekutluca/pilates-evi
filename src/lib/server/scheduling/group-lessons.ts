@@ -29,10 +29,11 @@ import {
 	parseLocalDate
 } from '$lib/utils/date-utils';
 import {
-	DAY_ORDER,
 	buildAppointmentSlotsFromStart,
 	compareSlots,
 	getStartingAppointmentCandidates,
+	resolveSlotChanges,
+	slotChangeTarget,
 	weeklySlotKey
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
@@ -252,19 +253,9 @@ export async function planGroupLessonMove(
 	if (lesson.endDate) return 'Sona ermiş grup dersi taşınamaz';
 	if (isPastDate(input.fromDate)) return 'Başlangıç tarihi geçmişte olamaz';
 
-	const changes = new Map(
-		input.slotChanges
-			.filter((c) => weeklySlotKey(c.from) !== weeklySlotKey(c.to))
-			.map((c) => [weeklySlotKey(c.from), c.to] as const)
-	);
-	const patternKeys = new Set(lesson.slots.map(weeklySlotKey));
-	if ([...changes.keys()].some((key) => !patternKeys.has(key))) {
-		return 'Seçilen saat bu grup dersinin programında yok';
-	}
-	const slots = lesson.slots.map((s) => changes.get(weeklySlotKey(s)) ?? s);
-	if (new Set(slots.map(weeklySlotKey)).size !== slots.length) {
-		return 'İki ders saati aynı gün ve saate taşınamaz';
-	}
+	const resolved = resolveSlotChanges(lesson.slots, input.slotChanges);
+	if (typeof resolved === 'string') return resolved;
+	const { changes, slots } = resolved;
 	const resourcesChange =
 		(input.roomId !== undefined && input.roomId !== lesson.roomId) ||
 		(input.trainerId !== undefined && input.trainerId !== lesson.trainerId);
@@ -276,15 +267,9 @@ export async function planGroupLessonMove(
 	);
 	const moved: MovedAppointment[] = [];
 	for (const appointment of sessions) {
-		const day = getDayOfWeekFromDate(appointment.date);
-		const to = changes.get(weeklySlotKey({ day, hour: appointment.hour }));
-		if (!to && !resourcesChange) continue;
-		const newDate = to
-			? formatDateForDB(
-					addDays(parseLocalDate(appointment.date), DAY_ORDER[to.day] - DAY_ORDER[day])
-				)
-			: appointment.date;
-		const newHour = to ? to.hour : appointment.hour;
+		const target = slotChangeTarget(appointment, changes);
+		if (!target && !resourcesChange) continue;
+		const { date: newDate, hour: newHour } = target ?? appointment;
 		if (!isAppointmentFuture(newDate, newHour)) {
 			return `${formatSlotLabel(newDate, newHour)} geçmişte kalıyor, başlangıç tarihini ileri alın`;
 		}

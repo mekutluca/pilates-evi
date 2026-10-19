@@ -50,30 +50,31 @@ run `npm run demo:reset`.
 
 ## Checklist
 
-| Check                                                       | Test (file › describe › test)                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Create a private kayıt                                      | assignment › Yeni kayıt: private › creates a private kayıt over two periods…               |
-| Create a group lesson                                       | assignment › Yeni grup dersi › opens a group lesson with 26 weeks of sessions              |
-| Add a kayıt to an existing group                            | assignment › Yeni kayıt: joining a group lesson › enrolls a trainee…                       |
-| Back-dated kayıt (start in the past, onboarding)            | assignment › Back-dated › creates a private kayıt that started weeks ago…                  |
-| Back-dated group lesson, joined from its start              | assignment › Back-dated › opens a group lesson that started weeks ago…                     |
-| Extend (Yenile) a private kayıt                             | renewal › Yenile: private › extends a private kayıt…                                       |
-| Extend (Yenile) a group kayıt                               | renewal › Yenile: group › extends a group kayıt…                                           |
-| Shift a private kayıt (by lesson, by week)                  | move › Taşı: private kayıt › shifts a series… / shifts the lessons from the selected one…  |
-| Shift a group kayıt (by session, by week)                   | move › Taşı: a trainee in a group lesson › shifts the trainee's lessons…                   |
-| Change an appointment's date/time                           | reschedule › Randevu değiştir › moves one lesson…                                          |
-| Cancel an appointment (private shift/remove, group, empty)  | cancel › Randevu iptal › …                                                                 |
-| Close a day                                                 | close-day › Gün kapat › previews… / shifts the lessons… / resolves…                        |
-| End a trainee's kayıt early (private, shared, group)        | end-early › Kaydı erken bitir › …                                                          |
-| Blocked on conflicts: new kayıt (room, trainer)             | assignment › … is blocked when the room / trainer is taken                                 |
-| Blocked on conflicts: group lesson, group join (dup., full) | assignment › … is blocked when …                                                           |
-| Blocked on conflicts: Yenile (private, group full)          | renewal › … is blocked when …                                                              |
-| Blocked on conflicts: Taşı (private, group full)            | move › … is blocked when …                                                                 |
-| Blocked on conflicts: randevu değiştir (room, trainer)      | reschedule › … is blocked when …                                                           |
-| Blocked on conflicts: iptal, gün kapat                      | cancel › … is blocked when shifting… / close-day › … reports the conflicting one           |
-| Past lessons never move or get cancelled                    | move / reschedule / cancel › never moves… / never cancels…                                 |
-| Extra: transfer, whole group lesson move, end group lesson  | move › moves lessons to another room… / Taşı: a whole group lesson › … / end-early › Grup… |
-| Invariants after every test                                 | setup.ts (lesson numbering, capacity, private ownership)                                   |
+| Check                                                       | Test (file › describe › test)                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Create a private kayıt                                      | assignment › Yeni kayıt: private › creates a private kayıt over two periods…                |
+| Create a group lesson                                       | assignment › Yeni grup dersi › opens a group lesson with 26 weeks of sessions               |
+| Add a kayıt to an existing group                            | assignment › Yeni kayıt: joining a group lesson › enrolls a trainee…                        |
+| Back-dated kayıt (start in the past, onboarding)            | assignment › Back-dated › creates a private kayıt that started weeks ago…                   |
+| Back-dated group lesson, joined from its start              | assignment › Back-dated › opens a group lesson that started weeks ago…                      |
+| Extend (Yenile) a private kayıt                             | renewal › Yenile: private › extends a private kayıt…                                        |
+| Extend (Yenile) a group kayıt                               | renewal › Yenile: group › extends a group kayıt…                                            |
+| Shift a private kayıt (by lesson, by week)                  | move › Taşı: private kayıt › shifts a series… / shifts the lessons from the selected one…   |
+| Shift a group kayıt (by session, by week)                   | move › Taşı: a trainee in a group lesson › shifts the trainee's lessons…                    |
+| Change the weekly program (private, whole group lesson)     | move › Taşı: Haftalık program › changes a private kayıt's days… / changes a group lesson's… |
+| Change an appointment's date/time                           | reschedule › Randevu değiştir › moves one lesson…                                           |
+| Cancel an appointment (private shift/remove, group, empty)  | cancel › Randevu iptal › …                                                                  |
+| Close a day                                                 | close-day › Gün kapat › previews… / shifts the lessons… / resolves…                         |
+| End a trainee's kayıt early (private, shared, group)        | end-early › Kaydı erken bitir › …                                                           |
+| Blocked on conflicts: new kayıt (room, trainer)             | assignment › … is blocked when the room / trainer is taken                                  |
+| Blocked on conflicts: group lesson, group join (dup., full) | assignment › … is blocked when …                                                            |
+| Blocked on conflicts: Yenile (private, group full)          | renewal › … is blocked when …                                                               |
+| Blocked on conflicts: Taşı (private, group full, program)   | move › … is blocked when …                                                                  |
+| Blocked on conflicts: randevu değiştir (room, trainer)      | reschedule › … is blocked when …                                                            |
+| Blocked on conflicts: iptal, gün kapat                      | cancel › … is blocked when shifting… / close-day › … reports the conflicting one            |
+| Past lessons never move or get cancelled                    | move / reschedule / cancel › never moves… / never cancels…                                  |
+| Extra: transfer, whole group lesson move, end group lesson  | move › moves lessons to another room… / Taşı: a whole group lesson › … / end-early › Grup…  |
+| Invariants after every test                                 | setup.ts (lesson numbering, capacity, private ownership)                                    |
 
 ## Optional UI pass
 

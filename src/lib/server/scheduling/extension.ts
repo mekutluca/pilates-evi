@@ -3,7 +3,7 @@ import type { SupabaseClientType } from '$lib/types/Supabase';
 import { DAYS_OF_WEEK, JS_DAY_TO_NAME, type DayOfWeek, type WeeklySlot } from '$lib/types/Schedule';
 import type { GroupLessonTimeslot } from '$lib/types/Extension';
 import { parseLocalDate } from '$lib/utils/date-utils';
-import { sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
+import { recurringPattern, sortTimeSlots, weeklySlotKey } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { dbErrorMessage } from '$lib/server/db-errors';
 
@@ -92,8 +92,9 @@ export async function getLastAppointmentDate(
  *   defined when the lesson was created) for every group lesson the trainee attends through
  *   this purchase, intersected with the slots the trainee actually attends. A reschedule that
  *   moves an appointment to an off-pattern (day, hour) is naturally excluded.
- * - Private purchases: counts appointment occurrences by (day, hour) and filters out outliers
- *   (slots that appear far less often than the dominant ones — i.e. one-off reschedules).
+ * - Private purchases: the pattern the purchase's latest lessons follow (`recurringPattern`):
+ *   one-off reschedules are left out, and after a Haftalık program change the new program
+ *   wins, so Yenile starts from it.
  *
  * Also returns a `${dayIndex}-${hour}` → group_lesson_id map for group purchases, used by the
  * extension action to locate the existing appointment in the right group lesson when joining
@@ -102,8 +103,7 @@ export async function getLastAppointmentDate(
 export async function getCanonicalPurchaseTimeSlots(
 	supabase: SupabaseClientType,
 	purchaseId: string,
-	packageType: 'private' | 'group',
-	weeksDuration: number
+	packageType: 'private' | 'group'
 ): Promise<{
 	slots: WeeklySlot[];
 	timeslotGroupLessons: Map<string, string>;
@@ -182,46 +182,13 @@ export async function getCanonicalPurchaseTimeSlots(
 		return { slots, timeslotGroupLessons };
 	}
 
-	// Private purchase: filter outliers from appointment counts
+	// Private purchase: the pattern its latest lessons follow (one-off moves left out)
 	const { data: apts } = await supabase
 		.from('pe_appointments')
 		.select('date, hour')
 		.eq('purchase_id', purchaseId);
 
-	if (!apts || apts.length === 0) {
-		return { slots: [], timeslotGroupLessons: new Map() };
-	}
-
-	const counts = new Map<string, { day: DayOfWeek; hour: number; count: number }>();
-
-	for (const apt of apts) {
-		const day = JS_DAY_TO_NAME[parseLocalDate(apt.date).getDay()];
-		const key = `${day}-${apt.hour}`;
-		const existing = counts.get(key);
-		if (existing) {
-			existing.count++;
-		} else {
-			counts.set(key, { day, hour: apt.hour, count: 1 });
-		}
-	}
-
-	const allSlots = Array.from(counts.values());
-	if (allSlots.length === 0) {
-		return { slots: [], timeslotGroupLessons: new Map() };
-	}
-
-	const maxCount = Math.max(...allSlots.map((s) => s.count));
-	// A canonical slot must repeat: count ≥ 2 OR ≥ half the dominant count.
-	// Falls back to slots tied for max if filtering would drop everything (e.g. 1-week purchase
-	// with one reschedule — both old and new look like singletons).
-	const threshold = Math.max(2, Math.ceil(weeksDuration / 2));
-	const filtered = allSlots.filter((s) => s.count >= threshold);
-	const chosen = filtered.length > 0 ? filtered : allSlots.filter((s) => s.count === maxCount);
-
-	return {
-		slots: chosen.map(({ day, hour }) => ({ day, hour })),
-		timeslotGroupLessons: new Map()
-	};
+	return { slots: recurringPattern(apts ?? []), timeslotGroupLessons: new Map() };
 }
 
 /**

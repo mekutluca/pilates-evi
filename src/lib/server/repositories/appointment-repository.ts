@@ -1,6 +1,7 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { SeriesAppointment, TransferScope } from '$lib/types/Transfer';
-import { compareSlots } from '$lib/utils/slot-utils';
+import type { WeeklySlot } from '$lib/types/Schedule';
+import { compareSlots, recurringPattern } from '$lib/utils/slot-utils';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { getGroupLessonCanonicalSlots } from '$lib/server/scheduling/extension';
 import {
@@ -127,6 +128,20 @@ export class AppointmentRepository {
 				: isAppointmentFuture(row.date, row.hour)
 		);
 		return (await this.keepCanonicalGroupSlots(inScope)).sort(compareSlots);
+	}
+
+	/**
+	 * The weekly program the series of `appointmentId` follows from it on (Taşı → Haftalık
+	 * program): a group lesson's stored pattern, otherwise the one its lessons form. Empty
+	 * when there is none.
+	 */
+	async getSeriesPattern(appointmentId: number): Promise<WeeklySlot[]> {
+		const anchor = await this.getById(appointmentId);
+		if (!anchor) return [];
+		if (anchor.group_lesson_id) {
+			return (await getGroupLessonCanonicalSlots(this.supabase, anchor.group_lesson_id)).slots;
+		}
+		return recurringPattern(await this.getSeries(appointmentId, 'from_selected'));
 	}
 
 	/** A group lesson's upcoming sessions from `fromDate` on, chronological, one-offs included. */

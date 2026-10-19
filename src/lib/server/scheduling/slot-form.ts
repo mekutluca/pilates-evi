@@ -1,4 +1,4 @@
-import type { WeeklySlot } from '$lib/types/Schedule';
+import type { SlotChange, WeeklySlot } from '$lib/types/Schedule';
 import { DAYS_OF_WEEK } from '$lib/types/Schedule';
 
 /** An hour of the day (0–23) from form text, or null. */
@@ -10,7 +10,7 @@ export function parseHour(value: string): number | null {
 }
 
 /** One weekly slot from "monday-10", or null. */
-export function parseWeeklySlot(raw: string): WeeklySlot | null {
+function parseWeeklySlot(raw: string): WeeklySlot | null {
 	const [day, hourText = ''] = raw.split('-');
 	const known = DAYS_OF_WEEK.find((d) => d === day);
 	const hour = parseHour(hourText);
@@ -26,4 +26,17 @@ export function parseWeeklySlots(raw: string): WeeklySlot[] | null {
 		slots.push(slot);
 	}
 	return slots;
+}
+
+/** Slot changes from "monday-10>tuesday-11,…"; null when any part is malformed. */
+export function parseSlotChanges(raw: string): SlotChange[] | null {
+	const changes: SlotChange[] = [];
+	for (const part of raw.split(',').filter(Boolean)) {
+		const [fromText = '', toText = ''] = part.split('>');
+		const from = parseWeeklySlot(fromText);
+		const to = parseWeeklySlot(toText);
+		if (!from || !to) return null;
+		changes.push({ from, to });
+	}
+	return changes;
 }
