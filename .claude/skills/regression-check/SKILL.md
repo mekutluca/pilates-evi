@@ -55,6 +55,8 @@ run `npm run demo:reset`.
 | Create a private kayıt                                      | assignment › Yeni kayıt: private › creates a private kayıt over two periods…               |
 | Create a group lesson                                       | assignment › Yeni grup dersi › opens a group lesson with 26 weeks of sessions              |
 | Add a kayıt to an existing group                            | assignment › Yeni kayıt: joining a group lesson › enrolls a trainee…                       |
+| Back-dated kayıt (start in the past, onboarding)            | assignment › Back-dated › creates a private kayıt that started weeks ago…                  |
+| Back-dated group lesson, joined from its start              | assignment › Back-dated › opens a group lesson that started weeks ago…                     |
 | Extend (Yenile) a private kayıt                             | renewal › Yenile: private › extends a private kayıt…                                       |
 | Extend (Yenile) a group kayıt                               | renewal › Yenile: group › extends a group kayıt…                                           |
 | Shift a private kayıt (by lesson, by week)                  | move › Taşı: private kayıt › shifts a series… / shifts the lessons from the selected one…  |

@@ -24,6 +24,8 @@ import {
 	getDayOfWeekFromDate,
 	getTomorrow,
 	isAppointmentFuture,
+	isPastDate,
+	isPlannedFromStart,
 	parseLocalDate
 } from '$lib/utils/date-utils';
 import {
@@ -34,10 +36,12 @@ import {
 	weeklySlotKey
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
+import { pagedRows } from '$lib/server/paging';
 
-// New group lessons get this many weeks of sessions; the weekly top-up cron keeps the
+// New group lessons get sessions this many weeks ahead; the weekly top-up cron keeps the
 // horizon there
 const GROUP_LESSON_HORIZON_WEEKS = 26;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function dayAfter(date: string): string {
 	return formatDateForDB(addDays(parseLocalDate(date), 1));
@@ -157,9 +161,10 @@ export async function getGroupLesson(
 }
 
 /**
- * Plans opening a group lesson: its sessions for the first 26 weeks from the start date
- * and the slots where the room or trainer is already taken. Nothing is written; returns
- * an error message when the input itself is invalid.
+ * Plans opening a group lesson: its sessions from the start date until 26 weeks from
+ * today and the slots where the room or trainer is already taken. A start in the past
+ * back-dates the lesson (its passed sessions are created too, for trainees to join).
+ * Nothing is written; returns an error message when the input itself is invalid.
  */
 export async function planGroupLesson(
 	supabase: SupabaseClientType,
@@ -179,16 +184,27 @@ export async function planGroupLesson(
 	if (pkg.package_type !== 'group') return 'Grup dersi yalnızca grup paketiyle açılabilir';
 	if (pkg.is_active === false) return 'Paket arşivde';
 
-	const [first] = getStartingAppointmentCandidates(input.slots, parseLocalDate(input.startDate), 1);
-	if (!first || !isAppointmentFuture(first.date, first.hour)) {
-		return 'İlk ders geçmişte kalıyor, başlangıç tarihini ileri alın';
-	}
+	// Starting today, a slot earlier today has passed; the lesson then starts at the next one
+	const first = getStartingAppointmentCandidates(
+		input.slots,
+		parseLocalDate(input.startDate),
+		input.slots.length + 1
+	).find((c) => isPlannedFromStart(input.startDate, c.date, c.hour));
+	if (!first) return 'Başlangıç tarihi bulunamadı';
+
+	// The weeks already behind a back-dated start come on top of the horizon (the top-up
+	// cron only fills from today on)
+	const firstDate = parseLocalDate(first.date);
+	const elapsedDays = Math.round(
+		(parseLocalDate(formatDateForDB(new Date())).getTime() - firstDate.getTime()) / DAY_MS
+	);
+	const weeks = GROUP_LESSON_HORIZON_WEEKS + Math.max(0, Math.ceil(elapsedDays / 7));
 
 	const sessions = buildAppointmentSlotsFromStart(
-		parseLocalDate(first.date),
+		firstDate,
 		first.hour,
 		input.slots,
-		GROUP_LESSON_HORIZON_WEEKS * input.slots.length
+		weeks * input.slots.length
 	);
 	const conflicts = await new ConflictService(supabase).findSlotConflicts({
 		roomId: input.roomId,
@@ -205,9 +221,7 @@ export async function planGroupLesson(
 				room_id: input.roomId,
 				trainer_id: input.trainerId,
 				start_date: first.date,
-				appointments_created_until: formatDateForDB(
-					addDays(parseLocalDate(first.date), GROUP_LESSON_HORIZON_WEEKS * 7)
-				),
+				appointments_created_until: formatDateForDB(addDays(firstDate, weeks * 7)),
 				timeslots: toGroupLessonTimeslots(input.slots)
 			},
 			purchases: [],
@@ -236,7 +250,7 @@ export async function planGroupLessonMove(
 	const [lesson] = await listGroupLessons(supabase, { id: input.groupLessonId });
 	if (!lesson) return 'Grup dersi bulunamadı';
 	if (lesson.endDate) return 'Sona ermiş grup dersi taşınamaz';
-	if (input.fromDate < formatDateForDB(new Date())) return 'Başlangıç tarihi geçmişte olamaz';
+	if (isPastDate(input.fromDate)) return 'Başlangıç tarihi geçmişte olamaz';
 
 	const changes = new Map(
 		input.slotChanges
@@ -341,30 +355,35 @@ export async function listGroupTimeslots(
 }
 
 /**
- * The first `totalSessions` upcoming group sessions on the selected (lesson, day, hour)
- * slots from `fromDate` on, chronological. Cancelled occurrences are simply skipped; the
- * next matching sessions fill in.
+ * The first `totalSessions` group sessions on the selected (lesson, day, hour) slots from
+ * `fromDate` on, chronological; a `fromDate` in the past includes the passed ones (see
+ * `isPlannedFromStart`). Cancelled occurrences are simply skipped; the next matching
+ * sessions fill in.
  */
 export async function collectGroupSessions(
 	supabase: SupabaseClientType,
 	selected: SelectedGroupTimeslot[],
 	fromDate: string,
 	totalSessions: number
-): Promise<AppointmentSlotRef[] | string> {
+): Promise<AppointmentSlotRef[]> {
 	const lessonIds = [...new Set(selected.map((t) => t.group_lesson_id))];
-	const { data, error } = await supabase
-		.from('pe_appointments')
-		.select('id, date, hour, group_lesson_id')
-		.in('group_lesson_id', lessonIds)
-		.gte('date', fromDate)
-		.order('date')
-		.order('hour');
-	if (error) return dbErrorMessage(error, 'Grup dersi saatleri alınamadı. Tekrar deneyin.');
+	// A back-dated start reaches far into a lesson's sessions
+	const data = await pagedRows(
+		(from, to) =>
+			supabase
+				.from('pe_appointments')
+				.select('id, date, hour, group_lesson_id')
+				.in('group_lesson_id', lessonIds)
+				.gte('date', fromDate)
+				.order('id')
+				.range(from, to),
+		'Grup dersi saatleri alınamadı. Tekrar deneyin.'
+	);
 
-	return (data ?? [])
+	return data
 		.filter(
 			(a) =>
-				isAppointmentFuture(a.date, a.hour) &&
+				isPlannedFromStart(fromDate, a.date, a.hour) &&
 				selected.some(
 					(t) =>
 						t.group_lesson_id === a.group_lesson_id &&

@@ -190,10 +190,14 @@ describe('Yeni kayıt and Yenile forms', () => {
 		});
 	});
 
-	test('rejects a start in the past and incomplete forms', () => {
-		expect(parseAssignmentForm(form({ ...privateForm, startDate: '2026-10-14' }))).toBe(
-			'Başlangıç tarihi geçmişte olamaz'
-		);
+	test('accepts a start in the past (a back-dated kayıt)', () => {
+		expect(parseAssignmentForm(form({ ...privateForm, startDate: '2026-09-01' }))).toMatchObject({
+			kind: 'private',
+			startDate: '2026-09-01'
+		});
+	});
+
+	test('rejects incomplete forms', () => {
 		expect(parseAssignmentForm(form({ ...privateForm, startDate: '19.10.2026' }))).toBe(
 			'Geçersiz başlangıç tarihi'
 		);

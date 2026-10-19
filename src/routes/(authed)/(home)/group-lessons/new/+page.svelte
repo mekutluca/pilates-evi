@@ -3,6 +3,7 @@
 	import type { WeeklySlot } from '$lib/types/Schedule';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import LessonPlanSummary from '$lib/components/scheduling/lesson-plan-summary.svelte';
+	import PastStartHint from '$lib/components/scheduling/past-start-hint.svelte';
 	import WeeklySlotsField from '$lib/components/scheduling/weekly-slots-field.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -13,7 +14,7 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { formatDateForDB } from '$lib/utils/date-utils';
+	import { isPastDate } from '$lib/utils/date-utils';
 	import { formatWeeklyPattern, weeklySlotKey } from '$lib/utils/slot-utils';
 	import { actionResultMessage, canConfirmPlan, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
@@ -133,12 +134,19 @@
 						<Input
 							id="gl-start"
 							type="date"
-							min={formatDateForDB(new Date())}
 							bind:value={startDate}
+							aria-describedby="gl-start-hint"
 						/>
-						<p class="text-xs text-muted-foreground">
-							İlk ders bu tarihten sonraki ilk uygun gün ve saatte.
-						</p>
+						<!-- A start in the past also creates the sessions since then, for trainees to join -->
+						{#if isPastDate(startDate)}
+							<PastStartHint id="gl-start-hint">
+								Geriye dönük, o günden bu yana dersler de oluşturulur.
+							</PastStartHint>
+						{:else}
+							<p id="gl-start-hint" class="text-xs text-muted-foreground">
+								İlk ders bu tarihten sonraki ilk uygun gün ve saatte.
+							</p>
+						{/if}
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -153,13 +161,14 @@
 						<p>{formatWeeklyPattern(slots)} · {roomName(roomId)} · {trainerName(trainerId)}</p>
 					{/if}
 					<LessonPlanSummary
+						kayit={false}
 						onRetry={preview.retry}
 						plan={preview.current}
 						idleMessage="Haftalık ders saatlerini ekleyin."
 					/>
 					<p class="text-muted-foreground">
-						İlk 26 haftanın dersleri şimdi oluşturulur. Sonraki haftalar her pazartesi otomatik
-						eklenir.
+						Başlangıçtan önümüzdeki 26 haftaya kadar dersler şimdi oluşturulur. Sonraki haftalar her
+						pazartesi otomatik eklenir.
 					</p>
 				</Card.Content>
 				<Card.Footer class="flex justify-end gap-2">

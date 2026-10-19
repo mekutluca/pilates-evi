@@ -13,6 +13,7 @@
 	import Schedule from '$lib/components/schedule.svelte';
 	import TraineePicker from '$lib/components/assignment/trainee-picker.svelte';
 	import LessonPlanSummary from '$lib/components/scheduling/lesson-plan-summary.svelte';
+	import PastStartHint from '$lib/components/scheduling/past-start-hint.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -31,6 +32,7 @@
 		formatDateForDB,
 		getDayOfWeekFromDate,
 		getWeekStart,
+		isPastDate,
 		parseLocalDate
 	} from '$lib/utils/date-utils';
 	import {
@@ -80,6 +82,8 @@
 
 	const today = formatDateForDB(new Date());
 	const trainees = $derived<TraineeOption[]>([...createdTrainees, ...data.trainees]);
+	// A start in the past back-dates the kayıt (onboarding a running one)
+	const backdated = $derived(isPastDate(startDate));
 	const traineeNames = $derived(
 		traineeIds.map((id) => trainees.find((t) => t.id === id)?.name ?? '-')
 	);
@@ -305,7 +309,7 @@
 				return null;
 			case 'slots': {
 				if (!pkg) return 'Bir paket seçin.';
-				if (!startDate || startDate < today) return 'Başlangıç bugün veya sonrası olmalı.';
+				if (!startDate) return 'Başlangıç tarihini seçin.';
 				if (!isGroup && (data.rooms.length === 0 || data.trainers.length === 0)) {
 					return 'Aktif oda veya eğitmen yok. Önce Odalar ve Eğitmenler sayfasından ekleyin.';
 				}
@@ -504,7 +508,17 @@
 				<div class="grid gap-4 sm:grid-cols-3">
 					<div class="grid gap-2">
 						<Label for="wizard-start">Başlangıç</Label>
-						<Input id="wizard-start" type="date" min={today} bind:value={startDate} />
+						<Input
+							id="wizard-start"
+							type="date"
+							bind:value={startDate}
+							aria-describedby={backdated ? 'wizard-start-hint' : undefined}
+						/>
+						{#if backdated}
+							<PastStartHint id="wizard-start-hint">
+								Geriye dönük kayıt, geçmiş dersler de eklenir.
+							</PastStartHint>
+						{/if}
 					</div>
 					{#if !isGroup}
 						<div class="grid gap-2">

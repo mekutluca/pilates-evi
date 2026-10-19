@@ -19,7 +19,6 @@ export const load: PageServerLoad = async ({ parent, url }) => {
 	const pick = <T extends { id: string }>(list: T[], param: string) =>
 		list.find((item) => item.id === url.searchParams.get(param))?.id ?? list[0]?.id ?? '';
 	const date = url.searchParams.get('date');
-	const today = formatDateForDB(new Date());
 
 	return {
 		packages: groupPackages,
@@ -29,7 +28,7 @@ export const load: PageServerLoad = async ({ parent, url }) => {
 			packageId: pick(groupPackages, 'package_id'),
 			roomId: pick(activeRooms, 'room_id'),
 			trainerId: pick(activeTrainers, 'trainer_id'),
-			startDate: date && isIsoDate(date) && date >= today ? date : today
+			startDate: date && isIsoDate(date) ? date : formatDateForDB(new Date())
 		}
 	};
 };

@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ locals: { user, userRole }, url, pa
 			groupLessonId: isValidUuid(param('group_lesson_id')) ? param('group_lesson_id') : '',
 			roomId: known(activeRooms, param('room_id')),
 			trainerId: known(activeTrainers, param('trainer_id')),
-			startDate: isIsoDate(date) && date >= today ? date : today,
+			startDate: isIsoDate(date) ? date : today,
 			hour: SCHEDULE_HOURS.includes(hour) && isIsoDate(date) ? hour : null
 		}
 	};

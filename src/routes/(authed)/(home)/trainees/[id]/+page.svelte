@@ -284,6 +284,12 @@
 							/>
 							<dl class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
 								<div class="flex gap-1.5">
+									<dt class="text-muted-foreground">Başlangıç</dt>
+									<dd class="font-medium tabular-nums">
+										{formatDisplayDate(kayit.lessons[0].date)}
+									</dd>
+								</div>
+								<div class="flex gap-1.5">
 									<dt class="text-muted-foreground">Sıradaki</dt>
 									<dd class="font-medium tabular-nums">{formatSlotLabel(next.date, next.hour)}</dd>
 								</div>

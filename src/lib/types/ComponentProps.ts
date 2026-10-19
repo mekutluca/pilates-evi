@@ -229,12 +229,20 @@ export interface WeekNavProps {
 	onNavigate: (date: Date) => void;
 }
 
+export interface PastStartHintProps {
+	id?: string;
+	children: Snippet;
+}
+
 export interface LessonPlanSummaryProps {
 	plan: Loadable<LessonPlanPreviewPayload>;
 	// Asks for the plan again after a failure
 	onRetry: () => void;
 	// Shown before there is anything to plan
 	idleMessage: string;
+	// The plan books a trainee's kayıt (back-dated: says how many lessons it keeps);
+	// false for a new group lesson
+	kayit?: boolean;
 }
 
 export interface BrandMarkProps {

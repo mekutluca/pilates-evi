@@ -160,8 +160,11 @@ describe('calculateExtensionStartDate', () => {
 		expect(start('2026-10-15')).toBe(new Date(2026, 9, 16).toDateString());
 	});
 
-	test('starts today when the kayıt has ended or has no lessons', () => {
-		expect(start('2026-10-01')).toBe(new Date(2026, 9, 15).toDateString());
+	test('starts the day after a past last lesson, so an ended kayıt can renew back-dated', () => {
+		expect(start('2026-10-01')).toBe(new Date(2026, 9, 2).toDateString());
+	});
+
+	test('starts today when the kayıt has no lessons', () => {
 		expect(start(null)).toBe(new Date(2026, 9, 15).toDateString());
 	});
 });

@@ -7,6 +7,8 @@ import {
 	getDayOfWeekFromDate,
 	getWeekStart,
 	isAppointmentFuture,
+	isPastDate,
+	isPlannedFromStart,
 	parseLocalDate
 } from '$lib/utils/date-utils';
 import { isIntInRange, isValidWeekShift } from '$lib/utils/validation';
@@ -51,6 +53,30 @@ describe('isAppointmentFuture', () => {
 		expect(isAppointmentFuture('2026-10-15', 14)).toBe(false);
 		expect(isAppointmentFuture('2026-10-14', 20)).toBe(false);
 		expect(isAppointmentFuture('2026-10-16', 9)).toBe(true);
+	});
+});
+
+describe('isPlannedFromStart', () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 9, 15, 14, 30)); // Thursday 15 Oct 2026, 14:30
+	});
+	afterEach(() => vi.useRealTimers());
+
+	test("a start in the past keeps every lesson since, today's passed hours included", () => {
+		expect(isPlannedFromStart('2026-09-01', '2026-09-03', 10)).toBe(true);
+		expect(isPlannedFromStart('2026-10-14', '2026-10-15', 10)).toBe(true);
+	});
+
+	test('a day is past from tomorrow on; an empty date is not', () => {
+		expect(isPastDate('2026-10-14')).toBe(true);
+		expect(isPastDate('2026-10-15')).toBe(false);
+		expect(isPastDate('')).toBe(false);
+	});
+
+	test('starting today means from now on', () => {
+		expect(isPlannedFromStart('2026-10-15', '2026-10-15', 10)).toBe(false);
+		expect(isPlannedFromStart('2026-10-15', '2026-10-15', 15)).toBe(true);
 	});
 });
 

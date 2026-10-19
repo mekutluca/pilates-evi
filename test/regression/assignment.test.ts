@@ -11,6 +11,7 @@ import {
 	kayitlarOf,
 	lessonsOf,
 	noParams,
+	plusDays,
 	runAction,
 	supabase,
 	weekly
@@ -242,5 +243,96 @@ describe('Yeni grup dersi', () => {
 				message: '4 saatte oda veya eğitmen dolu, grup dersi açılmadı'
 			});
 		});
+	});
+});
+
+describe('Back-dated (onboarding a running studio)', () => {
+	// A trainee of their own, so the seeded ones keep their state
+	async function newTrainee(name: string, phone: string): Promise<string> {
+		const created = expectOk(await runAction(assignment.createTrainee, { name, phone }, noParams));
+		return created.trainee.id;
+	}
+
+	test('creates a private kayıt that started weeks ago, its passed lessons included', async () => {
+		const traineeId = await newTrainee('Geriye Dönük Özel', '5559900101');
+		const form = {
+			kind: 'private',
+			packageId: fx.packages.reformer,
+			traineeIds: traineeId,
+			roomId: fx.rooms.r2,
+			trainerId: fx.trainers.t2,
+			timeSlots: 'wednesday-14,saturday-14',
+			periods: 1,
+			startDate: dayOf(-2, 1)
+		};
+		const expected = weekly(
+			-2,
+			[
+				[3, 14],
+				[6, 14]
+			],
+			8
+		);
+		const preview = expectOk(await runAction(assignment.preview, form, noParams));
+		expect(preview.conflicts).toEqual([]);
+		expect((preview.sessions as Array<{ date: string; hour: number }>).map(at)).toEqual(expected);
+
+		expectOk(await runAction(assignment.create, form, noParams));
+
+		const [[purchaseId]] = await kayitlarOf(traineeId);
+		const lessons = await lessonsOf(purchaseId);
+		expect(lessons.map(at)).toEqual(expected);
+		expect(lessons[0].date < fx.today).toBe(true);
+	});
+
+	test('opens a group lesson that started weeks ago and a trainee joins it from its start', async () => {
+		const created = expectOk(
+			await runAction(
+				newGroupLesson.create,
+				{
+					packageId: fx.packages.group,
+					roomId: fx.rooms.r3,
+					trainerId: fx.trainers.t1,
+					startDate: dayOf(-3, 1),
+					timeSlots: 'sunday-9'
+				},
+				noParams
+			)
+		);
+		const id = String(created.redirectTo).replace('/group-lessons/', '');
+
+		const { data: lesson } = await supabase
+			.from('pe_group_lessons')
+			.select('start_date, appointments_created_until')
+			.eq('id', id)
+			.single();
+		expect(lesson?.start_date).toBe(dayOf(-3, 7));
+		// The weekly top-up only fills from today on: the horizon is still 26 weeks ahead
+		expect(String(lesson?.appointments_created_until) >= plusDays(fx.today, 26 * 7)).toBe(true);
+		const { data: sessions } = await supabase
+			.from('pe_appointments')
+			.select('date, hour')
+			.eq('group_lesson_id', id)
+			.order('date');
+		const all = (sessions ?? []).map(at);
+		expect(all).toEqual(weekly(-3, [[7, 9]], all.length));
+
+		const traineeId = await newTrainee('Geriye Dönük Grup', '5559900102');
+		expectOk(
+			await runAction(
+				assignment.create,
+				{
+					kind: 'group',
+					packageId: fx.packages.group,
+					traineeIds: traineeId,
+					groupSlots: `${id}|sunday|9`,
+					weeks: 4,
+					startDate: dayOf(-3, 1)
+				},
+				noParams
+			)
+		);
+		const [[purchaseId]] = await kayitlarOf(traineeId);
+		expect((await lessonsOf(purchaseId)).map(at)).toEqual(weekly(-3, [[7, 9]], 4));
 	});
 });

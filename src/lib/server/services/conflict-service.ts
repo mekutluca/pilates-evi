@@ -29,45 +29,36 @@ export class ConflictService {
 	constructor(private supabase: SupabaseClientType) {}
 
 	/**
-	 * Batched conflict check: 2 queries total regardless of slot count.
+	 * Batched conflict check: one (paged) query regardless of slot count.
 	 * Returns only the slots that conflict.
 	 */
 	async findSlotConflicts(params: SlotConflictQuery): Promise<SlotConflict[]> {
 		const { roomId, trainerId, slots, excludeAppointmentIds = [] } = params;
 		if (slots.length === 0) return [];
 
-		const dates = [...new Set(slots.map((s) => s.date))];
-
-		const [roomRes, trainerRes] = await Promise.all([
-			this.supabase
-				.from('pe_appointments')
-				.select('id, date, hour')
-				.eq('room_id', roomId)
-				.in('date', dates),
-			this.supabase
-				.from('pe_appointments')
-				.select('id, date, hour')
-				.eq('trainer_id', trainerId)
-				.in('date', dates)
-		]);
-
-		if (roomRes.error)
-			throw new Error(
-				dbErrorMessage(roomRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
-			);
-		if (trainerRes.error)
-			throw new Error(
-				dbErrorMessage(trainerRes.error, 'Çakışmalar kontrol edilemedi. Tekrar deneyin.')
-			);
+		// A back-dated kayıt or group lesson spans many weeks of a busy room
+		const dates = slots.map((s) => s.date).sort();
+		const rows = await pagedRows(
+			(from, to) =>
+				this.supabase
+					.from('pe_appointments')
+					.select('id, date, hour, room_id, trainer_id')
+					.or(`room_id.eq.${roomId},trainer_id.eq.${trainerId}`)
+					.gte('date', dates[0])
+					.lte('date', dates[dates.length - 1])
+					.order('id')
+					.range(from, to),
+			'Çakışmalar kontrol edilemedi. Tekrar deneyin.'
+		);
 
 		const excluded = new Set(excludeAppointmentIds);
 		const slotKey = (date: string, hour: number) => `${date}|${hour}`;
 
-		const occupied = (rows: AppointmentSlotRef[]) =>
-			new Set(rows.filter((r) => !excluded.has(r.id)).map((r) => slotKey(r.date, r.hour)));
+		const occupied = (taken: AppointmentSlotRef[]) =>
+			new Set(taken.filter((r) => !excluded.has(r.id)).map((r) => slotKey(r.date, r.hour)));
 
-		const roomTaken = occupied(roomRes.data ?? []);
-		const trainerTaken = occupied(trainerRes.data ?? []);
+		const roomTaken = occupied(rows.filter((r) => r.room_id === roomId));
+		const trainerTaken = occupied(rows.filter((r) => r.trainer_id === trainerId));
 
 		return slots
 			.map((slot) => ({

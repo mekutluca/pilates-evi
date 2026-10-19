@@ -6,6 +6,7 @@
 	import { DAY_NAMES, getTimeString } from '$lib/types/Schedule';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import LessonPlanSummary from '$lib/components/scheduling/lesson-plan-summary.svelte';
+	import PastStartHint from '$lib/components/scheduling/past-start-hint.svelte';
 	import WeeklySlotsField from '$lib/components/scheduling/weekly-slots-field.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -17,7 +18,7 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { formatDisplayDate } from '$lib/utils/date-utils';
+	import { formatDateForDB, formatDisplayDate, isPastDate } from '$lib/utils/date-utils';
 	import { formatWeeklyPattern, groupSlotKey, weeklySlotKey } from '$lib/utils/slot-utils';
 	import { actionResultMessage, canConfirmPlan, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
@@ -33,7 +34,11 @@
 	let roomId = $state(untrack(() => renewal.currentRoomId));
 	let trainerId = $state(untrack(() => renewal.currentTrainerId));
 	let groupSlots = $state<SelectedGroupTimeslot[]>(untrack(() => [...renewal.currentGroupSlots]));
-	let startDate = $state(untrack(() => renewal.earliestStart));
+	// An ended kayıt renews from today by default; an earlier start back-dates the renewal
+	const today = formatDateForDB(new Date());
+	let startDate = $state(
+		untrack(() => (renewal.earliestStart > today ? renewal.earliestStart : today))
+	);
 	let periods = $state(1);
 	let weeks = $state(untrack(() => renewal.package.weeks_duration ?? 4));
 	let submitting = $state(false);
@@ -177,12 +182,23 @@
 
 				<div class="grid gap-2 sm:max-w-56">
 					<Label for="renew-start">Başlangıç</Label>
-					<Input id="renew-start" type="date" min={renewal.earliestStart} bind:value={startDate} />
-					{#if renewal.lastLessonDate}
-						<p class="text-xs text-muted-foreground">
-							Mevcut son ders: {formatDisplayDate(renewal.lastLessonDate)}
-						</p>
-					{/if}
+					<Input
+						id="renew-start"
+						type="date"
+						min={renewal.earliestStart}
+						bind:value={startDate}
+						aria-describedby="renew-start-hint"
+					/>
+					<div id="renew-start-hint" class="grid gap-1">
+						{#if isPastDate(startDate)}
+							<PastStartHint>Geriye dönük yenileme, geçmiş dersler de eklenir.</PastStartHint>
+						{/if}
+						{#if renewal.lastLessonDate}
+							<p class="text-xs text-muted-foreground">
+								Mevcut son ders: {formatDisplayDate(renewal.lastLessonDate)}
+							</p>
+						{/if}
+					</div>
 				</div>
 			</Card.Content>
 		</Card.Root>

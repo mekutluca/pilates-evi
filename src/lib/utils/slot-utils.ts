@@ -96,31 +96,21 @@ function getMondayOf(date: Date): Date {
 }
 
 /**
- * Calculates the earliest possible extension start date.
- * - If last appointment is in the future: day after last appointment.
- * - Otherwise: today.
- *
- * This is the lower bound for valid starting appointment candidates — the user picks
- * a specific (date, hour) candidate from the upcoming time-slot occurrences after this.
+ * The earliest start of a renewal: the day after the kayıt's last lesson, even when that
+ * is in the past (a back-dated renewal while onboarding); today when it has no lessons.
  */
 export function calculateExtensionStartDate(lastAppointmentDate: Date | null): Date {
-	const now = new Date();
-	const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
 	if (!lastAppointmentDate) {
-		return todayLocal;
+		const now = new Date();
+		return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 	}
-
-	const lastDate = new Date(lastAppointmentDate);
-	const lastDateLocal = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-
-	if (lastDateLocal >= todayLocal) {
-		const startDate = new Date(lastDateLocal);
-		startDate.setDate(startDate.getDate() + 1);
-		return startDate;
-	}
-
-	return todayLocal;
+	const startDate = new Date(
+		lastAppointmentDate.getFullYear(),
+		lastAppointmentDate.getMonth(),
+		lastAppointmentDate.getDate()
+	);
+	startDate.setDate(startDate.getDate() + 1);
+	return startDate;
 }
 
 /**

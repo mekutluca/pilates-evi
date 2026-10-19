@@ -14,7 +14,7 @@ import { collectGroupSessions } from '$lib/server/scheduling/group-lessons';
 import {
 	formatDateForDB,
 	formatDisplayDate,
-	isAppointmentFuture,
+	isPlannedFromStart,
 	parseLocalDate
 } from '$lib/utils/date-utils';
 import { getLastAppointmentDate } from '$lib/server/scheduling/extension';
@@ -74,8 +74,9 @@ function initialRescheduleCredits(pkg: Package): number {
 
 /**
  * Plans a kayıt's lessons from the start date on: a private pattern's new lessons for N
- * periods (the first one is the first upcoming slot on or after the start date), or the
- * group sessions to join for N weeks. Conflicts and capacity problems come back in the
+ * periods (the first one is the first slot on or after the start date), or the group
+ * sessions to join for N weeks. A start in the past back-dates the kayıt: its passed
+ * lessons are created as done. Conflicts and capacity problems come back in the
  * plan; nothing is written. Returns an error message when the input itself is invalid.
  */
 async function planLessons(
@@ -107,12 +108,12 @@ async function planLessons(
 		const placeError = await activePlaceError(supabase, input.roomId, input.trainerId);
 		if (placeError) return placeError;
 
-		// A slot earlier today has passed; the pattern then starts at the next one
+		// Starting today, a slot earlier today has passed; the pattern then starts at the next one
 		const first = getStartingAppointmentCandidates(
 			input.timeSlots,
 			parseLocalDate(input.startDate),
 			input.timeSlots.length + 1
-		).find((c) => isAppointmentFuture(c.date, c.hour));
+		).find((c) => isPlannedFromStart(input.startDate, c.date, c.hour));
 		if (!first) return 'Başlangıç tarihi bulunamadı';
 		const perPeriod = pkg.weeks_duration * input.timeSlots.length;
 		plan.sessions = buildAppointmentSlotsFromStart(
@@ -143,9 +144,8 @@ async function planLessons(
 
 	const total = input.weeks * input.groupSlots.length;
 	const sessions = await collectGroupSessions(supabase, input.groupSlots, input.startDate, total);
-	if (typeof sessions === 'string') return sessions;
 	if (sessions.length < total) {
-		return `${total} ders için yeterli ileri tarihli grup dersi yok (${sessions.length} mevcut)`;
+		return `${total} ders için yeterli grup dersi yok (${sessions.length} mevcut)`;
 	}
 
 	const { duplicates, overCapacity } = await new ConflictService(supabase).checkEnrollmentTargets({

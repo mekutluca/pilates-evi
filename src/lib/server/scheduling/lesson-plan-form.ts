@@ -4,7 +4,6 @@ import type { SelectedGroupTimeslot } from '$lib/types';
 import { DAYS_OF_WEEK } from '$lib/types/Schedule';
 import { getFormDataString, getFormDataUuid } from '$lib/utils/form-utils';
 import { isIsoDate, isValidUuid } from '$lib/utils/validation';
-import { formatDateForDB } from '$lib/utils/date-utils';
 import { parseHour, parseWeeklySlots } from '$lib/server/scheduling/slot-form';
 
 // "<groupLessonId>|monday|10,…"
@@ -24,7 +23,6 @@ function parseGroupSlots(raw: string): SelectedGroupTimeslot[] | null {
 function parseLessonPlanForm(formData: FormData): LessonPlanInput | string {
 	const startDate = getFormDataString(formData, 'startDate');
 	if (!isIsoDate(startDate)) return 'Geçersiz başlangıç tarihi';
-	if (startDate < formatDateForDB(new Date())) return 'Başlangıç tarihi geçmişte olamaz';
 
 	if (getFormDataString(formData, 'kind') === 'group') {
 		const groupSlots = parseGroupSlots(getFormDataString(formData, 'groupSlots'));

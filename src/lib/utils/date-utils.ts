@@ -114,6 +114,20 @@ export function isAppointmentFuture(date: string, hour: number): boolean {
 }
 
 /**
+ * Whether a lesson on or after `startDate` belongs to lessons planned from that start. A
+ * start in the past back-dates them, so its passed lessons count (onboarding a studio's
+ * running kayıtlar); a start today means from now on, skipping today's passed hours.
+ */
+export function isPlannedFromStart(startDate: string, date: string, hour: number): boolean {
+	return isPastDate(startDate) || isAppointmentFuture(date, hour);
+}
+
+/** Whether a YYYY-MM-DD day is before today ("" is not). */
+export function isPastDate(date: string): boolean {
+	return date !== '' && date < formatDateForDB(new Date());
+}
+
+/**
  * Gets the date for a specific day of the week within a given week
  * @param weekStart - The start date of the week (Monday)
  * @param dayOfWeek - The day of the week ('monday', 'tuesday', etc.)

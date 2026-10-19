@@ -2,10 +2,11 @@
 	import LoadError from '$lib/components/load-error.svelte';
 	import type { LessonPlanSummaryProps } from '$lib/types/ComponentProps';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
-	import { formatSlotLabel } from '$lib/utils/date-utils';
+	import { formatSlotLabel, isAppointmentFuture } from '$lib/utils/date-utils';
+	import History from '@lucide/svelte/icons/history';
 	import ConflictList from './conflict-list.svelte';
 
-	let { plan, idleMessage, onRetry }: LessonPlanSummaryProps = $props();
+	let { plan, idleMessage, onRetry, kayit = true }: LessonPlanSummaryProps = $props();
 </script>
 
 <div class="space-y-3 text-sm" aria-live="polite">
@@ -22,12 +23,35 @@
 		{@const { sessions, conflicts, fullSessions, duplicateSessions } = plan.value}
 		{@const first = sessions[0]}
 		{@const last = sessions[sessions.length - 1]}
+		{@const pastCount = sessions.filter((s) => !isAppointmentFuture(s.date, s.hour)).length}
 		<p>
 			<span class="font-medium">{sessions.length} ders</span>
 			{#if first && last}
 				· {formatSlotLabel(first.date, first.hour)} – {formatSlotLabel(last.date, last.hour)}
 			{/if}
 		</p>
+		{#if pastCount > 0}
+			<!-- A back-dated start: neutral, it is what the desk asked for -->
+			<p class="flex gap-2">
+				<History class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<span>
+					{#if pastCount === sessions.length}
+						<span class="font-medium tabular-nums">{pastCount} dersin</span> tamamı geçmişte
+						kalıyor.
+						{#if kayit}Kayıt, geçmiş kayıtlar arasında görünür.{/if}
+					{:else}
+						Geçmişte kalan <span class="font-medium tabular-nums">{pastCount} ders</span> de
+						eklenir.
+						{#if kayit}
+							Kayıtta <span class="font-medium tabular-nums"
+								>{sessions.length - pastCount} ders</span
+							>
+							kalır.
+						{/if}
+					{/if}
+				</span>
+			</p>
+		{/if}
 		{#if conflicts.length > 0}
 			<ConflictList
 				{conflicts}
