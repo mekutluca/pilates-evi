@@ -4,8 +4,8 @@
 -- full (3/3, "Dolu") and one over capacity (4/3, "Kapasite aşıldı", as when a package's
 -- capacity is lowered after members joined; the studio-wide checks allow only this one).
 -- Trainee notes sit on three fixtures no check rewrites: a private kayıt (regular), one of
--- a duet (duet_regular_a) and a group member (group_regular). Every date is relative to the current week (Europe/Istanbul), so the seed
--- never goes stale.
+-- a duet (duet_regular_a) and a group member (group_regular). Every date is relative to the
+-- current week (Europe/Istanbul), so the seed never goes stale.
 --
 -- Safety: the database is shared with the real studio. The function runs with the caller's
 -- rights (RLS scopes every statement to the caller's studio) and refuses unless that studio
