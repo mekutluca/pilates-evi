@@ -11,6 +11,8 @@ export interface PanelLesson {
 	roomName: string;
 	trainerName: string;
 	traineeNames: string[];
+	// Trainees with notes (health, limits) and their note
+	traineeNotes: Array<{ name: string; note: string }>;
 	isGroup: boolean;
 }
 

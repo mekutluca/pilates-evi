@@ -6,6 +6,7 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import NotepadText from '@lucide/svelte/icons/notepad-text';
 	import { cn } from '$lib/utils';
 	import { formatDateForDB, formatShortDate, getDateForDayOfWeek } from '$lib/utils/date-utils';
 
@@ -117,13 +118,19 @@
 											slot.title,
 											slot.subtitle,
 											slot.meta,
+											slot.hasNotes && 'Öğrenci notu var',
 											slot.badge,
 											slot.warning
 										]
 											.filter(Boolean)
 											.join(', ')}
 									>
-										<span class="w-full truncate font-semibold">{slot.title}</span>
+										<span class="flex w-full items-center gap-1">
+											<span class="min-w-0 flex-1 truncate font-semibold">{slot.title}</span>
+											{#if slot.hasNotes}
+												<NotepadText class="size-3 shrink-0 text-foreground/70" />
+											{/if}
+										</span>
 										{#if slot.subtitle}
 											<span class="w-full truncate">{slot.subtitle}</span>
 										{/if}

@@ -309,6 +309,19 @@ export interface CauseFieldProps {
 	placeholder?: string;
 }
 
+export interface TraineeNotesFieldProps {
+	value: string;
+	id: string;
+	rows?: number;
+}
+
+export interface TraineeNoteProps {
+	note: string;
+	// Whose note, when the lesson has several trainees
+	name?: string;
+	class?: string;
+}
+
 export interface LoginFormProps {
 	supabase: SupabaseClientType;
 	class?: string;

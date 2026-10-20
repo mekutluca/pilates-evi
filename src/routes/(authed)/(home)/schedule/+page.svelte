@@ -156,6 +156,7 @@
 				date,
 				...lessonBlockLines(details, viewMode === 'room' ? 'trainer' : 'room'),
 				badge: details.has_last_session ? 'Son ders' : undefined,
+				hasNotes: details.has_notes,
 				warning,
 				color: isMoving ? 'muted' : warning ? 'destructive' : 'primary',
 				clickable: !pickMode,

@@ -48,6 +48,7 @@ Routes parse input, check permissions, call one service/repository method and re
 - Reusable components in `src/lib/components/`
 - `sortable-table.svelte` - Generic table with sorting, searching, and action menus; rows open through `rowHref` (a link on the first column) and `rowLabel` names each row's menu
 - `scheduling/` - calendar panels (appointment sheet, Taşı sheet, cancel / close-day dialogs, group lesson move sheet and end dialog) and shared pieces (`conflict-list`, `move-preview-list`, `weekly-slots-field`); `week-nav.svelte`; `assignment/trainee-picker.svelte`
+- `trainee-note.svelte` (a trainee's note in full: lesson sheet, trainer Panel) and `trainee-notes-field.svelte` (the notes input; its hint says trainers read them). Trainers see their own students' notes (RLS); lessons with notes carry a mark on the week board
 - `action-menu.svelte` - Dropdown menu for row actions
 - `global-action-drawer.svelte` - Global action drawer using Svelte 5 stores
 - Components use Svelte 5 syntax with `$props()`, `$state()`, and `$derived()`

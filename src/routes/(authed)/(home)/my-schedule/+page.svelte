@@ -5,6 +5,7 @@
 	import WeekNav from '$lib/components/week-nav.svelte';
 	import AppointmentSheet from '$lib/components/scheduling/appointment-sheet.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { streamed } from '$lib/utils/streamed.svelte';
 	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
 	import LoadError from '$lib/components/load-error.svelte';
@@ -45,6 +46,7 @@
 			date,
 			...lessonBlockLines(details, 'room'),
 			badge: details.has_last_session ? 'Son ders' : undefined,
+			hasNotes: details.has_notes,
 			warning,
 			color: warning ? 'destructive' : 'primary',
 			clickable: true,
@@ -60,6 +62,15 @@
 		selected = createAppointmentDetails(appointment);
 		sheetOpen = true;
 	}
+
+	// Opened from the Panel: ?appointment=<id>
+	$effect(() => {
+		const id = Number(page.url.searchParams.get('appointment'));
+		const appointment = id ? appointments.find((a) => a.id === id) : undefined;
+		if (!appointment) return;
+		selected = createAppointmentDetails(appointment);
+		sheetOpen = true;
+	});
 
 	const goToWeek = (date: Date) =>
 		goto(`?week=${formatDateForDB(getWeekStart(date))}`, { keepFocus: true, noScroll: true });

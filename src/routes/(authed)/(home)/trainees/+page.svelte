@@ -20,7 +20,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import TraineeNotesField from '$lib/components/trainee-notes-field.svelte';
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { formatDisplayDate } from '$lib/utils/date-utils';
 
@@ -241,16 +241,7 @@
 			/>
 		</div>
 
-		<div class="grid gap-2">
-			<Label for="add-trainee-notes">Notlar (isteğe bağlı)</Label>
-			<Textarea
-				id="add-trainee-notes"
-				name="notes"
-				bind:value={notes}
-				placeholder="ör. Bel fıtığı var"
-				rows={3}
-			/>
-		</div>
+		<TraineeNotesField id="add-trainee-notes" bind:value={notes} />
 
 		<ModalFooter>
 			<Button
@@ -324,16 +315,7 @@
 			/>
 		</div>
 
-		<div class="grid gap-2">
-			<Label for="edit-trainee-notes">Notlar (isteğe bağlı)</Label>
-			<Textarea
-				id="edit-trainee-notes"
-				name="notes"
-				bind:value={notes}
-				placeholder="Öğrenci hakkında notlar..."
-				rows={3}
-			/>
-		</div>
+		<TraineeNotesField id="edit-trainee-notes" bind:value={notes} />
 
 		<ModalFooter>
 			<Button

@@ -29,7 +29,7 @@ async function weekLessons(
 		.select(
 			`id, date, hour, room_id, group_lesson_id, pe_rooms(name), pe_trainers(name),
 				pe_purchases(pe_packages(name)), pe_group_lessons(pe_packages(name)),
-				pe_appointment_trainees(trainee_id, pe_trainees(name))`
+				pe_appointment_trainees(trainee_id, pe_trainees(name, notes))`
 		)
 		.gte('date', formatDateForDB(weekStart))
 		.lt('date', formatDateForDB(addDays(weekStart, 7)));
@@ -51,6 +51,9 @@ async function weekLessons(
 		roomName: a.pe_rooms.name ?? '',
 		trainerName: a.pe_trainers.name ?? '',
 		traineeNames: a.pe_appointment_trainees.map((e) => e.pe_trainees.name),
+		traineeNotes: a.pe_appointment_trainees.flatMap(({ pe_trainees: t }) =>
+			t.notes ? [{ name: t.name, note: t.notes }] : []
+		),
 		isGroup: a.group_lesson_id !== null
 	}));
 	return { lessons, traineeCount };

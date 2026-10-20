@@ -10,9 +10,11 @@
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import PatternChip from '$lib/components/pattern-chip.svelte';
 	import LessonMeter from '$lib/components/lesson-meter.svelte';
+	import TraineeNote from '$lib/components/trainee-note.svelte';
 	import { cn } from '$lib/utils';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Plus from '@lucide/svelte/icons/plus';
+	import NotepadText from '@lucide/svelte/icons/notepad-text';
 	import { DAYS_OF_WEEK, DAY_NAMES, getTimeString } from '$lib/types/Schedule';
 	import {
 		formatDateForDB,
@@ -34,11 +36,12 @@
 	const isTrainer = $derived(data.userRole === 'trainer');
 	const isStaff = $derived(data.userRole === 'admin' || data.userRole === 'coordinator');
 
-	// Only staff can open the studio calendar
+	// Staff open the lesson on the studio calendar, trainers on their own
 	function lessonHref(lesson: PanelLesson): string | undefined {
-		return !isStaff
-			? undefined
-			: `/schedule?view=room&room=${lesson.roomId}&week=${lesson.date}&appointment=${lesson.appointmentId}`;
+		if (isStaff)
+			return `/schedule?view=room&room=${lesson.roomId}&week=${lesson.date}&appointment=${lesson.appointmentId}`;
+		if (isTrainer) return `/my-schedule?week=${lesson.date}&appointment=${lesson.appointmentId}`;
+		return undefined;
 	}
 
 	function endingLabel(remaining: number, lastDate: string): string {
@@ -52,7 +55,9 @@
 	<title>Panel · Pilates Evi</title>
 </svelte:head>
 
-{#snippet lessonList(lessons: PanelLesson[], empty: string)}
+<!-- Trainee notes (health, limits): in full where the trainer prepares today's lessons,
+     a "Not" mark elsewhere; the lesson's sheet always shows them in full -->
+{#snippet lessonList(lessons: PanelLesson[], empty: string, notes: 'full' | 'mark')}
 	{#if lessons.length === 0}
 		<p class="text-sm text-muted-foreground">{empty}</p>
 	{:else}
@@ -80,6 +85,12 @@
 								{#if lesson.appointmentId === nextId}
 									<Badge variant="secondary">Sıradaki</Badge>
 								{/if}
+								{#if notes === 'mark' && lesson.traineeNotes.length > 0}
+									<Badge variant="outline">
+										<NotepadText data-icon="inline-start" />
+										Not<span class="sr-only">: öğrenci notu var</span>
+									</Badge>
+								{/if}
 							</span>
 							<span class="block truncate text-muted-foreground">
 								{lesson.traineeNames.length > 0
@@ -88,6 +99,13 @@
 										? 'Henüz öğrenci yok'
 										: ''}
 							</span>
+							{#if notes === 'full' && lesson.traineeNotes.length > 0}
+								<span class="mt-1.5 grid gap-1">
+									{#each lesson.traineeNotes as { name, note }, i (i)}
+										<TraineeNote {note} name={lesson.traineeNames.length > 1 ? name : undefined} />
+									{/each}
+								</span>
+							{/if}
 							<span class="block truncate text-xs text-muted-foreground sm:hidden">
 								{lesson.roomName} · {lesson.trainerName}
 							</span>
@@ -158,7 +176,7 @@
 						</Card.Description>
 					</Card.Header>
 					<Card.Content>
-						{@render lessonList(panel.today, 'Bugün randevunuz yok.')}
+						{@render lessonList(panel.today, 'Bugün randevunuz yok.', 'full')}
 					</Card.Content>
 				</Card.Root>
 
@@ -176,7 +194,7 @@
 									<h3 class="text-sm font-medium">
 										{DAY_NAMES[day]} · {formatDisplayDate(lessons[0].date)}
 									</h3>
-									{@render lessonList(lessons, '')}
+									{@render lessonList(lessons, '', 'mark')}
 								</section>
 							{/if}
 						{/each}
@@ -198,7 +216,7 @@
 						</Card.Description>
 					</Card.Header>
 					<Card.Content>
-						{@render lessonList(panel.today, 'Bugün randevu yok.')}
+						{@render lessonList(panel.today, 'Bugün randevu yok.', 'mark')}
 					</Card.Content>
 				</Card.Root>
 				<Card.Root class="h-fit lg:col-span-2 lg:row-span-2">

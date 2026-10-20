@@ -7,8 +7,10 @@
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import UsersRound from '@lucide/svelte/icons/users-round';
+	import TraineeNote from '$lib/components/trainee-note.svelte';
 	import { getTimeString } from '$lib/types/Schedule';
 	import { formatSlotLabel, isAppointmentFuture } from '$lib/utils/date-utils';
+	import { cn } from '$lib/utils';
 
 	let {
 		open = $bindable(),
@@ -73,7 +75,8 @@
 									enrollment.session_number !== null &&
 									enrollment.session_number === enrollment.total_sessions &&
 									!enrollment.pe_purchases?.successor_id}
-								<li class="flex items-center gap-2 px-3 py-2">
+								{@const notes = enrollment.pe_trainees?.notes}
+								<li class={cn('flex gap-2 px-3 py-2', notes ? 'items-start' : 'items-center')}>
 									<div class="min-w-0 flex-1">
 										{#if enrollment.pe_trainees && isStaff}
 											<a
@@ -90,6 +93,9 @@
 										</span>
 										{#if isLast}
 											<Badge variant="outline" class="ml-1">Son ders</Badge>
+										{/if}
+										{#if notes}
+											<TraineeNote note={notes} class="mt-1.5" />
 										{/if}
 									</div>
 									{#if isStaff && isUpcoming && isGroup && enrollment.pe_trainees}

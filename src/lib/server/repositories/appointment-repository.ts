@@ -31,7 +31,7 @@ const WEEK_SELECT = `
 		session_number,
 		total_sessions,
 		purchase_id,
-		pe_trainees(id, name),
+		pe_trainees(id, name, notes),
 		pe_purchases(successor_id)
 	)
 ` as const;

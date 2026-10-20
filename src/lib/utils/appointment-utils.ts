@@ -62,6 +62,7 @@ export function createAppointmentDetails(
 		trainee_count: traineeNames.length,
 		reschedule_left: purchase?.reschedule_left ?? 0,
 		has_last_session: hasLastSession,
+		has_notes: appointmentTrainees.some((at) => !!at.pe_trainees?.notes),
 		appointment_trainees: appointmentTrainees
 	};
 }

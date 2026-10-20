@@ -74,6 +74,7 @@ run `npm run demo:reset`.
 | Blocked on conflicts: iptal, gün kapat                      | cancel › … is blocked when shifting… / close-day › … reports the conflicting one            |
 | Past lessons never move or get cancelled                    | move / reschedule / cancel › never moves… / never cancels…                                  |
 | Extra: transfer, whole group lesson move, end group lesson  | move › moves lessons to another room… / Taşı: a whole group lesson › … / end-early › Grup…  |
+| Trainee notes reach the trainer (Panel, board, sheet)       | notes › Öğrenci notları › the trainer's Panel lists… / the week board marks…                |
 | Invariants after every test                                 | setup.ts (lesson numbering, capacity, private ownership)                                    |
 
 ## Optional UI pass

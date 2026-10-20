@@ -29,7 +29,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
+	import TraineeNotesField from '$lib/components/trainee-notes-field.svelte';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
@@ -466,10 +466,7 @@
 									title={validation.email.title}
 								/>
 							</div>
-							<div class="grid gap-2">
-								<Label for="notes">Notlar</Label>
-								<Textarea name="notes" id="notes" rows={4} value={trainee.notes ?? ''} />
-							</div>
+							<TraineeNotesField id="notes" value={trainee.notes ?? ''} rows={4} />
 							<div class="flex justify-end gap-2">
 								<Button type="button" variant="outline" onclick={() => (editMode = false)}>
 									Vazgeç

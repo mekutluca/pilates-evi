@@ -123,7 +123,7 @@ interface AppointmentTraineeRelation {
 	session_number: number | null;
 	total_sessions: number | null;
 	purchase_id: string | null;
-	pe_trainees: { id: string; name: string } | null;
+	pe_trainees: { id: string; name: string; notes: string | null } | null;
 	pe_purchases: { successor_id: string | null } | null;
 }
 
@@ -187,6 +187,7 @@ export interface AppointmentWithDetails {
 	max_capacity?: number;
 	reschedule_left?: number; // Number of reschedules remaining for this purchase
 	has_last_session?: boolean; // Whether any trainee has their last session
+	has_notes?: boolean; // Whether any trainee has notes (health, limits) the trainer should read
 	appointment_trainees?: AppointmentTraineeRelation[]; // Trainee details
 	session_number?: number | null;
 	total_sessions?: number | null;
@@ -264,6 +265,7 @@ interface AppointmentSlot extends BaseSlotData {
 	meta?: string; // Third line (the other dimension: trainer in a room view, room in a trainer view)
 	badge?: string; // Optional badge text (e.g., "Son ders")
 	warning?: string; // Optional conflict notation (e.g., "Kapasite aşıldı", "Çakışma")
+	hasNotes?: boolean; // A trainee of the lesson has notes: marked on the block
 	color?: SlotColor;
 	clickable?: boolean;
 	dimmed?: boolean; // Visually de-emphasize the slot (e.g., empty group lesson)
