@@ -35,8 +35,7 @@
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
-		getAppointmentWarningLabel,
-		lessonBlockLines
+		lessonBlock
 	} from '$lib/utils/appointment-utils';
 
 	let { data } = $props();
@@ -147,20 +146,20 @@
 
 		if (appointment) {
 			const details = createAppointmentDetails(appointment);
-			const warning = getAppointmentWarningLabel(appointmentWarnings.get(appointment.id));
+			const block = lessonBlock(
+				details,
+				appointmentWarnings.get(appointment.id),
+				viewMode === 'room' ? 'trainer' : 'room'
+			);
 			const isMoving = pickMode && selected?.id === appointment.id;
 			return {
 				variant: 'appointment',
 				day,
 				hour,
 				date,
-				...lessonBlockLines(details, viewMode === 'room' ? 'trainer' : 'room'),
-				badge: details.has_last_session ? 'Son ders' : undefined,
-				hasNotes: details.has_notes,
-				warning,
-				color: isMoving ? 'muted' : warning ? 'destructive' : 'primary',
+				...block,
+				color: isMoving ? 'muted' : block.color,
 				clickable: !pickMode,
-				dimmed: (details.trainee_count ?? 0) === 0,
 				data: details
 			};
 		}

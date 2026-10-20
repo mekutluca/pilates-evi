@@ -193,11 +193,16 @@ export interface AppointmentWithDetails {
 	total_sessions?: number | null;
 }
 
-// The text lines of a lesson block on the week board
-export interface LessonBlockLines {
+// A lesson block on the week board: its lines, flags and tone
+export interface LessonBlock {
 	title: string;
 	subtitle: string;
 	meta: string;
+	badge?: string;
+	warning?: string;
+	hasNotes: boolean;
+	color: SlotColor;
+	dimmed: boolean;
 }
 
 // Constants
@@ -243,9 +248,9 @@ export function getTimeString(hour: number): string {
 // SCHEDULE SLOT TYPES (used by the Schedule component)
 // ===============================================
 
-// Slot tones: primary = booked (tinted), muted = quiet / taken / being moved,
-// destructive = conflict
-export type SlotColor = 'primary' | 'muted' | 'destructive';
+// Slot tones: primary = booked (tinted), full = a group lesson at capacity (deeper tint),
+// muted = quiet / taken / being moved, destructive = conflict
+export type SlotColor = 'primary' | 'full' | 'muted' | 'destructive';
 
 interface BaseSlotData {
 	day: DayOfWeek;

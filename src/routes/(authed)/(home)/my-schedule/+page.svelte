@@ -13,8 +13,7 @@
 	import {
 		computeAppointmentWarnings,
 		createAppointmentDetails,
-		getAppointmentWarningLabel,
-		lessonBlockLines
+		lessonBlock
 	} from '$lib/utils/appointment-utils';
 
 	let { data } = $props();
@@ -38,19 +37,13 @@
 		if (!appointment) return { variant: 'empty', day, hour, date, label: '-' };
 
 		const details = createAppointmentDetails(appointment);
-		const warning = getAppointmentWarningLabel(appointmentWarnings.get(appointment.id));
 		return {
 			variant: 'appointment',
 			day,
 			hour,
 			date,
-			...lessonBlockLines(details, 'room'),
-			badge: details.has_last_session ? 'Son ders' : undefined,
-			hasNotes: details.has_notes,
-			warning,
-			color: warning ? 'destructive' : 'primary',
+			...lessonBlock(details, appointmentWarnings.get(appointment.id), 'room'),
 			clickable: true,
-			dimmed: (details.trainee_count ?? 0) === 0,
 			data: details
 		};
 	}

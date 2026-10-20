@@ -7,12 +7,13 @@
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import NotepadText from '@lucide/svelte/icons/notepad-text';
+	import UsersRound from '@lucide/svelte/icons/users-round';
 	import { cn } from '$lib/utils';
 	import { formatDateForDB, formatShortDate, getDateForDayOfWeek } from '$lib/utils/date-utils';
 
 	// The week board: one row per hour, one column per day. Booked lessons are orange-tinted
-	// blocks (package, trainees, the other dimension); free future hours are quiet cells that
-	// show their action on hover.
+	// blocks (package, trainees, the other dimension), a group at capacity a step deeper;
+	// free future hours are quiet cells that show their action on hover.
 	let { weekStart, entityName, getSlotData, onSlotClick, dayActions }: ScheduleProps = $props();
 
 	const today = formatDateForDB(new Date());
@@ -25,6 +26,7 @@
 
 	const TONES: Record<SlotColor, string> = {
 		primary: 'bg-primary/10 ring-primary/25 hover:bg-primary/15',
+		full: 'bg-primary/20 ring-primary/50 hover:bg-primary/25',
 		muted: 'bg-muted ring-foreground/10 text-muted-foreground hover:bg-muted/70',
 		destructive: 'bg-destructive/10 ring-destructive/30 hover:bg-destructive/15'
 	};
@@ -120,7 +122,8 @@
 											slot.meta,
 											slot.hasNotes && 'Öğrenci notu var',
 											slot.badge,
-											slot.warning
+											slot.warning,
+											slot.color === 'full' && 'Dolu'
 										]
 											.filter(Boolean)
 											.join(', ')}
@@ -146,6 +149,11 @@
 											<span class="flex items-center gap-1 font-semibold text-warning-foreground">
 												<ClockAlert class="size-3" />
 												{slot.badge}
+											</span>
+										{:else if slot.color === 'full'}
+											<span class="flex items-center gap-1 font-semibold">
+												<UsersRound class="size-3 text-primary-ink" />
+												Dolu
 											</span>
 										{/if}
 									</button>

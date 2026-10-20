@@ -2,7 +2,7 @@ import type {
 	AppointmentWithRelations,
 	AppointmentWithDetails,
 	AppointmentWarning,
-	LessonBlockLines
+	LessonBlock
 } from '$lib/types/Schedule';
 import { addDays, formatDateForDB } from '$lib/utils/date-utils';
 
@@ -93,11 +93,18 @@ export function computeAppointmentWarnings(
  * Builds the short notation shown on a schedule slot for a flagged appointment, or undefined when
  * there is nothing to flag.
  */
-export function getAppointmentWarningLabel(
-	warning: AppointmentWarning | undefined
-): string | undefined {
+function getAppointmentWarningLabel(warning: AppointmentWarning | undefined): string | undefined {
 	if (!warning) return undefined;
 	return warning.exceededCapacity ? 'Kapasite aşıldı' : undefined;
+}
+
+/** Whether a group lesson holds as many trainees as its package allows (more is a conflict). */
+function isGroupFull(details: AppointmentWithDetails): boolean {
+	return (
+		!!details.group_lesson_id &&
+		!!details.max_capacity &&
+		(details.trainee_count ?? 0) >= details.max_capacity
+	);
 }
 
 /** A kayıt whose last lesson is at most this many days ahead is due a renewal (Yenile). */
@@ -116,20 +123,27 @@ export function isRenewalDue(lastDate: string): boolean {
 /**
  * A lesson block on the week board: the package, who attends (a group shows its fill
  * first), and the other dimension of the view (the trainer on a room's week, the room on
- * a trainer's).
+ * a trainer's). The tone runs empty group (muted) → booked → full group → conflict.
  */
-export function lessonBlockLines(
+export function lessonBlock(
 	details: AppointmentWithDetails,
+	warning: AppointmentWarning | undefined,
 	other: 'room' | 'trainer'
-): LessonBlockLines {
+): LessonBlock {
 	const names = details.trainee_names ?? [];
 	const who = names.length > 0 ? names.join(', ') : 'Öğrenci yok';
+	const warningLabel = getAppointmentWarningLabel(warning);
 	return {
 		title: details.package_name ?? '',
 		subtitle:
 			details.group_lesson_id && details.max_capacity
 				? `${names.length}/${details.max_capacity} · ${who}`
 				: who,
-		meta: (other === 'room' ? details.room_name : details.trainer_name) ?? ''
+		meta: (other === 'room' ? details.room_name : details.trainer_name) ?? '',
+		badge: details.has_last_session ? 'Son ders' : undefined,
+		warning: warningLabel,
+		hasNotes: !!details.has_notes,
+		color: warningLabel ? 'destructive' : isGroupFull(details) ? 'full' : 'primary',
+		dimmed: names.length === 0
 	};
 }

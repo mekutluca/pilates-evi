@@ -1,7 +1,7 @@
 import { afterEach, expect } from 'vitest';
 import { pagedRows } from '$lib/server/paging';
 import { compareSlots } from '$lib/utils/slot-utils';
-import { supabase } from './helpers';
+import { fx, supabase } from './helpers';
 
 /**
  * Rules every scheduling operation must leave intact, checked across the whole Demo
@@ -80,7 +80,9 @@ async function studioProblems(): Promise<string[]> {
 		} else if (a.group_lesson_id) {
 			const packageId = packageOfGroup.get(a.group_lesson_id);
 			const capacity = packageId ? capacityOf.get(packageId) : undefined;
-			if (capacity !== undefined && rows.length > capacity) {
+			// Only the seeded over-capacity group may hold more than its package allows
+			const seededOverCapacity = a.group_lesson_id === fx.groupLessons.over_capacity;
+			if (capacity !== undefined && rows.length > capacity && !seededOverCapacity) {
 				problems.push(`group ${a.id} ${a.date}@${a.hour}: ${rows.length}/${capacity} trainees`);
 			}
 			for (const row of rows) {
