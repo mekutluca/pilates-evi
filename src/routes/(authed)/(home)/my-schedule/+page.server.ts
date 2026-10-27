@@ -1,5 +1,7 @@
-import { error } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { error, fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { AttendanceService } from '$lib/server/services/attendance-service';
+import { parseAttendance, parseEnrollmentId } from '$lib/server/scheduling/attendance-form';
 import { getWeekStart, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
 import { isIsoDate } from '$lib/utils/validation';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
@@ -37,4 +39,23 @@ export const load: PageServerLoad = async ({ locals: { supabase, user, userRole 
 		trainerName: trainer.name ?? '',
 		weekStart: formatDateForDB(weekStart)
 	};
+};
+
+export const actions: Actions = {
+	// Yoklama for the trainer's own lessons; the RPC checks the lesson is theirs
+	markAttendance: async ({ request, locals: { supabase, user, userRole } }) => {
+		if (!user || userRole !== 'trainer') {
+			return fail(403, { success: false, message: 'Bu işlem için yetkiniz yok' });
+		}
+		const formData = await request.formData();
+		const enrollmentId = parseEnrollmentId(formData);
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const mark = parseAttendance(formData);
+		if (typeof mark === 'string') return fail(400, { success: false, message: mark });
+
+		const markError = await new AttendanceService(supabase).mark(enrollmentId, mark.attendance);
+		if (markError) return fail(400, { success: false, message: markError });
+		return { success: true, message: 'Yoklama kaydedildi' };
+	}
 };

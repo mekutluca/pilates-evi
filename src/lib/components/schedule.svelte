@@ -7,6 +7,7 @@
 	import ClockAlert from '@lucide/svelte/icons/clock-alert';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import NotepadText from '@lucide/svelte/icons/notepad-text';
+	import ClipboardCheck from '@lucide/svelte/icons/clipboard-check';
 	import UsersRound from '@lucide/svelte/icons/users-round';
 	import { cn } from '$lib/utils';
 	import { formatDateForDB, formatShortDate, getDateForDayOfWeek } from '$lib/utils/date-utils';
@@ -121,6 +122,7 @@
 											slot.subtitle,
 											slot.meta,
 											slot.hasNotes && 'Öğrenci notu var',
+											slot.attendanceTaken && 'Yoklama alındı',
 											slot.badge,
 											slot.warning,
 											slot.color === 'full' && 'Dolu'
@@ -130,6 +132,9 @@
 									>
 										<span class="flex w-full items-center gap-1">
 											<span class="min-w-0 flex-1 truncate font-semibold">{slot.title}</span>
+											{#if slot.attendanceTaken}
+												<ClipboardCheck class="size-3 shrink-0 text-foreground/70" />
+											{/if}
 											{#if slot.hasNotes}
 												<NotepadText class="size-3 shrink-0 text-foreground/70" />
 											{/if}

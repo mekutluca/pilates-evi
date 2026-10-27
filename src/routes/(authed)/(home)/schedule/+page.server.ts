@@ -16,7 +16,14 @@ import { orNull } from '$lib/server/streaming';
 import { ConflictService } from '$lib/server/services/conflict-service';
 import { NotificationService } from '$lib/server/services/notification-service';
 import { SchedulingService } from '$lib/server/services/scheduling-service';
+import { AttendanceService } from '$lib/server/services/attendance-service';
 import { requireStaff } from '$lib/server/permissions';
+import {
+	parseAbsenceDecision,
+	parseAttendance,
+	parseEnrollmentId,
+	parseTargetAppointmentId
+} from '$lib/server/scheduling/attendance-form';
 import {
 	notifiedSuffix,
 	parseMoveReason,
@@ -285,6 +292,130 @@ export const actions: Actions = {
 			message: `${result.rows.length} randevu taşındı.${skipped}${notifiedSuffix(notified)}`,
 			week: result.rows[0]?.to.date
 		};
+	},
+
+	// Yoklama: staff mark any lesson (trainers mark their own on Takvimim)
+	markAttendance: async ({ request, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const formData = await request.formData();
+		const enrollmentId = parseEnrollmentId(formData);
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const mark = parseAttendance(formData);
+		if (typeof mark === 'string') return fail(400, { success: false, message: mark });
+
+		const markError = await new AttendanceService(supabase).mark(enrollmentId, mark.attendance);
+		if (markError) return fail(400, { success: false, message: markError });
+		return { success: true, message: 'Yoklama kaydedildi' };
+	},
+
+	previewShift: async ({ request, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const enrollmentId = parseEnrollmentId(await request.formData());
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const plan = await new AttendanceService(supabase).planShift(enrollmentId);
+		if (typeof plan === 'string') return fail(400, { success: false, message: plan });
+		return { success: true, plan };
+	},
+
+	makeupCandidates: async ({ request, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const enrollmentId = parseEnrollmentId(await request.formData());
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const candidates = await new AttendanceService(supabase).listMakeupCandidates(enrollmentId);
+		if (typeof candidates === 'string') return fail(400, { success: false, message: candidates });
+		return { success: true, candidates };
+	},
+
+	// What happens to a missed lesson: burn it, shift it on, or a make-up in a chosen
+	// session. Coordinators spend the kayıt's credit (shift: Değişiklik hakkı, make-up:
+	// Telafi hakkı) and stop at zero; admins are free, as with Taşı.
+	resolveAbsence: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const formData = await request.formData();
+		const enrollmentId = parseEnrollmentId(formData);
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const decision = parseAbsenceDecision(formData);
+		if (typeof decision === 'string') return fail(400, { success: false, message: decision });
+
+		const result = await new AttendanceService(supabase).resolve({
+			enrollmentId,
+			...decision,
+			consumeCredit: userRole !== 'admin'
+		});
+		if (result.error) return fail(400, { success: false, message: result.error });
+
+		const notified =
+			wantsNotification(formData) && result.changes.length > 0
+				? await (
+						await NotificationService.forStudio(supabase, organizationId)
+					).notify(result.changes, { kind: 'trainee_request' })
+				: null;
+		const message =
+			result.outcome === 'burned'
+				? 'Ders yakıldı.'
+				: result.outcome === 'shifted'
+					? 'Ders kaydırıldı.'
+					: 'Telafi dersi eklendi.';
+		return {
+			success: true,
+			message: message + notifiedSuffix(notified),
+			week: result.replacement?.date
+		};
+	},
+
+	moveMakeup: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const formData = await request.formData();
+		const enrollmentId = parseEnrollmentId(formData);
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const targetAppointmentId = parseTargetAppointmentId(formData);
+		if (typeof targetAppointmentId === 'string') {
+			return fail(400, { success: false, message: targetAppointmentId });
+		}
+
+		const result = await new AttendanceService(supabase).moveMakeup(
+			enrollmentId,
+			targetAppointmentId
+		);
+		if (result.error) return fail(400, { success: false, message: result.error });
+
+		const notified = wantsNotification(formData)
+			? await (
+					await NotificationService.forStudio(supabase, organizationId)
+				).notify(result.changes, { kind: 'trainee_request' })
+			: null;
+		return {
+			success: true,
+			message: `Telafi dersi taşındı.${notifiedSuffix(notified)}`,
+			week: result.replacement?.date
+		};
+	},
+
+	removeMakeup: async ({ request, locals: { supabase, user, userRole } }) => {
+		const denied = requireStaff(user, userRole);
+		if (denied) return denied;
+
+		const enrollmentId = parseEnrollmentId(await request.formData());
+		if (typeof enrollmentId === 'string')
+			return fail(400, { success: false, message: enrollmentId });
+		const removeError = await new AttendanceService(supabase).removeMakeup(enrollmentId);
+		if (removeError) return fail(400, { success: false, message: removeError });
+		return { success: true, message: 'Telafi dersi kaldırıldı; kaçırılan ders karar bekliyor.' };
 	},
 
 	previewCloseDay: async ({ request, locals: { supabase, user, userRole } }) => {

@@ -2,6 +2,7 @@
 	import type { PackageCreationFormProps } from '$lib/types/ComponentProps';
 	import Medal from '@lucide/svelte/icons/medal';
 	import CalendarSync from '@lucide/svelte/icons/calendar-sync';
+	import ClipboardCheck from '@lucide/svelte/icons/clipboard-check';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import ModalFooter from '$lib/components/modal-footer.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -31,6 +32,17 @@
 	let package_type = $state<'private' | 'group'>('private');
 	let reschedulable = $state(false);
 	let reschedule_limit = $state<number | undefined>(undefined);
+	// Yoklama defaults follow the type: group lessons take attendance and give two make-ups,
+	// private lessons rely on their reschedule credits
+	let attendance_enabled = $state(false);
+	let makeup_allowed = $state(false);
+	let makeup_limit = $state<number | undefined>(undefined);
+
+	function applyTypeDefaults(type: 'private' | 'group') {
+		attendance_enabled = type === 'group';
+		makeup_allowed = type === 'group';
+		makeup_limit = type === 'group' ? 2 : undefined;
+	}
 
 	function resetFormState() {
 		name = '';
@@ -42,6 +54,7 @@
 		package_type = 'private';
 		reschedulable = false;
 		reschedule_limit = undefined;
+		applyTypeDefaults('private');
 	}
 
 	// svelte-ignore state_referenced_locally
@@ -67,7 +80,10 @@
 			max_capacity,
 			package_type,
 			reschedulable,
-			reschedule_limit: reschedulable ? reschedule_limit : undefined
+			reschedule_limit: reschedulable ? reschedule_limit : undefined,
+			attendance_enabled,
+			makeup_allowed,
+			makeup_limit: makeup_allowed ? makeup_limit : undefined
 		});
 	}
 
@@ -193,7 +209,11 @@
 				<Separator class="my-3" />
 
 				<RadioGroup
-					bind:value={package_type}
+					value={package_type}
+					onValueChange={(v) => {
+						package_type = v === 'group' ? 'group' : 'private';
+						applyTypeDefaults(package_type);
+					}}
 					class="space-y-2"
 					aria-labelledby="package-type-label"
 				>
@@ -261,6 +281,66 @@
 							</div>
 						</div>
 					{/if}
+				</div>
+			</Card.Content>
+		</Card.Root>
+
+		<!-- Attendance Card -->
+		<Card.Root class="lg:col-span-2">
+			<Card.Content class="p-4">
+				<div class="flex items-center gap-2">
+					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+						<ClipboardCheck class="size-4 text-muted-foreground" />
+					</div>
+					<h3 class="text-sm font-semibold">Yoklama</h3>
+				</div>
+				<Separator class="my-3" />
+
+				<div class="grid gap-3 md:grid-cols-2">
+					<label
+						class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+					>
+						<Checkbox bind:checked={attendance_enabled} />
+						<div class="flex-1">
+							<div class="text-sm font-medium">Yoklama alınır</div>
+							<div class="text-xs text-muted-foreground">
+								Eğitmen derste kimin geldiğini işaretler
+							</div>
+						</div>
+					</label>
+
+					<div class="space-y-3">
+						<label
+							class="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+						>
+							<Checkbox bind:checked={makeup_allowed} />
+							<div class="flex-1">
+								<div class="text-sm font-medium">Telafi dersine izin ver</div>
+								<div class="text-xs text-muted-foreground">
+									Kaçırılan ders başka bir grup dersinde alınabilir
+								</div>
+							</div>
+						</label>
+						{#if makeup_allowed}
+							<div class="rounded-lg bg-muted p-2">
+								<label for="makeup-limit" class="mb-2 block text-xs text-foreground/70">
+									Telafi hakkı
+								</label>
+								<div class="flex items-center gap-2">
+									<Input
+										id="makeup-limit"
+										type="number"
+										class="h-8 w-16"
+										placeholder="∞"
+										min="1"
+										max="50"
+										bind:value={makeup_limit}
+									/>
+									<span class="text-xs text-muted-foreground">kez</span>
+								</div>
+							</div>
+						{/if}
+					</div>
 				</div>
 			</Card.Content>
 		</Card.Root>

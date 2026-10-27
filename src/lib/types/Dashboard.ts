@@ -1,5 +1,5 @@
 // Panel (dashboard) data
-import type { WeeklySlot } from './Schedule';
+import type { AttendanceSummary, SlotRef, WeeklySlot } from './Schedule';
 
 // A lesson as the panel lists it
 export interface PanelLesson {
@@ -13,6 +13,20 @@ export interface PanelLesson {
 	traineeNames: string[];
 	// Trainees with notes (health, limits) and their note
 	traineeNotes: Array<{ name: string; note: string }>;
+	isGroup: boolean;
+	// The package takes attendance; the counts once the lesson has started
+	attendanceEnabled: boolean;
+	attendance: AttendanceSummary;
+}
+
+// A missed lesson awaiting the desk's decision (shift, make-up or burn)
+export interface PendingAbsence extends SlotRef {
+	enrollmentId: number;
+	appointmentId: number;
+	roomId: string;
+	traineeId: string;
+	traineeName: string;
+	packageName: string;
 	isGroup: boolean;
 }
 
@@ -49,6 +63,10 @@ export interface StudioPanel {
 	ending: EndingKayit[];
 	newKayitlar: NewKayit[];
 	renewalCount: number;
+	// Devamsızlık: absences of the last two weeks still awaiting a decision, and how many
+	// started lessons of the last week have no attendance taken
+	pendingAbsences: PendingAbsence[];
+	untakenAttendanceCount: number;
 }
 
 // Trainer panel: their own lessons

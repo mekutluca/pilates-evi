@@ -257,12 +257,14 @@ async function getTraineeRecordsForChain(
 	traineeId: string,
 	purchaseId: string
 ): Promise<SortedTraineeRecord[]> {
+	// Replacement lessons (shifts, make-ups) sit off the series and stay where they are
 	const chain = await getPurchaseSuccessorChain(supabase, purchaseId);
 	const { data } = await supabase
 		.from('pe_appointment_trainees')
 		.select('id, appointment_id, purchase_id, pe_appointments(id, date, hour, group_lesson_id)')
 		.eq('trainee_id', traineeId)
-		.in('purchase_id', chain);
+		.in('purchase_id', chain)
+		.is('makeup_for_id', null);
 
 	const usable: SortedTraineeRecord[] = [];
 	for (const row of data ?? []) {

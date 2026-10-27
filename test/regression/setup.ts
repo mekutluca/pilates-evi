@@ -12,7 +12,9 @@ async function studioProblems(): Promise<string[]> {
 		pagedRows((from, to) =>
 			supabase
 				.from('pe_appointment_trainees')
-				.select('id, appointment_id, trainee_id, purchase_id, session_number, total_sessions')
+				.select(
+					'id, appointment_id, trainee_id, purchase_id, session_number, total_sessions, absence_outcome'
+				)
 				.order('id')
 				.range(from, to)
 		),
@@ -40,9 +42,11 @@ async function studioProblems(): Promise<string[]> {
 	const packageOfPurchase = new Map(purchases.map((p) => [p.id, p.package_id]));
 	const problems: string[] = [];
 
-	// "Son ders": a trainee's lessons under a purchase are numbered 1..n in calendar order
+	// "Son ders": a trainee's lessons under a purchase are numbered 1..n in calendar order.
+	// A missed lesson that was shifted or made up leaves the sequence (its replacement is in it)
 	const byKayit = new Map<string, typeof enrollments>();
 	for (const e of enrollments) {
+		if (e.absence_outcome === 'shifted' || e.absence_outcome === 'makeup') continue;
 		const key = `${e.purchase_id}/${e.trainee_id}`;
 		byKayit.set(key, [...(byKayit.get(key) ?? []), e]);
 	}

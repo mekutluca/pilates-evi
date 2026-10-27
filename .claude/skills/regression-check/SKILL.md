@@ -1,6 +1,6 @@
 ---
 name: regression-check
-description: Verify the app still works end to end before shipping or after changing scheduling code or flows. Type-checks, runs the unit tests, then resets the Demo studio and drives every scheduling operation (Yeni kayıt, grup dersi, Yenile, Taşı, randevu değiştir, iptal, gün kapat, kaydı erken bitir) through the real form actions as the Demo admin, including that each one is blocked on conflicts. Reports a pass/fail checklist. Use when the user asks for a regression check, before a release or version bump, or after touching src/lib/server/scheduling, services, RPCs or the scheduling routes.
+description: Verify the app still works end to end before shipping or after changing scheduling code or flows. Type-checks, runs the unit tests, then resets the Demo studio and drives every scheduling operation (Yeni kayıt, grup dersi, Yenile, Taşı, randevu değiştir, iptal, gün kapat, kaydı erken bitir, yoklama ve telafi) through the real form actions as the Demo admin, including that each one is blocked on conflicts. Reports a pass/fail checklist. Use when the user asks for a regression check, before a release or version bump, or after touching src/lib/server/scheduling, services, RPCs or the scheduling routes.
 ---
 
 # Regression check
@@ -19,8 +19,9 @@ the real studio.
   one. Every seeded date is relative to the current week, so the fixtures never go stale.
   After the run it resets again, so the demo stays presentable.
 - After every regression test, `test/regression/setup.ts` checks the whole Demo studio:
-  lesson numbers ("Son ders") are 1..n in calendar order, no group session is over capacity,
-  and every private lesson has its trainees under its own purchase.
+  lesson numbers ("Son ders") are 1..n in calendar order (a missed lesson that was shifted or
+  made up leaves the sequence), no group session is over capacity, and every private lesson
+  has its trainees under its own purchase.
 - Safety: the database is shared with the real studio. `pe_reset_demo_data()` refuses any
   studio but Demo (pinned by id) and any caller but its admin, and the global setup refuses an
   account that doesn't sign into Demo. Never run the suite with the service-role key.
@@ -75,6 +76,11 @@ run `npm run demo:reset`.
 | Past lessons never move or get cancelled                    | move / reschedule / cancel › never moves… / never cancels…                                  |
 | Extra: transfer, whole group lesson move, end group lesson  | move › moves lessons to another room… / Taşı: a whole group lesson › … / end-early › Grup…  |
 | Trainee notes reach the trainer (Panel, board, sheet)       | notes › Öğrenci notları › the trainer's Panel lists… / the week board marks…                |
+| Seeded attendance state (roster, make-up, shift, pending)   | attendance › Yoklama › the seeded studio shows attendance taken, a make-up, a shift…        |
+| Yoklama: mark, make-up, shift (group, private), burn        | attendance › Yoklama › marks attendance… / gives a missed group lesson a make-up… / shifts… |
+| Make-up moved, removed, undone by a cancelled session       | attendance › Yoklama › moves a make-up… / cancelling a session that holds a make-up…        |
+| Blocked: make-up into a full / past / other-package session | attendance › Yoklama › is blocked when the session is full, in the past or of another…      |
+| Credits: coordinator spends, refund on removal, stops at 0  | attendance › Yoklama › a coordinator spends a make-up credit…                               |
 | Invariants after every test                                 | setup.ts (lesson numbering, capacity, private ownership)                                    |
 
 ## Optional UI pass
@@ -82,8 +88,11 @@ run `npm run demo:reset`.
 When pages or components changed: start the dev server (`npm run dev`) and, with the browser
 tool, sign in as the Demo admin. Open /schedule (this week and next), a trainee from the
 seed (e.g. Ayşe Yılmaz), /new-assignment, /group-lessons and one group lesson, and the
-Panel. Check that each page renders without an error page or console errors. Report this
-separately from the automated checklist.
+Panel. For Yoklama: the Panel's Devamsızlık card lists Hatice Yurt; last week's Saturday
+15:00 "Grup Reformer" lesson (Geniş Salon) opens with its roster marked, Sibel Doğru's row
+reading "Telafi → Cuma … 14:00"; Hatice Yurt's client page shows "karar bekliyor" and a
+"Telafi" lesson at the end of her kayıt. Check that each page renders without an error page
+or console errors. Report this separately from the automated checklist.
 
 ## Adding coverage for a new feature
 

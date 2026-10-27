@@ -117,14 +117,46 @@ export interface GroupLessonHorizonInfo {
 	end_date: string | null;
 }
 
-// Types for appointment trainee relations
-interface AppointmentTraineeRelation {
+// Whether a trainee came to a lesson; null = attendance not taken
+export type Attendance = 'attended' | 'absent';
+
+// What the studio decided about a missed lesson; null = awaiting a decision
+export type AbsenceOutcome = 'burned' | 'shifted' | 'makeup';
+
+// A lesson's attendance counts
+export interface AttendanceSummary {
+	attended: number;
+	absent: number;
+	unmarked: number;
+}
+
+// The lesson a replacement stands in for, or the replacement a missed lesson got
+export interface LinkedLesson extends SlotRef {
+	appointmentId: number;
+	// The linked enrollment row (a replacement's, so staff can remove it from either side)
+	enrollmentId: number;
+}
+
+// A trainee at a lesson (an enrollment row), as the week board and the sheet read it
+export interface AppointmentTraineeRelation {
 	id: number;
 	session_number: number | null;
 	total_sessions: number | null;
 	purchase_id: string | null;
 	pe_trainees: { id: string; name: string; notes: string | null } | null;
-	pe_purchases: { successor_id: string | null } | null;
+	pe_purchases: {
+		successor_id: string | null;
+		makeup_left?: number;
+		reschedule_left?: number;
+	} | null;
+	attendance?: Attendance | null;
+	absence_outcome?: AbsenceOutcome | null;
+	// Set on a replacement lesson (a shift or a make-up): the missed lesson's row
+	makeup_for_id?: number | null;
+	// A replacement: the missed lesson it stands in for (null when not readable)
+	origin?: LinkedLesson | null;
+	// A missed lesson that was shifted or made up: where the replacement is
+	replacement?: LinkedLesson | null;
 }
 
 // Package info with complete type definitions
@@ -136,6 +168,7 @@ interface PackageInfo {
 	min_lessons_per_week?: number;
 	max_lessons_per_week?: number;
 	max_capacity?: number;
+	attendance_enabled?: boolean;
 }
 
 // Schedule-level issues flagged on an appointment: more trainees than the package allows, or
@@ -148,6 +181,7 @@ export interface AppointmentWarning {
 interface PurchaseRelation {
 	id: string;
 	reschedule_left: number | null;
+	makeup_left?: number | null;
 	successor_id?: string | null;
 	pe_packages?: PackageInfo | null;
 }
@@ -186,6 +220,9 @@ export interface AppointmentWithDetails {
 	package_name?: string;
 	max_capacity?: number;
 	reschedule_left?: number; // Number of reschedules remaining for this purchase
+	makeup_left?: number; // Make-up credits left on a private lesson's purchase
+	// The package takes attendance (Yoklama): the sheet shows the controls once the lesson starts
+	attendance_enabled?: boolean;
 	has_last_session?: boolean; // Whether any trainee has their last session
 	has_notes?: boolean; // Whether any trainee has notes (health, limits) the trainer should read
 	appointment_trainees?: AppointmentTraineeRelation[]; // Trainee details
@@ -201,6 +238,8 @@ export interface LessonBlock {
 	badge?: string;
 	warning?: string;
 	hasNotes: boolean;
+	// Attendance was taken for everyone at this (started) lesson
+	attendanceTaken: boolean;
 	color: SlotColor;
 	dimmed: boolean;
 }
@@ -271,6 +310,7 @@ interface AppointmentSlot extends BaseSlotData {
 	badge?: string; // Optional badge text (e.g., "Son ders")
 	warning?: string; // Optional conflict notation (e.g., "Kapasite aşıldı", "Çakışma")
 	hasNotes?: boolean; // A trainee of the lesson has notes: marked on the block
+	attendanceTaken?: boolean; // Everyone at this started lesson is marked
 	color?: SlotColor;
 	clickable?: boolean;
 	dimmed?: boolean; // Visually de-emphasize the slot (e.g., empty group lesson)

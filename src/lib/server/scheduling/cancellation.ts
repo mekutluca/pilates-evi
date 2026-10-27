@@ -78,7 +78,7 @@ export async function shiftGroupTraineesOn(
 	const { data: appointment } = await supabase
 		.from('pe_appointments')
 		.select(
-			'date, hour, pe_group_lessons(pe_packages(name)), pe_appointment_trainees(trainee_id, pe_trainees(phone))'
+			'date, hour, pe_group_lessons(pe_packages(name)), pe_appointment_trainees(trainee_id, makeup_for_id, pe_trainees(phone))'
 		)
 		.eq('id', appointmentId)
 		.maybeSingle();
@@ -87,6 +87,9 @@ export async function shiftGroupTraineesOn(
 	const moves: ShiftedTraineeRecord[] = [];
 	const phoneByTarget: Array<{ phone: string; newAppointmentId: number }> = [];
 	for (const enrollment of appointment.pe_appointment_trainees) {
+		// A make-up has no series to shift in: it goes with the session, and the missed
+		// lesson it replaced awaits a new decision (database trigger)
+		if (enrollment.makeup_for_id !== null) continue;
 		const plan = await planTraineeSlotShift(supabase, appointmentId, enrollment.trainee_id, 1);
 		if (plan.error) return { error: plan.error, changes: [] };
 		moves.push(...plan.shifted);

@@ -10,6 +10,7 @@ import { compareSlots, recurringPattern } from '$lib/utils/slot-utils';
 import { isNonNull } from '$lib/utils/type-guards';
 import { isValidUuid } from '$lib/utils/validation';
 import { orNull } from '$lib/server/streaming';
+import { asAbsenceOutcome, asAttendance } from '$lib/utils/attendance-utils';
 
 export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 	const traineeId = params.id;
@@ -38,7 +39,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 			supabase
 				.from('pe_purchases')
 				.select(
-					'id, created_at, successor_id, reschedule_left, lesson_count, pe_packages(name, package_type)'
+					'id, created_at, successor_id, reschedule_left, makeup_left, lesson_count, pe_packages(name, package_type)'
 				)
 				.in(
 					'team_id',
@@ -47,7 +48,7 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 			supabase
 				.from('pe_appointment_trainees')
 				.select(
-					'purchase_id, pe_appointments!inner(id, date, hour, room_id, pe_rooms(name), pe_trainers(name))'
+					'purchase_id, attendance, absence_outcome, makeup_for_id, pe_appointments!inner(id, date, hour, room_id, pe_rooms(name), pe_trainers(name))'
 				)
 				.eq('trainee_id', traineeId)
 		]);
@@ -65,7 +66,10 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				hour: a.hour,
 				roomId: a.room_id,
 				roomName: a.pe_rooms.name ?? '',
-				trainerName: a.pe_trainers.name ?? ''
+				trainerName: a.pe_trainers.name ?? '',
+				attendance: asAttendance(row.attendance),
+				absenceOutcome: asAbsenceOutcome(row.absence_outcome),
+				isMakeup: row.makeup_for_id !== null
 			});
 			lessonsByPurchase.set(row.purchase_id, list);
 		}
@@ -120,6 +124,13 @@ export const load: PageServerLoad = ({ params, locals: { supabase } }) => {
 				isGroup: root.pe_packages.package_type === 'group',
 				lessonCount: chain.reduce((sum, p) => sum + p.lesson_count, 0),
 				creditsLeft: current.reschedule_left,
+				makeupLeft: current.makeup_left,
+				attendance: {
+					attended: lessons.filter((l) => l.attendance === 'attended').length,
+					absent: lessons.filter((l) => l.attendance === 'absent').length,
+					pending: lessons.filter((l) => l.attendance === 'absent' && l.absenceOutcome === null)
+						.length
+				},
 				lessons,
 				upcoming,
 				slots: recurringPattern(patternSource),

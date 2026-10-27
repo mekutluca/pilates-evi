@@ -109,10 +109,12 @@ export async function getCanonicalPurchaseTimeSlots(
 	timeslotGroupLessons: Map<string, string>;
 }> {
 	if (packageType === 'group') {
+		// Make-ups sit in whichever session had room; they are not part of the pattern
 		const { data: traineeApps } = await supabase
 			.from('pe_appointment_trainees')
 			.select('pe_appointments(group_lesson_id, date, hour)')
-			.eq('purchase_id', purchaseId);
+			.eq('purchase_id', purchaseId)
+			.is('makeup_for_id', null);
 
 		if (!traineeApps || traineeApps.length === 0) {
 			return { slots: [], timeslotGroupLessons: new Map() };

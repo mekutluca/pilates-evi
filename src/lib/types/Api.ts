@@ -4,6 +4,7 @@ import type { MovePreviewRow } from '$lib/types/Transfer';
 import type { SlotRef, WeeklySlot } from '$lib/types/Schedule';
 import type { AvailableGroupTimeslot, TraineeOption } from '$lib/types';
 import type { BusyWeeklySlot } from '$lib/types/Conflict';
+import type { MakeupCandidate, ShiftPlan } from '$lib/types/Attendance';
 
 // A form action result a page waits on: nothing asked yet, in flight, failed, or its payload
 export type Loadable<T> =
@@ -57,6 +58,12 @@ export type GroupTimeslotsPayload = ActionPayload & { timeslots: AvailableGroupT
 
 // Yeni kayıt: a trainee created inline
 export type CreatedTraineePayload = ActionPayload & { trainee: TraineeOption };
+
+// previewShift: where a missed lesson's replacement would go
+export type ShiftPreviewPayload = ActionPayload & { plan: ShiftPlan };
+
+// makeupCandidates: group sessions a make-up can go into
+export type MakeupCandidatesPayload = ActionPayload & { candidates: MakeupCandidate[] };
 
 // enhanceForm(): what a form does around its action
 export interface EnhanceFormOptions {

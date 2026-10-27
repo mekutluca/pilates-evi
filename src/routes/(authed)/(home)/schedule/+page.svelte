@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ActionItem } from '$lib/types';
-	import type { MovingTrainee } from '$lib/types/ComponentProps';
+	import type { AbsenceTarget, MovingTrainee } from '$lib/types/ComponentProps';
 	import type {
 		AppointmentWithDetails,
 		DayOfWeek,
@@ -14,12 +14,14 @@
 	import MoveSheet from '$lib/components/scheduling/move-sheet.svelte';
 	import CancelDialog from '$lib/components/scheduling/cancel-dialog.svelte';
 	import CloseDayDialog from '$lib/components/scheduling/close-day-dialog.svelte';
+	import AbsenceDialog from '$lib/components/scheduling/absence-dialog.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import CalendarX from '@lucide/svelte/icons/calendar-x';
 	import MoveRight from '@lucide/svelte/icons/move-right';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import {
 		formatDateForDB,
@@ -79,6 +81,19 @@
 	let cancelOpen = $state(false);
 	let closeDayDate = $state<string | null>(null);
 	let closeDayOpen = $state(false);
+	let absenceTarget = $state<AbsenceTarget | null>(null);
+	let absenceOpen = $state(false);
+
+	// The open sheet follows the week's data (attendance marked, a make-up added) without
+	// closing; only the week is a dependency, or every refresh would loop
+	$effect(() => {
+		const list = appointments;
+		untrack(() => {
+			if (!selected) return;
+			const fresh = list.find((a) => a.id === selected?.id);
+			if (fresh) selected = createAppointmentDetails(fresh);
+		});
+	});
 
 	function navigate(changes: Record<string, string>) {
 		const url = new URL(page.url);
@@ -135,6 +150,11 @@
 		// Also drops ?appointment= so the panel doesn't reopen on the refreshed data
 		navigate(week ? { week: formatDateForDB(getWeekStart(parseLocalDate(week))) } : {});
 		await invalidateAll();
+	}
+
+	function openAbsence(target: AbsenceTarget) {
+		absenceTarget = target;
+		absenceOpen = true;
 	}
 
 	function getSlotData(day: DayOfWeek, hour: number, date: string): ScheduleSlot {
@@ -332,7 +352,21 @@
 		appointmentSheetOpen = false;
 		cancelOpen = true;
 	}}
+	onAbsence={openAbsence}
+	onChanged={() => invalidateAll()}
 />
+
+{#key absenceTarget?.enrollmentId}
+	<AbsenceDialog
+		bind:open={absenceOpen}
+		target={absenceTarget}
+		userRole={data.userRole}
+		onDone={(week) => {
+			appointmentSheetOpen = false;
+			afterChange(week);
+		}}
+	/>
+{/key}
 
 {#key `${selected?.id}-${movingTrainee?.id}`}
 	<MoveSheet

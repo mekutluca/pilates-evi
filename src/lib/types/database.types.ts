@@ -13,8 +13,14 @@ export type Database = {
 		Tables: {
 			pe_appointment_trainees: {
 				Row: {
+					absence_outcome: string | null;
 					appointment_id: number | null;
+					attendance: string | null;
+					attendance_at: string | null;
+					attendance_by: string | null;
+					credit_spent: boolean;
 					id: number;
+					makeup_for_id: number | null;
 					organization_id: string;
 					purchase_id: string;
 					session_number: number;
@@ -22,8 +28,14 @@ export type Database = {
 					trainee_id: string;
 				};
 				Insert: {
+					absence_outcome?: string | null;
 					appointment_id?: number | null;
+					attendance?: string | null;
+					attendance_at?: string | null;
+					attendance_by?: string | null;
+					credit_spent?: boolean;
 					id?: number;
+					makeup_for_id?: number | null;
 					organization_id?: string;
 					purchase_id: string;
 					session_number: number;
@@ -31,8 +43,14 @@ export type Database = {
 					trainee_id: string;
 				};
 				Update: {
+					absence_outcome?: string | null;
 					appointment_id?: number | null;
+					attendance?: string | null;
+					attendance_at?: string | null;
+					attendance_by?: string | null;
+					credit_spent?: boolean;
 					id?: number;
+					makeup_for_id?: number | null;
 					organization_id?: string;
 					purchase_id?: string;
 					session_number?: number;
@@ -45,6 +63,13 @@ export type Database = {
 						columns: ['appointment_id'];
 						isOneToOne: false;
 						referencedRelation: 'pe_appointments';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_appointment_trainees_makeup_for_id_fkey';
+						columns: ['makeup_for_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_appointment_trainees';
 						referencedColumns: ['id'];
 					},
 					{
@@ -233,10 +258,13 @@ export type Database = {
 			};
 			pe_packages: {
 				Row: {
+					attendance_enabled: boolean;
 					created_at: string;
 					description: string | null;
 					id: string;
 					is_active: boolean;
+					makeup_allowed: boolean;
+					makeup_limit: number | null;
 					max_capacity: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -248,10 +276,13 @@ export type Database = {
 					weeks_duration: number | null;
 				};
 				Insert: {
+					attendance_enabled?: boolean;
 					created_at?: string;
 					description?: string | null;
 					id?: string;
 					is_active?: boolean;
+					makeup_allowed?: boolean;
+					makeup_limit?: number | null;
 					max_capacity?: number;
 					max_lessons_per_week: number;
 					min_lessons_per_week: number;
@@ -263,10 +294,13 @@ export type Database = {
 					weeks_duration?: number | null;
 				};
 				Update: {
+					attendance_enabled?: boolean;
 					created_at?: string;
 					description?: string | null;
 					id?: string;
 					is_active?: boolean;
+					makeup_allowed?: boolean;
+					makeup_limit?: number | null;
 					max_capacity?: number;
 					max_lessons_per_week?: number;
 					min_lessons_per_week?: number;
@@ -292,6 +326,7 @@ export type Database = {
 					created_at: string;
 					id: string;
 					lesson_count: number;
+					makeup_left: number;
 					organization_id: string;
 					package_id: string;
 					reschedule_left: number;
@@ -302,6 +337,7 @@ export type Database = {
 					created_at?: string;
 					id?: string;
 					lesson_count: number;
+					makeup_left: number;
 					organization_id?: string;
 					package_id: string;
 					reschedule_left?: number;
@@ -312,6 +348,7 @@ export type Database = {
 					created_at?: string;
 					id?: string;
 					lesson_count?: number;
+					makeup_left?: number;
 					organization_id?: string;
 					package_id?: string;
 					reschedule_left?: number;
@@ -527,6 +564,14 @@ export type Database = {
 		};
 		Functions: {
 			pe_auth_user_id: { Args: { p_email: string }; Returns: string };
+			pe_check_makeup_target: {
+				Args: {
+					p_package_id: string;
+					p_target_appointment_id: number;
+					p_trainee_id: string;
+				};
+				Returns: undefined;
+			};
 			pe_create_assignment: {
 				Args: {
 					p_appointments: Json;
@@ -555,7 +600,15 @@ export type Database = {
 				Args: { p_delete_appointment_ids?: number[]; p_moves: Json };
 				Returns: number;
 			};
+			pe_move_makeup: {
+				Args: { p_enrollment_id: number; p_target_appointment_id: number };
+				Returns: undefined;
+			};
 			pe_purchase_chain: { Args: { p_purchase_id: string }; Returns: string[] };
+			pe_remove_makeup: {
+				Args: { p_enrollment_id: number };
+				Returns: undefined;
+			};
 			pe_renumber_sessions: {
 				Args: { p_purchase_ids: string[] };
 				Returns: undefined;
@@ -571,6 +624,20 @@ export type Database = {
 				Returns: number;
 			};
 			pe_reset_demo_data: { Args: never; Returns: Json };
+			pe_resolve_absence: {
+				Args: {
+					p_consume_credit?: boolean;
+					p_enrollment_id: number;
+					p_new_appointment?: Json;
+					p_outcome: string;
+					p_target_appointment_id?: number;
+				};
+				Returns: number;
+			};
+			pe_set_attendance: {
+				Args: { p_attendance: string; p_enrollment_id: number };
+				Returns: undefined;
+			};
 			pe_switch_organization: { Args: { p_org_id: string }; Returns: undefined };
 			pe_topup_group_lesson_appointments: {
 				Args: { p_weeks?: number };

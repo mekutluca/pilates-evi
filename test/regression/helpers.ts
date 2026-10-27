@@ -128,7 +128,7 @@ export async function lessonsOf(purchaseIds: string | string[], traineeId?: stri
 	let query = supabase
 		.from('pe_appointment_trainees')
 		.select(
-			'trainee_id, purchase_id, session_number, total_sessions, pe_appointments!inner(id, date, hour, room_id, trainer_id, group_lesson_id)'
+			'id, trainee_id, purchase_id, session_number, total_sessions, attendance, absence_outcome, makeup_for_id, pe_appointments!inner(id, date, hour, room_id, trainer_id, group_lesson_id)'
 		)
 		.in('purchase_id', typeof purchaseIds === 'string' ? [purchaseIds] : purchaseIds);
 	if (traineeId) query = query.eq('trainee_id', traineeId);
@@ -136,6 +136,7 @@ export async function lessonsOf(purchaseIds: string | string[], traineeId?: stri
 	if (error) throw new Error(error.message);
 	return (data ?? [])
 		.map((row): BookedLesson => ({
+			enrollmentId: row.id,
 			appointmentId: row.pe_appointments.id,
 			date: row.pe_appointments.date,
 			hour: row.pe_appointments.hour,
@@ -145,7 +146,10 @@ export async function lessonsOf(purchaseIds: string | string[], traineeId?: stri
 			traineeId: row.trainee_id,
 			purchaseId: row.purchase_id,
 			sessionNumber: row.session_number,
-			totalSessions: row.total_sessions
+			totalSessions: row.total_sessions,
+			attendance: row.attendance,
+			absenceOutcome: row.absence_outcome,
+			isMakeup: row.makeup_for_id !== null
 		}))
 		.sort(compareSlots);
 }

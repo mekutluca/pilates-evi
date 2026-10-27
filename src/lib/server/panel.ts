@@ -4,11 +4,13 @@ import type {
 	EndingKayit,
 	NewKayit,
 	PanelLesson,
+	PendingAbsence,
 	StudioPanel,
 	TrainerPanel
 } from '$lib/types/Dashboard';
 import { addDays, formatDateForDB, getWeekStart, isAppointmentFuture } from '$lib/utils/date-utils';
-import { renewalWindowEnd } from '$lib/utils/appointment-utils';
+import { renewalWindowEnd, traineeDisplayName } from '$lib/utils/appointment-utils';
+import { asAttendance, attendanceSummary, isAttendanceOpen } from '$lib/utils/attendance-utils';
 import { recurringPattern } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
 import { pagedRows } from '$lib/server/paging';
@@ -16,6 +18,9 @@ import { pagedRows } from '$lib/server/paging';
 // "Paketi bitmek üzere": the last lesson is within the renewal window ahead…
 // …or was at most this many days ago, without a renewal
 const ENDED_BEHIND_DAYS = 7;
+// Devamsızlık: how far back the desk is reminded of undecided absences and untaken attendance
+const ABSENCE_BEHIND_DAYS = 14;
+const UNTAKEN_BEHIND_DAYS = 7;
 
 // This week's lessons, optionally one trainer's, chronological, and how many distinct
 // trainees they have
@@ -28,8 +33,9 @@ async function weekLessons(
 		.from('pe_appointments')
 		.select(
 			`id, date, hour, room_id, group_lesson_id, pe_rooms(name), pe_trainers(name),
-				pe_purchases(pe_packages(name)), pe_group_lessons(pe_packages(name)),
-				pe_appointment_trainees(trainee_id, pe_trainees(name, notes))`
+				pe_purchases(pe_packages(name, attendance_enabled)),
+				pe_group_lessons(pe_packages(name, attendance_enabled)),
+				pe_appointment_trainees(id, trainee_id, attendance, makeup_for_id, pe_trainees(id, name, notes))`
 		)
 		.gte('date', formatDateForDB(weekStart))
 		.lt('date', formatDateForDB(addDays(weekStart, 7)));
@@ -42,21 +48,90 @@ async function weekLessons(
 	const traineeCount = new Set(
 		rows.flatMap((a) => a.pe_appointment_trainees.map((e) => e.trainee_id))
 	).size;
-	const lessons = rows.map((a) => ({
-		appointmentId: a.id,
-		date: a.date,
-		hour: a.hour,
-		packageName: a.pe_purchases?.pe_packages.name ?? a.pe_group_lessons?.pe_packages.name ?? '',
-		roomId: a.room_id,
-		roomName: a.pe_rooms.name ?? '',
-		trainerName: a.pe_trainers.name ?? '',
-		traineeNames: a.pe_appointment_trainees.map((e) => e.pe_trainees.name),
-		traineeNotes: a.pe_appointment_trainees.flatMap(({ pe_trainees: t }) =>
-			t.notes ? [{ name: t.name, note: t.notes }] : []
-		),
-		isGroup: a.group_lesson_id !== null
-	}));
+	const lessons = rows.map((a) => {
+		const pkg = a.pe_purchases?.pe_packages ?? a.pe_group_lessons?.pe_packages;
+		return {
+			appointmentId: a.id,
+			date: a.date,
+			hour: a.hour,
+			packageName: pkg?.name ?? '',
+			roomId: a.room_id,
+			roomName: a.pe_rooms.name ?? '',
+			trainerName: a.pe_trainers.name ?? '',
+			traineeNames: a.pe_appointment_trainees.map((e) =>
+				traineeDisplayName({ pe_trainees: e.pe_trainees, makeup_for_id: e.makeup_for_id })
+			),
+			traineeNotes: a.pe_appointment_trainees.flatMap(({ pe_trainees: t }) =>
+				t.notes ? [{ name: t.name, note: t.notes }] : []
+			),
+			isGroup: a.group_lesson_id !== null,
+			attendanceEnabled: pkg?.attendance_enabled ?? false,
+			attendance: attendanceSummary(
+				a.pe_appointment_trainees.map((e) => ({ attendance: asAttendance(e.attendance) }))
+			)
+		};
+	});
 	return { lessons, traineeCount };
+}
+
+// Missed lessons of the last two weeks the desk has not decided about
+async function pendingAbsences(supabase: SupabaseClientType): Promise<PendingAbsence[]> {
+	const rows = await pagedRows((from, to) =>
+		supabase
+			.from('pe_appointment_trainees')
+			.select(
+				`id, trainee_id, pe_trainees(name), pe_purchases(pe_packages(name, package_type)),
+					pe_appointments!inner(id, date, hour, room_id)`
+			)
+			.eq('attendance', 'absent')
+			.is('absence_outcome', null)
+			.gte('pe_appointments.date', formatDateForDB(addDays(new Date(), -ABSENCE_BEHIND_DAYS)))
+			.order('id')
+			.range(from, to)
+	);
+	return rows
+		.map((r) => ({
+			enrollmentId: r.id,
+			appointmentId: r.pe_appointments.id,
+			date: r.pe_appointments.date,
+			hour: r.pe_appointments.hour,
+			roomId: r.pe_appointments.room_id,
+			traineeId: r.trainee_id,
+			traineeName: r.pe_trainees.name,
+			packageName: r.pe_purchases.pe_packages.name,
+			isGroup: r.pe_purchases.pe_packages.package_type === 'group'
+		}))
+		.sort(
+			(a, b) =>
+				a.date.localeCompare(b.date) ||
+				a.hour - b.hour ||
+				a.traineeName.localeCompare(b.traineeName, 'tr')
+		);
+}
+
+// Started lessons of the last week, of packages that take attendance, with someone unmarked
+async function untakenAttendanceCount(supabase: SupabaseClientType): Promise<number> {
+	const { data, error } = await supabase
+		.from('pe_appointments')
+		.select(
+			`id, date, hour, pe_purchases(pe_packages(attendance_enabled)),
+				pe_group_lessons(pe_packages(attendance_enabled)), pe_appointment_trainees(attendance)`
+		)
+		.gte('date', formatDateForDB(addDays(new Date(), -UNTAKEN_BEHIND_DAYS)))
+		.lte('date', formatDateForDB(new Date()));
+	if (error) throw new Error(dbErrorMessage(error, 'Yoklamalar yüklenemedi. Tekrar deneyin.'));
+	return (data ?? []).filter((a) => {
+		const enabled =
+			a.pe_purchases?.pe_packages.attendance_enabled ??
+			a.pe_group_lessons?.pe_packages.attendance_enabled ??
+			false;
+		return (
+			enabled &&
+			isAttendanceOpen(a.date, a.hour) &&
+			a.pe_appointment_trainees.length > 0 &&
+			a.pe_appointment_trainees.some((e) => asAttendance(e.attendance) === null)
+		);
+	}).length;
 }
 
 // Kayıtlar running out: chain-end purchases whose last lesson falls in the window
@@ -184,10 +259,12 @@ async function weekKayitlar(
 /** The coordinator/admin panel: today, kayıtlar ending soon, this week's new kayıtlar. */
 export async function loadStudioPanel(supabase: SupabaseClientType): Promise<StudioPanel> {
 	const today = formatDateForDB(new Date());
-	const [week, ending, kayitlar] = await Promise.all([
+	const [week, ending, kayitlar, absences, untaken] = await Promise.all([
 		weekLessons(supabase),
 		endingKayitlar(supabase),
-		weekKayitlar(supabase)
+		weekKayitlar(supabase),
+		pendingAbsences(supabase),
+		untakenAttendanceCount(supabase)
 	]);
 	return {
 		kind: 'studio',
@@ -195,7 +272,9 @@ export async function loadStudioPanel(supabase: SupabaseClientType): Promise<Stu
 		weekLessonCount: week.lessons.length,
 		weekTraineeCount: week.traineeCount,
 		ending,
-		...kayitlar
+		...kayitlar,
+		pendingAbsences: absences,
+		untakenAttendanceCount: untaken
 	};
 }
 

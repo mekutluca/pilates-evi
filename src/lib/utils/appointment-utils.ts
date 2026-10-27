@@ -1,10 +1,12 @@
 import type {
+	AppointmentTraineeRelation,
 	AppointmentWithRelations,
 	AppointmentWithDetails,
 	AppointmentWarning,
 	LessonBlock
 } from '$lib/types/Schedule';
 import { addDays, formatDateForDB } from '$lib/utils/date-utils';
+import { attendanceSummary, isAttendanceOpen } from '$lib/utils/attendance-utils';
 
 /**
  * Converts an AppointmentWithRelations to AppointmentWithDetails
@@ -21,7 +23,8 @@ export function createAppointmentDetails(
 
 	// Get trainee information from appointment_trainees
 	const appointmentTrainees = appointment.pe_appointment_trainees || [];
-	const traineeNames = appointmentTrainees.map((at) => at.pe_trainees?.name || '').filter(Boolean);
+	// A make-up or shifted-in trainee is named as such: the trainer knows who is a guest
+	const traineeNames = appointmentTrainees.map((at) => traineeDisplayName(at)).filter(Boolean);
 
 	// Check if any trainee has their last session AND their purchase has no successor
 	// For private lessons: all trainees share one purchase, check appointment.pe_purchases.successor_id
@@ -61,10 +64,21 @@ export function createAppointmentDetails(
 		trainee_names: traineeNames,
 		trainee_count: traineeNames.length,
 		reschedule_left: purchase?.reschedule_left ?? 0,
+		makeup_left: purchase?.makeup_left ?? 0,
+		attendance_enabled: packageInfo?.attendance_enabled ?? false,
 		has_last_session: hasLastSession,
 		has_notes: appointmentTrainees.some((at) => !!at.pe_trainees?.notes),
 		appointment_trainees: appointmentTrainees
 	};
+}
+
+/** A trainee's name on the board and in lists, marked when they are there as a make-up. */
+export function traineeDisplayName(
+	enrollment: Pick<AppointmentTraineeRelation, 'pe_trainees' | 'makeup_for_id'>
+): string {
+	const name = enrollment.pe_trainees?.name ?? '';
+	if (!name) return '';
+	return enrollment.makeup_for_id ? `${name} (telafi)` : name;
 }
 
 /**
@@ -133,6 +147,13 @@ export function lessonBlock(
 	const names = details.trainee_names ?? [];
 	const who = names.length > 0 ? names.join(', ') : 'Öğrenci yok';
 	const warningLabel = getAppointmentWarningLabel(warning);
+	const enrollments = details.appointment_trainees ?? [];
+	// A check on a started lesson whose roster is fully marked: the trainer sees what is left
+	const attendanceTaken =
+		!!details.attendance_enabled &&
+		enrollments.length > 0 &&
+		isAttendanceOpen(details.date, details.hour) &&
+		attendanceSummary(enrollments).unmarked === 0;
 	return {
 		title: details.package_name ?? '',
 		subtitle:
@@ -143,6 +164,7 @@ export function lessonBlock(
 		badge: details.has_last_session ? 'Son ders' : undefined,
 		warning: warningLabel,
 		hasNotes: !!details.has_notes,
+		attendanceTaken,
 		color: warningLabel ? 'destructive' : isGroupFull(details) ? 'full' : 'primary',
 		dimmed: names.length === 0
 	};

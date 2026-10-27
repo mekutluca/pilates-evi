@@ -1,7 +1,9 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { SeriesAppointment, TransferScope } from '$lib/types/Transfer';
-import type { WeeklySlot } from '$lib/types/Schedule';
+import type { LinkedLesson, WeeklySlot } from '$lib/types/Schedule';
 import { compareSlots, recurringPattern } from '$lib/utils/slot-utils';
+import { asAbsenceOutcome, asAttendance } from '$lib/utils/attendance-utils';
+import { dbErrorMessage } from '$lib/server/db-errors';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { getGroupLessonCanonicalSlots } from '$lib/server/scheduling/extension';
 import {
@@ -17,12 +19,13 @@ const WEEK_SELECT = `
 	pe_purchases(
 		id,
 		reschedule_left,
+		makeup_left,
 		successor_id,
-		pe_packages(id, name, package_type, weeks_duration, min_lessons_per_week, max_lessons_per_week, max_capacity)
+		pe_packages(id, name, package_type, weeks_duration, min_lessons_per_week, max_lessons_per_week, max_capacity, attendance_enabled)
 	),
 	pe_group_lessons(
 		id,
-		pe_packages(id, name, package_type, weeks_duration, min_lessons_per_week, max_lessons_per_week, max_capacity)
+		pe_packages(id, name, package_type, weeks_duration, min_lessons_per_week, max_lessons_per_week, max_capacity, attendance_enabled)
 	),
 	pe_rooms(id, name),
 	pe_trainers(id, name),
@@ -31,10 +34,16 @@ const WEEK_SELECT = `
 		session_number,
 		total_sessions,
 		purchase_id,
+		attendance,
+		absence_outcome,
+		makeup_for_id,
 		pe_trainees(id, name, notes),
-		pe_purchases(successor_id)
+		pe_purchases(successor_id, makeup_left, reschedule_left)
 	)
 ` as const;
+
+// A replacement lesson (shift or make-up) and the missed lesson it stands in for
+const LINK_SELECT = 'id, makeup_for_id, pe_appointments(id, date, hour)' as const;
 
 const SERIES_SELECT = `
 	*,
@@ -67,7 +76,57 @@ export class AppointmentRepository {
 		if (trainerId) query = query.eq('trainer_id', trainerId);
 		const { data, error } = await query.order('date').order('hour');
 		if (error) throw error;
-		return data;
+
+		// Replacement lessons and the missed lessons they stand in for, so the sheet can
+		// name both sides ("27 Eki dersi yerine", "Telafi → 3 Kas")
+		const enrollments = data.flatMap((a) => a.pe_appointment_trainees);
+		const replacedIds = enrollments
+			.filter((e) => e.absence_outcome === 'shifted' || e.absence_outcome === 'makeup')
+			.map((e) => e.id);
+		const originIds = enrollments.flatMap((e) =>
+			e.makeup_for_id === null ? [] : [e.makeup_for_id]
+		);
+		const [replacements, origins] = await Promise.all([
+			this.linkedLessons('makeup_for_id', replacedIds),
+			this.linkedLessons('id', originIds)
+		]);
+
+		return data.map((a) => ({
+			...a,
+			pe_appointment_trainees: a.pe_appointment_trainees.map((e) => ({
+				...e,
+				attendance: asAttendance(e.attendance),
+				absence_outcome: asAbsenceOutcome(e.absence_outcome),
+				origin: e.makeup_for_id === null ? null : (origins.get(e.makeup_for_id) ?? null),
+				replacement: replacements.get(e.id) ?? null
+			}))
+		}));
+	}
+
+	// Linked lessons by the given key: an origin's replacement (`makeup_for_id` = origin id)
+	// or a replacement's origin (`id`). Rows RLS hides (another trainer's lesson) are absent.
+	private async linkedLessons(
+		key: 'id' | 'makeup_for_id',
+		ids: number[]
+	): Promise<Map<number, LinkedLesson>> {
+		const links = new Map<number, LinkedLesson>();
+		if (ids.length === 0) return links;
+		const { data, error } = await this.supabase
+			.from('pe_appointment_trainees')
+			.select(LINK_SELECT)
+			.in(key, [...new Set(ids)]);
+		if (error) throw new Error(dbErrorMessage(error, 'Telafi dersleri yüklenemedi.'));
+		for (const row of data) {
+			const lookup = key === 'id' ? row.id : row.makeup_for_id;
+			if (lookup === null || !row.pe_appointments) continue;
+			links.set(lookup, {
+				enrollmentId: row.id,
+				appointmentId: row.pe_appointments.id,
+				date: row.pe_appointments.date,
+				hour: row.pe_appointments.hour
+			});
+		}
+		return links;
 	}
 
 	async getById(appointmentId: number): Promise<SeriesAppointment | null> {
@@ -169,12 +228,14 @@ export class AppointmentRepository {
 			.maybeSingle();
 		if (!record) return [];
 
+		// Replacement lessons (shifts, make-ups) sit off the series and stay where they are
 		const chain = await new PurchaseRepository(this.supabase).getSuccessorChain(record.purchase_id);
 		const { data: enrollments } = await this.supabase
 			.from('pe_appointment_trainees')
 			.select('appointment_id')
 			.eq('trainee_id', traineeId)
-			.in('purchase_id', chain);
+			.in('purchase_id', chain)
+			.is('makeup_for_id', null);
 		const ids = (enrollments ?? []).flatMap((e) =>
 			e.appointment_id === null ? [] : [e.appointment_id]
 		);

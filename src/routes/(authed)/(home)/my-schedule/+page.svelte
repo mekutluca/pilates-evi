@@ -4,7 +4,8 @@
 	import Schedule from '$lib/components/schedule.svelte';
 	import WeekNav from '$lib/components/week-nav.svelte';
 	import AppointmentSheet from '$lib/components/scheduling/appointment-sheet.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { streamed } from '$lib/utils/streamed.svelte';
 	import { ScheduleSkeleton } from '$lib/components/skeletons/index.js';
@@ -31,6 +32,16 @@
 
 	let selected = $state<AppointmentWithDetails | null>(null);
 	let sheetOpen = $state(false);
+
+	// The open sheet follows the week's data after attendance is marked
+	$effect(() => {
+		const list = appointments;
+		untrack(() => {
+			if (!selected) return;
+			const fresh = list.find((a) => a.id === selected?.id);
+			if (fresh) selected = createAppointmentDetails(fresh);
+		});
+	});
 
 	function getSlotData(day: DayOfWeek, hour: number, date: string): ScheduleSlot {
 		const appointment = appointments.find((a) => a.date === date && a.hour === hour);
@@ -95,4 +106,9 @@
 	{/if}
 </div>
 
-<AppointmentSheet bind:open={sheetOpen} appointment={selected} userRole={data.userRole} />
+<AppointmentSheet
+	bind:open={sheetOpen}
+	appointment={selected}
+	userRole={data.userRole}
+	onChanged={() => invalidateAll()}
+/>

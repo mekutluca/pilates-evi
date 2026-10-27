@@ -268,14 +268,15 @@ describe('Taşı: Haftalık program', () => {
 
 	test('is blocked when a new slot conflicts', async () => {
 		await expectNoChange(async () => {
-			// Wednesday 12:00 is another kayıt's lesson time in the same room and trainer
+			// Monday 17:00 is another kayıt's lesson time in the same room and trainer
+			// (busy_anchor, which no test moves; the Wednesday kayıtlar move when a day closes)
 			const lessons = await kayitLessons('pattern_private');
 			const outcome = await runAction(
 				schedule.move,
 				{
 					appointmentId: lessons[2].appointmentId,
 					kind: 'pattern',
-					slotChanges: 'thursday-12>wednesday-12',
+					slotChanges: 'thursday-12>monday-17',
 					...studioReason
 				},
 				noParams

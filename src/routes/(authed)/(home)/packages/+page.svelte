@@ -57,6 +57,9 @@
 	let editPackageType = $state<'private' | 'group'>('private');
 	let editReschedulable = $state(true);
 	let editRescheduleLimit = $state<number | null>(null);
+	let editAttendanceEnabled = $state(false);
+	let editMakeupAllowed = $state(false);
+	let editMakeupLimit = $state<number | null>(null);
 
 	// Package management actions - only show for admins
 	const getTableActions = (pkg: PackageWithPurchases): ActionItem[] => {
@@ -134,6 +137,18 @@
 			render: (pkg: PackageWithPurchases) => {
 				return `${pkg.max_capacity} kişi`;
 			}
+		},
+		{
+			key: 'attendance_enabled',
+			class: 'hidden lg:table-cell',
+			title: 'Yoklama',
+			render: (pkg: PackageWithPurchases) => {
+				if (!pkg.attendance_enabled) return '<span class="text-muted-foreground">Alınmaz</span>';
+				const makeup = pkg.makeup_allowed
+					? `${pkg.makeup_limit === null ? 'sınırsız' : pkg.makeup_limit} telafi`
+					: 'telafi yok';
+				return `Alınır · ${makeup}`;
+			}
 		}
 	];
 
@@ -149,6 +164,9 @@
 		editPackageType = (pkg.package_type as 'private' | 'group') || 'private';
 		editReschedulable = pkg.reschedulable ?? true;
 		editRescheduleLimit = pkg.reschedule_limit;
+		editAttendanceEnabled = pkg.attendance_enabled;
+		editMakeupAllowed = pkg.makeup_allowed;
+		editMakeupLimit = pkg.makeup_limit;
 		showEditModal = true;
 	}
 
@@ -195,6 +213,9 @@
 		fd.set('max_capacity', String(editMaxCapacity));
 		fd.set('reschedulable', String(editReschedulable));
 		fd.set('reschedule_limit', editRescheduleLimit === null ? '' : String(editRescheduleLimit));
+		fd.set('attendance_enabled', String(editAttendanceEnabled));
+		fd.set('makeup_allowed', String(editMakeupAllowed));
+		fd.set('makeup_limit', editMakeupLimit === null ? '' : String(editMakeupLimit));
 
 		formLoading = true;
 		const result = await postAction('editPackage', fd);
@@ -398,6 +419,36 @@
 						bind:value={editRescheduleLimit}
 						min="1"
 						placeholder="Örn: 3"
+					/>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Attendance -->
+		<div class="space-y-3">
+			<div class="flex items-center gap-3">
+				<Checkbox id="edit-attendance" bind:checked={editAttendanceEnabled} />
+				<Label for="edit-attendance" class="cursor-pointer font-medium">Yoklama alınır</Label>
+			</div>
+			<div class="flex items-center gap-3">
+				<Checkbox id="edit-makeup-allowed" bind:checked={editMakeupAllowed} />
+				<Label for="edit-makeup-allowed" class="cursor-pointer font-medium">
+					Telafi dersine izin ver
+				</Label>
+			</div>
+			{#if editMakeupAllowed}
+				<div class="grid gap-2">
+					<Label for="edit-makeup-limit" class="flex items-center justify-between">
+						<span>Telafi hakkı</span>
+						<span class="text-xs text-muted-foreground">Boş bırakırsanız sınırsız</span>
+					</Label>
+					<Input
+						id="edit-makeup-limit"
+						type="number"
+						class="md:w-48"
+						bind:value={editMakeupLimit}
+						min="1"
+						placeholder="Örn: 2"
 					/>
 				</div>
 			{/if}

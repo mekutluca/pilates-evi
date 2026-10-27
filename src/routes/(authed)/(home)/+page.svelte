@@ -15,11 +15,14 @@
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Plus from '@lucide/svelte/icons/plus';
 	import NotepadText from '@lucide/svelte/icons/notepad-text';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+	import { formatAttendanceSummary, isAttendanceOpen } from '$lib/utils/attendance-utils';
 	import { DAYS_OF_WEEK, DAY_NAMES, getTimeString } from '$lib/types/Schedule';
 	import {
 		formatDateForDB,
 		formatDisplayDate,
 		formatShortDate,
+		formatSlotLabel,
 		formatTurkishDate,
 		getDayOfWeekFromDate,
 		isAppointmentFuture
@@ -44,6 +47,13 @@
 		return undefined;
 	}
 
+	// A lesson's attendance line once it has started (packages that take attendance)
+	function attendanceLine(lesson: PanelLesson): string | null {
+		if (!lesson.attendanceEnabled || !isAttendanceOpen(lesson.date, lesson.hour)) return null;
+		if (lesson.traineeNames.length === 0) return null;
+		return formatAttendanceSummary(lesson.attendance);
+	}
+
 	function endingLabel(remaining: number, lastDate: string): string {
 		return remaining === 0
 			? `${formatShortDate(lastDate)} bitti`
@@ -66,6 +76,7 @@
 			{#each lessons as lesson (lesson.appointmentId)}
 				{@const href = lessonHref(lesson)}
 				{@const past = !isAppointmentFuture(lesson.date, lesson.hour)}
+				{@const attendance = attendanceLine(lesson)}
 				<li>
 					<svelte:element
 						this={href ? 'a' : 'div'}
@@ -91,6 +102,12 @@
 										Not<span class="sr-only">: öğrenci notu var</span>
 									</Badge>
 								{/if}
+								{#if attendance === 'Yoklama alınmadı'}
+									<Badge variant="outline">
+										<ClipboardList data-icon="inline-start" />
+										Yoklama alınmadı
+									</Badge>
+								{/if}
 							</span>
 							<span class="block truncate text-muted-foreground">
 								{lesson.traineeNames.length > 0
@@ -105,6 +122,9 @@
 										<TraineeNote {note} name={lesson.traineeNames.length > 1 ? name : undefined} />
 									{/each}
 								</span>
+							{/if}
+							{#if attendance && attendance !== 'Yoklama alınmadı'}
+								<span class="block text-xs text-muted-foreground tabular-nums">{attendance}</span>
 							{/if}
 							<span class="block truncate text-xs text-muted-foreground sm:hidden">
 								{lesson.roomName} · {lesson.trainerName}
@@ -149,7 +169,7 @@
 			aria-label="Panel yükleniyor"
 		>
 			<CardSkeleton rows={3} rowClass="h-12" class="lg:col-span-3" />
-			<CardSkeleton rows={4} rowClass="h-20" class="lg:col-span-2 lg:row-span-2" />
+			<CardSkeleton rows={4} rowClass="h-20" class="lg:col-span-2" />
 			<CardSkeleton rows={3} rowClass="h-10" class="lg:col-span-3" />
 		</div>
 	{:else}
@@ -205,21 +225,106 @@
 				</Card.Root>
 			</div>
 		{:else}
-			<!-- Phones read Bugün → renewals → new kayıtlar; desktop puts renewals beside both -->
-			<div class="grid gap-6 lg:grid-cols-5 lg:items-start">
-				<Card.Root class="h-fit lg:col-span-3">
-					<Card.Header>
-						<Card.Title>Bugün</Card.Title>
-						<Card.Description>
-							{panel.today.length} randevu · bu hafta {panel.weekLessonCount} randevu, {panel.weekTraineeCount}
-							öğrenci
-						</Card.Description>
-					</Card.Header>
-					<Card.Content>
-						{@render lessonList(panel.today, 'Bugün randevu yok.', 'mark')}
-					</Card.Content>
-				</Card.Root>
-				<Card.Root class="h-fit lg:col-span-2 lg:row-span-2">
+			<!-- Phones read Bugün → renewals → Devamsızlık → new kayıtlar (the left column's
+			     wrapper is `contents` there, so `order` places its cards); desktop stacks the
+			     three left cards beside the renewals, with no grid rows to stretch -->
+			<div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+				<div class="contents lg:block lg:min-w-0 lg:flex-[3] lg:space-y-6">
+					<Card.Root class="order-1 h-fit lg:order-none">
+						<Card.Header>
+							<Card.Title>Bugün</Card.Title>
+							<Card.Description>
+								{panel.today.length} randevu · bu hafta {panel.weekLessonCount} randevu, {panel.weekTraineeCount}
+								öğrenci
+							</Card.Description>
+						</Card.Header>
+						<Card.Content>
+							{@render lessonList(panel.today, 'Bugün randevu yok.', 'mark')}
+						</Card.Content>
+					</Card.Root>
+					<Card.Root class="order-3 h-fit lg:order-none">
+						<Card.Header>
+							<Card.Title>Devamsızlık</Card.Title>
+							<Card.Description>
+								Gelmedi işaretlenen, kararı verilmemiş dersler (son 14 gün)
+								{#if panel.untakenAttendanceCount > 0}
+									· son 7 günde {panel.untakenAttendanceCount} dersin yoklaması alınmadı
+								{/if}
+							</Card.Description>
+						</Card.Header>
+						<Card.Content>
+							{#if panel.pendingAbsences.length === 0}
+								<p class="text-sm text-muted-foreground">Karar bekleyen devamsızlık yok.</p>
+							{:else}
+								<ul class="divide-y">
+									{#each panel.pendingAbsences as absence (absence.enrollmentId)}
+										<li class="flex items-center gap-4 py-2.5 text-sm">
+											<span class="w-12 shrink-0 font-semibold tabular-nums"
+												>{getTimeString(absence.hour)}</span
+											>
+											<span class="min-w-0 flex-1">
+												<a
+													href={`/trainees/${absence.traineeId}`}
+													class="font-medium hover:underline"
+												>
+													{absence.traineeName}
+												</a>
+												<span class="block truncate text-muted-foreground">
+													{absence.packageName} · {formatSlotLabel(absence.date, absence.hour)}
+												</span>
+											</span>
+											<Button
+												variant="outline"
+												size="sm"
+												class="shrink-0"
+												href={`/schedule?view=room&room=${absence.roomId}&week=${absence.date}&appointment=${absence.appointmentId}`}
+											>
+												Karar ver<span class="sr-only">: {absence.traineeName}</span>
+											</Button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</Card.Content>
+					</Card.Root>
+					<Card.Root class="order-4 h-fit lg:order-none">
+						<Card.Header>
+							<Card.Title>Bu hafta yeni kayıtlar</Card.Title>
+							{#if panel.renewalCount > 0}
+								<Card.Description>Ayrıca {panel.renewalCount} yenileme</Card.Description>
+							{/if}
+						</Card.Header>
+						<Card.Content>
+							{#if panel.newKayitlar.length === 0}
+								<p class="text-sm text-muted-foreground">Bu hafta yeni kayıt yok.</p>
+							{:else}
+								<ul class="divide-y">
+									{#each panel.newKayitlar as kayit (kayit.purchaseId)}
+										<li class="flex items-start justify-between gap-3 py-2 text-sm">
+											<span>
+												{#each kayit.trainees as trainee, i (trainee.id)}
+													{#if i > 0},
+													{/if}
+													<a href={`/trainees/${trainee.id}`} class="font-medium hover:underline">
+														{trainee.name}
+													</a>
+												{/each}
+												<span class="block text-muted-foreground">{kayit.packageName}</span>
+											</span>
+											<span class="flex shrink-0 flex-col items-end gap-1">
+												<Badge variant="outline">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
+												<span class="text-xs text-muted-foreground">
+													{formatDisplayDate(kayit.createdAt)}
+												</span>
+											</span>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</Card.Content>
+					</Card.Root>
+				</div>
+				<Card.Root class="order-2 h-fit lg:order-none lg:min-w-0 lg:flex-[2]">
 					<Card.Header>
 						<Card.Title>Paketi bitmek üzere</Card.Title>
 						<Card.Description>
@@ -255,42 +360,6 @@
 										</div>
 										<PatternChip slots={kayit.slots} class="w-fit" />
 										<LessonMeter total={kayit.total} left={kayit.remaining} renewalDue />
-									</li>
-								{/each}
-							</ul>
-						{/if}
-					</Card.Content>
-				</Card.Root>
-				<Card.Root class="h-fit lg:col-span-3">
-					<Card.Header>
-						<Card.Title>Bu hafta yeni kayıtlar</Card.Title>
-						{#if panel.renewalCount > 0}
-							<Card.Description>Ayrıca {panel.renewalCount} yenileme</Card.Description>
-						{/if}
-					</Card.Header>
-					<Card.Content>
-						{#if panel.newKayitlar.length === 0}
-							<p class="text-sm text-muted-foreground">Bu hafta yeni kayıt yok.</p>
-						{:else}
-							<ul class="divide-y">
-								{#each panel.newKayitlar as kayit (kayit.purchaseId)}
-									<li class="flex items-start justify-between gap-3 py-2 text-sm">
-										<span>
-											{#each kayit.trainees as trainee, i (trainee.id)}
-												{#if i > 0},
-												{/if}
-												<a href={`/trainees/${trainee.id}`} class="font-medium hover:underline">
-													{trainee.name}
-												</a>
-											{/each}
-											<span class="block text-muted-foreground">{kayit.packageName}</span>
-										</span>
-										<span class="flex shrink-0 flex-col items-end gap-1">
-											<Badge variant="outline">{kayit.isGroup ? 'Grup' : 'Özel'}</Badge>
-											<span class="text-xs text-muted-foreground">
-												{formatDisplayDate(kayit.createdAt)}
-											</span>
-										</span>
 									</li>
 								{/each}
 							</ul>

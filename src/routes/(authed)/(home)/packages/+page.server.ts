@@ -15,6 +15,7 @@ function packageNumbersError(numbers: {
 	max_lessons_per_week: number;
 	max_capacity: number;
 	reschedule_limit: number | null;
+	makeup_limit: number | null;
 }): string | null {
 	if (
 		!isIntInRange(numbers.min_lessons_per_week, 1, 7) ||
@@ -28,6 +29,9 @@ function packageNumbersError(numbers: {
 	if (!isIntInRange(numbers.max_capacity, 1, 50)) return 'Kişi sayısı 1 ile 50 arasında olmalı';
 	if (numbers.reschedule_limit !== null && !isIntInRange(numbers.reschedule_limit, 1, 50)) {
 		return 'Değişiklik hakkı 1 ile 50 arasında olmalı (sınırsız için boş bırakın)';
+	}
+	if (numbers.makeup_limit !== null && !isIntInRange(numbers.makeup_limit, 1, 50)) {
+		return 'Telafi hakkı 1 ile 50 arasında olmalı (sınırsız için boş bırakın)';
 	}
 	return null;
 }
@@ -86,11 +90,13 @@ export const actions: Actions = {
 			});
 		}
 		const reschedulable = packageForm.reschedulable === true;
+		const makeupAllowed = packageForm.makeup_allowed === true;
 		const numbers = {
 			min_lessons_per_week: Number(packageForm.min_lessons_per_week),
 			max_lessons_per_week: Number(packageForm.max_lessons_per_week),
 			max_capacity: Number(packageForm.max_capacity),
-			reschedule_limit: reschedulable ? optionalNumber(packageForm.reschedule_limit) : null
+			reschedule_limit: reschedulable ? optionalNumber(packageForm.reschedule_limit) : null,
+			makeup_limit: makeupAllowed ? optionalNumber(packageForm.makeup_limit) : null
 		};
 		const numbersError = packageNumbersError(numbers);
 		if (numbersError) return fail(400, { success: false, message: numbersError });
@@ -101,6 +107,8 @@ export const actions: Actions = {
 			weeks_duration: isPrivate ? packageForm.weeks_duration : null,
 			package_type: packageForm.package_type,
 			reschedulable,
+			attendance_enabled: packageForm.attendance_enabled === true,
+			makeup_allowed: makeupAllowed,
 			...numbers
 		});
 		if (packageError) {
@@ -125,12 +133,16 @@ export const actions: Actions = {
 		if (!name) return fail(400, { success: false, message: 'Paket adı gerekli' });
 
 		const reschedulable = formData.get('reschedulable') === 'true';
+		const makeupAllowed = formData.get('makeup_allowed') === 'true';
 		const numbers = {
 			min_lessons_per_week: Number(getFormDataString(formData, 'min_lessons_per_week')),
 			max_lessons_per_week: Number(getFormDataString(formData, 'max_lessons_per_week')),
 			max_capacity: Number(getFormDataString(formData, 'max_capacity')),
 			reschedule_limit: reschedulable
 				? optionalNumber(getFormDataString(formData, 'reschedule_limit'))
+				: null,
+			makeup_limit: makeupAllowed
+				? optionalNumber(getFormDataString(formData, 'makeup_limit'))
 				: null
 		};
 		const numbersError = packageNumbersError(numbers);
@@ -142,6 +154,8 @@ export const actions: Actions = {
 				name,
 				description: getFormDataString(formData, 'description').trim() || null,
 				reschedulable,
+				attendance_enabled: formData.get('attendance_enabled') === 'true',
+				makeup_allowed: makeupAllowed,
 				...numbers
 			})
 			.eq('id', packageId)

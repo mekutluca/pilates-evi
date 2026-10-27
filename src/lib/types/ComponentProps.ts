@@ -10,10 +10,12 @@ import type {
 	TraineeOption
 } from '$lib/types';
 import type {
+	AbsenceOutcome,
 	AppointmentWithDetails,
 	DayOfWeek,
 	PickedSlot,
 	ScheduleSlot,
+	SlotRef,
 	WeeklySlot
 } from '$lib/types/Schedule';
 import type { SlotConflict } from '$lib/types/Conflict';
@@ -152,6 +154,34 @@ export interface AppointmentSheetProps {
 	// Opens Taşı for the lesson, or for one trainee of a group lesson (staff only)
 	onMove?: (trainee: MovingTrainee | null) => void;
 	onCancel?: () => void;
+	// Opens the absence dialog: decide a missed lesson, or move a make-up (staff only)
+	onAbsence?: (target: AbsenceTarget) => void;
+	// After attendance was marked or a make-up removed: reload the week
+	onChanged?: () => Promise<void> | void;
+}
+
+// A missed lesson the absence dialog decides about, or a make-up it moves
+export interface AbsenceTarget {
+	mode: 'decide' | 'move';
+	enrollmentId: number;
+	traineeName: string;
+	packageName: string;
+	isGroup: boolean;
+	// The missed lesson (decide) or the make-up's current session (move)
+	lesson: SlotRef;
+	// The kayıt's credits: a coordinator stops at zero
+	rescheduleLeft: number | null;
+	makeupLeft: number | null;
+	// A burned lesson can still be given a replacement
+	absenceOutcome: AbsenceOutcome | null;
+}
+
+export interface AbsenceDialogProps {
+	open: boolean;
+	target: AbsenceTarget | null;
+	userRole: Role | null;
+	// After a decision; `week` is the replacement's date to show
+	onDone: (week: string | undefined) => void;
 }
 
 export interface MoveSheetProps {

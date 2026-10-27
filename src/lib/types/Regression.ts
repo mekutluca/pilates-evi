@@ -5,7 +5,7 @@ import type { SlotRef } from '$lib/types/Schedule';
 // Keys of the fixtures pe_reset_demo_data() seeds (supabase/migrations/*_pe_demo_reset.sql)
 type RoomKey = 'r1' | 'r2' | 'r3';
 type TrainerKey = 't1' | 't2';
-type PackageKey = 'reformer' | 'duet' | 'group' | 'boutique' | 'mini';
+type PackageKey = 'reformer' | 'duet' | 'group' | 'boutique' | 'mini' | 'attendance';
 type GroupLessonKey =
 	| 'main'
 	| 'cancel'
@@ -15,7 +15,10 @@ type GroupLessonKey =
 	| 'end'
 	| 'pattern'
 	| 'full'
-	| 'over_capacity';
+	| 'over_capacity'
+	| 'attendance'
+	| 'makeup_target'
+	| 'makeup_demo';
 
 // What pe_reset_demo_data() returns: the seeded ids by fixture key, and the dates every
 // fixture date is relative to. A type, not an interface, so the RPC's Json converts to it
@@ -61,6 +64,7 @@ export type ActionOutcome<Data> =
 
 // One trainee's lesson under a purchase
 export interface BookedLesson extends SlotRef {
+	enrollmentId: number;
 	appointmentId: number;
 	roomId: string;
 	trainerId: string;
@@ -69,4 +73,8 @@ export interface BookedLesson extends SlotRef {
 	purchaseId: string;
 	sessionNumber: number;
 	totalSessions: number;
+	attendance: string | null;
+	absenceOutcome: string | null;
+	// A replacement (shift or make-up) for a missed lesson
+	isMakeup: boolean;
 }

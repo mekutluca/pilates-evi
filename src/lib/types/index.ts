@@ -1,6 +1,7 @@
 // Centralized type exports for the Pilates Evi application
 import type { Tables } from '$lib/types/database.types';
-import type { WeeklySlot } from '$lib/types/Schedule';
+import type { AbsenceOutcome, Attendance, WeeklySlot } from '$lib/types/Schedule';
+import type { KayitAttendance } from '$lib/types/Attendance';
 import Users from '@lucide/svelte/icons/users';
 
 // ===============================================
@@ -99,6 +100,11 @@ export interface KayitLesson {
 	roomId: string;
 	roomName: string;
 	trainerName: string;
+	// Yoklama: whether the trainee came, what was decided about an absence, and whether
+	// this lesson is a replacement (shift or make-up) for a missed one
+	attendance: Attendance | null;
+	absenceOutcome: AbsenceOutcome | null;
+	isMakeup: boolean;
 }
 
 // A trainee's kayıt: a purchase and its renewals (the successor chain), shown as one card
@@ -113,6 +119,8 @@ export interface TraineeKayit {
 	// Lessons sold across the chain
 	lessonCount: number;
 	creditsLeft: number;
+	makeupLeft: number;
+	attendance: KayitAttendance;
 	lessons: KayitLesson[];
 	upcoming: KayitLesson[];
 	// The weekly pattern of its upcoming (or, once over, all) lessons
@@ -165,6 +173,11 @@ export interface CreatePackageForm {
 	package_type: 'private' | 'group';
 	reschedulable: boolean;
 	reschedule_limit?: number;
+	// Yoklama: attendance is taken, and a missed lesson may be made up in another group
+	// session (limit blank = unlimited)
+	attendance_enabled: boolean;
+	makeup_allowed: boolean;
+	makeup_limit?: number;
 }
 
 // A trainee as pickers list them

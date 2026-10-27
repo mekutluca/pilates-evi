@@ -135,6 +135,22 @@
 					]
 			: []
 	);
+
+	// How a past lesson went: the attendance and what followed an absence
+	function pastAttendanceLabel(lesson: KayitLesson): string {
+		if (lesson.attendance === 'attended') return 'Geldi';
+		if (lesson.attendance !== 'absent') return '';
+		switch (lesson.absenceOutcome) {
+			case 'burned':
+				return 'Gelmedi · yakıldı';
+			case 'shifted':
+				return 'Gelmedi · kaydırıldı';
+			case 'makeup':
+				return 'Gelmedi · telafi';
+			default:
+				return 'Gelmedi · karar bekliyor';
+		}
+	}
 </script>
 
 <!-- A kayıt's lessons already behind (attended, or passed): newest first, opened on demand -->
@@ -157,8 +173,14 @@
 				<ul class="divide-y text-sm text-muted-foreground">
 					{#each past as lesson (lesson.appointmentId)}
 						<li class="py-1.5 sm:flex sm:gap-3">
-							<span class="block tabular-nums">{formatSlotLabel(lesson.date, lesson.hour)}</span>
+							<span class="block tabular-nums">
+								{formatSlotLabel(lesson.date, lesson.hour)}
+								{#if lesson.isMakeup}
+									<Badge variant="outline" class="ml-1">Telafi</Badge>
+								{/if}
+							</span>
 							<span class="block truncate">{lesson.roomName} · {lesson.trainerName}</span>
+							<span class="block sm:ml-auto sm:shrink-0">{pastAttendanceLabel(lesson)}</span>
 						</li>
 					{/each}
 				</ul>
@@ -306,6 +328,24 @@
 											{kayit.creditsLeft >= 999 ? 'Sınırsız' : kayit.creditsLeft}
 										</dd>
 									</div>
+								{:else}
+									<div class="flex gap-1.5">
+										<dt class="text-muted-foreground">Telafi hakkı</dt>
+										<dd class="font-medium tabular-nums">
+											{kayit.makeupLeft >= 999 ? 'Sınırsız' : kayit.makeupLeft}
+										</dd>
+									</div>
+								{/if}
+								{#if kayit.attendance.attended + kayit.attendance.absent > 0}
+									<div class="flex gap-1.5">
+										<dt class="text-muted-foreground">Devam</dt>
+										<dd class="font-medium tabular-nums">
+											{kayit.attendance.attended} geldi · {kayit.attendance.absent} gelmedi
+											{#if kayit.attendance.pending > 0}
+												<span>· {kayit.attendance.pending} karar bekliyor</span>
+											{/if}
+										</dd>
+									</div>
 								{/if}
 							</dl>
 
@@ -340,6 +380,9 @@
 											<span class="min-w-0 flex-1 sm:flex sm:gap-3">
 												<span class="block font-medium tabular-nums">
 													{formatSlotLabel(lesson.date, lesson.hour)}
+													{#if lesson.isMakeup}
+														<Badge variant="outline" class="ml-1">Telafi</Badge>
+													{/if}
 												</span>
 												<span class="block truncate text-muted-foreground">
 													{lesson.roomName} · {lesson.trainerName}
