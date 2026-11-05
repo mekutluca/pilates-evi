@@ -1,8 +1,8 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type {
 	AppointmentMove,
-	AppointmentSlotRef,
 	GroupLessonHorizonInfo,
+	GroupSessionRef,
 	MoveTargets,
 	ShiftedTraineeRecord,
 	SlotRef,
@@ -25,7 +25,6 @@ import { ConflictService } from '$lib/server/services/conflict-service';
 import {
 	addWeeksToDate,
 	formatSlotLabel,
-	getDayOfWeekFromDate,
 	isAppointmentFuture,
 	parseLocalDate
 } from '$lib/utils/date-utils';
@@ -35,6 +34,8 @@ import {
 	compareSlots,
 	getStartingAppointmentCandidates,
 	isSlotInPattern,
+	memberGroupSessions,
+	planMemberSlotShift,
 	recurringPattern
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
@@ -282,44 +283,22 @@ async function getTraineeRecordsForChain(
 }
 
 /**
- * For each group lesson the trainee attends within these records, returns the upcoming
- * appointments (from `fromDate` onwards) that match the trainee's own (day, hour) pattern
- * inside that group. The slot-shift action and UI preview both rely on this to walk the
- * trainee through their actual schedule rather than the group's full canonical pattern.
+ * A group member's sessions from `fromDate` on: their group lessons' sessions on the days
+ * and hours they attend in each, merged across lessons in calendar order
+ * (memberGroupSessions). Shifts walk the member through these, not the lessons' full
+ * timetables.
  */
-async function buildTraineeEligibleByGroup(
+async function loadMemberGroupSessions(
 	supabase: SupabaseClientType,
 	records: TraineeGroupSlot[],
 	fromDate: string
-): Promise<Map<string, AppointmentSlotRef[]>> {
-	const slotKeysByGroup = new Map<string, Set<string>>();
-	for (const record of records) {
-		if (!record.groupLessonId) continue;
-		let set = slotKeysByGroup.get(record.groupLessonId);
-		if (!set) {
-			set = new Set<string>();
-			slotKeysByGroup.set(record.groupLessonId, set);
-		}
-		set.add(`${getDayOfWeekFromDate(record.date)}-${record.hour}`);
-	}
-
-	const eligibleByGroup = new Map<string, AppointmentSlotRef[]>();
-	for (const [groupLessonId, slotKeys] of slotKeysByGroup) {
-		const { data: groupAppts } = await supabase
-			.from('pe_appointments')
-			.select('id, date, hour')
-			.eq('group_lesson_id', groupLessonId)
-			.gte('date', fromDate)
-			.order('date', { ascending: true })
-			.order('hour', { ascending: true });
-
-		const eligible: AppointmentSlotRef[] = (groupAppts ?? []).filter((a) =>
-			slotKeys.has(`${getDayOfWeekFromDate(a.date)}-${a.hour}`)
-		);
-
-		eligibleByGroup.set(groupLessonId, eligible);
-	}
-	return eligibleByGroup;
+): Promise<GroupSessionRef[]> {
+	const lessonIds = [...new Set(records.flatMap((r) => r.groupLessonId ?? []))];
+	const sessions = await new AppointmentRepository(supabase).getGroupSessionRefs(
+		lessonIds,
+		fromDate
+	);
+	return memberGroupSessions(records, sessions);
 }
 
 async function getGroupLessonHorizonInfo(
@@ -518,15 +497,14 @@ export async function checkMoveCapacity(
 
 /**
  * Plans moving a single trainee's records, from `fromAppointmentId` on, `slots` positions
- * forward in the trainee's *own* slot pattern within each group lesson they attend,
- * without writing: resolves each record's target appointment and validates the targets.
+ * forward through the trainee's *own* sessions, without writing: resolves each record's
+ * target appointment and validates the targets.
  *
- * The trainee's own (day, hour) pattern is the right ground truth here — a trainee in a
+ * The trainee's own (day, hour) slots are the ground truth here — a trainee in a
  * Mon–Sun-at-13:00 group lesson who only attends Wed/Thu must shift Wed→Thu→next-Wed,
- * not Wed→Thu→Fri. When a purchase chain spans multiple group lessons (e.g. trainee
- * attends Wed 13 in one lesson and Sun 10 in another), each record shifts forward inside
- * its own group's pattern.
- *
+ * not Wed→Thu→Fri. A kayıt spanning several group lessons (studios that run one lesson
+ * per weekday: Salı 09:00 and Perşembe 09:00) walks its slots in all of them in calendar
+ * order, Tue→Thu→Tue, so closing a Thursday moves its lessons by one lesson, not one week.
  */
 export async function planTraineeSlotShift(
 	supabase: SupabaseClientType,
@@ -564,28 +542,10 @@ export async function planTraineeSlotShift(
 		return { error: 'Başlangıç randevusu bulunamadı', shifted: [] };
 	}
 
-	const eligibleByGroup = await buildTraineeEligibleByGroup(supabase, records, fromDate);
-
-	const recordsToShift = records.slice(startIndex);
-	const shiftMap: ShiftedTraineeRecord[] = [];
-	for (const record of recordsToShift) {
-		if (!record.groupLessonId) continue;
-		const eligible = eligibleByGroup.get(record.groupLessonId);
-		if (!eligible) continue;
-		const currentIdx = eligible.findIndex((a) => a.id === record.appointmentId);
-		if (currentIdx === -1) continue;
-		const targetIdx = currentIdx + slots;
-		if (targetIdx >= eligible.length) {
-			return {
-				error: 'Kaydırmak için yeterli ileri tarihli grup dersi yok',
-				shifted: []
-			};
-		}
-		shiftMap.push({
-			recordId: record.recordId,
-			oldAppointmentId: record.appointmentId,
-			newAppointmentId: eligible[targetIdx].id
-		});
+	const sessions = await loadMemberGroupSessions(supabase, records, fromDate);
+	const shiftMap = planMemberSlotShift(records, startIndex, sessions, slots);
+	if (!shiftMap) {
+		return { error: 'Kaydırmak için yeterli ileri tarihli grup dersi yok', shifted: [] };
 	}
 
 	const guardError = await checkTraineeShiftTargets(supabase, traineeId, shiftMap);

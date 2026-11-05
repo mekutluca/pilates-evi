@@ -1,9 +1,14 @@
 import {
 	JS_DAY_TO_NAME,
+	type AppointmentSlotRef,
 	type DayOfWeek,
+	type GroupSessionRef,
 	type ResolvedSlotChanges,
+	type ShiftedTraineeRecord,
 	type SlotChange,
 	type SlotRef,
+	type SortedTraineeRecord,
+	type TraineeGroupSlot,
 	type WeeklySlot
 } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
@@ -52,6 +57,64 @@ export function weeklySlotKey(slot: { day: string; hour: number }): string {
 /** A group lesson's weekly slot as a key and in forms: "<groupLessonId>|monday|10". */
 export function groupSlotKey(slot: SelectedGroupTimeslot): string {
 	return `${slot.group_lesson_id}|${slot.day}|${slot.hour}`;
+}
+
+// The weekly group slot a dated lesson of a group lesson is on
+function groupSlotOf(groupLessonId: string, slot: SlotRef): SelectedGroupTimeslot {
+	return { group_lesson_id: groupLessonId, day: getDayOfWeekFromDate(slot.date), hour: slot.hour };
+}
+
+/** The sessions on the given group slots (a lesson's day and hour), in calendar order. */
+export function sessionsOnGroupSlots<T extends GroupSessionRef>(
+	slots: SelectedGroupTimeslot[],
+	sessions: T[]
+): T[] {
+	const keys = new Set(slots.map(groupSlotKey));
+	return sessions
+		.filter((s) => keys.has(groupSlotKey(groupSlotOf(s.groupLessonId, s))))
+		.sort(compareSlots);
+}
+
+/**
+ * The sessions a group member's lessons run through: the sessions of their group lessons
+ * on the days and hours they attend in each, merged in calendar order. A member of two
+ * one-day lessons (Salı 09:00 and Perşembe 09:00) walks Tue → Thu → Tue, exactly like a
+ * member of one Tue/Thu lesson; a member coming Wed/Thu to a Mon–Sun lesson walks
+ * Wed → Thu → Wed.
+ */
+export function memberGroupSessions<T extends GroupSessionRef>(
+	attended: TraineeGroupSlot[],
+	sessions: T[]
+): T[] {
+	const slots = attended.flatMap((r) => (r.groupLessonId ? [groupSlotOf(r.groupLessonId, r)] : []));
+	return sessionsOnGroupSlots(slots, sessions);
+}
+
+/**
+ * Moves a group member's lessons from `records[startIndex]` on `slots` positions forward
+ * through their sessions (memberGroupSessions). Lessons outside those sessions stay where
+ * they are. Null when the sessions run out before the last lesson's target.
+ */
+export function planMemberSlotShift(
+	records: SortedTraineeRecord[],
+	startIndex: number,
+	sessions: AppointmentSlotRef[],
+	slots: number
+): ShiftedTraineeRecord[] | null {
+	const position = new Map(sessions.map((s, i) => [s.id, i]));
+	const moves: ShiftedTraineeRecord[] = [];
+	for (const record of records.slice(startIndex)) {
+		const index = position.get(record.appointmentId);
+		if (index === undefined) continue;
+		const target = sessions[index + slots];
+		if (!target) return null;
+		moves.push({
+			recordId: record.recordId,
+			oldAppointmentId: record.appointmentId,
+			newAppointmentId: target.id
+		});
+	}
+	return moves;
 }
 
 /** Chronological order of concrete slots (date, then hour). */

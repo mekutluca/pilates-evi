@@ -30,14 +30,13 @@ import {
 } from '$lib/utils/date-utils';
 import {
 	buildAppointmentSlotsFromStart,
-	compareSlots,
 	getStartingAppointmentCandidates,
 	resolveSlotChanges,
+	sessionsOnGroupSlots,
 	slotChangeTarget,
 	weeklySlotKey
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
-import { pagedRows } from '$lib/server/paging';
 
 // New group lessons get sessions this many weeks ahead; the weekly top-up cron keeps the
 // horizon there
@@ -351,32 +350,12 @@ export async function collectGroupSessions(
 	fromDate: string,
 	totalSessions: number
 ): Promise<AppointmentSlotRef[]> {
-	const lessonIds = [...new Set(selected.map((t) => t.group_lesson_id))];
-	// A back-dated start reaches far into a lesson's sessions
-	const data = await pagedRows(
-		(from, to) =>
-			supabase
-				.from('pe_appointments')
-				.select('id, date, hour, group_lesson_id')
-				.in('group_lesson_id', lessonIds)
-				.gte('date', fromDate)
-				.order('id')
-				.range(from, to),
-		'Grup dersi saatleri alınamadı. Tekrar deneyin.'
+	const sessions = await new AppointmentRepository(supabase).getGroupSessionRefs(
+		[...new Set(selected.map((t) => t.group_lesson_id))],
+		fromDate
 	);
-
-	return data
-		.filter(
-			(a) =>
-				isPlannedFromStart(fromDate, a.date, a.hour) &&
-				selected.some(
-					(t) =>
-						t.group_lesson_id === a.group_lesson_id &&
-						t.hour === a.hour &&
-						t.day === getDayOfWeekFromDate(a.date)
-				)
-		)
+	return sessionsOnGroupSlots(selected, sessions)
+		.filter((s) => isPlannedFromStart(fromDate, s.date, s.hour))
 		.map(({ id, date, hour }) => ({ id, date, hour }))
-		.sort(compareSlots)
 		.slice(0, totalSessions);
 }

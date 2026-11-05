@@ -86,6 +86,11 @@ export interface TraineeGroupSlot extends SlotRef {
 	groupLessonId: string | null;
 }
 
+// A session of a group lesson
+export interface GroupSessionRef extends AppointmentSlotRef {
+	groupLessonId: string;
+}
+
 // A trainee's appointment record queued for a weeks-based shift, with its group lesson
 // resolved from the record's own appointment.
 export interface WeeklyShiftCandidate {

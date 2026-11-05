@@ -81,6 +81,7 @@ run `npm run demo:reset`.
 | Make-up moved, removed, undone by a cancelled session       | attendance › Yoklama › moves a make-up… / cancelling a session that holds a make-up…        |
 | Blocked: make-up into a full / past / other-package session | attendance › Yoklama › is blocked when the session is full, in the past or of another…      |
 | Credits: coordinator spends, refund on removal, stops at 0  | attendance › Yoklama › a coordinator spends a make-up credit…                               |
+| A kayıt across one-day group lessons (iptal, Kaydır)        | split-group › A kayıt across one-day group lessons › cancelling a Thursday… / Kaydır…       |
 | Invariants after every test                                 | setup.ts (lesson numbering, capacity, private ownership)                                    |
 
 ## Optional UI pass

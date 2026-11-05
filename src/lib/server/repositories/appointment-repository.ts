@@ -1,9 +1,10 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { SeriesAppointment, TransferScope } from '$lib/types/Transfer';
-import type { LinkedLesson, WeeklySlot } from '$lib/types/Schedule';
+import type { GroupSessionRef, LinkedLesson, WeeklySlot } from '$lib/types/Schedule';
 import { compareSlots, recurringPattern } from '$lib/utils/slot-utils';
 import { asAbsenceOutcome, asAttendance } from '$lib/utils/attendance-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
+import { pagedRows } from '$lib/server/paging';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
 import { getGroupLessonCanonicalSlots } from '$lib/server/scheduling/extension';
 import {
@@ -214,6 +215,31 @@ export class AppointmentRepository {
 			.eq('group_lesson_id', groupLessonId)
 			.gte('date', fromDate);
 		return (data ?? []).filter((row) => isAppointmentFuture(row.date, row.hour)).sort(compareSlots);
+	}
+
+	/**
+	 * Every session of the group lessons from `fromDate` on (past ones included), unordered.
+	 * Paged: a back-dated start reaches far into a lesson's sessions.
+	 */
+	async getGroupSessionRefs(
+		groupLessonIds: string[],
+		fromDate: string
+	): Promise<GroupSessionRef[]> {
+		if (groupLessonIds.length === 0) return [];
+		const rows = await pagedRows(
+			(from, to) =>
+				this.supabase
+					.from('pe_appointments')
+					.select('id, date, hour, group_lesson_id')
+					.in('group_lesson_id', groupLessonIds)
+					.gte('date', fromDate)
+					.order('id')
+					.range(from, to),
+			'Grup dersi saatleri alınamadı. Tekrar deneyin.'
+		);
+		return rows.flatMap(({ id, date, hour, group_lesson_id }) =>
+			group_lesson_id ? [{ id, date, hour, groupLessonId: group_lesson_id }] : []
+		);
 	}
 
 	private async getTraineeAppointments(

@@ -20,7 +20,9 @@ import {
 import {
 	compareSlots,
 	getStartingAppointmentCandidates,
-	recurringPattern
+	memberGroupSessions,
+	recurringPattern,
+	weeklySlotKey
 } from '$lib/utils/slot-utils';
 
 // How far ahead a shifted private lesson looks for a free pattern slot
@@ -297,8 +299,8 @@ export class AttendanceService {
 		return 'Kaydın düzenindeki sonraki saatler dolu; dersi Taşı ile başka bir saate alın';
 	}
 
-	// The group lesson's next session on the trainee's days after their last lesson in it,
-	// with a free seat
+	// The next session on the kayıt's weekly slots (in any of its group lessons) after its
+	// last lesson, with a free seat
 	private async planGroupShift(missed: MissedLesson): Promise<ShiftPlan | string> {
 		const chain = await new PurchaseRepository(this.supabase).getSuccessorChain(missed.purchaseId);
 		const { data: records, error } = await this.supabase
@@ -309,35 +311,48 @@ export class AttendanceService {
 			.is('makeup_for_id', null);
 		if (error) return dbErrorMessage(error, 'Kaydın dersleri yüklenemedi. Tekrar deneyin.');
 		const lessons = (records ?? [])
-			.flatMap((r) => (r.pe_appointments ? [r.pe_appointments] : []))
+			.flatMap((r) =>
+				r.pe_appointments
+					? [{ ...r.pe_appointments, groupLessonId: r.pe_appointments.group_lesson_id }]
+					: []
+			)
 			.sort(compareSlots);
 		const last = lessons[lessons.length - 1];
-		if (!last?.group_lesson_id) return 'Kaydın grup dersi bulunamadı';
-		const own = lessons.filter((l) => l.group_lesson_id === last.group_lesson_id);
-		const slotKeys = new Set(recurringPattern(own).map((slot) => `${slot.day}-${slot.hour}`));
+		// The slots the kayıt recurs on, one-off moves left out
+		const pattern = new Set(recurringPattern(lessons).map(weeklySlotKey));
+		const attended = lessons.filter((l) =>
+			pattern.has(weeklySlotKey({ day: getDayOfWeekFromDate(l.date), hour: l.hour }))
+		);
+		const lessonIds = [...new Set(attended.flatMap((l) => l.groupLessonId ?? []))];
+		if (!last || lessonIds.length === 0) return 'Kaydın grup dersi bulunamadı';
 
 		const { data: sessions, error: sessionsError } = await this.supabase
 			.from('pe_appointments')
 			.select(SESSION_SELECT)
-			.eq('group_lesson_id', last.group_lesson_id)
+			.in('group_lesson_id', lessonIds)
 			.gte('date', last.date)
 			.order('date')
 			.order('hour');
 		if (sessionsError) {
 			return dbErrorMessage(sessionsError, 'Grup dersleri yüklenemedi. Tekrar deneyin.');
 		}
-		for (const session of sessions ?? []) {
+		const candidates = memberGroupSessions(
+			attended,
+			(sessions ?? []).flatMap((s) =>
+				s.group_lesson_id ? [{ ...s, groupLessonId: s.group_lesson_id }] : []
+			)
+		);
+		for (const session of candidates) {
 			if (compareSlots(session, last) <= 0 || !isAppointmentFuture(session.date, session.hour)) {
 				continue;
 			}
-			if (!slotKeys.has(`${getDayOfWeekFromDate(session.date)}-${session.hour}`)) continue;
 			const seats = session.pe_appointment_trainees;
 			if (seats.some((e) => e.trainee_id === missed.traineeId)) continue;
 			if (seats.length >= missed.capacity) continue;
 			const { data: lesson } = await this.supabase
 				.from('pe_group_lessons')
 				.select('room_id, trainer_id')
-				.eq('id', last.group_lesson_id)
+				.eq('id', session.groupLessonId)
 				.single();
 			return {
 				kind: 'group',

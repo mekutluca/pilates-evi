@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { WeeklySlot } from '$lib/types/Schedule';
+import type { GroupSessionRef, SortedTraineeRecord, WeeklySlot } from '$lib/types/Schedule';
 import { parseLocalDate } from '$lib/utils/date-utils';
 import {
 	buildAppointmentSlotsFromStart,
@@ -9,6 +9,8 @@ import {
 	formatWeeklyPattern,
 	getStartingAppointmentCandidates,
 	isSlotInPattern,
+	memberGroupSessions,
+	planMemberSlotShift,
 	recurringPattern,
 	resolveSlotChanges,
 	slotChangeTarget,
@@ -274,5 +276,87 @@ describe('calculateExtensionStartDate', () => {
 
 	test('starts today when the kayıt has no lessons', () => {
 		expect(start(null)).toBe(new Date(2026, 9, 15).toDateString());
+	});
+});
+
+describe('group member shifts', () => {
+	// A studio running one group lesson per weekday: the member comes Salı 21:00 (one
+	// lesson) and Perşembe 21:00 (another); a third lesson at 19:00 on Thursdays isn't theirs
+	const session = (id: number, groupLessonId: string, date: string, hour = 21) => ({
+		id,
+		groupLessonId,
+		date,
+		hour
+	});
+	const tuesdays = ['2026-10-20', '2026-10-27', '2026-11-03', '2026-11-10', '2026-11-17'].map(
+		(date, i) => session(1 + i, 'tue', date)
+	);
+	const thursdays = ['2026-10-22', '2026-10-29', '2026-11-05', '2026-11-12', '2026-11-19'].map(
+		(date, i) => session(11 + i, 'thu', date)
+	);
+	const sessions: GroupSessionRef[] = [
+		...thursdays,
+		...tuesdays,
+		session(21, 'other', '2026-11-05', 19)
+	];
+	const byId = new Map(sessions.map((s) => [s.id, s]));
+
+	// Eight lessons, 20 Oct – 12 Nov
+	const records: SortedTraineeRecord[] = [1, 11, 2, 12, 3, 13, 4, 14].map((id, i) => ({
+		recordId: 100 + i,
+		appointmentId: id,
+		date: byId.get(id)!.date,
+		hour: 21,
+		groupLessonId: byId.get(id)!.groupLessonId
+	}));
+
+	test('merges the member’s slots across their group lessons in calendar order', () => {
+		expect(memberGroupSessions(records, sessions).map((s) => s.id)).toEqual([
+			1, 11, 2, 12, 3, 13, 4, 14, 5, 15
+		]);
+	});
+
+	test('closing a Thursday moves the lessons on by one lesson, keeping the next Tuesday', () => {
+		const from = records.findIndex((r) => r.date === '2026-10-29');
+		const upcoming = memberGroupSessions(records, sessions).filter((s) => s.date >= '2026-10-29');
+		const moves = planMemberSlotShift(records, from, upcoming, 1);
+		expect(moves?.map((m) => [m.oldAppointmentId, m.newAppointmentId])).toEqual([
+			[12, 3],
+			[3, 13],
+			[13, 4],
+			[4, 14],
+			[14, 5]
+		]);
+		const moved = new Map(moves?.map((m) => [m.oldAppointmentId, m.newAppointmentId]));
+		expect(
+			records.map((r) => byId.get(moved.get(r.appointmentId) ?? r.appointmentId)!.date)
+		).toEqual([
+			'2026-10-20',
+			'2026-10-22',
+			'2026-10-27',
+			'2026-11-03',
+			'2026-11-05',
+			'2026-11-10',
+			'2026-11-12',
+			'2026-11-17'
+		]);
+	});
+
+	test('runs out when the lessons have no further sessions', () => {
+		const upcoming = memberGroupSessions(records, sessions);
+		expect(planMemberSlotShift(records, 0, upcoming, 3)).toBeNull();
+	});
+
+	test('keeps to the member’s own days in a lesson running every day', () => {
+		const daily = ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-28', '2026-10-29'].map(
+			(date, i) => session(31 + i, 'daily', date, 13)
+		);
+		const wedThu = daily.slice(0, 2);
+		expect(memberGroupSessions(wedThu, daily).map((s) => s.date)).toEqual([
+			'2026-10-21',
+			'2026-10-22',
+			'2026-10-28',
+			'2026-10-29'
+		]);
 	});
 });
