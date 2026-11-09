@@ -232,7 +232,7 @@
 												<TraineeNote note={notes} class="mt-1.5" />
 											{/if}
 										</div>
-										{#if isStaff && isUpcoming && isGroup && enrollment.pe_trainees && !isMakeup}
+										{#if isStaff && isGroup && enrollment.pe_trainees && !isMakeup}
 											{@const trainee = enrollment.pe_trainees}
 											<Button
 												variant="ghost"
@@ -338,17 +338,16 @@
 				<Sheet.Footer
 					class="sticky bottom-0 flex-row flex-wrap items-center gap-2 border-t bg-popover"
 				>
+					<!-- A passed lesson still moves (a correction of what happened); cancelling is for upcoming ones -->
+					<Button onclick={() => onMove?.(null)}>
+						<MoveRight />
+						Taşı
+					</Button>
 					{#if isUpcoming}
-						<Button onclick={() => onMove?.(null)}>
-							<MoveRight />
-							Taşı
-						</Button>
 						<Button variant="outline" onclick={onCancel}>
 							<Trash2 />
 							İptal et
 						</Button>
-					{:else}
-						<p class="text-sm text-muted-foreground">Geçmiş randevu, değiştirilemez.</p>
 					{/if}
 					{#if !isGroup && appointment.purchase_id && trainees[0]?.pe_trainees}
 						<Button

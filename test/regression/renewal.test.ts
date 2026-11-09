@@ -1,3 +1,4 @@
+import { addDaysToDate } from '$lib/utils/date-utils';
 import { describe, expect, test } from 'vitest';
 import { actions as renew } from '../../src/routes/(authed)/(home)/trainees/[id]/renew/[purchaseId]/+page.server';
 import type { SlotConflict } from '$lib/types/Conflict';
@@ -10,7 +11,6 @@ import {
 	fx,
 	kayitLessons,
 	lessonsOf,
-	plusDays,
 	runAction,
 	weekly
 } from './helpers';
@@ -22,7 +22,7 @@ function renewParams(key: string, traineeKey = key) {
 
 async function dayAfterLastLesson(key: string): Promise<string> {
 	const lessons = await kayitLessons(key);
-	return plusDays(lessons[lessons.length - 1].date, 1);
+	return addDaysToDate(lessons[lessons.length - 1].date, 1);
 }
 
 describe('Yenile: private', () => {

@@ -70,19 +70,31 @@ describe('parseMoveRequest (Taşı)', () => {
 	test('reads a new weekly program (Haftalık program)', () => {
 		expect(
 			parseMoveRequest(
-				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'thursday-12>friday-12' })
+				form({
+					appointmentId: '7',
+					kind: 'pattern',
+					slotChanges: 'tuesday-9>-1:9,thursday-12>1:18'
+				})
 			)
 		).toEqual({
 			kind: 'pattern',
 			appointmentId: 7,
-			slotChanges: [{ from: { day: 'thursday', hour: 12 }, to: { day: 'friday', hour: 12 } }]
+			slotChanges: [
+				{ from: { day: 'tuesday', hour: 9 }, days: -1, hour: 9 },
+				{ from: { day: 'thursday', hour: 12 }, days: 1, hour: 18 }
+			]
 		});
 		expect(parseMoveRequest(form({ appointmentId: '7', kind: 'pattern', slotChanges: '' }))).toBe(
 			'Yeni gün veya saat seçin'
 		);
 		expect(
 			parseMoveRequest(
-				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'thursday-12>someday-12' })
+				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'someday-12>1:12' })
+			)
+		).toBe('Yeni gün veya saat seçin');
+		expect(
+			parseMoveRequest(
+				form({ appointmentId: '7', kind: 'pattern', slotChanges: 'thursday-12>friday-12' })
 			)
 		).toBe('Yeni gün veya saat seçin');
 		// A group lesson's program changes for all its trainees, never for one
@@ -91,7 +103,7 @@ describe('parseMoveRequest (Taşı)', () => {
 				form({
 					appointmentId: '7',
 					kind: 'pattern',
-					slotChanges: 'thursday-12>friday-12',
+					slotChanges: 'thursday-12>1:12',
 					traineeId: TRAINEE
 				})
 			)
@@ -272,13 +284,13 @@ describe('group lesson forms', () => {
 	test('reads a group lesson move', () => {
 		expect(
 			parseGroupLessonMoveForm(
-				form({ fromDate: '2026-10-19', slotChanges: 'monday-19>tuesday-19', roomId: ROOM }),
+				form({ fromDate: '2026-10-19', slotChanges: 'monday-19>1:19', roomId: ROOM }),
 				GROUP
 			)
 		).toEqual({
 			groupLessonId: GROUP,
 			fromDate: '2026-10-19',
-			slotChanges: [{ from: { day: 'monday', hour: 19 }, to: { day: 'tuesday', hour: 19 } }],
+			slotChanges: [{ from: { day: 'monday', hour: 19 }, days: 1, hour: 19 }],
 			roomId: ROOM,
 			trainerId: undefined
 		});

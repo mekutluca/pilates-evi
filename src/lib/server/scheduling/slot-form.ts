@@ -28,15 +28,16 @@ export function parseWeeklySlots(raw: string): WeeklySlot[] | null {
 	return slots;
 }
 
-/** Slot changes from "monday-10>tuesday-11,…"; null when any part is malformed. */
+/** Slot changes from "tuesday-9>-1:9,…" (slot>days:hour); null when any part is malformed. */
 export function parseSlotChanges(raw: string): SlotChange[] | null {
 	const changes: SlotChange[] = [];
 	for (const part of raw.split(',').filter(Boolean)) {
 		const [fromText = '', toText = ''] = part.split('>');
 		const from = parseWeeklySlot(fromText);
-		const to = parseWeeklySlot(toText);
-		if (!from || !to) return null;
-		changes.push({ from, to });
+		const to = /^(-?\d{1,2}):(\d{1,2})$/.exec(toText);
+		const hour = to ? parseHour(to[2]) : null;
+		if (!from || !to || hour === null) return null;
+		changes.push({ from, days: Number(to[1]), hour });
 	}
 	return changes;
 }

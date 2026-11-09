@@ -18,7 +18,7 @@ import { AppointmentRepository } from '$lib/server/repositories/appointment-repo
 import {
 	applyEnrollmentMoves,
 	applyPlannedMoves,
-	STARTED_LESSON_ERROR,
+	attendedAppointmentError,
 	planTraineeSlotShift,
 	shiftSeriesBySlot,
 	shiftTraineeRecordsByWeeks
@@ -30,7 +30,7 @@ import { deleteRemainingLessons } from '$lib/server/scheduling/purchase-deletion
 import { planGroupLessonMove } from '$lib/server/scheduling/group-lessons';
 import { planPatternChange } from '$lib/server/scheduling/pattern-change';
 import { toGroupLessonTimeslots } from '$lib/server/scheduling/extension';
-import { addWeeksToDate, isAppointmentFuture } from '$lib/utils/date-utils';
+import { addWeeksToDate } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
 import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 import { dbErrorMessage } from '$lib/server/db-errors';
@@ -92,11 +92,14 @@ export class SchedulingService {
 	}
 
 	/**
-	 * Moves one appointment to another slot (and room). With `consumeCredit` one of the
-	 * purchase's reschedule credits is spent in the same transaction. Returns an error
-	 * message, or null on success.
+	 * Moves one appointment to another slot (and room), past ones and into the past included
+	 * (a correction of what happened), unless its yoklama was taken. With `consumeCredit`
+	 * one of the purchase's reschedule credits is spent in the same transaction. Returns an
+	 * error message, or null on success.
 	 */
 	async reschedule(params: RescheduleParams): Promise<string | null> {
+		const attended = await attendedAppointmentError(this.supabase, params.appointmentId);
+		if (attended) return attended;
 		const { error } = await this.supabase.rpc('pe_reschedule_appointment', {
 			p_appointment_id: params.appointmentId,
 			p_date: params.date,
@@ -117,12 +120,10 @@ export class SchedulingService {
 	 * the same planning and conflict checks run and the result is the preview.
 	 */
 	async move(request: MoveRequest, dryRun: boolean): Promise<MoveResult> {
-		// Lessons that have started stay where they happened
+		// Past lessons move too (staff correct what really happened); the planning keeps
+		// those whose yoklama was taken in place
 		const anchor = await new AppointmentRepository(this.supabase).getById(request.appointmentId);
 		if (!anchor) return moveResultFailure('Randevu bulunamadı');
-		if (!isAppointmentFuture(anchor.date, anchor.hour)) {
-			return moveResultFailure(STARTED_LESSON_ERROR);
-		}
 		switch (request.kind) {
 			case 'transfer':
 				return this.transferResources(request, dryRun);
@@ -267,7 +268,7 @@ export class SchedulingService {
 	}
 
 	/**
-	 * Moves a group lesson from a date on: new weekly times (same week) and/or a new room
+	 * Moves a group lesson from a date on (a past one too): new weekly times and/or a new room
 	 * or trainer, then stores the new pattern and resources on the lesson so the weekly
 	 * top-up follows them. Only sessions whose time changed produce messages.
 	 */

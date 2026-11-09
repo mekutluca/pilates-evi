@@ -3,7 +3,7 @@ import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { NotifyResult, ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp';
 import type { WhatsAppRepository } from '$lib/whatsapp/WhatsAppRepository';
 import { getWhatsAppRepository } from '$lib/whatsapp';
-import { formatShortTurkishDateTime } from '$lib/utils/date-utils';
+import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
 
 // Chakra rate limits: send in small concurrent batches
@@ -46,6 +46,14 @@ export class NotificationService {
 		return new NotificationService(undefined, data?.whatsapp_enabled === true);
 	}
 
+	/**
+	 * The changes worth a message: those whose new time is still ahead. A lesson moved into
+	 * the past is a correction of what happened; nobody needs to come.
+	 */
+	static upcoming(changes: ScheduleChange[]): ScheduleChange[] {
+		return changes.filter((c) => isAppointmentFuture(c.newDate, c.newHour));
+	}
+
 	/** One change per trainee per moved appointment. */
 	static changesFromMoves(moved: MovedAppointment[]): ScheduleChange[] {
 		return moved.flatMap(({ appointment, newDate, newHour }) => {
@@ -65,14 +73,15 @@ export class NotificationService {
 	}
 
 	/**
-	 * Sends one message per trainee (by phone) and package, about the earliest change: a
-	 * shifted series is one message, two different lessons moved on a closed day are two.
+	 * Sends one message per trainee (by phone) and package, about the earliest upcoming
+	 * change: a shifted series is one message, two different lessons moved on a closed day
+	 * are two.
 	 * Failed sends are counted, not thrown: the schedule change itself has been saved.
 	 */
 	async notify(changes: ScheduleChange[], message: ScheduleChangeMessage): Promise<NotifyResult> {
 		if (!this.enabled) return { sent: 0, failed: 0, disabled: true };
 		const firstChange = new Map<string, ScheduleChange>();
-		for (const change of [...changes].sort(compareOld)) {
+		for (const change of NotificationService.upcoming(changes).sort(compareOld)) {
 			const key = `${change.phone}|${change.packageName}`;
 			if (change.phone && !firstChange.has(key)) firstChange.set(key, change);
 		}

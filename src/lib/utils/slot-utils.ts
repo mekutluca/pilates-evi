@@ -1,4 +1,5 @@
 import {
+	DAYS_OF_WEEK,
 	JS_DAY_TO_NAME,
 	type AppointmentSlotRef,
 	type DayOfWeek,
@@ -7,13 +8,14 @@ import {
 	type ShiftedTraineeRecord,
 	type SlotChange,
 	type SlotRef,
+	type SlotShift,
 	type SortedTraineeRecord,
 	type TraineeGroupSlot,
 	type WeeklySlot
 } from '$lib/types/Schedule';
 import type { StartingAppointmentCandidate } from '$lib/types/Extension';
 import type { SelectedGroupTimeslot } from '$lib/types';
-import { addDays, formatDateForDB, getDayOfWeekFromDate, parseLocalDate } from './date-utils';
+import { addDaysToDate, formatDateForDB, getDayOfWeekFromDate, parseLocalDate } from './date-utils';
 
 // Monday-first ordering used for recurring weekly time-slot patterns.
 export const DAY_ORDER: Record<DayOfWeek, number> = {
@@ -167,56 +169,86 @@ export function recurringPattern(lessons: SlotRef[]): WeeklySlot[] {
 	return sortTimeSlots(latestFirst.slice(0, usualWeeklyCount(perWeek)).map((e) => e.slot));
 }
 
-/** The date of `day` in the (Monday-first) week of `date`. */
-function sameWeekDate(date: string, day: DayOfWeek): string {
-	const shift = DAY_ORDER[day] - DAY_ORDER[getDayOfWeekFromDate(date)];
-	return formatDateForDB(addDays(parseLocalDate(date), shift));
+// A slot change moves lessons by less than a week; a week or more is Hafta kaydır
+export const MAX_SLOT_SHIFT_DAYS = 6;
+
+/** The weekday `days` days after `day` (before it when negative). */
+export function shiftWeekday(day: DayOfWeek, days: number): DayOfWeek {
+	return DAYS_OF_WEEK[(((DAY_ORDER[day] - 1 + days) % 7) + 7) % 7];
+}
+
+/** The weekly slot a slot's lessons recur on after a shift. */
+export function shiftedSlot(slot: WeeklySlot, shift: SlotShift): WeeklySlot {
+	return { day: shiftWeekday(slot.day, shift.days), hour: shift.hour };
+}
+
+/** The date of the first lesson on `slot` at or after `start`. */
+export function firstSlotDate(slot: WeeklySlot, start: SlotRef): string {
+	for (let i = 0; i < 8; i++) {
+		const date = addDaysToDate(start.date, i);
+		if (
+			getDayOfWeekFromDate(date) === slot.day &&
+			compareSlots({ date, hour: slot.hour }, start) >= 0
+		) {
+			return date;
+		}
+	}
+	// A weekday comes back within eight days
+	throw new Error('No date for the weekly slot');
 }
 
 /**
- * Where a lesson goes when its weekly slot changed: the new day and hour of its own
- * (Monday-first) week; null when its slot didn't change.
+ * Where a lesson goes when its weekly slot changed: its shift's number of days later, at
+ * the new hour; null when its slot didn't change.
  */
 export function slotChangeTarget(
 	lesson: SlotRef,
 	changes: ResolvedSlotChanges['changes']
 ): SlotRef | null {
-	const to = changes.get(
+	const shift = changes.get(
 		weeklySlotKey({ day: getDayOfWeekFromDate(lesson.date), hour: lesson.hour })
 	);
-	return to ? { date: sameWeekDate(lesson.date, to.day), hour: to.hour } : null;
+	return shift ? { date: addDaysToDate(lesson.date, shift.days), hour: shift.hour } : null;
 }
 
 /**
- * A weekly pattern with some of its slots given a new day or hour (Haftalık program, Grup
- * dersini taşı): the changes by old slot key and the new pattern, or an error message.
+ * A weekly pattern with some of its slots moved to a new day or hour (Haftalık program,
+ * Grup dersini taşı): the shifts by old slot key and the new pattern, or an error message.
  */
 export function resolveSlotChanges(
 	pattern: WeeklySlot[],
 	slotChanges: SlotChange[]
 ): ResolvedSlotChanges | string {
+	if (
+		slotChanges.some((c) => !Number.isInteger(c.days) || Math.abs(c.days) > MAX_SLOT_SHIFT_DAYS)
+	) {
+		return `Yeni tarih ilk dersten en fazla ${MAX_SLOT_SHIFT_DAYS} gün önce veya sonra olabilir`;
+	}
 	const changes = new Map(
 		slotChanges
-			.filter((c) => weeklySlotKey(c.from) !== weeklySlotKey(c.to))
-			.map((c) => [weeklySlotKey(c.from), c.to] as const)
+			.filter((c) => c.days !== 0 || c.hour !== c.from.hour)
+			.map((c) => [weeklySlotKey(c.from), { days: c.days, hour: c.hour }] as const)
 	);
 	const patternKeys = new Set(pattern.map(weeklySlotKey));
 	if ([...changes.keys()].some((key) => !patternKeys.has(key))) {
 		return 'Seçilen saat dersin haftalık programında yok';
 	}
-	const slots = pattern.map((s) => changes.get(weeklySlotKey(s)) ?? s);
+	const slots = pattern.map((s) => {
+		const shift = changes.get(weeklySlotKey(s));
+		return shift ? shiftedSlot(s, shift) : s;
+	});
 	if (new Set(slots.map(weeklySlotKey)).size !== slots.length) {
 		return 'İki ders saati aynı gün ve saate taşınamaz';
 	}
 	return { changes, slots: sortTimeSlots(slots) };
 }
 
-/** Changed slots as the Taşı forms send them: "monday-10>tuesday-11,…". */
-export function formatSlotChanges(from: WeeklySlot[], to: WeeklySlot[]): string {
+/** Changed slots as the Taşı forms send them: "tuesday-9>-1:9,…" (slot>days:hour). */
+export function formatSlotChanges(from: WeeklySlot[], shifts: SlotShift[]): string {
 	return from
 		.flatMap((slot, i) =>
-			to[i] && weeklySlotKey(slot) !== weeklySlotKey(to[i])
-				? [`${weeklySlotKey(slot)}>${weeklySlotKey(to[i])}`]
+			shifts[i] && (shifts[i].days !== 0 || shifts[i].hour !== slot.hour)
+				? [`${weeklySlotKey(slot)}>${shifts[i].days}:${shifts[i].hour}`]
 				: []
 		)
 		.join(',');

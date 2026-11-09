@@ -19,12 +19,12 @@ import { AppointmentRepository } from '$lib/server/repositories/appointment-repo
 import { ConflictService } from '$lib/server/services/conflict-service';
 import {
 	addDays,
+	addDaysToDate,
+	daysBetween,
 	formatDateForDB,
-	formatSlotLabel,
 	getDayOfWeekFromDate,
 	getTomorrow,
 	isAppointmentFuture,
-	isPastDate,
 	isPlannedFromStart,
 	parseLocalDate
 } from '$lib/utils/date-utils';
@@ -41,10 +41,9 @@ import { dbErrorMessage } from '$lib/server/db-errors';
 // New group lessons get sessions this many weeks ahead; the weekly top-up cron keeps the
 // horizon there
 const GROUP_LESSON_HORIZON_WEEKS = 26;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function dayAfter(date: string): string {
-	return formatDateForDB(addDays(parseLocalDate(date), 1));
+	return addDaysToDate(date, 1);
 }
 
 /**
@@ -195,9 +194,7 @@ export async function planGroupLesson(
 	// The weeks already behind a back-dated start come on top of the horizon (the top-up
 	// cron only fills from today on)
 	const firstDate = parseLocalDate(first.date);
-	const elapsedDays = Math.round(
-		(parseLocalDate(formatDateForDB(new Date())).getTime() - firstDate.getTime()) / DAY_MS
-	);
+	const elapsedDays = daysBetween(first.date, formatDateForDB(new Date()));
 	const weeks = GROUP_LESSON_HORIZON_WEEKS + Math.max(0, Math.ceil(elapsedDays / 7));
 
 	const sessions = buildAppointmentSlotsFromStart(
@@ -240,8 +237,10 @@ export async function planGroupLesson(
 
 /**
  * Plans a Taşı of a whole group lesson from `fromDate` on: each session on a changed
- * weekly slot moves to the new day/hour of the same week; with a new room or trainer
- * every session moves. Returns the moves and the lesson's new pattern, or an error.
+ * weekly slot moves by its slot's shift to the new hour; with a new room or trainer every
+ * session moves. A `fromDate` in the past moves the passed sessions too (recording what
+ * happened); applyPlannedMoves keeps those whose yoklama was taken. Returns the moves and
+ * the lesson's new pattern, or an error.
  */
 export async function planGroupLessonMove(
 	supabase: SupabaseClientType,
@@ -250,7 +249,6 @@ export async function planGroupLessonMove(
 	const [lesson] = await listGroupLessons(supabase, { id: input.groupLessonId });
 	if (!lesson) return 'Grup dersi bulunamadı';
 	if (lesson.endDate) return 'Sona ermiş grup dersi taşınamaz';
-	if (isPastDate(input.fromDate)) return 'Başlangıç tarihi geçmişte olamaz';
 
 	const resolved = resolveSlotChanges(lesson.slots, input.slotChanges);
 	if (typeof resolved === 'string') return resolved;
@@ -269,9 +267,6 @@ export async function planGroupLessonMove(
 		const target = slotChangeTarget(appointment, changes);
 		if (!target && !resourcesChange) continue;
 		const { date: newDate, hour: newHour } = target ?? appointment;
-		if (!isAppointmentFuture(newDate, newHour)) {
-			return `${formatSlotLabel(newDate, newHour)} geçmişte kalıyor, başlangıç tarihini ileri alın`;
-		}
 		moved.push({ appointment, newDate, newHour });
 	}
 	if (moved.length === 0) return 'Bu tarihten sonra taşınacak randevu yok';

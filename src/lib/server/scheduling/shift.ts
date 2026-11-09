@@ -22,12 +22,7 @@ import {
 } from '$lib/server/scheduling/extension';
 import { AppointmentRepository } from '$lib/server/repositories/appointment-repository';
 import { ConflictService } from '$lib/server/services/conflict-service';
-import {
-	addWeeksToDate,
-	formatSlotLabel,
-	isAppointmentFuture,
-	parseLocalDate
-} from '$lib/utils/date-utils';
+import { addWeeksToDate, formatSlotLabel, parseLocalDate } from '$lib/utils/date-utils';
 import { isValidWeekShift, WEEK_SHIFT_ERROR } from '$lib/utils/validation';
 import {
 	buildAppointmentSlotsFromStart,
@@ -40,16 +35,37 @@ import {
 } from '$lib/utils/slot-utils';
 import { dbErrorMessage } from '$lib/server/db-errors';
 
-export const STARTED_LESSON_ERROR = 'Başlamış veya geçmiş randevular taşınamaz';
-
-function pastTargetError(date: string, hour: number): string {
-	return `${formatSlotLabel(date, hour)} geçmişte kalıyor, daha ileri bir tarih seçin`;
+/**
+ * A Taşı may reach into the past (staff record what really happened), but a lesson whose
+ * yoklama was taken stays where it happened. Checks the enrollment rows by `column`
+ * (their lessons, or the rows themselves); returns an error naming the earliest one.
+ */
+async function attendedLessonError(
+	supabase: SupabaseClientType,
+	column: 'appointment_id' | 'id',
+	ids: number[]
+): Promise<string | null> {
+	if (ids.length === 0) return null;
+	const { data, error } = await supabase
+		.from('pe_appointment_trainees')
+		.select('pe_appointments(date, hour)')
+		.in(column, ids)
+		.not('attendance', 'is', null);
+	if (error) return dbErrorMessage(error, 'Yoklama bilgisi kontrol edilemedi. Tekrar deneyin.');
+	const [first] = (data ?? [])
+		.flatMap((row) => (row.pe_appointments ? [row.pe_appointments] : []))
+		.sort(compareSlots);
+	return first
+		? `${formatSlotLabel(first.date, first.hour)} dersinin yoklaması alınmış, taşınamaz`
+		: null;
 }
 
-/** A trainee's weekly shift may not land any of their lessons in the past. */
-function pastWeeklyTargetError(candidates: WeeklyShiftCandidate[], weeks: number): string | null {
-	const past = candidates.find((c) => !isAppointmentFuture(addWeeksToDate(c.date, weeks), c.hour));
-	return past ? pastTargetError(addWeeksToDate(past.date, weeks), past.hour) : null;
+/** A single lesson's move (Saat): blocked once its yoklama was taken. */
+export function attendedAppointmentError(
+	supabase: SupabaseClientType,
+	appointmentId: number
+): Promise<string | null> {
+	return attendedLessonError(supabase, 'appointment_id', [appointmentId]);
 }
 
 async function loadSlotShiftContext(
@@ -175,12 +191,16 @@ export async function applyPlannedMoves(
 	if (moved.length === 0) {
 		return moveFailure('Taşınacak randevu bulunamadı');
 	}
-	// Nothing moves out of or into the past
-	if (moved.some((m) => !isAppointmentFuture(m.appointment.date, m.appointment.hour))) {
-		return moveFailure(STARTED_LESSON_ERROR);
-	}
-	const pastTarget = moved.find((m) => !isAppointmentFuture(m.newDate, m.newHour));
-	if (pastTarget) return moveFailure(pastTargetError(pastTarget.newDate, pastTarget.newHour));
+	// Past lessons move too, except those whose yoklama was taken (only when the time changes:
+	// a new room or trainer doesn't rewrite what happened)
+	const attended = await attendedLessonError(
+		supabase,
+		'appointment_id',
+		moved
+			.filter((m) => m.newDate !== m.appointment.date || m.newHour !== m.appointment.hour)
+			.map((m) => m.appointment.id)
+	);
+	if (attended) return moveFailure(attended);
 	const planned = toPlannedMoves(moved).map((m) => ({
 		...m,
 		roomId: resources?.roomId ?? m.roomId,
@@ -458,10 +478,11 @@ function findCapacityError(
 }
 
 /**
- * Guards a single-trainee shift against two silent corruptions: enrolling the trainee
- * twice into the same appointment (e.g. via a parallel purchase) and pushing a target
- * appointment over its package's max_capacity. Seats freed by records that are moving
- * out as part of the same shift are not counted as occupied.
+ * Guards a single-trainee shift: lessons whose yoklama was taken stay, and two silent
+ * corruptions are refused: enrolling the trainee twice into the same appointment (e.g. via
+ * a parallel purchase) and pushing a target appointment over its package's max_capacity.
+ * Seats freed by records that are moving out as part of the same shift are not counted
+ * as occupied.
  * Returns an error message, or null when all targets are valid.
  */
 async function checkTraineeShiftTargets(
@@ -470,6 +491,12 @@ async function checkTraineeShiftTargets(
 	shiftMap: ShiftedTraineeRecord[]
 ): Promise<string | null> {
 	if (shiftMap.length === 0) return null;
+	const attended = await attendedLessonError(
+		supabase,
+		'id',
+		shiftMap.map((m) => m.recordId)
+	);
+	if (attended) return attended;
 
 	const targets = await loadMoveTargets(supabase, shiftMap);
 	if (typeof targets === 'string') return targets;
@@ -615,8 +642,6 @@ export async function shiftTraineeRecordsByWeeks(
 
 	const candidates = await listTraineeShiftCandidates(supabase, fromAppointmentId, traineeId);
 	if (typeof candidates === 'string') return failure(candidates);
-	const pastError = pastWeeklyTargetError(candidates, weeks);
-	if (pastError) return failure(pastError);
 
 	const { shiftMap, skippedCount, createdIds, toCreateFromIds } = await resolveWeeklyShiftTargets(
 		supabase,

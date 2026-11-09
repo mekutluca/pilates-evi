@@ -3,7 +3,7 @@
 	import CauseField from './cause-field.svelte';
 	import type { GroupLessonMoveSheetProps } from '$lib/types/ComponentProps';
 	import type { MovePreviewPayload } from '$lib/types/Api';
-	import type { WeeklySlot } from '$lib/types/Schedule';
+	import type { SlotShift } from '$lib/types/Schedule';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -11,10 +11,11 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
 	import SlotChangesField from './slot-changes-field.svelte';
+	import PastStartHint from './past-start-hint.svelte';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { untrack } from 'svelte';
-	import { formatDateForDB } from '$lib/utils/date-utils';
+	import { formatDateForDB, isPastDate } from '$lib/utils/date-utils';
 	import { formatSlotChanges, formatWeeklyPattern } from '$lib/utils/slot-utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
@@ -24,16 +25,24 @@
 	let { open = $bindable(), lesson, rooms, trainers, onDone }: GroupLessonMoveSheetProps = $props();
 
 	const today = formatDateForDB(new Date());
-	// The parent remounts this sheet per lesson, so these start from it
+	// The parent remounts this sheet per lesson, so these start from it. A start in the past
+	// moves the passed sessions too (recording what happened), as Yeni kayıt back-dates
 	let fromDate = $state(today);
-	let targets = $state<WeeklySlot[]>(untrack(() => lesson.slots.map((s) => ({ ...s }))));
+	let shifts = $state<SlotShift[]>(
+		untrack(() => lesson.slots.map((s) => ({ days: 0, hour: s.hour })))
+	);
 	let roomId = $state(untrack(() => lesson.roomId));
 	let trainerId = $state(untrack(() => lesson.trainerId));
 	let cause = $state('');
 	let notify = $state(true);
 	let submitting = $state(false);
 
-	const slotChanges = $derived(formatSlotChanges(lesson.slots, targets));
+	const slotChanges = $derived(formatSlotChanges(lesson.slots, shifts));
+	// The rows name each slot's first session from the start date, never one before the
+	// lesson began
+	const firstFrom = $derived(
+		[fromDate || today, lesson.startDate].reduce((a, b) => (a > b ? a : b))
+	);
 	const changed = $derived(
 		slotChanges !== '' || roomId !== lesson.roomId || trainerId !== lesson.trainerId
 	);
@@ -97,14 +106,25 @@
 		<div class="space-y-6 px-6 py-5">
 			<div class="grid gap-2 sm:max-w-56">
 				<Label for="glm-from">Hangi tarihten itibaren?</Label>
-				<Input id="glm-from" type="date" min={today} bind:value={fromDate} />
+				<Input
+					id="glm-from"
+					type="date"
+					bind:value={fromDate}
+					aria-describedby={isPastDate(fromDate) ? 'glm-from-hint' : undefined}
+				/>
+				{#if isPastDate(fromDate)}
+					<PastStartHint id="glm-from-hint">
+						Geriye dönük taşıma, geçmiş dersler de taşınır. Yoklaması alınmış dersler yerinde kalır.
+					</PastStartHint>
+				{/if}
 			</div>
 
 			<SlotChangesField
 				from={lesson.slots}
-				bind:targets
+				bind:shifts
+				start={{ date: firstFrom, hour: 0 }}
 				legend="Ders saatleri"
-				hint="Her randevu aynı haftanın yeni gün ve saatine taşınır."
+				hint="İlk dersin yeni tarihini ve saatini seçin; sonraki dersler de her hafta aynı gün ve saate taşınır."
 			/>
 
 			<div class="grid grid-cols-2 gap-3">
@@ -156,9 +176,6 @@
 							title={`${preview.current.value.conflicts.length} çakışma var, taşınamaz.`}
 						/>
 					{/if}
-					<p class="text-sm text-muted-foreground">
-						{preview.current.value.rows.length} randevu taşınacak
-					</p>
 					<MovePreviewList rows={preview.current.value.rows} {rooms} {trainers} />
 				{/if}
 			</section>

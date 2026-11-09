@@ -1,3 +1,4 @@
+import { addDaysToDate } from '$lib/utils/date-utils';
 import { describe, expect, test } from 'vitest';
 import { actions as assignment } from '../../src/routes/(authed)/(home)/new-assignment/+page.server';
 import { actions as newGroupLesson } from '../../src/routes/(authed)/(home)/group-lessons/new/+page.server';
@@ -11,7 +12,6 @@ import {
 	kayitlarOf,
 	lessonsOf,
 	noParams,
-	plusDays,
 	runAction,
 	supabase,
 	weekly
@@ -308,7 +308,9 @@ describe('Back-dated (onboarding a running studio)', () => {
 			.single();
 		expect(lesson?.start_date).toBe(dayOf(-3, 7));
 		// The weekly top-up only fills from today on: the horizon is still 26 weeks ahead
-		expect(String(lesson?.appointments_created_until) >= plusDays(fx.today, 26 * 7)).toBe(true);
+		expect(String(lesson?.appointments_created_until) >= addDaysToDate(fx.today, 26 * 7)).toBe(
+			true
+		);
 		const { data: sessions } = await supabase
 			.from('pe_appointments')
 			.select('date, hour')

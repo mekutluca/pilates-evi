@@ -5,7 +5,6 @@ import {
 	formatDateForDB,
 	getAppointmentDateTime,
 	getWeekStart,
-	isAppointmentFuture,
 	parseLocalDate
 } from '$lib/utils/date-utils';
 import type { CancelTraineeAction } from '$lib/types/Schedule';
@@ -107,17 +106,6 @@ export const actions: Actions = {
 		const hoursUntil =
 			(getAppointmentDateTime(appointment.date, appointment.hour).getTime() - Date.now()) /
 			(1000 * 60 * 60);
-
-		// Past lessons never move, nor can anything move into the past
-		if (hoursUntil < 0) {
-			return fail(400, {
-				success: false,
-				message: 'Başlamış randevu taşınamaz'
-			});
-		}
-		if (!isAppointmentFuture(newDate, newHour)) {
-			return fail(400, { success: false, message: 'Randevu geçmiş bir saate taşınamaz' });
-		}
 
 		// A client's own request costs a coordinator one of the package's reschedule
 		// credits and needs 23 hours' notice; studio-caused moves and admins are free
@@ -256,7 +244,7 @@ export const actions: Actions = {
 			success: true,
 			rows: result.rows,
 			conflicts: result.conflicts,
-			recipientCount: new Set(result.changes.map((c) => c.phone)).size
+			recipientCount: new Set(NotificationService.upcoming(result.changes).map((c) => c.phone)).size
 		};
 	},
 

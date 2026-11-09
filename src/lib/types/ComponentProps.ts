@@ -16,6 +16,7 @@ import type {
 	PickedSlot,
 	ScheduleSlot,
 	SlotRef,
+	SlotShift,
 	WeeklySlot
 } from '$lib/types/Schedule';
 import type { SlotConflict } from '$lib/types/Conflict';
@@ -232,9 +233,11 @@ export interface WeeklySlotsFieldProps {
 }
 
 export interface SlotChangesFieldProps {
-	// The current weekly program, and the new day/hour of each of its slots (same order)
+	// The current weekly program, and where each of its slots' lessons move (same order)
 	from: WeeklySlot[];
-	targets: WeeklySlot[];
+	shifts: SlotShift[];
+	// Lessons move from here on: each slot is shown by its first lesson at or after it
+	start: SlotRef;
 	legend: string;
 	hint: string;
 }

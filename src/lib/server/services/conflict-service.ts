@@ -1,11 +1,6 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { AppointmentSlotRef } from '$lib/types/Schedule';
-import {
-	addDays,
-	formatDateForDB,
-	getDayOfWeekFromDate,
-	parseLocalDate
-} from '$lib/utils/date-utils';
+import { addDaysToDate, getDayOfWeekFromDate } from '$lib/utils/date-utils';
 import { weeklySlotKey } from '$lib/utils/slot-utils';
 import type {
 	AppointmentSlotCheck,
@@ -95,7 +90,7 @@ export class ConflictService {
 		);
 
 		// Each taken date counts once even when both room and trainer are taken
-		const firstWeekEnd = formatDateForDB(addDays(parseLocalDate(params.fromDate), 7));
+		const firstWeekEnd = addDaysToDate(params.fromDate, 7);
 		const busy = new Map<string, BusyWeeklySlot>();
 		for (const { date, hour } of new Map(
 			(data ?? []).map((a) => [`${a.date}|${a.hour}`, a] as const)

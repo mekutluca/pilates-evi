@@ -244,7 +244,18 @@ export function formatShortDisplayDateTime(dateString: string): string {
  * @returns New date string in YYYY-MM-DD format
  */
 export function addWeeksToDate(dateString: string, weeks: number): string {
-	const date = parseLocalDate(dateString);
-	date.setDate(date.getDate() + weeks * 7);
-	return formatDateForDB(date);
+	return addDaysToDate(dateString, weeks * 7);
+}
+
+/** A YYYY-MM-DD date `days` days later (earlier when negative). */
+export function addDaysToDate(dateString: string, days: number): string {
+	return formatDateForDB(addDays(parseLocalDate(dateString), days));
+}
+
+/** Calendar days from one YYYY-MM-DD date to another (negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+	// Rounded: a daylight-saving change makes a day 23 or 25 hours long
+	return Math.round(
+		(parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / (24 * 60 * 60 * 1000)
+	);
 }

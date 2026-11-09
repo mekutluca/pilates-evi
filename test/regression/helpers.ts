@@ -8,7 +8,7 @@ import type { ActionForm, ActionOutcome, BookedLesson, WeekdayHour } from '$lib/
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import { pagedRows } from '$lib/server/paging';
 import { PurchaseRepository } from '$lib/server/repositories/purchase-repository';
-import { addDays, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
+import { addDaysToDate } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
 
 const demo = inject('demo');
@@ -39,14 +39,9 @@ const locals: App.Locals = {
 
 // ---- Dates (all relative to the seeded week) ----
 
-/** The date `days` after `date`. */
-export function plusDays(date: string, days: number): string {
-	return formatDateForDB(addDays(parseLocalDate(date), days));
-}
-
 /** ISO weekday `day` (1 = Monday … 7 = Sunday) of week `week` (0 = this week). */
 export function dayOf(week: number, day: number): string {
-	return plusDays(fx.week0, week * 7 + day - 1);
+	return addDaysToDate(fx.week0, week * 7 + day - 1);
 }
 
 /** A slot as "2026-10-20@18", for compact comparisons. */

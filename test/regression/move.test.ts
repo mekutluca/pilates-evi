@@ -3,7 +3,7 @@ import { actions as schedule } from '../../src/routes/(authed)/(home)/schedule/+
 import { actions as groupLesson } from '../../src/routes/(authed)/(home)/group-lessons/[id]/+page.server';
 import type { MovePreviewRow } from '$lib/types/Transfer';
 import type { SlotConflict } from '$lib/types/Conflict';
-import { STARTED_LESSON_ERROR } from '$lib/server/scheduling/shift';
+import { addWeeksToDate } from '$lib/utils/date-utils';
 import { getCanonicalPurchaseTimeSlots } from '$lib/server/scheduling/extension';
 import type { WeekdayHour } from '$lib/types/Regression';
 import {
@@ -124,24 +124,46 @@ describe('Taşı: private kayıt', () => {
 		});
 	});
 
-	test('never moves a lesson that has started, nor into the past', async () => {
+	test('reaches into the past as a correction, but never moves a lesson with yoklama', async () => {
 		await expectNoChange(async () => {
+			// A passed lesson moves: the preview plans it (nothing written)
 			const [past] = await kayitLessons('extend_private');
-			const started = await runAction(
-				schedule.move,
-				{ appointmentId: past.appointmentId, kind: 'weeks', scope: 'single', amount: 1 },
-				noParams
+			const passed = expectOk(
+				await runAction(
+					schedule.previewMove,
+					{ appointmentId: past.appointmentId, kind: 'weeks', scope: 'from_selected', amount: 1 },
+					noParams
+				)
 			);
-			expect(started).toMatchObject({ ok: false, message: STARTED_LESSON_ERROR });
+			expect(passed.conflicts).toEqual([]);
+			expect((passed.rows as MovePreviewRow[])[0]).toMatchObject({
+				from: { date: past.date },
+				to: { date: addWeeksToDate(past.date, 1) }
+			});
 
+			// So does a move into the past, and nobody is to be told about it
 			const [upcoming] = await kayitLessons('busy_anchor');
-			const intoPast = await runAction(
+			const intoPast = expectOk(
+				await runAction(
+					schedule.previewMove,
+					{ appointmentId: upcoming.appointmentId, kind: 'weeks', scope: 'single', amount: -3 },
+					noParams
+				)
+			);
+			expect((intoPast.rows as MovePreviewRow[]).map((r) => r.to.date)).toEqual([
+				addWeeksToDate(upcoming.date, -3)
+			]);
+			expect(intoPast.recipientCount).toBe(0);
+
+			// A lesson whose yoklama was taken stays where it happened
+			const [attended] = await kayitLessons('demo_present');
+			const outcome = await runAction(
 				schedule.move,
-				{ appointmentId: upcoming.appointmentId, kind: 'weeks', scope: 'single', amount: -3 },
+				{ appointmentId: attended.appointmentId, kind: 'weeks', scope: 'single', amount: 1 },
 				noParams
 			);
-			expect(intoPast.ok).toBe(false);
-			expect(intoPast.message).toMatch(/geçmişte kalıyor/);
+			expect(outcome.ok).toBe(false);
+			expect(outcome.message).toMatch(/dersinin yoklaması alınmış, taşınamaz/);
 		});
 	});
 });
@@ -228,7 +250,7 @@ describe('Taşı: a whole group lesson', () => {
 			// The trainer teaches a private lesson on Monday 10:00 until week 2
 			const outcome = await runAction(
 				groupLesson.move,
-				{ fromDate: dayOf(2, 1), slotChanges: 'monday-19>monday-10' },
+				{ fromDate: dayOf(2, 1), slotChanges: 'monday-19>0:10' },
 				params()
 			);
 			expect(outcome).toMatchObject({ ok: false, message: '1 çakışma var, taşıma yapılmadı.' });
@@ -239,7 +261,7 @@ describe('Taşı: a whole group lesson', () => {
 		expectOk(
 			await runAction(
 				groupLesson.move,
-				{ fromDate: dayOf(2, 1), slotChanges: 'monday-19>tuesday-19' },
+				{ fromDate: dayOf(2, 1), slotChanges: 'monday-19>1:19' },
 				params()
 			)
 		);
@@ -276,7 +298,7 @@ describe('Taşı: Haftalık program', () => {
 				{
 					appointmentId: lessons[2].appointmentId,
 					kind: 'pattern',
-					slotChanges: 'thursday-12>monday-17',
+					slotChanges: 'thursday-12>-3:17',
 					...studioReason
 				},
 				noParams
@@ -299,7 +321,7 @@ describe('Taşı: Haftalık program', () => {
 		const form = {
 			appointmentId: lessons[2].appointmentId,
 			kind: 'pattern',
-			slotChanges: 'thursday-12>friday-12',
+			slotChanges: 'thursday-12>1:12',
 			...studioReason
 		};
 		const preview = expectOk(await runAction(schedule.previewMove, form, noParams));
@@ -331,7 +353,7 @@ describe('Taşı: Haftalık program', () => {
 				{
 					appointmentId: lessons[2].appointmentId,
 					kind: 'pattern',
-					slotChanges: 'thursday-12>friday-12',
+					slotChanges: 'thursday-12>1:12',
 					...studioReason
 				},
 				noParams

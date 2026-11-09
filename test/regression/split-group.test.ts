@@ -2,10 +2,13 @@ import { describe, expect, test } from 'vitest';
 import { actions as assignment } from '../../src/routes/(authed)/(home)/new-assignment/+page.server';
 import { actions as newGroupLesson } from '../../src/routes/(authed)/(home)/group-lessons/new/+page.server';
 import { actions as schedule } from '../../src/routes/(authed)/(home)/schedule/+page.server';
+import { actions as groupLesson } from '../../src/routes/(authed)/(home)/group-lessons/[id]/+page.server';
+import { addDaysToDate } from '$lib/utils/date-utils';
 import type { WeekdayHour } from '$lib/types/Regression';
 import {
 	at,
 	dayOf,
+	expectNoChange,
 	expectOk,
 	fx,
 	groupSession,
@@ -13,6 +16,7 @@ import {
 	lessonsOf,
 	noParams,
 	runAction,
+	supabase,
 	weekly
 } from './helpers';
 
@@ -123,5 +127,48 @@ describe('A kayıt across one-day group lessons', () => {
 		);
 		const replacement = (await lessons()).find((l) => l.date === dayOf(3, 4));
 		expect(replacement).toMatchObject({ isMakeup: true, groupLessonId: thursdayLesson });
+	});
+
+	// The studio held this week's Salı lesson on Monday and runs it on Mondays from now on;
+	// the desk records it afterwards with a start date in the past
+	test('Taşı moves a one-day lesson from a past date; a lesson with yoklama stays', async () => {
+		const twoWeeksAgo = (await lessons()).find((l) => l.date === dayOf(-2, 2));
+		expectOk(
+			await runAction(
+				schedule.markAttendance,
+				{ enrollmentId: twoWeeksAgo!.enrollmentId, attendance: 'attended' },
+				noParams
+			)
+		);
+		const toMonday = { slotChanges: 'tuesday-21>-1:21' };
+		await expectNoChange(async () => {
+			const outcome = await runAction(
+				groupLesson.move,
+				{ fromDate: dayOf(-2, 1), ...toMonday },
+				{ id: tuesdayLesson }
+			);
+			expect(outcome.ok).toBe(false);
+			expect(outcome.message).toMatch(/dersinin yoklaması alınmış, taşınamaz/);
+		});
+
+		const before = await lessons();
+		expectOk(
+			await runAction(
+				groupLesson.move,
+				{ fromDate: dayOf(-1, 1), ...toMonday },
+				{ id: tuesdayLesson }
+			)
+		);
+		const moved = (l: (typeof before)[number]) =>
+			l.groupLessonId === tuesdayLesson && l.date >= dayOf(-1, 1)
+				? at({ date: addDaysToDate(l.date, -1), hour: l.hour })
+				: at(l);
+		expect((await lessons()).map(at)).toEqual(before.map(moved).sort());
+		const { data: lesson } = await supabase
+			.from('pe_group_lessons')
+			.select('timeslots')
+			.eq('id', tuesdayLesson)
+			.single();
+		expect(lesson?.timeslots).toEqual([{ day: 'monday', hours: [21] }]);
 	});
 });

@@ -43,7 +43,7 @@ export const actions: Actions = {
 			success: true,
 			rows: result.rows,
 			conflicts: result.conflicts,
-			recipientCount: new Set(result.changes.map((c) => c.phone)).size
+			recipientCount: new Set(NotificationService.upcoming(result.changes).map((c) => c.phone)).size
 		};
 	},
 

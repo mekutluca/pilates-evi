@@ -9,7 +9,7 @@ import { planAssignment } from '$lib/server/scheduling/lesson-plan';
 import { parseAssignmentForm } from '$lib/server/scheduling/lesson-plan-form';
 import { SCHEDULE_HOURS } from '$lib/types/Schedule';
 import { getFormDataString, getFormDataUuid } from '$lib/utils/form-utils';
-import { addDays, formatDateForDB, parseLocalDate } from '$lib/utils/date-utils';
+import { addWeeksToDate, formatDateForDB } from '$lib/utils/date-utils';
 import {
 	isIntInRange,
 	isIsoDate,
@@ -86,7 +86,7 @@ export const actions: Actions = {
 			roomId,
 			trainerId,
 			fromDate: startDate,
-			toDate: formatDateForDB(addDays(parseLocalDate(startDate), weeks * 7))
+			toDate: addWeeksToDate(startDate, weeks)
 		});
 		return { success: true, busy };
 	},

@@ -184,7 +184,8 @@
 			};
 		}
 
-		if (!isAppointmentFuture(date, hour) || !isStaff) {
+		// Picking a new time reaches the past too (a correction); adding a kayıt starts ahead
+		if (!isStaff || (!pickMode && !isAppointmentFuture(date, hour))) {
 			return { variant: 'empty', day, hour, date };
 		}
 

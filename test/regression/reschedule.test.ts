@@ -90,37 +90,46 @@ describe('Randevu değiştir', () => {
 		});
 	});
 
-	test('never moves a lesson that has started, nor into the past', async () => {
+	test('moves a lesson into the past as a correction, never one with yoklama', async () => {
 		await expectNoChange(async () => {
-			const [past] = await kayitLessons('extend_private');
-			expect(
-				await runAction(
-					schedule.rescheduleAppointment,
-					{
-						appointmentId: past.appointmentId,
-						newDate: dayOf(6, 3),
-						newHour: 9,
-						newRoomId: fx.rooms.r1,
-						...studioReason
-					},
-					noParams
-				)
-			).toMatchObject({ ok: false, message: 'Başlamış randevu taşınamaz' });
+			const [attended] = await kayitLessons('demo_present');
+			const outcome = await runAction(
+				schedule.rescheduleAppointment,
+				{
+					appointmentId: attended.appointmentId,
+					newDate: dayOf(6, 3),
+					newHour: 9,
+					newRoomId: fx.rooms.r1,
+					...studioReason
+				},
+				noParams
+			);
+			expect(outcome.ok).toBe(false);
+			expect(outcome.message).toMatch(/dersinin yoklaması alınmış, taşınamaz/);
+		});
 
-			const [, upcoming] = await kayitLessons('reschedule');
-			expect(
-				await runAction(
-					schedule.rescheduleAppointment,
-					{
-						appointmentId: upcoming.appointmentId,
-						newDate: dayOf(-1, 3),
-						newHour: 9,
-						newRoomId: fx.rooms.r1,
-						...studioReason
-					},
-					noParams
-				)
-			).toMatchObject({ ok: false, message: 'Randevu geçmiş bir saate taşınamaz' });
+		// The kayıt's last lesson really happened last Wednesday: it becomes its first
+		const lessons = await kayitLessons('reschedule');
+		const last = lessons[lessons.length - 1];
+		expectOk(
+			await runAction(
+				schedule.rescheduleAppointment,
+				{
+					appointmentId: last.appointmentId,
+					newDate: dayOf(-1, 3),
+					newHour: 9,
+					newRoomId: fx.rooms.r1,
+					...studioReason
+				},
+				noParams
+			)
+		);
+		const [first] = await kayitLessons('reschedule');
+		expect(first).toMatchObject({
+			appointmentId: last.appointmentId,
+			date: dayOf(-1, 3),
+			hour: 9,
+			sessionNumber: 1
 		});
 	});
 });

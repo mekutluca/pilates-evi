@@ -3,11 +3,12 @@
 	import CauseField from './cause-field.svelte';
 	import type { MoveSheetProps } from '$lib/types/ComponentProps';
 	import type { Loadable, MovePreviewPayload, SeriesPatternPayload } from '$lib/types/Api';
-	import type { WeeklySlot } from '$lib/types/Schedule';
+	import type { SlotShift, WeeklySlot } from '$lib/types/Schedule';
 	import type { MoveMode, TransferScope } from '$lib/types/Transfer';
 	import ConflictList from './conflict-list.svelte';
 	import MovePreviewList from './move-preview-list.svelte';
 	import SlotChangesField from './slot-changes-field.svelte';
+	import PastStartHint from './past-start-hint.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -21,7 +22,11 @@
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { toast } from 'svelte-sonner';
 	import { untrack } from 'svelte';
-	import { formatSlotLabel, getAppointmentDateTime } from '$lib/utils/date-utils';
+	import {
+		formatSlotLabel,
+		getAppointmentDateTime,
+		isAppointmentFuture
+	} from '$lib/utils/date-utils';
 	import { actionResultMessage, postAction } from '$lib/utils/api-client';
 	import { actionResource } from '$lib/utils/action-resource.svelte';
 	import { formatSlotChanges } from '$lib/utils/slot-utils';
@@ -57,7 +62,12 @@
 	let amount = $state(1);
 	let roomId = $state(untrack(() => appointment?.room_id ?? ''));
 	let trainerId = $state(untrack(() => appointment?.trainer_id ?? ''));
-	let source = $state<'trainee' | 'studio'>('trainee');
+	// A lesson that has passed moves as a correction of what happened: the studio's, not a
+	// client's request
+	const isPastLesson = untrack(() =>
+		appointment ? !isAppointmentFuture(appointment.date, appointment.hour) : false
+	);
+	let source = $state<'trainee' | 'studio'>(isPastLesson ? 'studio' : 'trainee');
 	let cause = $state('');
 	// Defaults as before the redesign: a single move notifies, a series shift only once a
 	// cause is given, a single trainee's move never; ticking or unticking the box wins
@@ -80,9 +90,9 @@
 	);
 
 	// Haftalık program: the series' current program, loaded when the mode is first chosen;
-	// `targets` holds the new day and hour of each of its slots
+	// `shifts` holds where each of its slots' lessons move
 	let program = $state<Loadable<WeeklySlot[]>>({ status: 'idle' });
-	let targets = $state<WeeklySlot[]>([]);
+	let shifts = $state<SlotShift[]>([]);
 	async function loadProgram() {
 		if (!appointment || program.status === 'ready' || program.status === 'loading') return;
 		program = { status: 'loading' };
@@ -90,7 +100,7 @@
 		fd.set('appointmentId', String(appointment.id));
 		const result = await postAction<SeriesPatternPayload>('seriesPattern', fd);
 		if (result.type === 'success' && result.data) {
-			targets = result.data.slots.map((s) => ({ ...s }));
+			shifts = result.data.slots.map((s) => ({ days: 0, hour: s.hour }));
 			program = { status: 'ready', value: result.data.slots };
 		} else {
 			program = { status: 'failed', message: actionResultMessage(result) };
@@ -98,7 +108,7 @@
 	}
 
 	const slotChanges = $derived(
-		program.status === 'ready' ? formatSlotChanges(program.value, targets) : ''
+		program.status === 'ready' ? formatSlotChanges(program.value, shifts) : ''
 	);
 
 	// A client's own request costs a coordinator a credit and needs 23 h notice
@@ -106,6 +116,7 @@
 		if (!appointment || mode !== 'time' || source !== 'trainee' || userRole === 'admin') {
 			return null;
 		}
+		if (isPastLesson) return 'Geçmiş bir randevu öğrenci talebiyle taşınamaz.';
 		if (!appointment.purchase_id || (appointment.reschedule_left ?? 0) <= 0) {
 			return 'Bu kaydın değişiklik hakkı kalmamış.';
 		}
@@ -145,9 +156,12 @@
 	});
 
 	const timeReady = $derived(mode === 'time' && pickedSlot !== null);
+	// Only lessons whose new time is still ahead are messaged
 	const recipients = $derived(
 		mode === 'time'
-			? (appointment?.trainee_count ?? 0)
+			? pickedSlot && isAppointmentFuture(pickedSlot.date, pickedSlot.hour)
+				? (appointment?.trainee_count ?? 0)
+				: 0
 			: preview.current.status === 'ready'
 				? preview.current.value.recipientCount
 				: 0
@@ -205,6 +219,11 @@
 			</Sheet.Header>
 
 			<div class="space-y-6 px-6 py-5">
+				{#if isPastLesson}
+					<PastStartHint>
+						Geçmiş randevu: taşımak olanı düzeltir. Yoklaması alınmış dersler yerinde kalır.
+					</PastStartHint>
+				{/if}
 				<div class="grid gap-2">
 					<Label id="move-mode-label">Ne değişsin?</Label>
 					<ToggleGroup.Root
@@ -275,11 +294,12 @@
 					{#if program.status === 'ready'}
 						<SlotChangesField
 							from={program.value}
-							bind:targets
+							bind:shifts
+							start={{ date: appointment.date, hour: appointment.hour }}
 							legend="Ders saatleri"
 							hint={isGroupLesson
-								? 'Grup dersinin programı bu randevunun gününden itibaren değişir. Tüm öğrenciler taşınır, yeni haftalar da bu programla açılır.'
-								: 'Bu randevudan itibaren her ders aynı haftanın yeni gün ve saatine taşınır. Kayıt yenilenirken de yeni program kullanılır.'}
+								? 'İlk dersin yeni tarihini seçin. Grup dersinin programı bu randevunun gününden itibaren değişir; tüm öğrenciler taşınır, yeni haftalar da bu programla açılır.'
+								: 'İlk dersin yeni tarihini seçin; sonraki dersler de her hafta aynı gün ve saate taşınır. Kayıt yenilenirken de yeni program kullanılır.'}
 						/>
 					{:else if program.status === 'failed'}
 						<LoadError message={program.message} onRetry={loadProgram} />
@@ -397,9 +417,6 @@
 									title={`${preview.current.value.conflicts.length} çakışma var, taşınamaz.`}
 								/>
 							{/if}
-							<p class="text-sm text-muted-foreground">
-								{preview.current.value.rows.length} randevu taşınacak
-							</p>
 							<MovePreviewList rows={preview.current.value.rows} {rooms} {trainers} />
 						{/if}
 					</section>

@@ -20,16 +20,22 @@ export interface WeeklySlot {
 	hour: number;
 }
 
-// One slot of a weekly program and where it moves to (the same week's new day and hour)
-export interface SlotChange {
-	from: WeeklySlot;
-	to: WeeklySlot;
+// Where a weekly slot's lessons go: each one `days` days later (-6..6, earlier when
+// negative) at `hour`. The Taşı forms pick it as the first lesson's new date.
+export interface SlotShift {
+	days: number;
+	hour: number;
 }
 
-// Slot changes checked against the program: each changed slot's new one by old slot key
+// One slot of a weekly program and where its lessons move
+export interface SlotChange extends SlotShift {
+	from: WeeklySlot;
+}
+
+// Slot changes checked against the program: each changed slot's shift by old slot key
 // (weeklySlotKey), and the new program
 export interface ResolvedSlotChanges {
-	changes: Map<string, WeeklySlot>;
+	changes: Map<string, SlotShift>;
 	slots: WeeklySlot[];
 }
 

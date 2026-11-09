@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { GroupSessionRef, SortedTraineeRecord, WeeklySlot } from '$lib/types/Schedule';
+import type {
+	GroupSessionRef,
+	SlotShift,
+	SortedTraineeRecord,
+	WeeklySlot
+} from '$lib/types/Schedule';
 import { parseLocalDate } from '$lib/utils/date-utils';
 import {
 	buildAppointmentSlotsFromStart,
 	calculateExtensionStartDate,
 	compareSlots,
+	firstSlotDate,
 	formatSlotChanges,
 	formatWeeklyPattern,
 	getStartingAppointmentCandidates,
@@ -13,6 +19,7 @@ import {
 	planMemberSlotShift,
 	recurringPattern,
 	resolveSlotChanges,
+	shiftWeekday,
 	slotChangeTarget,
 	sortTimeSlots
 } from '$lib/utils/slot-utils';
@@ -160,57 +167,86 @@ describe('slot changes', () => {
 		{ day: 'thursday', hour: 12 }
 	] satisfies WeeklySlot[];
 
-	test('slotChangeTarget moves a changed slot within its Monday-first week', () => {
-		const changes = new Map([
-			['thursday-12', { day: 'friday', hour: 18 }],
-			['sunday-12', { day: 'monday', hour: 9 }]
-		] satisfies [string, WeeklySlot][]);
+	test('slotChangeTarget moves a changed slot by its days, to the new hour', () => {
+		const changes = new Map<string, SlotShift>([
+			['thursday-12', { days: 1, hour: 18 }],
+			// Salı → the Monday before, and Pazar → the Monday after
+			['tuesday-9', { days: -1, hour: 9 }],
+			['sunday-12', { days: 1, hour: 9 }]
+		]);
 		expect(slotChangeTarget({ date: '2026-10-22', hour: 12 }, changes)).toEqual({
 			date: '2026-10-23',
 			hour: 18
 		});
+		expect(slotChangeTarget({ date: '2026-11-10', hour: 9 }, changes)).toEqual({
+			date: '2026-11-09',
+			hour: 9
+		});
 		expect(slotChangeTarget({ date: '2026-10-25', hour: 12 }, changes)).toEqual({
-			date: '2026-10-19',
+			date: '2026-10-26',
 			hour: 9
 		});
 		expect(slotChangeTarget({ date: '2026-10-20', hour: 12 }, changes)).toBeNull();
 	});
 
-	test('resolveSlotChanges gives the changes and the new program', () => {
+	test('resolveSlotChanges gives the shifts and the new program', () => {
 		const resolved = resolveSlotChanges(TUE_THU, [
-			{ from: { day: 'thursday', hour: 12 }, to: { day: 'friday', hour: 18 } },
-			{ from: { day: 'tuesday', hour: 12 }, to: { day: 'tuesday', hour: 12 } }
+			{ from: { day: 'thursday', hour: 12 }, days: 1, hour: 18 },
+			{ from: { day: 'tuesday', hour: 12 }, days: 0, hour: 12 }
 		]);
 		expect(resolved).toEqual({
-			changes: new Map([['thursday-12', { day: 'friday', hour: 18 }]]),
+			changes: new Map([['thursday-12', { days: 1, hour: 18 }]]),
 			slots: [
 				{ day: 'tuesday', hour: 12 },
 				{ day: 'friday', hour: 18 }
 			]
 		});
+		// Six days on wraps the weekday: Perşembe → the next Çarşamba
+		expect(
+			resolveSlotChanges(TUE_THU, [{ from: { day: 'thursday', hour: 12 }, days: 6, hour: 12 }])
+		).toMatchObject({ slots: [{ day: 'tuesday' }, { day: 'wednesday' }] });
 	});
 
-	test('resolveSlotChanges rejects slots off the program and collisions', () => {
+	test('resolveSlotChanges rejects slots off the program, collisions and a week or more', () => {
 		expect(
-			resolveSlotChanges(TUE_THU, [
-				{ from: { day: 'monday', hour: 12 }, to: { day: 'friday', hour: 12 } }
-			])
+			resolveSlotChanges(TUE_THU, [{ from: { day: 'monday', hour: 12 }, days: 4, hour: 12 }])
 		).toBe('Seçilen saat dersin haftalık programında yok');
 		expect(
-			resolveSlotChanges(TUE_THU, [
-				{ from: { day: 'thursday', hour: 12 }, to: { day: 'tuesday', hour: 12 } }
-			])
+			resolveSlotChanges(TUE_THU, [{ from: { day: 'thursday', hour: 12 }, days: -2, hour: 12 }])
 		).toBe('İki ders saati aynı gün ve saate taşınamaz');
+		expect(
+			resolveSlotChanges(TUE_THU, [{ from: { day: 'thursday', hour: 12 }, days: 7, hour: 12 }])
+		).toBe('Yeni tarih ilk dersten en fazla 6 gün önce veya sonra olabilir');
 	});
 
 	test('formatSlotChanges lists only the changed slots', () => {
 		expect(
 			formatSlotChanges(TUE_THU, [
-				{ day: 'tuesday', hour: 12 },
-				{ day: 'friday', hour: 12 }
+				{ days: -1, hour: 12 },
+				{ days: 1, hour: 12 }
 			])
-		).toBe('thursday-12>friday-12');
-		expect(formatSlotChanges(TUE_THU, TUE_THU)).toBe('');
+		).toBe('tuesday-12>-1:12,thursday-12>1:12');
+		expect(
+			formatSlotChanges(TUE_THU, [
+				{ days: 0, hour: 12 },
+				{ days: 0, hour: 12 }
+			])
+		).toBe('');
+	});
+
+	test('firstSlotDate is the first lesson on the slot at or after the start', () => {
+		const tuesday9 = { day: 'tuesday', hour: 9 } satisfies WeeklySlot;
+		expect(firstSlotDate(tuesday9, { date: '2026-11-09', hour: 0 })).toBe('2026-11-10');
+		expect(firstSlotDate(tuesday9, { date: '2026-11-10', hour: 9 })).toBe('2026-11-10');
+		// After the start hour on the same day, it is the next week's
+		expect(firstSlotDate(tuesday9, { date: '2026-11-10', hour: 10 })).toBe('2026-11-17');
+	});
+
+	test('shiftWeekday wraps both ways', () => {
+		expect(shiftWeekday('tuesday', -1)).toBe('monday');
+		expect(shiftWeekday('monday', -1)).toBe('sunday');
+		expect(shiftWeekday('sunday', 1)).toBe('monday');
+		expect(shiftWeekday('tuesday', 6)).toBe('monday');
 	});
 });
 

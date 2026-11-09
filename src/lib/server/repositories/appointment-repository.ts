@@ -204,7 +204,7 @@ export class AppointmentRepository {
 		return recurringPattern(await this.getSeries(appointmentId, 'from_selected'));
 	}
 
-	/** A group lesson's upcoming sessions from `fromDate` on, chronological, one-offs included. */
+	/** A group lesson's sessions from `fromDate` on (past ones too), chronological, one-offs included. */
 	async getGroupLessonSessions(
 		groupLessonId: string,
 		fromDate: string
@@ -214,7 +214,7 @@ export class AppointmentRepository {
 			.select(SERIES_SELECT)
 			.eq('group_lesson_id', groupLessonId)
 			.gte('date', fromDate);
-		return (data ?? []).filter((row) => isAppointmentFuture(row.date, row.hour)).sort(compareSlots);
+		return (data ?? []).sort(compareSlots);
 	}
 
 	/**
