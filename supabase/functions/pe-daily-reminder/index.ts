@@ -2,12 +2,16 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 // These files are import-free, so Deno can load them straight from the app's source.
 import type { Database } from '../../../src/lib/types/database.types.ts';
-import type { DailyReminder } from '../../../src/lib/types/WhatsApp.ts';
 import { formatPhoneNumber } from '../../../src/lib/utils/phone-utils.ts';
+import {
+	bindingsFromJson,
+	paramsFromJson,
+	reminderData,
+	resolveParams
+} from '../../../src/lib/whatsapp/template-params.ts';
+import type { WaReminder } from '../../../src/lib/types/WhatsAppTemplate.ts';
 
 const CHAKRA_BASE_URL = 'https://api.chakrahq.com/v1/ext';
-
-const TEMPLATE_NAME = 'daily_appt_reminder';
 
 Deno.serve(async (req) => {
 	const cronSecret = Deno.env.get('CRON_SECRET')!;
@@ -33,25 +37,60 @@ Deno.serve(async (req) => {
 		new Date(Date.now() + 24 * 60 * 60 * 1000)
 	);
 
-	// Tomorrow's enrollments of active trainees in studios with WhatsApp on (the Demo
-	// studio is off: its trainees are synthetic)
+	// Studios with WhatsApp on (the Demo studio is off: its trainees are synthetic) and the
+	// reminder set up on the WhatsApp page with an approved template
+	const { data: flows, error: flowError } = await supabase
+		.from('pe_wa_flows')
+		.select(
+			'organization_id, params, pe_organizations!inner(name, whatsapp_enabled), pe_wa_templates!inner(name, params, status)'
+		)
+		.eq('flow', 'daily_reminder')
+		.eq('pe_organizations.whatsapp_enabled', true);
+
+	if (flowError) {
+		return new Response(JSON.stringify({ error: flowError.message }), {
+			status: 500,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+
+	const skipped: string[] = [];
+	const studios = (flows ?? []).filter((flow) => {
+		const approved = flow.pe_wa_templates.status === 'approved';
+		if (!approved) skipped.push(`${flow.pe_organizations.name}: template not approved`);
+		return approved;
+	});
+	if (studios.length === 0) {
+		return new Response(
+			JSON.stringify({ message: 'No studio sends reminders', sent: 0, failed: 0, skipped }),
+			{ headers: { 'Content-Type': 'application/json' } }
+		);
+	}
+
+	// Tomorrow's enrollments of active trainees in those studios
 	const queryStart = performance.now();
 	const { data: rows, error: queryError } = await supabase
 		.from('pe_appointment_trainees')
 		.select(
 			`
+			organization_id,
 			pe_appointments!inner(
 				date,
 				hour,
+				pe_rooms(name),
+				pe_trainers(name),
 				pe_purchases(pe_packages(name)),
 				pe_group_lessons(pe_packages(name))
 			),
-			pe_trainees!inner(name, phone, pe_organizations!inner(whatsapp_enabled))
+			pe_trainees!inner(name, phone)
 		`
 		)
 		.eq('pe_appointments.date', tomorrowStr)
 		.eq('pe_trainees.is_active', true)
-		.eq('pe_trainees.pe_organizations.whatsapp_enabled', true);
+		.in(
+			'organization_id',
+			studios.map((s) => s.organization_id)
+		);
 
 	const queryDuration = Math.round(performance.now() - queryStart);
 	console.log(
@@ -72,27 +111,55 @@ Deno.serve(async (req) => {
 		);
 	}
 
-	const reminders: DailyReminder[] = rows.map((row) => ({
-		traineePhone: row.pe_trainees.phone,
-		packageName:
-			row.pe_appointments.pe_purchases?.pe_packages.name ??
-			row.pe_appointments.pe_group_lessons?.pe_packages.name ??
-			'',
-		formattedTime: `${String(row.pe_appointments.hour).padStart(2, '0')}:00`
-	}));
+	const studioById = new Map(
+		studios.map((s) => [
+			s.organization_id,
+			{
+				name: s.pe_organizations.name,
+				templateName: s.pe_wa_templates.name,
+				params: paramsFromJson(s.pe_wa_templates.params),
+				bindings: bindingsFromJson(s.params)
+			}
+		])
+	);
+
+	const reminders: WaReminder[] = rows.flatMap((row) => {
+		const studio = studioById.get(row.organization_id);
+		if (!studio) return [];
+		const appointment = row.pe_appointments;
+		const data = reminderData({
+			name: row.pe_trainees.name,
+			packageName:
+				appointment.pe_purchases?.pe_packages.name ??
+				appointment.pe_group_lessons?.pe_packages.name ??
+				'',
+			studio: studio.name,
+			date: appointment.date,
+			hour: appointment.hour,
+			trainer: appointment.pe_trainers?.name ?? '',
+			room: appointment.pe_rooms?.name ?? ''
+		});
+		return [
+			{
+				phone: row.pe_trainees.phone,
+				templateName: studio.templateName,
+				mapping: resolveParams(studio.params, studio.bindings, data).map((p) => ({
+					schemaPropertyName: p.name,
+					schemaPropertyValue: p.value
+				}))
+			}
+		];
+	});
 
 	// Send template messages concurrently
-	const sendMessage = async (appointment: DailyReminder) => {
-		const phone = formatPhoneNumber(appointment.traineePhone);
+	const sendMessage = async (reminder: WaReminder) => {
+		const phone = formatPhoneNumber(reminder.phone);
 		const url = `${CHAKRA_BASE_URL}/plugin/whatsapp/${chakraPluginId}/phoneNumber/${phone}/send-template-message`;
 
 		const body = {
-			templateName: TEMPLATE_NAME,
+			templateName: reminder.templateName,
 			whatsappPhoneNumberId: chakraPhoneNumberId,
-			mapping: [
-				{ schemaPropertyName: 'package', schemaPropertyValue: appointment.packageName },
-				{ schemaPropertyName: 'time', schemaPropertyValue: appointment.formattedTime }
-			]
+			mapping: reminder.mapping
 		};
 
 		try {
@@ -163,7 +230,8 @@ Deno.serve(async (req) => {
 			totalAppointments: reminders.length,
 			sent,
 			failed,
-			...(errors.length > 0 && { errors })
+			...(errors.length > 0 && { errors }),
+			...(skipped.length > 0 && { skipped })
 		}),
 		{ headers: { 'Content-Type': 'application/json' } }
 	);

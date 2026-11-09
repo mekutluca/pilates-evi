@@ -78,14 +78,14 @@ export async function shiftGroupTraineesOn(
 	const { data: appointment } = await supabase
 		.from('pe_appointments')
 		.select(
-			'date, hour, pe_group_lessons(pe_packages(name)), pe_appointment_trainees(trainee_id, makeup_for_id, pe_trainees(phone))'
+			'date, hour, pe_group_lessons(pe_packages(name)), pe_appointment_trainees(trainee_id, makeup_for_id, pe_trainees(name, phone))'
 		)
 		.eq('id', appointmentId)
 		.maybeSingle();
 	if (!appointment) return { error: 'Randevu bulunamadı', changes: [] };
 
 	const moves: ShiftedTraineeRecord[] = [];
-	const phoneByTarget: Array<{ phone: string; newAppointmentId: number }> = [];
+	const phoneByTarget: Array<{ phone: string; name: string; newAppointmentId: number }> = [];
 	for (const enrollment of appointment.pe_appointment_trainees) {
 		// A make-up has no series to shift in: it goes with the session, and the missed
 		// lesson it replaced awaits a new decision (database trigger)
@@ -97,6 +97,7 @@ export async function shiftGroupTraineesOn(
 		if (own) {
 			phoneByTarget.push({
 				phone: enrollment.pe_trainees.phone,
+				name: enrollment.pe_trainees.name,
 				newAppointmentId: own.newAppointmentId
 			});
 		}
@@ -110,12 +111,13 @@ export async function shiftGroupTraineesOn(
 		.in('id', [...new Set(phoneByTarget.map((p) => p.newAppointmentId))]);
 	const targetById = new Map((targets ?? []).map((t) => [t.id, t]));
 	const packageName = appointment.pe_group_lessons?.pe_packages.name ?? '';
-	const changes: ScheduleChange[] = phoneByTarget.flatMap(({ phone, newAppointmentId }) => {
+	const changes: ScheduleChange[] = phoneByTarget.flatMap(({ phone, name, newAppointmentId }) => {
 		const target = targetById.get(newAppointmentId);
 		return target
 			? [
 					{
 						phone,
+						name,
 						packageName,
 						oldDate: appointment.date,
 						oldHour: appointment.hour,

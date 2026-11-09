@@ -34,6 +34,7 @@ export interface AbsenceResolution {
 // The missed lesson a decision is about, with what placing its replacement needs
 export interface MissedLesson {
 	traineeId: string;
+	traineeName: string;
 	phone: string;
 	purchaseId: string;
 	packageId: string;

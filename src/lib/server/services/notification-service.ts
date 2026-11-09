@@ -1,18 +1,32 @@
 import type { MovedAppointment } from '$lib/types/Transfer';
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { NotifyResult, ScheduleChange, ScheduleChangeMessage } from '$lib/types/WhatsApp';
+import type {
+	ChangeFlowKey,
+	ChangeTemplate,
+	NotifyResult,
+	ScheduleChange,
+	ScheduleChangeMessage,
+	StudioMessaging
+} from '$lib/types/WhatsApp';
 import type { WhatsAppRepository } from '$lib/whatsapp/WhatsAppRepository';
 import { getWhatsAppRepository } from '$lib/whatsapp';
-import { formatShortTurkishDateTime, isAppointmentFuture } from '$lib/utils/date-utils';
+import {
+	bindingsFromJson,
+	paramsFromJson,
+	resolveParams,
+	scheduleChangeData
+} from '$lib/whatsapp/template-params';
+import { isAppointmentFuture } from '$lib/utils/date-utils';
 import { compareSlots } from '$lib/utils/slot-utils';
 
 // Chakra rate limits: send in small concurrent batches
 const BATCH_SIZE = 10;
 
-const TEMPLATES = {
-	system: 'appt_reschedule_by_system',
-	trainee_request: 'appt_reschedule_per_user_request'
-} as const;
+const STUDIO_OFF: StudioMessaging = { enabled: false, studioName: '', flows: {} };
+
+function flowFor(message: ScheduleChangeMessage): ChangeFlowKey {
+	return message.kind === 'system' ? 'schedule_change_studio' : 'schedule_change_request';
+}
 
 function compareOld(a: ScheduleChange, b: ScheduleChange) {
 	return compareSlots({ date: a.oldDate, hour: a.oldHour }, { date: b.oldDate, hour: b.oldHour });
@@ -21,12 +35,13 @@ function compareOld(a: ScheduleChange, b: ScheduleChange) {
 /**
  * Tells trainees their lessons moved. Every flow (reschedule, series shift, day closing)
  * goes through here, so a trainee whose whole series moves gets one message about the
- * first lesson that changed, not one per appointment.
+ * first lesson that changed, not one per appointment. What the message says is the
+ * studio's choice on the WhatsApp page: a template and what fills each of its parameters.
  */
 export class NotificationService {
 	constructor(
-		private whatsapp: WhatsAppRepository = getWhatsAppRepository(),
-		private enabled = true
+		private studio: StudioMessaging,
+		private whatsapp: WhatsAppRepository = getWhatsAppRepository()
 	) {}
 
 	/**
@@ -37,13 +52,32 @@ export class NotificationService {
 		supabase: SupabaseClientType,
 		organizationId: string | null
 	): Promise<NotificationService> {
-		if (!organizationId) return new NotificationService(undefined, false);
-		const { data } = await supabase
-			.from('pe_organizations')
-			.select('whatsapp_enabled')
-			.eq('id', organizationId)
-			.maybeSingle();
-		return new NotificationService(undefined, data?.whatsapp_enabled === true);
+		if (!organizationId) return new NotificationService(STUDIO_OFF);
+		const [{ data: studio }, { data: flows }] = await Promise.all([
+			supabase
+				.from('pe_organizations')
+				.select('name, whatsapp_enabled')
+				.eq('id', organizationId)
+				.maybeSingle(),
+			supabase
+				.from('pe_wa_flows')
+				.select('flow, params, pe_wa_templates(name, params, status)')
+				.in('flow', ['schedule_change_studio', 'schedule_change_request'])
+		]);
+		if (studio?.whatsapp_enabled !== true) return new NotificationService(STUDIO_OFF);
+
+		const templates: StudioMessaging['flows'] = {};
+		for (const row of flows ?? []) {
+			const template = row.pe_wa_templates;
+			if (!template) continue;
+			templates[row.flow as ChangeFlowKey] = {
+				name: template.name,
+				params: paramsFromJson(template.params),
+				bindings: bindingsFromJson(row.params),
+				approved: template.status === 'approved'
+			};
+		}
+		return new NotificationService({ enabled: true, studioName: studio.name, flows: templates });
 	}
 
 	/**
@@ -63,6 +97,7 @@ export class NotificationService {
 				'';
 			return appointment.pe_appointment_trainees.map((enrollment) => ({
 				phone: enrollment.pe_trainees.phone,
+				name: enrollment.pe_trainees.name,
 				packageName,
 				oldDate: appointment.date,
 				oldHour: appointment.hour,
@@ -79,44 +114,48 @@ export class NotificationService {
 	 * Failed sends are counted, not thrown: the schedule change itself has been saved.
 	 */
 	async notify(changes: ScheduleChange[], message: ScheduleChangeMessage): Promise<NotifyResult> {
-		if (!this.enabled) return { sent: 0, failed: 0, disabled: true };
+		if (!this.studio.enabled) return { sent: 0, failed: 0, skipped: 'studio_off' };
 		const firstChange = new Map<string, ScheduleChange>();
 		for (const change of NotificationService.upcoming(changes).sort(compareOld)) {
 			const key = `${change.phone}|${change.packageName}`;
 			if (change.phone && !firstChange.has(key)) firstChange.set(key, change);
 		}
-
 		const toSend = [...firstChange.values()];
+		if (toSend.length === 0) return { sent: 0, failed: 0, skipped: null };
+
+		const template = this.studio.flows[flowFor(message)];
+		if (!template) return { sent: 0, failed: 0, skipped: 'flow_off' };
+		if (!template.approved) return { sent: 0, failed: 0, skipped: 'not_approved' };
+
 		let sent = 0;
 		for (let i = 0; i < toSend.length; i += BATCH_SIZE) {
 			const results = await Promise.all(
-				toSend.slice(i, i + BATCH_SIZE).map((change) => this.send(change, message))
+				toSend.slice(i, i + BATCH_SIZE).map((change) => this.send(change, message, template))
 			);
 			sent += results.filter(Boolean).length;
 		}
-		return { sent, failed: toSend.length - sent, disabled: false };
+		return { sent, failed: toSend.length - sent, skipped: null };
 	}
 
-	private async send(change: ScheduleChange, message: ScheduleChangeMessage): Promise<boolean> {
-		const mapping = [
-			{
-				schemaPropertyName: 'old_date_time',
-				schemaPropertyValue: formatShortTurkishDateTime(change.oldDate, change.oldHour)
-			},
-			{ schemaPropertyName: 'package', schemaPropertyValue: change.packageName.trim() },
-			{
-				schemaPropertyName: 'new_date_time',
-				schemaPropertyValue: formatShortTurkishDateTime(change.newDate, change.newHour)
-			}
-		];
-		if (message.kind === 'system') {
-			mapping.push({ schemaPropertyName: 'cause', schemaPropertyValue: message.cause.trim() });
-		}
+	private async send(
+		change: ScheduleChange,
+		message: ScheduleChangeMessage,
+		template: ChangeTemplate
+	): Promise<boolean> {
+		const data = scheduleChangeData({
+			...change,
+			studio: this.studio.studioName,
+			cause: message.kind === 'system' ? message.cause : ''
+		});
+		const mapping = resolveParams(template.params, template.bindings, data).map((p) => ({
+			schemaPropertyName: p.name,
+			schemaPropertyValue: p.value
+		}));
 
 		try {
 			await this.whatsapp.sendTemplateMessage({
 				phoneNumber: change.phone,
-				templateName: TEMPLATES[message.kind],
+				templateName: template.name,
 				mapping
 			});
 			return true;

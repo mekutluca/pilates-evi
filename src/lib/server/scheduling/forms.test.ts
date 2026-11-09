@@ -167,10 +167,13 @@ describe('parseMoveReason and notifications', () => {
 
 	test('notifiedSuffix', () => {
 		expect(notifiedSuffix(null)).toBe('');
-		expect(notifiedSuffix({ sent: 0, failed: 0, disabled: true })).toBe(
+		expect(notifiedSuffix({ sent: 0, failed: 0, skipped: 'studio_off' })).toBe(
 			' Bu stüdyoda WhatsApp kapalı, mesaj gönderilmedi.'
 		);
-		expect(notifiedSuffix({ sent: 2, failed: 1, disabled: false })).toBe(
+		expect(notifiedSuffix({ sent: 0, failed: 0, skipped: 'flow_off' })).toBe(
+			' Bu mesaj WhatsApp sayfasında kapalı, mesaj gönderilmedi.'
+		);
+		expect(notifiedSuffix({ sent: 2, failed: 1, skipped: null })).toBe(
 			' 2 öğrenciye WhatsApp mesajı gönderildi. 1 öğrenciye mesaj gönderilemedi, onlara ayrıca haber verin.'
 		);
 	});

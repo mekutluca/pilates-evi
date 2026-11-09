@@ -318,7 +318,7 @@ export class SchedulingService {
 				.from('pe_appointments')
 				.select('id, date, hour, room_id, trainer_id, pe_group_lessons(pe_packages(name))')
 				.in('id', ids),
-			this.supabase.from('pe_trainees').select('phone').eq('id', traineeId).maybeSingle()
+			this.supabase.from('pe_trainees').select('name, phone').eq('id', traineeId).maybeSingle()
 		]);
 		const byId = new Map((appointments ?? []).map((a) => [a.id, a]));
 
@@ -332,6 +332,7 @@ export class SchedulingService {
 			if (trainee) {
 				changes.push({
 					phone: trainee.phone,
+					name: trainee.name,
 					packageName: from.pe_group_lessons?.pe_packages.name ?? '',
 					oldDate: from.date,
 					oldHour: from.hour,
@@ -355,7 +356,7 @@ export class SchedulingService {
 				.from('pe_appointments')
 				.select('id, date, hour, room_id, trainer_id, pe_group_lessons(pe_packages(name))')
 				.in('id', appointmentIds),
-			this.supabase.from('pe_trainees').select('phone').eq('id', traineeId).maybeSingle()
+			this.supabase.from('pe_trainees').select('name, phone').eq('id', traineeId).maybeSingle()
 		]);
 		const ordered = (appointments ?? []).sort(compareSlots);
 		return {
@@ -369,6 +370,7 @@ export class SchedulingService {
 			changes: trainee
 				? ordered.map((a) => ({
 						phone: trainee.phone,
+						name: trainee.name,
 						packageName: a.pe_group_lessons?.pe_packages.name ?? '',
 						oldDate: a.date,
 						oldHour: a.hour,

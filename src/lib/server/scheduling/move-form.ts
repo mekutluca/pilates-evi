@@ -67,7 +67,12 @@ export function wantsNotification(formData: FormData): boolean {
 /** Appended to a success message when clients were messaged (null: not asked to). */
 export function notifiedSuffix(result: NotifyResult | null): string {
 	if (!result) return '';
-	if (result.disabled) return ' Bu stüdyoda WhatsApp kapalı, mesaj gönderilmedi.';
+	if (result.skipped === 'studio_off') return ' Bu stüdyoda WhatsApp kapalı, mesaj gönderilmedi.';
+	if (result.skipped === 'flow_off')
+		return ' Bu mesaj WhatsApp sayfasında kapalı, mesaj gönderilmedi.';
+	if (result.skipped === 'not_approved') {
+		return ' Mesajın WhatsApp şablonu onaylı değil, mesaj gönderilmedi; öğrencilere ayrıca haber verin.';
+	}
 	const sent = result.sent > 0 ? ` ${result.sent} öğrenciye WhatsApp mesajı gönderildi.` : '';
 	const failed =
 		result.failed > 0

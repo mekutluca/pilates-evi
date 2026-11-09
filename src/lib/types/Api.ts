@@ -1,3 +1,4 @@
+import type { WaImportCandidate } from '$lib/types/WhatsAppTemplate';
 import type { SlotConflict } from '$lib/types/Conflict';
 import type { CloseDayPreview, DayCancellationConflict } from '$lib/types/Operation';
 import type { MovePreviewRow } from '$lib/types/Transfer';
@@ -75,3 +76,6 @@ export interface EnhanceFormOptions {
 	// Reset the form fields after the action (default true)
 	reset?: boolean;
 }
+
+// importCandidates (WhatsApp page): account templates the studio doesn't list yet
+export type WaImportCandidatesPayload = ActionPayload & { candidates: WaImportCandidate[] };

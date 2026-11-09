@@ -6,6 +6,7 @@ import Calendar from '@lucide/svelte/icons/calendar';
 import Package from '@lucide/svelte/icons/package';
 import DoorOpen from '@lucide/svelte/icons/door-open';
 import ShieldUser from '@lucide/svelte/icons/shield-user';
+import MessageCircle from '@lucide/svelte/icons/message-circle';
 import Plus from '@lucide/svelte/icons/plus';
 import type { Role } from './Role';
 
@@ -71,6 +72,13 @@ export const allRoutes: Route[] = [
 		href: '/rooms',
 		label: 'Odalar',
 		icon: DoorOpen,
+		availableToRoles: ['admin'],
+		group: 'Yönetim'
+	},
+	{
+		href: '/whatsapp',
+		label: 'WhatsApp',
+		icon: MessageCircle,
 		availableToRoles: ['admin'],
 		group: 'Yönetim'
 	},

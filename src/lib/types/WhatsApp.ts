@@ -1,7 +1,12 @@
-export interface TemplateMapping {
-	schemaPropertyName: string;
-	schemaPropertyValue: string;
-}
+import type {
+	TemplateMapping,
+	WaFlow,
+	WaFlowKey,
+	WaParamBindings,
+	WaTemplate,
+	WaTemplateParam
+} from '$lib/types/WhatsAppTemplate';
+import type Clock from '@lucide/svelte/icons/clock';
 
 export interface WhatsAppConfig {
 	apiKey: string;
@@ -40,6 +45,7 @@ export interface TemplateMessageData {
 // One trainee's lesson moving from one slot to another.
 export interface ScheduleChange {
 	phone: string;
+	name: string;
 	packageName: string;
 	oldDate: string;
 	oldHour: number;
@@ -47,21 +53,57 @@ export interface ScheduleChange {
 	newHour: number;
 }
 
-// Which WhatsApp template a schedule change is announced with: the studio moved the
-// lesson (with a cause), or the trainee asked for it.
+// Why NotificationService.notify sent nothing: the studio has WhatsApp off (the Demo
+// studio), the message is switched off on the WhatsApp page, or its template is not
+// approved (yet)
+export type NotifySkip = 'studio_off' | 'flow_off' | 'not_approved';
+
 // What NotificationService.notify did: messages sent and messages that failed
 export interface NotifyResult {
 	sent: number;
 	failed: number;
-	// The studio has WhatsApp off (the Demo studio): nothing was sent
-	disabled: boolean;
+	skipped: NotifySkip | null;
 }
 
+// Which automatic message announces a schedule change: the studio moved the lesson (with
+// a cause), or the trainee asked for it.
 export type ScheduleChangeMessage = { kind: 'system'; cause: string } | { kind: 'trainee_request' };
 
-// One daily reminder (pe-daily-reminder edge function)
-export interface DailyReminder {
-	traineePhone: string;
-	packageName: string;
-	formattedTime: string;
+// The WhatsApp page (admin): the studio's templates and its automatic messages
+export interface WhatsAppPageData {
+	templates: WaTemplate[];
+	flows: WaFlow[];
+	studioName: string;
+	// The studio's WhatsApp switch (off: nothing is sent, the Demo studio)
+	studioEnabled: boolean;
+	// Why templates can't be submitted to WhatsApp now, or null
+	submitBlocked: string | null;
+}
+
+// The template a schedule-change message goes out with, as the studio set it up
+export interface ChangeTemplate {
+	name: string;
+	params: WaTemplateParam[];
+	bindings: WaParamBindings;
+	approved: boolean;
+}
+
+export type ChangeFlowKey = Extract<
+	WaFlowKey,
+	'schedule_change_studio' | 'schedule_change_request'
+>;
+
+// What NotificationService needs to know about the studio
+export interface StudioMessaging {
+	enabled: boolean;
+	studioName: string;
+	// A missing flow is switched off (no template chosen)
+	flows: Partial<Record<ChangeFlowKey, ChangeTemplate>>;
+}
+
+// Why an automatic message isn't going out, as its row on the WhatsApp page says it
+export interface WaFlowIssue {
+	label: string;
+	variant: 'outline' | 'destructive';
+	icon: typeof Clock;
 }

@@ -32,7 +32,7 @@ const MAKEUP_WINDOW_DAYS = 28;
 
 const ENROLLMENT_SELECT = `
 	trainee_id, purchase_id,
-	pe_trainees(phone),
+	pe_trainees(name, phone),
 	pe_purchases(id, package_id, pe_packages(name, package_type, max_capacity)),
 	pe_appointments(date, hour, room_id, trainer_id, group_lesson_id)
 ` as const;
@@ -223,6 +223,7 @@ export class AttendanceService {
 	private changeFor(missed: MissedLesson, replacement: SlotRef): ScheduleChange {
 		return {
 			phone: missed.phone,
+			name: missed.traineeName,
 			packageName: missed.packageName,
 			oldDate: missed.appointment.date,
 			oldHour: missed.appointment.hour,
@@ -242,6 +243,7 @@ export class AttendanceService {
 		const pkg = data.pe_purchases.pe_packages;
 		return {
 			traineeId: data.trainee_id,
+			traineeName: data.pe_trainees.name,
 			phone: data.pe_trainees.phone,
 			purchaseId: data.purchase_id,
 			packageId: data.pe_purchases.package_id,

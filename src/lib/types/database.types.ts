@@ -558,6 +558,104 @@ export type Database = {
 					}
 				];
 			};
+			pe_wa_flows: {
+				Row: {
+					flow: string;
+					organization_id: string;
+					params: Json;
+					template_id: string | null;
+					updated_at: string;
+				};
+				Insert: {
+					flow: string;
+					organization_id?: string;
+					params?: Json;
+					template_id?: string | null;
+					updated_at?: string;
+				};
+				Update: {
+					flow?: string;
+					organization_id?: string;
+					params?: Json;
+					template_id?: string | null;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_wa_flows_organization_id_fkey';
+						columns: ['organization_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_organizations';
+						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_wa_flows_organization_id_template_id_fkey';
+						columns: ['organization_id', 'template_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_wa_templates';
+						referencedColumns: ['organization_id', 'id'];
+					}
+				];
+			};
+			pe_wa_templates: {
+				Row: {
+					body: string;
+					category: string;
+					created_at: string;
+					display_name: string;
+					header: string | null;
+					id: string;
+					language: string;
+					name: string;
+					organization_id: string;
+					params: Json;
+					rejection_reason: string | null;
+					status: string;
+					updated_at: string;
+					vendor_template_id: string | null;
+				};
+				Insert: {
+					body: string;
+					category?: string;
+					created_at?: string;
+					display_name: string;
+					header?: string | null;
+					id?: string;
+					language?: string;
+					name: string;
+					organization_id?: string;
+					params?: Json;
+					rejection_reason?: string | null;
+					status?: string;
+					updated_at?: string;
+					vendor_template_id?: string | null;
+				};
+				Update: {
+					body?: string;
+					category?: string;
+					created_at?: string;
+					display_name?: string;
+					header?: string | null;
+					id?: string;
+					language?: string;
+					name?: string;
+					organization_id?: string;
+					params?: Json;
+					rejection_reason?: string | null;
+					status?: string;
+					updated_at?: string;
+					vendor_template_id?: string | null;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'pe_wa_templates_organization_id_fkey';
+						columns: ['organization_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_organizations';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 		};
 		Views: {
 			[_ in never]: never;

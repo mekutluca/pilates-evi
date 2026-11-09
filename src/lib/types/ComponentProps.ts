@@ -25,6 +25,7 @@ import type { GroupLessonDetail, GroupLessonSummary } from '$lib/types/GroupLess
 import type { RenewalFormData } from '$lib/types/Extension';
 import type { LessonPlanPreviewPayload, Loadable } from '$lib/types/Api';
 import type { SupabaseClientType } from '$lib/types/Supabase';
+import type { WaFlow, WaTemplate, WaTemplateStatus } from '$lib/types/WhatsAppTemplate';
 
 interface BackLink {
 	href: string;
@@ -374,4 +375,39 @@ export interface ReorderCellProps<T> {
 export interface ErrorStateProps {
 	status: number;
 	message?: string;
+}
+
+// WhatsApp page
+export interface WaMessagePreviewProps {
+	header: string | null;
+	body: string;
+	// Param name → value; a param without one shows as {{name}}, marked as missing
+	values: Record<string, string>;
+	// What the preview stands for, e.g. "Örnek öğrenciyle"
+	caption?: string;
+	class?: string;
+}
+
+export interface WaTemplateStatusBadgeProps {
+	status: WaTemplateStatus;
+}
+
+export interface WaTemplateSheetProps {
+	open: boolean;
+	// Null: a new template
+	template: WaTemplate | null;
+	// Titles of the automatic messages that use this template
+	usedBy: string[];
+	submitBlocked: string | null;
+}
+
+export interface WaFlowSheetProps {
+	open: boolean;
+	flow: WaFlow | null;
+	templates: WaTemplate[];
+	studioName: string;
+}
+
+export interface WaImportDialogProps {
+	open: boolean;
 }
