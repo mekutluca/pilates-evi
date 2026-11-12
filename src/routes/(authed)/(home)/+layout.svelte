@@ -227,7 +227,7 @@
 			bind:this={mainEl}
 			id="main"
 			tabindex="-1"
-			class="flex-1 overflow-auto bg-muted/30 outline-none"
+			class="relative flex-1 overflow-auto bg-muted/30 outline-none"
 		>
 			{@render children()}
 		</main>
