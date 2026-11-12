@@ -610,6 +610,7 @@ export type Database = {
 					organization_id: string;
 					params: Json;
 					rejection_reason: string | null;
+					replaces_id: string | null;
 					status: string;
 					updated_at: string;
 					vendor_template_id: string | null;
@@ -626,6 +627,7 @@ export type Database = {
 					organization_id?: string;
 					params?: Json;
 					rejection_reason?: string | null;
+					replaces_id?: string | null;
 					status?: string;
 					updated_at?: string;
 					vendor_template_id?: string | null;
@@ -642,6 +644,7 @@ export type Database = {
 					organization_id?: string;
 					params?: Json;
 					rejection_reason?: string | null;
+					replaces_id?: string | null;
 					status?: string;
 					updated_at?: string;
 					vendor_template_id?: string | null;
@@ -653,6 +656,13 @@ export type Database = {
 						isOneToOne: false;
 						referencedRelation: 'pe_organizations';
 						referencedColumns: ['id'];
+					},
+					{
+						foreignKeyName: 'pe_wa_templates_replaces_fk';
+						columns: ['organization_id', 'replaces_id'];
+						isOneToOne: false;
+						referencedRelation: 'pe_wa_templates';
+						referencedColumns: ['organization_id', 'id'];
 					}
 				];
 			};

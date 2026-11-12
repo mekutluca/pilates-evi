@@ -2,14 +2,22 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { SupabaseClientType } from '$lib/types/Supabase';
 import type { WhatsAppPageData } from '$lib/types/WhatsApp';
+import type { WaTemplateSaveOutcome } from '$lib/types/WhatsAppTemplate';
 import { requireAdmin } from '$lib/server/permissions';
 import { orNull } from '$lib/server/streaming';
 import { getFormDataString, getFormDataUuid } from '$lib/utils/form-utils';
 import { WaTemplateService } from '$lib/server/services/wa-template-service';
 import { parseFlowForm, parseTemplateForm } from '$lib/server/wa-template-form';
-import { WhatsAppTemplateClient } from '$lib/whatsapp/WhatsAppTemplateClient';
+import { templateAccountFromEnv } from '$lib/server/wa-template-account';
 
 const NOT_FOUND = 'Şablon bulunamadı. Sayfayı yenileyin.';
+
+const SAVE_MESSAGES: Record<WaTemplateSaveOutcome, string> = {
+	saved: 'Şablon kaydedildi.',
+	resubmitted: 'Değişiklik WhatsApp onayına gönderildi.',
+	new_version:
+		'Yeni metin WhatsApp onayına gönderildi. Onaylanana kadar şu anki metin gönderilmeye devam eder.'
+};
 
 async function serviceFor(supabase: SupabaseClientType, organizationId: string | null) {
 	const { data: studio } = organizationId
@@ -21,7 +29,7 @@ async function serviceFor(supabase: SupabaseClientType, organizationId: string |
 		: { data: null };
 	const enabled = studio?.whatsapp_enabled === true;
 	return {
-		service: new WaTemplateService(supabase, WhatsAppTemplateClient.fromEnv(), enabled),
+		service: new WaTemplateService(supabase, templateAccountFromEnv(), enabled),
 		studioName: studio?.name ?? '',
 		enabled
 	};
@@ -33,10 +41,10 @@ async function loadPage(
 ): Promise<WhatsAppPageData> {
 	const { service, studioName, enabled } = await serviceFor(supabase, organizationId);
 	let templates = await service.list();
-	// Meta answers a submitted template within minutes: while one waits, ask on each visit
-	if (enabled && templates.some((t) => t.status === 'pending')) {
-		const { changed } = await service.refresh();
-		if (changed > 0) templates = await service.list();
+	// While a template waits for review (or a new version for its messages), ask on each visit
+	if (enabled && templates.some((t) => t.status === 'pending' || t.replacesId)) {
+		const { changed, switched } = await service.refresh();
+		if (changed > 0 || switched > 0) templates = await service.list();
 	}
 	return {
 		templates,
@@ -79,12 +87,9 @@ export const actions: Actions = {
 		if (typeof input === 'string') return fail(400, { success: false, message: input });
 
 		const { service } = await serviceFor(supabase, organizationId);
-		const { error, resubmitted } = await service.update(id, input);
+		const { error, outcome } = await service.update(id, input);
 		if (error) return fail(400, { success: false, message: error });
-		return {
-			success: true,
-			message: resubmitted ? 'Değişiklik WhatsApp onayına gönderildi.' : 'Şablon kaydedildi.'
-		};
+		return { success: true, message: SAVE_MESSAGES[outcome] };
 	},
 
 	removeTemplate: async ({ request, locals: { supabase, user, userRole, organizationId } }) => {
@@ -105,11 +110,15 @@ export const actions: Actions = {
 		if (denied) return denied;
 
 		const { service } = await serviceFor(supabase, organizationId);
-		const { error, changed } = await service.refresh();
+		const { error, changed, switched } = await service.refresh();
 		if (error) return fail(400, { success: false, message: error });
+		const parts = [
+			changed > 0 && `${changed} şablon güncellendi.`,
+			switched > 0 && `${switched} mesaj yeni metne geçti.`
+		].filter(Boolean);
 		return {
 			success: true,
-			message: changed > 0 ? `${changed} şablon güncellendi.` : 'Şablonlar WhatsApp ile aynı.'
+			message: parts.length > 0 ? parts.join(' ') : 'Şablonlar WhatsApp ile aynı.'
 		};
 	},
 

@@ -1,7 +1,16 @@
 // WhatsApp templates, the automatic messages that send them, and the data their named
 // parameters are filled with. Imported by the pe-daily-reminder edge function as well: keep
-// its only import the relative, import-free types file so it stays loadable from Deno.
+// its only imports the relative, import-free type files so it stays loadable from Deno.
+import type { Tables, TablesUpdate } from '../types/database.types.ts';
 import type {
+	AccountTemplate,
+	TemplateContent,
+	WaFlow,
+	WaSwitchPlan,
+	WaTemplate,
+	WaTemplateCategory,
+	WaTemplateStatus,
+	WaTemplateSyncPatch,
 	WaTemplateParam,
 	WaFlowKey,
 	WaDataKey,
@@ -296,7 +305,7 @@ export function previewValues(
 }
 
 /** Sample values for a flow's preview, with the studio's real name. */
-export function sampleData(studio: string): WaMessageData {
+function sampleData(studio: string): WaMessageData {
 	const data: WaMessageData = {};
 	for (const key of Object.keys(WA_DATA_FIELDS) as WaDataKey[]) {
 		data[key] = WA_DATA_FIELDS[key].sample;
@@ -387,4 +396,141 @@ export function reminderData(lesson: {
 		trainer: lesson.trainer,
 		room: lesson.room
 	};
+}
+
+// --------------------------------------------------------- rows and the status sync
+
+// The columns the app and the reminder read a template with
+export const TEMPLATE_COLUMNS =
+	'id, name, display_name, language, category, header, body, params, status, rejection_reason, vendor_template_id, replaces_id, updated_at';
+
+export function templateFromRow(
+	row: Omit<Tables<'pe_wa_templates'>, 'organization_id' | 'created_at'>
+): WaTemplate {
+	return {
+		id: row.id,
+		name: row.name,
+		displayName: row.display_name,
+		language: row.language,
+		category: row.category as WaTemplateCategory,
+		header: row.header,
+		body: row.body,
+		params: paramsFromJson(row.params),
+		status: row.status as WaTemplateStatus,
+		rejectionReason: row.rejection_reason,
+		vendorTemplateId: row.vendor_template_id,
+		replacesId: row.replaces_id,
+		updatedAt: row.updated_at
+	};
+}
+
+/** The three automatic messages; a missing row is a message switched off. */
+export function flowsFromRows(
+	rows: Pick<Tables<'pe_wa_flows'>, 'flow' | 'template_id' | 'params'>[]
+): WaFlow[] {
+	return WA_FLOW_KEYS.map((key) => {
+		const row = rows.find((r) => r.flow === key);
+		return {
+			key,
+			templateId: row?.template_id ?? null,
+			params: row ? bindingsFromJson(row.params) : {}
+		};
+	});
+}
+
+export function sameContent(a: TemplateContent, b: TemplateContent): boolean {
+	return (
+		a.category === b.category &&
+		(a.header ?? '') === (b.header ?? '') &&
+		a.body === b.body &&
+		JSON.stringify(a.params) === JSON.stringify(b.params)
+	);
+}
+
+/** The account's copy of a studio template: by Meta's id, else by name and language. */
+export function findAccountTemplate(
+	template: WaTemplate,
+	account: AccountTemplate[]
+): AccountTemplate | undefined {
+	return (
+		account.find((a) => a.vendorTemplateId === template.vendorTemplateId) ??
+		account.find((a) => a.name === template.name && a.language === template.language)
+	);
+}
+
+/**
+ * What the status sync takes over from the account, or null when nothing changed. A
+ * template just submitted shows up in the account a few minutes late, still with its
+ * previous text and status (tested 2026-11-12): while ours waits for review, an account
+ * copy with other text is that stale state and must not overwrite the submission.
+ */
+export function syncPatch(
+	template: WaTemplate,
+	remote: AccountTemplate | undefined
+): WaTemplateSyncPatch | null {
+	if (!remote) return null;
+	const contentDiffers = remote.namedParams && !sameContent(template, remote);
+	if (template.status === 'pending' && contentDiffers) return null;
+	if (
+		!contentDiffers &&
+		remote.status === template.status &&
+		remote.rejectionReason === template.rejectionReason &&
+		remote.vendorTemplateId === template.vendorTemplateId
+	) {
+		return null;
+	}
+	return {
+		status: remote.status,
+		rejectionReason: remote.rejectionReason,
+		vendorTemplateId: remote.vendorTemplateId,
+		content: contentDiffers
+			? {
+					category: remote.category,
+					header: remote.header,
+					body: remote.body,
+					params: remote.params
+				}
+			: null
+	};
+}
+
+/** The row update a sync patch makes. */
+export function syncPatchRow(patch: WaTemplateSyncPatch): TablesUpdate<'pe_wa_templates'> {
+	return {
+		status: patch.status,
+		rejection_reason: patch.rejectionReason,
+		vendor_template_id: patch.vendorTemplateId,
+		...(patch.content && {
+			category: patch.content.category,
+			header: patch.content.header,
+			body: patch.content.body,
+			params: patch.content.params
+		})
+	};
+}
+
+/**
+ * Approved new versions take their template's place: each message using the old one moves
+ * to the new one with its choices kept, and the old one goes once no message needs it. A
+ * message whose choices don't fit the new text (a param it has no data for) stays on the
+ * old template, which keeps sending, until an admin picks its values.
+ */
+export function planSwitches(templates: WaTemplate[], flows: WaFlow[]): WaSwitchPlan {
+	const plan: WaSwitchPlan = { moves: [], removals: [] };
+	for (const next of templates) {
+		if (!next.replacesId || next.status !== 'approved') continue;
+		const replaced = templates.find((t) => t.id === next.replacesId);
+		if (!replaced) continue;
+		let stays = false;
+		for (const flow of flows.filter((f) => f.templateId === replaced.id)) {
+			const params = defaultBindings(flow.key, next.params, flow.params);
+			if (bindingsProblem(flow.key, next.params, params)) {
+				stays = true;
+				continue;
+			}
+			plan.moves.push({ key: flow.key, templateId: next.id, params });
+		}
+		if (!stays) plan.removals.push(replaced.id);
+	}
+	return plan;
 }

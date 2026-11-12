@@ -57,6 +57,11 @@
 
 	const templateById = $derived(new Map((whatsapp?.templates ?? []).map((t) => [t.id, t])));
 
+	// The new version waiting to replace a template, if any
+	function waitingFor(templateId: string): WaTemplate | null {
+		return whatsapp?.templates.find((t) => t.replacesId === templateId) ?? null;
+	}
+
 	function usedBy(templateId: string): string[] {
 		return (whatsapp?.flows ?? [])
 			.filter((f) => f.templateId === templateId)
@@ -246,6 +251,13 @@
 												class="font-mono text-xs text-foreground/80">{segment.name}</span
 											>{/if}{/each}
 								</span>
+								{#if template.replacesId}
+									<span class="mt-1 block text-xs text-muted-foreground">
+										{template.status === 'approved'
+											? 'Yeni metin · geçiş için bazı mesajlarda bilgi seçilmeli'
+											: 'Yeni metin · onaylanınca şu anki metnin yerine geçer'}
+									</span>
+								{/if}
 							</button>
 							<ActionMenu
 								actions={templateActions(template)}
@@ -262,6 +274,10 @@
 				bind:open={templateSheetOpen}
 				template={editingTemplate}
 				usedBy={editingTemplate ? usedBy(editingTemplate.id) : []}
+				waiting={editingTemplate ? waitingFor(editingTemplate.id) : null}
+				replaces={editingTemplate?.replacesId
+					? (templateById.get(editingTemplate.replacesId) ?? null)
+					: null}
 				submitBlocked={whatsapp.submitBlocked}
 			/>
 		{/key}

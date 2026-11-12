@@ -398,6 +398,10 @@ export interface WaTemplateSheetProps {
 	template: WaTemplate | null;
 	// Titles of the automatic messages that use this template
 	usedBy: string[];
+	// The new version waiting to replace this template, if any
+	waiting: WaTemplate | null;
+	// The template this one is the new version of, if any
+	replaces: WaTemplate | null;
 	submitBlocked: string | null;
 }
 

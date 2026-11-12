@@ -1,17 +1,88 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
-// These files are import-free, so Deno can load them straight from the app's source.
+import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+// These files import only each other, so Deno can load them straight from the app's source.
 import type { Database } from '../../../src/lib/types/database.types.ts';
 import { formatPhoneNumber } from '../../../src/lib/utils/phone-utils.ts';
 import {
+	TEMPLATE_COLUMNS,
 	bindingsFromJson,
+	findAccountTemplate,
+	flowsFromRows,
 	paramsFromJson,
+	planSwitches,
 	reminderData,
-	resolveParams
+	resolveParams,
+	syncPatch,
+	syncPatchRow,
+	templateFromRow
 } from '../../../src/lib/whatsapp/template-params.ts';
+import {
+	DEFAULT_WA_API_VERSION,
+	WhatsAppTemplateClient
+} from '../../../src/lib/whatsapp/WhatsAppTemplateClient.ts';
 import type { WaReminder } from '../../../src/lib/types/WhatsAppTemplate.ts';
 
 const CHAKRA_BASE_URL = 'https://api.chakrahq.com/v1/ext';
+
+/**
+ * Templates waiting for review get their status from the account, and approved new
+ * versions take their templates' place (the WhatsApp page does the same on a visit), so a
+ * text approved today already goes out in today's reminders. Returns what it did.
+ */
+async function syncTemplates(
+	supabase: SupabaseClient<Database>,
+	account: WhatsAppTemplateClient
+): Promise<string> {
+	const { data: waiting, error } = await supabase
+		.from('pe_wa_templates')
+		.select(`organization_id, ${TEMPLATE_COLUMNS}`)
+		.or('status.eq.pending,replaces_id.not.is.null');
+	if (error) return `template sync skipped: ${error.message}`;
+	if (!waiting || waiting.length === 0) return 'no template waiting';
+
+	const remote = await account.list();
+	let changed = 0;
+	for (const row of waiting) {
+		const template = templateFromRow(row);
+		const patch = syncPatch(template, findAccountTemplate(template, remote));
+		if (!patch) continue;
+		const { error: patchError } = await supabase
+			.from('pe_wa_templates')
+			.update(syncPatchRow(patch))
+			.eq('id', template.id);
+		if (patchError) return `template sync failed: ${patchError.message}`;
+		changed++;
+	}
+
+	let switched = 0;
+	const studios = [...new Set(waiting.filter((r) => r.replaces_id).map((r) => r.organization_id))];
+	for (const organizationId of studios) {
+		const [{ data: templates }, { data: flows }] = await Promise.all([
+			supabase
+				.from('pe_wa_templates')
+				.select(TEMPLATE_COLUMNS)
+				.eq('organization_id', organizationId),
+			supabase
+				.from('pe_wa_flows')
+				.select('flow, template_id, params')
+				.eq('organization_id', organizationId)
+		]);
+		const plan = planSwitches((templates ?? []).map(templateFromRow), flowsFromRows(flows ?? []));
+		for (const flow of plan.moves) {
+			const { error: moveError } = await supabase
+				.from('pe_wa_flows')
+				.update({ template_id: flow.templateId, params: flow.params })
+				.eq('organization_id', organizationId)
+				.eq('flow', flow.key);
+			if (moveError) return `switch failed: ${moveError.message}`;
+			switched++;
+		}
+		if (plan.removals.length > 0) {
+			await supabase.from('pe_wa_templates').delete().in('id', plan.removals);
+		}
+	}
+	return `${changed} template(s) synced, ${switched} message(s) switched`;
+}
 
 Deno.serve(async (req) => {
 	const cronSecret = Deno.env.get('CRON_SECRET')!;
@@ -31,6 +102,25 @@ Deno.serve(async (req) => {
 	const chakraPhoneNumberId = Deno.env.get('CHAKRA_WHATSAPP_PHONE_NUMBER_ID')!;
 
 	const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
+
+	// Without the account id (CHAKRA_WABA_ID) reminders still go out, with the current templates
+	const wabaId = Deno.env.get('CHAKRA_WABA_ID');
+	let templateSync = 'template sync off: CHAKRA_WABA_ID not set';
+	if (wabaId) {
+		try {
+			templateSync = await syncTemplates(
+				supabase,
+				new WhatsAppTemplateClient({
+					apiKey: chakraApiKey,
+					wabaId,
+					apiVersion: Deno.env.get('CHAKRA_WHATSAPP_API_VERSION') ?? DEFAULT_WA_API_VERSION
+				})
+			);
+		} catch (error) {
+			templateSync = `template sync failed: ${error instanceof Error ? error.message : String(error)}`;
+		}
+	}
+	console.log(templateSync);
 
 	// Tomorrow's date on Turkish time, whatever zone the runtime uses
 	const tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(
@@ -227,6 +317,7 @@ Deno.serve(async (req) => {
 	return new Response(
 		JSON.stringify({
 			date: tomorrowStr,
+			templateSync,
 			totalAppointments: reminders.length,
 			sent,
 			failed,

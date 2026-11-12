@@ -27,7 +27,14 @@
 	} from '$lib/whatsapp/template-params';
 	import type { WaDataKey } from '$lib/types/WhatsAppTemplate';
 
-	let { open = $bindable(false), template, usedBy, submitBlocked }: WaTemplateSheetProps = $props();
+	let {
+		open = $bindable(false),
+		template,
+		usedBy,
+		waiting,
+		replaces,
+		submitBlocked
+	}: WaTemplateSheetProps = $props();
 
 	// The parent remounts this sheet each time it opens ({#key}), so the form starts from
 	// the template
@@ -50,8 +57,11 @@
 	const problem = $derived(body.trim() ? bodyProblem(body) : null);
 	const missingExample = $derived(params.find((p) => !p.example.trim()));
 
-	// Meta keeps approved content under review and closed ones closed
-	const locked = $derived(template?.status === 'pending' || template?.status === 'disabled');
+	// Meta keeps content under review and closed ones closed; a template whose new version
+	// is on the list takes its next text there
+	const locked = $derived(
+		template?.status === 'pending' || template?.status === 'disabled' || waiting !== null
+	);
 	const contentChanged = $derived(
 		!template ||
 			(template.header ?? '') !== header.trim() ||
@@ -59,6 +69,8 @@
 			JSON.stringify(template.params) !==
 				JSON.stringify(params.map((p) => ({ name: p.name, example: p.example.trim() })))
 	);
+	// New text for an approved template goes out as a new version; the approved one keeps sending
+	const asNewVersion = $derived(template?.status === 'approved' && contentChanged);
 	// Content goes to WhatsApp; the display name alone stays here
 	const needsAccount = $derived(isNew || contentChanged);
 	const contentDisabled = $derived(locked || Boolean(submitBlocked));
@@ -69,7 +81,13 @@
 	);
 
 	const submitLabel = $derived(
-		isNew ? 'Onaya gönder' : contentChanged ? 'Kaydet ve onaya gönder' : 'Kaydet'
+		isNew
+			? 'Onaya gönder'
+			: asNewVersion
+				? 'Yeni metni onaya gönder'
+				: contentChanged
+					? 'Kaydet ve onaya gönder'
+					: 'Kaydet'
 	);
 
 	// The data the app can put into a message, grouped as the messages offer it; a group
@@ -158,7 +176,31 @@
 				<input type="hidden" name="body" value={body} />
 				<input type="hidden" name="params" value={JSON.stringify(params)} />
 
-				{#if submitBlocked && (isNew || !locked)}
+				{#if replaces}
+					<p class="flex gap-2 rounded-xl bg-muted/70 px-3 py-2.5 text-sm text-muted-foreground">
+						<Info class="mt-0.5 size-4 shrink-0" />
+						<span>
+							<strong class="font-medium text-foreground">{replaces.displayName}</strong> şablonunun
+							yeni metni. {template?.status === 'approved'
+								? 'Onaylandı; bazı mesajlarda yeni metnin bilgileri seçilmeden geçiş yapılamıyor. O mesajları düzenleyin.'
+								: 'Onaylanınca onun yerine gönderilir.'}
+						</span>
+					</p>
+				{/if}
+
+				{#if waiting}
+					<p class="flex gap-2 rounded-xl bg-muted/70 px-3 py-2.5 text-sm text-muted-foreground">
+						<Info class="mt-0.5 size-4 shrink-0" />
+						<span>
+							Bu şablonun yeni metni listede ayrı duruyor ({waiting.status === 'rejected'
+								? 'reddedildi'
+								: waiting.status === 'approved'
+									? 'onaylandı'
+									: 'onay bekliyor'}). Metni orada değiştirin; bu şablon o zamana kadar gönderilmeye
+							devam eder.
+						</span>
+					</p>
+				{:else if submitBlocked && (isNew || !locked)}
 					<p class="flex gap-2 rounded-xl bg-muted/70 px-3 py-2.5 text-sm text-muted-foreground">
 						<Info class="mt-0.5 size-4 shrink-0" />
 						<span>{submitBlocked}{isNew ? '' : ' Adı yine de değiştirebilirsiniz.'}</span>
@@ -311,12 +353,14 @@
 					/>
 				{/if}
 
-				{#if !isNew && contentChanged && !contentDisabled && template?.status === 'approved' && usedBy.length > 0}
+				{#if asNewVersion && !contentDisabled}
 					<p class="flex gap-2 rounded-xl bg-muted/70 px-3 py-2.5 text-sm text-muted-foreground">
 						<Info class="mt-0.5 size-4 shrink-0" />
 						<span>
-							Değişiklik WhatsApp onayına gider. Onaylanana kadar şu mesaj gönderilmez:
-							<strong class="font-medium text-foreground">{usedBy.join(', ')}</strong>.
+							Yeni metin WhatsApp onayına gider. Onaylanana kadar şu anki metin gönderilmeye devam
+							eder{#if usedBy.length > 0}; onaylanınca <strong class="font-medium text-foreground"
+									>{usedBy.join(', ')}</strong
+								> kendiliğinden yeni metne geçer{/if}.
 						</span>
 					</p>
 				{/if}

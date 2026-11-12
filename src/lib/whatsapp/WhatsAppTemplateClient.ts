@@ -1,4 +1,5 @@
-import { env } from '$env/dynamic/private';
+// Loaded by the pe-daily-reminder edge function as well: keep its only import the relative,
+// import-free types file so Deno can read it.
 import type {
 	AccountTemplate,
 	ChakraEnvelope,
@@ -6,12 +7,13 @@ import type {
 	MetaTemplateComponent,
 	MetaTemplatePage,
 	TemplateContent,
+	WaAccountConfig,
 	WaTemplateCategory,
 	WaTemplateStatus
-} from '$lib/types/WhatsAppTemplate';
+} from '../types/WhatsAppTemplate.ts';
 
 const BASE_URL = 'https://api.chakrahq.com/v1/ext';
-const DEFAULT_API_VERSION = 'v19.0';
+export const DEFAULT_WA_API_VERSION = 'v19.0';
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 
@@ -108,26 +110,10 @@ function metaUserMessage(text: string): string | null {
  * to Meta. Sending lives in WhatsAppRepository.
  */
 export class WhatsAppTemplateClient {
-	private constructor(
-		private apiKey: string,
-		private wabaId: string,
-		private apiVersion: string
-	) {}
-
-	/** Null when the account is not configured (PRIVATE_CHAKRA_WABA_ID). */
-	static fromEnv(): WhatsAppTemplateClient | null {
-		const apiKey = env.PRIVATE_CHAKRA_API_KEY;
-		const wabaId = env.PRIVATE_CHAKRA_WABA_ID;
-		if (!apiKey || !wabaId) return null;
-		return new WhatsAppTemplateClient(
-			apiKey,
-			wabaId,
-			env.PRIVATE_CHAKRA_WHATSAPP_API_VERSION || DEFAULT_API_VERSION
-		);
-	}
+	constructor(private config: WaAccountConfig) {}
 
 	private get graphUrl() {
-		return `${BASE_URL}/plugin/whatsapp/api/${this.apiVersion}`;
+		return `${BASE_URL}/plugin/whatsapp/api/${this.config.apiVersion}`;
 	}
 
 	/** Every template in the account, following pages. */
@@ -138,7 +124,7 @@ export class WhatsAppTemplateClient {
 			const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
 			if (after) query.set('after', after);
 			const result = await this.request<MetaTemplatePage>(
-				`${this.graphUrl}/${this.wabaId}/message_templates?${query}`,
+				`${this.graphUrl}/${this.config.wabaId}/message_templates?${query}`,
 				'GET'
 			);
 			for (const raw of result.data ?? []) {
@@ -158,7 +144,7 @@ export class WhatsAppTemplateClient {
 		content: TemplateContent
 	): Promise<{ vendorTemplateId: string; status: WaTemplateStatus }> {
 		const result = await this.request<{ id: string; status?: string }>(
-			`${this.graphUrl}/${this.wabaId}/message_templates`,
+			`${this.graphUrl}/${this.config.wabaId}/message_templates`,
 			'POST',
 			{
 				name,
@@ -171,9 +157,12 @@ export class WhatsAppTemplateClient {
 		return { vendorTemplateId: result.id, status: normalizeStatus(result.status) };
 	}
 
-	/** Submits changed content; an approved template goes back to review. */
+	/**
+	 * Submits changed content for review. Chakra routes edits through its own
+	 * `message_template/{id}` path; Meta's bare `/{id}` answers a plain "Not Found" there.
+	 */
 	async update(vendorTemplateId: string, content: TemplateContent): Promise<void> {
-		await this.request(`${this.graphUrl}/${vendorTemplateId}`, 'POST', {
+		await this.request(`${this.graphUrl}/message_template/${vendorTemplateId}`, 'POST', {
 			category: content.category,
 			parameter_format: 'NAMED',
 			components: components(content)
@@ -186,7 +175,7 @@ export class WhatsAppTemplateClient {
 			response = await fetch(url, {
 				method,
 				headers: {
-					Authorization: `Bearer ${this.apiKey}`,
+					Authorization: `Bearer ${this.config.apiKey}`,
 					...(body && { 'Content-Type': 'application/json' })
 				},
 				body: body ? JSON.stringify(body) : undefined

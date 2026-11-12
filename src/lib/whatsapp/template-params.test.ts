@@ -6,6 +6,8 @@ import {
 	bodySegments,
 	defaultBindings,
 	paramsFromJson,
+	planSwitches,
+	syncPatch,
 	reminderData,
 	resolveParams,
 	scheduleChangeData,
@@ -14,6 +16,7 @@ import {
 	templateParamNames,
 	uniqueTemplateName
 } from './template-params';
+import type { AccountTemplate, WaFlow, WaTemplate } from '$lib/types/WhatsAppTemplate';
 
 // The live studio's approved template (appt_reschedule_by_system)
 const SYSTEM_BODY =
@@ -191,5 +194,109 @@ describe('message data', () => {
 			{ name: 'imza', value: 'Pilates Evi ekibi' },
 			{ name: 'unbound', value: '-' }
 		]);
+	});
+});
+
+describe('template versions', () => {
+	const base: WaTemplate = {
+		id: 'old',
+		name: 'ders_hatirlatmasi',
+		displayName: 'Ders hatırlatması',
+		language: 'tr',
+		category: 'UTILITY',
+		header: null,
+		body: 'Merhaba! {{package}} dersiniz yarın saat {{time}}’da.',
+		params: [
+			{ name: 'package', example: 'Grup Pilates' },
+			{ name: 'time', example: '13:00' }
+		],
+		status: 'approved',
+		rejectionReason: null,
+		vendorTemplateId: 'v-old',
+		replacesId: null,
+		updatedAt: '2026-11-12T10:00:00Z'
+	};
+	const remote = (over: Partial<AccountTemplate>): AccountTemplate => ({
+		vendorTemplateId: 'v-old',
+		name: base.name,
+		language: 'tr',
+		category: 'UTILITY',
+		header: null,
+		body: base.body,
+		params: base.params,
+		status: 'approved',
+		rejectionReason: null,
+		namedParams: true,
+		...over
+	});
+
+	test('the sync takes status and Chakra edits from the account', () => {
+		expect(syncPatch(base, remote({}))).toBeNull();
+		expect(syncPatch(base, remote({ status: 'paused' }))?.status).toBe('paused');
+		expect(
+			syncPatch(base, remote({ body: 'Chakra’da düzeltildi {{package}} {{time}}.' }))?.content
+		).not.toBeNull();
+	});
+
+	test('a submission the account does not show yet is left alone', () => {
+		// Minutes after an edit the account still lists the old text as approved
+		const submitted = {
+			...base,
+			status: 'pending' as const,
+			body: 'Yeni {{package}} {{time}} metni.'
+		};
+		expect(syncPatch(submitted, remote({}))).toBeNull();
+		expect(syncPatch(submitted, remote({ status: 'approved', body: submitted.body }))?.status).toBe(
+			'approved'
+		);
+	});
+
+	test('an approved version takes its template’s messages and replaces it', () => {
+		const next: WaTemplate = {
+			...base,
+			id: 'new',
+			name: 'ders_hatirlatmasi_2',
+			body: 'Yarın {{time}}’da {{package}} dersiniz var.',
+			replacesId: 'old'
+		};
+		const flows: WaFlow[] = [
+			{
+				key: 'daily_reminder',
+				templateId: 'old',
+				params: { package: { source: 'package' }, time: { source: 'time' } }
+			},
+			{ key: 'schedule_change_studio', templateId: null, params: {} },
+			{ key: 'schedule_change_request', templateId: null, params: {} }
+		];
+		expect(planSwitches([base, { ...next, status: 'pending' }], flows)).toEqual({
+			moves: [],
+			removals: []
+		});
+		expect(planSwitches([base, next], flows)).toEqual({
+			moves: [{ key: 'daily_reminder', templateId: 'new', params: flows[0].params }],
+			removals: ['old']
+		});
+	});
+
+	test('a message the new text does not fit stays on the old template', () => {
+		const next: WaTemplate = {
+			...base,
+			id: 'new',
+			body: 'Değişiklik: {{cause}} sebebiyle yarın {{time}}.',
+			params: [
+				{ name: 'cause', example: 'tatil' },
+				{ name: 'time', example: '13:00' }
+			],
+			replacesId: 'old'
+		};
+		const flows: WaFlow[] = [
+			{
+				key: 'daily_reminder',
+				templateId: 'old',
+				params: { package: { source: 'package' }, time: { source: 'time' } }
+			}
+		];
+		// The reminder has no cause to fill {{cause}} with
+		expect(planSwitches([base, next], flows)).toEqual({ moves: [], removals: [] });
 	});
 });

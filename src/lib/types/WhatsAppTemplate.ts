@@ -24,6 +24,8 @@ export interface WaTemplate {
 	status: WaTemplateStatus;
 	rejectionReason: string | null;
 	vendorTemplateId: string | null;
+	// A new version of an approved template: it takes that template's place once approved
+	replacesId: string | null;
 	updatedAt: string;
 }
 
@@ -180,6 +182,31 @@ export interface AccountTemplate {
 	// Only named-parameter templates can be bound to the app's data
 	namedParams: boolean;
 }
+
+// The WhatsApp Business Account the templates live in
+export interface WaAccountConfig {
+	apiKey: string;
+	wabaId: string;
+	apiVersion: string;
+}
+
+// What the status sync takes over from the account for one template
+export interface WaTemplateSyncPatch {
+	status: WaTemplateStatus;
+	rejectionReason: string | null;
+	vendorTemplateId: string;
+	// The account's text when it differs (an edit made in Chakra), else null
+	content: TemplateContent | null;
+}
+
+// Messages moving to approved new versions, and the replaced templates to remove
+export interface WaSwitchPlan {
+	moves: WaFlow[];
+	removals: string[];
+}
+
+// How a template save ended: a new name only, an edit back in review, or a new version
+export type WaTemplateSaveOutcome = 'saved' | 'resubmitted' | 'new_version';
 
 // What a template says, as submitted to the account
 export interface TemplateContent {

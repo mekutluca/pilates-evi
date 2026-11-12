@@ -1,68 +1,44 @@
 import type { SupabaseClientType } from '$lib/types/Supabase';
-import type { Tables } from '$lib/types/database.types';
 import {
-	WA_FLOW_KEYS,
-	bindingsFromJson,
+	TEMPLATE_COLUMNS,
 	bindingsProblem,
+	findAccountTemplate,
+	flowsFromRows,
 	isWaFlowKey,
-	paramsFromJson,
+	planSwitches,
+	sameContent,
+	syncPatch,
+	syncPatchRow,
+	templateFromRow,
 	uniqueTemplateName
 } from '$lib/whatsapp/template-params';
 import type {
+	AccountTemplate,
 	WaFlow,
 	WaFlowKey,
 	WaImportCandidate,
-	WaTemplateInput,
 	WaParamBindings,
 	WaTemplate,
 	WaTemplateCategory,
+	WaTemplateInput,
+	WaTemplateSaveOutcome,
 	WaTemplateStatus
 } from '$lib/types/WhatsAppTemplate';
 import {
 	WhatsAppTemplateClient,
 	WhatsAppTemplateError
 } from '$lib/whatsapp/WhatsAppTemplateClient';
-import type { AccountTemplate, TemplateContent } from '$lib/types/WhatsAppTemplate';
+import { templateAccountFromEnv } from '$lib/server/wa-template-account';
 import { dbErrorMessage } from '$lib/server/db-errors';
-
-const TEMPLATE_COLUMNS =
-	'id, name, display_name, language, category, header, body, params, status, rejection_reason, vendor_template_id, updated_at';
 
 const NOT_FOUND = 'Şablon bulunamadı. Sayfayı yenileyin.';
 const NO_ACCOUNT =
 	'WhatsApp hesabı tanımlı değil (PRIVATE_CHAKRA_WABA_ID). Şablonlar WhatsApp’a gönderilemiyor.';
 const STUDIO_OFF =
 	'Bu stüdyoda WhatsApp kapalı: şablonlar WhatsApp’a gönderilemez, mevcut şablonlar okunabilir.';
+const READ_FAILED = 'WhatsApp şablonları okunamadı. Biraz sonra tekrar deneyin.';
 const FOREIGN_KEY_VIOLATION = '23503';
 const UNIQUE_VIOLATION = '23505';
-
-function toTemplate(
-	row: Omit<Tables<'pe_wa_templates'>, 'organization_id' | 'created_at'>
-): WaTemplate {
-	return {
-		id: row.id,
-		name: row.name,
-		displayName: row.display_name,
-		language: row.language,
-		category: row.category as WaTemplateCategory,
-		header: row.header,
-		body: row.body,
-		params: paramsFromJson(row.params),
-		status: row.status as WaTemplateStatus,
-		rejectionReason: row.rejection_reason,
-		vendorTemplateId: row.vendor_template_id,
-		updatedAt: row.updated_at
-	};
-}
-
-function sameContent(a: TemplateContent, b: TemplateContent): boolean {
-	return (
-		a.category === b.category &&
-		(a.header ?? '') === (b.header ?? '') &&
-		a.body === b.body &&
-		JSON.stringify(a.params) === JSON.stringify(b.params)
-	);
-}
 
 /** What the admin sees when the account refused or could not be reached. */
 function vendorMessage(error: Error | null, fallback: string): string {
@@ -75,12 +51,16 @@ function vendorMessage(error: Error | null, fallback: string): string {
  * A studio's WhatsApp templates and the automatic messages bound to them. Template content
  * goes to the WhatsApp Business Account first and is stored only once the account took it,
  * so the studio's rows never claim a text WhatsApp has not seen.
+ *
+ * An approved template's text is never edited in place: Meta can't send a template while an
+ * edit is reviewed (#132001), so a new text goes out as a new version that replaces the old
+ * one once approved (`refresh`, and the daily reminder before it sends).
  */
 export class WaTemplateService {
 	constructor(
 		private supabase: SupabaseClientType,
 		// Null: no account configured; reading still works, sending to WhatsApp does not
-		private account: WhatsAppTemplateClient | null = WhatsAppTemplateClient.fromEnv(),
+		private account: WhatsAppTemplateClient | null = templateAccountFromEnv(),
 		// The studio's WhatsApp switch: the Demo studio may look but not submit templates
 		private studioEnabled = true
 	) {}
@@ -98,7 +78,7 @@ export class WaTemplateService {
 			.select(TEMPLATE_COLUMNS)
 			.order('display_name');
 		if (error) throw new Error(dbErrorMessage(error, 'Şablonlar yüklenemedi.'));
-		return (data ?? []).map(toTemplate);
+		return (data ?? []).map(templateFromRow);
 	}
 
 	/** The three automatic messages; a studio without a row for one doesn't send it. */
@@ -107,14 +87,7 @@ export class WaTemplateService {
 			.from('pe_wa_flows')
 			.select('flow, template_id, params');
 		if (error) throw new Error(dbErrorMessage(error, 'Otomatik mesajlar yüklenemedi.'));
-		return WA_FLOW_KEYS.map((key) => {
-			const row = (data ?? []).find((r) => r.flow === key);
-			return {
-				key,
-				templateId: row?.template_id ?? null,
-				params: row ? bindingsFromJson(row.params) : {}
-			};
-		});
+		return flowsFromRows(data ?? []);
 	}
 
 	private async get(id: string): Promise<WaTemplate | null> {
@@ -123,7 +96,7 @@ export class WaTemplateService {
 			.select(TEMPLATE_COLUMNS)
 			.eq('id', id)
 			.maybeSingle();
-		return data ? toTemplate(data) : null;
+		return data ? templateFromRow(data) : null;
 	}
 
 	/**
@@ -132,9 +105,87 @@ export class WaTemplateService {
 	 * is always a UTILITY (bilgilendirme) template.
 	 */
 	async create(input: WaTemplateInput): Promise<string | null> {
+		return this.submit(input, 'UTILITY', null);
+	}
+
+	/**
+	 * Saves a template. A new display name alone stays here. New text for an approved
+	 * template becomes a new version, so the approved one keeps sending until it is
+	 * replaced; other templates (rejected, paused) take the edit and go back to review.
+	 */
+	async update(
+		id: string,
+		input: WaTemplateInput
+	): Promise<{ error: string | null; outcome: WaTemplateSaveOutcome }> {
+		const current = await this.get(id);
+		if (!current) return { error: NOT_FOUND, outcome: 'saved' };
+		// Meta keeps an approved template's category; the app never changes it
+		const content = { ...input, category: current.category };
+
+		if (sameContent(current, content)) {
+			const { data, error } = await this.supabase
+				.from('pe_wa_templates')
+				.update({ display_name: input.displayName })
+				.eq('id', id)
+				.select('id');
+			if (error) return { error: dbErrorMessage(error, 'Şablon kaydedilemedi.'), outcome: 'saved' };
+			return { error: data?.length ? null : NOT_FOUND, outcome: 'saved' };
+		}
+
+		if (current.status === 'approved') return this.newVersion(current, input);
+		if (current.status === 'pending') {
+			return {
+				error: 'Şablon WhatsApp onayında; onay sonuçlanınca düzenleyebilirsiniz.',
+				outcome: 'saved'
+			};
+		}
+		if (current.status === 'disabled') {
+			return {
+				error: 'WhatsApp bu şablonu kapattı; yerine yeni bir şablon oluşturun.',
+				outcome: 'saved'
+			};
+		}
+		return this.resubmit(current, input);
+	}
+
+	/** New text for an approved template: a version that replaces it once approved. */
+	private async newVersion(
+		current: WaTemplate,
+		input: WaTemplateInput
+	): Promise<{ error: string | null; outcome: WaTemplateSaveOutcome }> {
+		const { data: waitingRow } = await this.supabase
+			.from('pe_wa_templates')
+			.select(TEMPLATE_COLUMNS)
+			.eq('replaces_id', current.id)
+			.maybeSingle();
+		if (waitingRow) {
+			const waiting = templateFromRow(waitingRow);
+			// A rejected or paused new version takes the newer text instead
+			if (waiting.status === 'rejected' || waiting.status === 'paused') {
+				return this.resubmit(waiting, input);
+			}
+			return {
+				error:
+					waiting.status === 'approved'
+						? 'Yeni metin onaylandı; önce onu kullanan mesajlarda eksik bilgileri seçin.'
+						: 'Bu şablonun yeni metni zaten onay bekliyor. Sonuçlanınca tekrar değiştirebilirsiniz.',
+				outcome: 'saved'
+			};
+		}
+		const error = await this.submit(input, current.category, current);
+		return { error, outcome: 'new_version' };
+	}
+
+	/** Submits a template to the account and stores it; returns an error message. */
+	private async submit(
+		input: WaTemplateInput,
+		category: WaTemplateCategory,
+		replaces: WaTemplate | null
+	): Promise<string | null> {
 		const blocked = this.submitBlocked;
 		if (blocked || !this.account) return blocked ?? NO_ACCOUNT;
 
+		const language = replaces?.language ?? 'tr';
 		let name: string;
 		let submitted: { vendorTemplateId: string; status: WaTemplateStatus };
 		try {
@@ -142,8 +193,9 @@ export class WaTemplateService {
 				...(await this.account.list()).map((t) => t.name),
 				...(await this.list()).map((t) => t.name)
 			]);
-			name = uniqueTemplateName(input.displayName, taken);
-			submitted = await this.account.create(name, 'tr', { ...input, category: 'UTILITY' });
+			// A new version is named after the template it replaces: x, then x_2, x_3
+			name = uniqueTemplateName(replaces?.name.replace(/_\d+$/, '') ?? input.displayName, taken);
+			submitted = await this.account.create(name, language, { ...input, category });
 		} catch (error) {
 			return vendorMessage(
 				error instanceof Error ? error : null,
@@ -154,13 +206,14 @@ export class WaTemplateService {
 		const { error } = await this.supabase.from('pe_wa_templates').insert({
 			name,
 			display_name: input.displayName,
-			language: 'tr',
-			category: 'UTILITY',
+			language,
+			category,
 			header: input.header,
 			body: input.body,
 			params: input.params,
 			status: submitted.status,
-			vendor_template_id: submitted.vendorTemplateId
+			vendor_template_id: submitted.vendorTemplateId,
+			replaces_id: replaces?.id ?? null
 		});
 		return error
 			? dbErrorMessage(
@@ -170,60 +223,32 @@ export class WaTemplateService {
 			: null;
 	}
 
-	/**
-	 * Saves a template. A new display name alone stays here; changed content goes back to
-	 * WhatsApp for review (Meta's rule), and its messages wait until it is approved again.
-	 */
-	async update(
-		id: string,
+	/** Edits a template nothing sends with (rejected, paused) and sends it back to review. */
+	private async resubmit(
+		current: WaTemplate,
 		input: WaTemplateInput
-	): Promise<{ error: string | null; resubmitted: boolean }> {
-		const current = await this.get(id);
-		if (!current) return { error: NOT_FOUND, resubmitted: false };
-		// Meta keeps an approved template's category; the app never changes it
-		const content = { ...input, category: current.category };
-
-		if (sameContent(current, content)) {
-			const { data, error } = await this.supabase
-				.from('pe_wa_templates')
-				.update({ display_name: input.displayName })
-				.eq('id', id)
-				.select('id');
-			if (error)
-				return { error: dbErrorMessage(error, 'Şablon kaydedilemedi.'), resubmitted: false };
-			return { error: data?.length ? null : NOT_FOUND, resubmitted: false };
-		}
-
-		if (current.status === 'pending') {
-			return {
-				error: 'Şablon WhatsApp onayında; onay sonuçlanınca düzenleyebilirsiniz.',
-				resubmitted: false
-			};
-		}
-		if (current.status === 'disabled') {
-			return {
-				error: 'WhatsApp bu şablonu kapattı; yerine yeni bir şablon oluşturun.',
-				resubmitted: false
-			};
-		}
+	): Promise<{ error: string | null; outcome: WaTemplateSaveOutcome }> {
 		const blocked = this.submitBlocked;
-		if (blocked || !this.account) return { error: blocked ?? NO_ACCOUNT, resubmitted: false };
+		if (blocked || !this.account) return { error: blocked ?? NO_ACCOUNT, outcome: 'saved' };
 		if (!current.vendorTemplateId) {
 			return {
 				error: 'Şablonun WhatsApp kaydı bulunamadı. "Durumları yenile" ile eşleyin.',
-				resubmitted: false
+				outcome: 'saved'
 			};
 		}
 
 		try {
-			await this.account.update(current.vendorTemplateId, content);
+			await this.account.update(current.vendorTemplateId, {
+				...input,
+				category: current.category
+			});
 		} catch (error) {
 			return {
 				error: vendorMessage(
 					error instanceof Error ? error : null,
 					'WhatsApp değişikliği almadı. Biraz sonra tekrar deneyin.'
 				),
-				resubmitted: false
+				outcome: 'saved'
 			};
 		}
 
@@ -237,17 +262,17 @@ export class WaTemplateService {
 				status: 'pending',
 				rejection_reason: null
 			})
-			.eq('id', id);
+			.eq('id', current.id);
 		if (error) {
 			return {
 				error: dbErrorMessage(
 					error,
 					'Değişiklik WhatsApp’a gönderildi ama kaydedilemedi. "Durumları yenile" ile güncelleyin.'
 				),
-				resubmitted: true
+				outcome: 'resubmitted'
 			};
 		}
-		return { error: null, resubmitted: true };
+		return { error: null, outcome: 'resubmitted' };
 	}
 
 	/**
@@ -268,60 +293,69 @@ export class WaTemplateService {
 	}
 
 	/**
-	 * Brings the studio's templates in step with the account: status, rejection reason and
-	 * content (an edit made in Chakra wins). Returns how many changed.
+	 * Brings the studio's templates in step with the account (status, rejection reason, and
+	 * text edited in Chakra), then lets approved new versions replace their templates.
+	 * Returns how many templates changed and how many messages moved to a new version.
 	 */
-	async refresh(): Promise<{ error: string | null; changed: number }> {
-		if (!this.account) return { error: NO_ACCOUNT, changed: 0 };
+	async refresh(): Promise<{ error: string | null; changed: number; switched: number }> {
+		if (!this.account) return { error: NO_ACCOUNT, changed: 0, switched: 0 };
 		let account: AccountTemplate[];
 		try {
 			account = await this.account.list();
 		} catch (error) {
 			return {
-				error: vendorMessage(
-					error instanceof Error ? error : null,
-					'WhatsApp şablonları okunamadı. Biraz sonra tekrar deneyin.'
-				),
-				changed: 0
+				error: vendorMessage(error instanceof Error ? error : null, READ_FAILED),
+				changed: 0,
+				switched: 0
 			};
 		}
 
-		const local = await this.list();
 		let changed = 0;
-		for (const template of local) {
-			const remote =
-				account.find((a) => a.vendorTemplateId === template.vendorTemplateId) ??
-				account.find((a) => a.name === template.name && a.language === template.language);
-			if (!remote) continue;
-
-			const contentChanged = remote.namedParams && !sameContent(template, remote);
-			if (
-				!contentChanged &&
-				remote.status === template.status &&
-				remote.rejectionReason === template.rejectionReason &&
-				remote.vendorTemplateId === template.vendorTemplateId
-			) {
-				continue;
-			}
+		for (const template of await this.list()) {
+			const patch = syncPatch(template, findAccountTemplate(template, account));
+			if (!patch) continue;
 			const { error } = await this.supabase
 				.from('pe_wa_templates')
-				.update({
-					status: remote.status,
-					rejection_reason: remote.rejectionReason,
-					vendor_template_id: remote.vendorTemplateId,
-					...(contentChanged && {
-						category: remote.category,
-						header: remote.header,
-						body: remote.body,
-						params: remote.params
-					})
-				})
+				.update(syncPatchRow(patch))
 				.eq('id', template.id);
-			if (error)
-				return { error: dbErrorMessage(error, 'Şablon durumları kaydedilemedi.'), changed };
+			if (error) {
+				return {
+					error: dbErrorMessage(error, 'Şablon durumları kaydedilemedi.'),
+					changed,
+					switched: 0
+				};
+			}
 			changed++;
 		}
-		return { error: null, changed };
+
+		const plan = planSwitches(await this.list(), await this.flows());
+		for (const flow of plan.moves) {
+			const { error } = await this.supabase
+				.from('pe_wa_flows')
+				.update({ template_id: flow.templateId, params: flow.params })
+				.eq('flow', flow.key);
+			if (error) {
+				return {
+					error: dbErrorMessage(error, 'Mesajlar yeni metne geçirilemedi.'),
+					changed,
+					switched: 0
+				};
+			}
+		}
+		if (plan.removals.length > 0) {
+			const { error } = await this.supabase
+				.from('pe_wa_templates')
+				.delete()
+				.in('id', plan.removals);
+			if (error) {
+				return {
+					error: dbErrorMessage(error, 'Eski metin listeden kaldırılamadı.'),
+					changed,
+					switched: plan.moves.length
+				};
+			}
+		}
+		return { error: null, changed, switched: plan.moves.length };
 	}
 
 	/** Account templates the studio doesn't list yet. */
@@ -331,10 +365,7 @@ export class WaTemplateService {
 		try {
 			account = await this.account.list();
 		} catch (error) {
-			return vendorMessage(
-				error instanceof Error ? error : null,
-				'WhatsApp şablonları okunamadı. Biraz sonra tekrar deneyin.'
-			);
+			return vendorMessage(error instanceof Error ? error : null, READ_FAILED);
 		}
 		const local = await this.list();
 		return account
